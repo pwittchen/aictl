@@ -131,6 +131,18 @@ aictl --auto -M "What OS am I running?"
 aictl --usage -M "Hello"
 ```
 
+## Architecture
+
+See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:
+
+- Module structure
+- Startup flow
+- Agent loop
+- Tool execution dispatch
+- LLM provider abstraction
+- UI layer
+- End-to-end data flow
+
 ## Install
 
 ### Prerequisites
