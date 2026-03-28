@@ -5,7 +5,7 @@
 ## Usage
 
 ```bash
-aictl --provider <PROVIDER> --model <MODEL> [--message <MESSAGE>] [--auto] [--usage]
+aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--usage]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -14,31 +14,31 @@ Omit `--message` to enter interactive REPL mode with persistent conversation his
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--provider` | `-p` | LLM provider (`openai` or `anthropic`) |
-| `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) |
+| `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` env var |
+| `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` env var |
 | `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 | `--usage` | | Show token usage and estimated cost after each response |
 
-### API Keys
+CLI flags take priority over environment variables.
 
-API keys are loaded from a `.env` file in the current directory or from system environment variables. The `.env` file takes priority over system env vars.
+### Environment Variables
 
-| Provider | Environment Variable |
-|----------|---------------------|
-| `openai` | `OPENAI_API_KEY` |
-| `anthropic` | `ANTHROPIC_API_KEY` |
+Configuration is loaded from a `.env` file in the current directory or from system environment variables. The `.env` file takes priority over system env vars.
 
-The `web_search` tool requires a separate key:
-
-| Service | Environment Variable |
-|---------|---------------------|
-| Firecrawl | `FIRECRAWL_API_KEY` |
+| Variable | Description |
+|----------|-------------|
+| `AICTL_PROVIDER` | Default provider (`openai` or `anthropic`) |
+| `AICTL_MODEL` | Default model name |
+| `OPENAI_API_KEY` | API key for OpenAI |
+| `ANTHROPIC_API_KEY` | API key for Anthropic |
+| `FIRECRAWL_API_KEY` | API key for Firecrawl (`web_search` tool) |
 
 Create a `.env` file (see `.env.example`):
 
 ```
-OPENAI_API_KEY=sk-...
+AICTL_PROVIDER=anthropic
+AICTL_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_API_KEY=sk-ant-...
 FIRECRAWL_API_KEY=fc-...
 ```
@@ -74,25 +74,23 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 ### Examples
 
 ```bash
-# Using a .env file (recommended)
-echo 'OPENAI_API_KEY=sk-...' > .env
+# With defaults configured in .env, just run:
+aictl
+
+# Or send a single message:
+aictl -M "What is Rust?"
+
+# Override provider/model from the command line:
 aictl -p openai -m gpt-4o -M "What is Rust?"
 
-# Using environment variables
-export ANTHROPIC_API_KEY="sk-ant-..."
-aictl -p anthropic -m claude-sonnet-4-20250514 -M "What is Rust?"
-
 # Agent with tool calls (interactive confirmation)
-aictl -p anthropic -m claude-sonnet-4-20250514 -M "List files in the current directory"
+aictl -M "List files in the current directory"
 
 # Autonomous mode (no confirmation prompts)
-aictl -p anthropic -m claude-sonnet-4-20250514 --auto -M "What OS am I running?"
+aictl --auto -M "What OS am I running?"
 
 # Show token usage and cost
-aictl -p openai -m gpt-4o --usage -M "Hello"
-
-# Interactive REPL mode
-aictl -p anthropic -m claude-sonnet-4-20250514
+aictl --usage -M "Hello"
 ```
 
 ## Install

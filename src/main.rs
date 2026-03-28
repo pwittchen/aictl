@@ -16,13 +16,13 @@ enum Provider {
 #[derive(Parser)]
 #[command(name = "aictl", about = "CLI tool for interacting with LLM APIs")]
 struct Cli {
-    /// LLM provider to use
+    /// LLM provider to use (default: AICTL_PROVIDER env var)
     #[arg(short, long)]
-    provider: Provider,
+    provider: Option<Provider>,
 
-    /// Model to use (e.g. gpt-4o, claude-sonnet-4-20250514)
+    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: AICTL_MODEL env var)
     #[arg(short, long)]
-    model: String,
+    model: Option<String>,
 
     /// Message to send to the LLM (omit for interactive mode)
     #[arg(short = 'M', long)]
@@ -338,7 +338,29 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    let env_var = match cli.provider {
+    let provider = cli.provider.unwrap_or_else(|| {
+        match std::env::var("AICTL_PROVIDER").as_deref() {
+            Ok("openai") => Provider::Openai,
+            Ok("anthropic") => Provider::Anthropic,
+            Ok(other) => {
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai' or 'anthropic')");
+                std::process::exit(1);
+            }
+            Err(_) => {
+                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in .env / environment");
+                std::process::exit(1);
+            }
+        }
+    });
+
+    let model = cli.model.unwrap_or_else(|| {
+        std::env::var("AICTL_MODEL").unwrap_or_else(|_| {
+            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in .env / environment");
+            std::process::exit(1);
+        })
+    });
+
+    let env_var = match provider {
         Provider::Openai => "OPENAI_API_KEY",
         Provider::Anthropic => "ANTHROPIC_API_KEY",
     };
@@ -352,9 +374,9 @@ async fn main() {
 
     let result = match cli.message {
         Some(ref msg) => {
-            run_agent_single(&cli.provider, &api_key, &cli.model, msg, cli.auto, cli.usage).await
+            run_agent_single(&provider, &api_key, &model, msg, cli.auto, cli.usage).await
         }
-        None => run_interactive(&cli.provider, &api_key, &cli.model, cli.auto, cli.usage).await,
+        None => run_interactive(&provider, &api_key, &model, cli.auto, cli.usage).await,
     };
 
     if let Err(e) = result {
