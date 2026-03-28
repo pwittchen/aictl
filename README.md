@@ -43,7 +43,23 @@ aictl -p anthropic -m claude-sonnet-4-20250514 -M "What is Rust?"
 aictl -p openai -k "sk-..." -m gpt-4o -M "What is Rust?"
 ```
 
-### Build
+## Install
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) (edition 2024)
+
+### From source
+
+```bash
+git clone git@github.com:pwittchen/aictl.git
+cd aictl
+cargo install --path .
+```
+
+This installs the `aictl` binary to `~/.cargo/bin/`.
+
+### Build without installing
 
 ```bash
 cargo build --release
