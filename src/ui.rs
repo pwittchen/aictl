@@ -5,6 +5,7 @@ use std::time::Duration;
 use crossterm::style::{Attribute, Color, Stylize};
 use indicatif::{ProgressBar, ProgressStyle};
 
+use crate::llm::TokenUsage;
 use crate::tools::ToolCall;
 
 const PAD: &str = "  ";
@@ -68,6 +69,7 @@ pub trait AgentUI {
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool);
 }
 
 // ── PlainUI (single-shot / pipe-friendly) ────────────────────────────
@@ -101,6 +103,8 @@ impl AgentUI for PlainUI {
     fn show_error(&self, text: &str) {
         eprintln!("{text}");
     }
+
+    fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool) {}
 }
 
 // ── InteractiveUI (colors, spinner, markdown) ────────────────────────
@@ -255,5 +259,26 @@ impl AgentUI for InteractiveUI {
     fn show_error(&self, text: &str) {
         self.first_spinner.set(true);
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
+    }
+
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool) {
+        let total = usage.input_tokens + usage.output_tokens;
+        let cost_str = match usage.estimate_cost(model) {
+            Some(cost) => format!(" · ${cost:.4}"),
+            None => String::new(),
+        };
+        let text = format!(
+            "tokens: {} in / {} out / {} total{cost_str}",
+            usage.input_tokens, usage.output_tokens, total,
+        );
+        if final_answer {
+            eprintln!("{PAD}{}", text.with(Color::DarkGreen));
+        } else {
+            eprintln!(
+                "{PAD}{} {}",
+                "╭".with(Color::DarkGrey),
+                text.with(Color::DarkGreen),
+            );
+        }
     }
 }

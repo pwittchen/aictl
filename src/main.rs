@@ -100,23 +100,26 @@ async fn run_agent_turn(
     });
 
     for _ in 0..MAX_ITERATIONS {
-        ui.start_spinner("Thinking...");
+        ui.start_spinner("thinking...");
 
-        let response = match provider {
+        let result = match provider {
             Provider::Openai => llm::openai::call_openai(api_key, model, messages).await,
             Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, messages).await,
         };
 
         ui.stop_spinner();
 
-        let response = response?;
+        let (response, usage) = result?;
 
         messages.push(Message {
             role: Role::Assistant,
             content: response.clone(),
         });
 
-        let tool_call = match tools::parse_tool_call(&response) {
+        let tool_call = tools::parse_tool_call(&response);
+        ui.show_token_usage(&usage, model, tool_call.is_none());
+
+        let tool_call = match tool_call {
             Some(tc) => tc,
             None => {
                 // No tool call — this is the final answer
@@ -140,7 +143,7 @@ async fn run_agent_turn(
         };
 
         if approved {
-            ui.start_spinner("Running tool...");
+            ui.start_spinner("running tool...");
             let result = tools::execute_tool(&tool_call).await;
             ui.stop_spinner();
             ui.show_tool_result(&result);

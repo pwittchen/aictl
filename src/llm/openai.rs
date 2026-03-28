@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::TokenUsage;
 use crate::{Message, Role};
 
 #[derive(Serialize)]
@@ -17,6 +18,7 @@ struct OpenAiMessage {
 #[derive(Deserialize)]
 struct OpenAiResponse {
     choices: Vec<OpenAiChoice>,
+    usage: Option<OpenAiUsage>,
 }
 
 #[derive(Deserialize)]
@@ -24,11 +26,17 @@ struct OpenAiChoice {
     message: OpenAiMessage,
 }
 
+#[derive(Deserialize)]
+struct OpenAiUsage {
+    prompt_tokens: u64,
+    completion_tokens: u64,
+}
+
 pub async fn call_openai(
     api_key: &str,
     model: &str,
     messages: &[Message],
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
 
     let oai_messages: Vec<OpenAiMessage> = messages
@@ -63,9 +71,17 @@ pub async fn call_openai(
     }
 
     let parsed: OpenAiResponse = serde_json::from_str(&text)?;
-    parsed
+    let content = parsed
         .choices
         .first()
         .map(|c| c.message.content.clone())
-        .ok_or_else(|| "No response from OpenAI".into())
+        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from OpenAI".into() })?;
+    let usage = parsed
+        .usage
+        .map(|u| TokenUsage {
+            input_tokens: u.prompt_tokens,
+            output_tokens: u.completion_tokens,
+        })
+        .unwrap_or_default();
+    Ok((content, usage))
 }

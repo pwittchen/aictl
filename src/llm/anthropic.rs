@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::TokenUsage;
 use crate::{Message, Role};
 
 #[derive(Serialize)]
@@ -20,6 +21,7 @@ struct AnthropicMessage {
 #[derive(Deserialize)]
 struct AnthropicResponse {
     content: Vec<AnthropicContent>,
+    usage: Option<AnthropicUsage>,
 }
 
 #[derive(Deserialize)]
@@ -27,11 +29,17 @@ struct AnthropicContent {
     text: String,
 }
 
+#[derive(Deserialize)]
+struct AnthropicUsage {
+    input_tokens: u64,
+    output_tokens: u64,
+}
+
 pub async fn call_anthropic(
     api_key: &str,
     model: &str,
     messages: &[Message],
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
 
     let mut system_text: Option<String> = None;
@@ -81,9 +89,17 @@ pub async fn call_anthropic(
     }
 
     let parsed: AnthropicResponse = serde_json::from_str(&text)?;
-    parsed
+    let content = parsed
         .content
         .first()
         .map(|c| c.text.clone())
-        .ok_or_else(|| "No response from Anthropic".into())
+        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Anthropic".into() })?;
+    let usage = parsed
+        .usage
+        .map(|u| TokenUsage {
+            input_tokens: u.input_tokens,
+            output_tokens: u.output_tokens,
+        })
+        .unwrap_or_default();
+    Ok((content, usage))
 }
