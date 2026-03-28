@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::io::Write;
 use std::time::Duration;
 
@@ -5,6 +6,8 @@ use crossterm::style::{Attribute, Color, Stylize};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::tools::ToolCall;
+
+const PAD: &str = "  ";
 
 pub trait AgentUI {
     fn start_spinner(&self, msg: &str);
@@ -53,60 +56,67 @@ impl AgentUI for PlainUI {
 // --- InteractiveUI: colored output, spinner, markdown rendering ---
 
 pub struct InteractiveUI {
-    spinner: ProgressBar,
+    spinner: RefCell<ProgressBar>,
 }
 
 impl InteractiveUI {
     pub fn new() -> Self {
-        let spinner = ProgressBar::hidden();
+        let spinner = RefCell::new(ProgressBar::hidden());
         Self { spinner }
     }
 
-    pub fn render_markdown(text: &str) {
-        let skin = termimad::MadSkin::default();
-        // Print with a leading blank line for visual separation
+    pub fn print_welcome() {
+        let bar = "─".repeat(40);
+        eprintln!("{}", bar.as_str().with(Color::DarkGrey));
+        eprintln!(
+            "{}{}",
+            PAD,
+            "aictl".with(Color::Cyan).attribute(Attribute::Bold)
+        );
+        eprintln!(
+            "{}{}",
+            PAD,
+            "Type a message, \"exit\" or Ctrl+D to quit".with(Color::DarkGrey)
+        );
+        eprintln!("{}", bar.as_str().with(Color::DarkGrey));
         eprintln!();
-        skin.print_text(text);
     }
 
-    pub fn print_welcome() {
-        eprintln!(
-            "{}",
-            "aictl interactive mode"
-                .with(Color::Cyan)
-                .attribute(Attribute::Bold)
-        );
-        eprintln!(
-            "{}",
-            "Type your message, or \"exit\" / Ctrl+D to quit.".with(Color::DarkGrey)
-        );
-        eprintln!();
+    fn padded_lines(text: &str, prefix: &str) {
+        for line in text.lines() {
+            eprintln!("{prefix}{line}");
+        }
     }
 }
 
 impl AgentUI for InteractiveUI {
     fn start_spinner(&self, msg: &str) {
-        self.spinner.set_style(
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
             ProgressStyle::with_template("{spinner} {msg}")
                 .unwrap()
                 .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ "),
         );
-        self.spinner
-            .set_message(msg.to_string().with(Color::DarkGrey).to_string());
-        self.spinner.enable_steady_tick(Duration::from_millis(80));
+        pb.set_message(format!("{PAD}{}", msg.with(Color::DarkGrey)));
+        pb.enable_steady_tick(Duration::from_millis(80));
+        *self.spinner.borrow_mut() = pb;
     }
 
     fn stop_spinner(&self) {
-        self.spinner.finish_and_clear();
+        self.spinner.borrow().finish_and_clear();
     }
 
     fn show_reasoning(&self, text: &str) {
-        eprintln!("{}", text.with(Color::DarkGrey));
+        let prefix = format!("{PAD}{} ", "│".with(Color::DarkGrey));
+        for line in text.lines() {
+            eprintln!("{prefix}{}", line.with(Color::DarkGrey));
+        }
     }
 
     fn show_auto_tool(&self, tool_call: &ToolCall) {
         eprintln!(
-            "{} {} {}",
+            "{PAD}{} {} {} {}",
+            "│".with(Color::DarkGrey),
             "[auto]".with(Color::Yellow).attribute(Attribute::Bold),
             tool_call.name.as_str().with(Color::Cyan),
             tool_call.input.as_str().with(Color::DarkGrey),
@@ -114,23 +124,27 @@ impl AgentUI for InteractiveUI {
     }
 
     fn show_tool_result(&self, result: &str) {
-        // Truncate long results in interactive mode
         let display = if result.len() > 2000 {
             format!("{}...(truncated)", &result[..2000])
         } else {
             result.to_string()
         };
-        eprintln!("{}", display.with(Color::DarkGrey));
+        let prefix = format!("{PAD}{} ", "│".with(Color::DarkGrey));
+        for line in display.lines() {
+            eprintln!("{prefix}{}", line.with(Color::DarkGrey));
+        }
     }
 
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool {
-        eprint!(
-            "{} [{}]: {}\n{} ",
+        let pipe = "│".with(Color::DarkGrey);
+        eprintln!(
+            "{PAD}{} {} [{}]: {}",
+            pipe,
             "Tool call".with(Color::Yellow),
             tool_call.name.as_str().with(Color::Cyan),
             tool_call.input.as_str().with(Color::DarkGrey),
-            "Allow? [y/N]".with(Color::Yellow),
         );
+        eprint!("{PAD}{} {} ", pipe, "Allow? [y/N]".with(Color::Yellow),);
         std::io::stderr().flush().ok();
         let mut input = String::new();
         if std::io::stdin().read_line(&mut input).is_err() {
@@ -140,10 +154,15 @@ impl AgentUI for InteractiveUI {
     }
 
     fn show_answer(&self, text: &str) {
-        Self::render_markdown(text);
+        let skin = termimad::MadSkin::default();
+        let rendered = skin.term_text(text);
+        let rendered = format!("{rendered}");
+        eprintln!();
+        Self::padded_lines(&rendered, PAD);
+        eprintln!();
     }
 
     fn show_error(&self, text: &str) {
-        eprintln!("{}", text.with(Color::Red).attribute(Attribute::Bold));
+        eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
     }
 }

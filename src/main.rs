@@ -196,7 +196,7 @@ async fn run_interactive(
     model: &str,
     auto: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use crossterm::style::{Color, Stylize};
+    use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
 
     let ui = InteractiveUI::new();
@@ -217,7 +217,7 @@ async fn run_interactive(
         let _ = rl.load_history(&history_path);
     }
 
-    let prompt = format!("{} ", "you>".with(Color::Cyan));
+    let prompt = format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold));
 
     loop {
         let line = rl.readline(&prompt);
