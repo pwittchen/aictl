@@ -4,7 +4,7 @@
 
 ## Issues
 
-[ISSUES.md](issues.md)
+[ISSUES.md](ISSUES.md)
 
 ## Usage
 
