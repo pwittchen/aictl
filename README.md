@@ -2,10 +2,6 @@
 
 [WORK IN PROGRESS] 🚧 experimental general purpose AI agent for terminal
 
-## Issues
-
-[ISSUES.md](ISSUES.md)
-
 ## Usage
 
 ```bash
