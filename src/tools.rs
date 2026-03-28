@@ -18,6 +18,7 @@ Available tools:
 - write_file: Write content to a file. First line is the file path, remaining lines are the content.
 - list_directory: List files and directories at a path. Pass the directory path as input. Returns entries with [FILE] or [DIR] prefixes.
 - search_files: Search file contents with a pattern. First line is the search pattern (grep basic regex), second line (optional) is the directory to search in (defaults to `.`). Returns matching lines with file paths and line numbers.
+- web_search: Search the web for information. Pass a search query as input. Returns titles, URLs, and descriptions of matching results.
 - edit_file: Apply a targeted find-and-replace edit to a file. Format:
   path/to/file
   <<<
@@ -208,6 +209,69 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
             match tokio::fs::write(path, &updated).await {
                 Ok(()) => format!("Edited {path} (replaced 1 occurrence)"),
                 Err(e) => format!("Error writing file: {e}"),
+            }
+        }
+        "web_search" => {
+            let api_key = match std::env::var("FIRECRAWL_API_KEY") {
+                Ok(key) => key,
+                Err(_) => {
+                    return "Error: FIRECRAWL_API_KEY environment variable not set".to_string()
+                }
+            };
+            let query = tool_call.input.trim();
+            let client = reqwest::Client::new();
+            let body = serde_json::json!({
+                "query": query,
+                "limit": 5
+            });
+            match client
+                .post("https://api.firecrawl.dev/v2/search")
+                .header("Authorization", format!("Bearer {api_key}"))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        return format!("Error: Firecrawl API returned status {}", resp.status());
+                    }
+                    match resp.json::<serde_json::Value>().await {
+                        Ok(json) => {
+                            let results = json["data"]
+                                .as_array()
+                                .or_else(|| json["data"]["web"].as_array());
+                            match results {
+                                Some(items) if !items.is_empty() => {
+                                    let mut output = String::new();
+                                    for (i, item) in items.iter().enumerate() {
+                                        let title =
+                                            item["title"].as_str().unwrap_or("(no title)");
+                                        let url = item["url"].as_str().unwrap_or("(no url)");
+                                        let desc = item["description"]
+                                            .as_str()
+                                            .or_else(|| item["snippet"].as_str())
+                                            .unwrap_or("(no description)");
+                                        if i > 0 {
+                                            output.push('\n');
+                                        }
+                                        output.push_str(&format!(
+                                            "[{}] {}\nURL: {}\n{}\n",
+                                            i + 1,
+                                            title,
+                                            url,
+                                            desc
+                                        ));
+                                    }
+                                    output
+                                }
+                                _ => "No results found.".to_string(),
+                            }
+                        }
+                        Err(e) => format!("Error parsing Firecrawl response: {e}"),
+                    }
+                }
+                Err(e) => format!("Error calling Firecrawl API: {e}"),
             }
         }
         _ => format!("Unknown tool: {}", tool_call.name),
