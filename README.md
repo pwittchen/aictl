@@ -43,6 +43,41 @@ ANTHROPIC_API_KEY=sk-ant-...
 FIRECRAWL_API_KEY=fc-...
 ```
 
+### Providers
+
+aictl supports two LLM providers:
+
+#### OpenAI
+
+Requires `OPENAI_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `gpt-4.1-nano` | $0.10 | $0.40 |
+| `gpt-4.1-mini` | $0.40 | $1.60 |
+| `gpt-4.1` | $2.00 | $8.00 |
+| `gpt-4o-mini` | $0.15 | $0.60 |
+| `gpt-4o` | $2.50 | $10.00 |
+| `gpt-5-mini` | $0.25 | $2.00 |
+| `gpt-5` | $1.25 | $10.00 |
+| `o4-mini` | $1.10 | $4.40 |
+| `o3` | $2.00 | $8.00 |
+| `o1` | $15.00 | $60.00 |
+
+#### Anthropic
+
+Requires `ANTHROPIC_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `claude-haiku-*` (3.x) | $0.25 | $1.25 |
+| `claude-haiku-4-*` | $1.00 | $5.00 |
+| `claude-sonnet-*` | $3.00 | $15.00 |
+| `claude-opus-4-5-*` / `claude-opus-4-6-*` | $5.00 | $25.00 |
+| `claude-opus-4-*` (older) | $15.00 | $75.00 |
+
+Any model string can be passed via `--model`; cost estimation uses pattern matching on the model name and falls back to zero if unrecognized.
+
 ### Agent Loop & Tool Calling
 
 aictl runs an agent loop: the LLM can invoke tools, see their results, and continue reasoning until it produces a final answer.
