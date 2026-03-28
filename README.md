@@ -95,6 +95,9 @@ Available tools:
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
 | `web_search` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
+| `glob` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
+| `web_fetch` | Fetch a URL and return readable text content (HTML tags stripped) |
+| `think` | Scratchpad for reasoning — input is returned unchanged |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 

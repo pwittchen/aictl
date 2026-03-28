@@ -26,6 +26,9 @@ Available tools:
   ===
   replacement text
   >>>
+- glob: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
+- web_fetch: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via web_search.
+- think: A scratchpad for thinking through a problem. Input is returned unchanged. Use this to reason step-by-step before acting.
 
 Rules:
 - Use at most one tool call per response.
@@ -274,6 +277,104 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error calling Firecrawl API: {e}"),
             }
         }
+        "glob" => {
+            let input = tool_call.input.trim();
+            let (pattern, base_dir) = match input.split_once('\n') {
+                Some((p, d)) => (p.trim(), d.trim()),
+                None => (input, "."),
+            };
+            let base_dir = if base_dir.is_empty() { "." } else { base_dir };
+            let full_pattern = if std::path::Path::new(pattern).is_absolute() {
+                pattern.to_string()
+            } else {
+                format!("{base_dir}/{pattern}")
+            };
+            match glob::glob(&full_pattern) {
+                Ok(paths) => {
+                    let mut result = String::new();
+                    for entry in paths {
+                        match entry {
+                            Ok(path) => {
+                                if !result.is_empty() {
+                                    result.push('\n');
+                                }
+                                result.push_str(&path.to_string_lossy());
+                            }
+                            Err(e) => {
+                                if !result.is_empty() {
+                                    result.push('\n');
+                                }
+                                result.push_str(&format!("(error: {e})"));
+                            }
+                        }
+                        if result.len() > 10_000 {
+                            result.truncate(10_000);
+                            result.push_str("\n... (truncated)");
+                            break;
+                        }
+                    }
+                    if result.is_empty() {
+                        "No matches found.".to_string()
+                    } else {
+                        result
+                    }
+                }
+                Err(e) => format!("Error parsing glob pattern: {e}"),
+            }
+        }
+        "web_fetch" => {
+            let url = tool_call.input.trim();
+            let client = reqwest::Client::new();
+            match client.get(url).send().await {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        return format!("Error: HTTP status {}", resp.status());
+                    }
+                    match resp.text().await {
+                        Ok(body) => {
+                            // Strip HTML tags
+                            let mut result = String::with_capacity(body.len());
+                            let mut in_tag = false;
+                            for ch in body.chars() {
+                                if ch == '<' {
+                                    in_tag = true;
+                                } else if ch == '>' {
+                                    in_tag = false;
+                                } else if !in_tag {
+                                    result.push(ch);
+                                }
+                            }
+                            // Collapse whitespace runs
+                            let mut collapsed = String::with_capacity(result.len());
+                            let mut prev_ws = false;
+                            for ch in result.chars() {
+                                if ch.is_whitespace() {
+                                    if !prev_ws {
+                                        collapsed.push(if ch == '\n' { '\n' } else { ' ' });
+                                    }
+                                    prev_ws = true;
+                                } else {
+                                    collapsed.push(ch);
+                                    prev_ws = false;
+                                }
+                            }
+                            let mut result = collapsed.trim().to_string();
+                            if result.is_empty() {
+                                result = "(empty page)".to_string();
+                            }
+                            if result.len() > 10_000 {
+                                result.truncate(10_000);
+                                result.push_str("\n... (truncated)");
+                            }
+                            result
+                        }
+                        Err(e) => format!("Error reading response body: {e}"),
+                    }
+                }
+                Err(e) => format!("Error fetching URL: {e}"),
+            }
+        }
+        "think" => tool_call.input.clone(),
         _ => format!("Unknown tool: {}", tool_call.name),
     }
 }
