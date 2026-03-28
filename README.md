@@ -34,7 +34,15 @@ If both are set, the `--api-key` flag takes precedence.
 
 aictl runs an agent loop: the LLM can invoke tools, see their results, and continue reasoning until it produces a final answer.
 
-**Shell tool** — the LLM can execute shell commands on your system. By default, every tool call requires confirmation (y/N prompt). Use `--auto` to skip confirmation and run autonomously.
+By default, every tool call requires confirmation (y/N prompt). Use `--auto` to skip confirmation and run autonomously.
+
+Available tools:
+
+| Tool | Description |
+|------|-------------|
+| `shell` | Execute a shell command via `sh -c` |
+| `read_file` | Read the contents of a file |
+| `write_file` | Write content to a file (first line = path, rest = content) |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 

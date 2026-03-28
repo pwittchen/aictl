@@ -62,6 +62,7 @@ command here
 Available tools:
 - shell: Execute a shell command. The command runs via `sh -c`.
 - read_file: Read the contents of a file. Pass the file path as the input.
+- write_file: Write content to a file. First line is the file path, remaining lines are the content.
 
 Rules:
 - Use at most one tool call per response.
@@ -188,6 +189,22 @@ async fn execute_tool(tool_call: &ToolCall) -> String {
                     contents
                 }
                 Err(e) => format!("Error reading file: {e}"),
+            }
+        }
+        "write_file" => {
+            let input = tool_call.input.trim();
+            match input.split_once('\n') {
+                Some((path, content)) => {
+                    let path = path.trim();
+                    match tokio::fs::write(path, content).await {
+                        Ok(()) => format!("Wrote {} bytes to {path}", content.len()),
+                        Err(e) => format!("Error writing file: {e}"),
+                    }
+                }
+                None => {
+                    "Invalid input: expected first line as file path, remaining lines as content"
+                        .to_string()
+                }
             }
         }
         _ => format!("Unknown tool: {}", tool_call.name),
