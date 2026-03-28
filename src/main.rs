@@ -88,6 +88,30 @@ pub struct Message {
 
 const MAX_ITERATIONS: usize = 20;
 
+const SPINNER_PHRASES: &[&str] = &[
+    "consulting the mass of wires...",
+    "asking the silicon oracle...",
+    "shaking the magic 8-ball...",
+    "reticulating splines...",
+    "bribing the electrons...",
+    "poking the neural hamsters...",
+    "unfolding the paper brain...",
+    "warming up the thought lasers...",
+    "juggling tensors...",
+    "feeding the token monster...",
+    "polishing the crystal CPU...",
+    "summoning the context window...",
+    "defrosting the weights...",
+    "herding stochastic parrots...",
+    "spinning up the vibe engine...",
+    "negotiating with gradient descent...",
+    "tuning the hallucination dial...",
+    "charging the inference hamster wheel...",
+    "compressing the universe into tokens...",
+    "asking a very expensive rock to think...",
+    "thinking...",
+];
+
 /// Run one turn of the agent loop: send user_message, handle tool calls,
 /// return the final text answer.
 #[allow(clippy::too_many_arguments)]
@@ -111,7 +135,12 @@ async fn run_agent_turn(
     let mut tool_calls = 0u32;
 
     for _ in 0..MAX_ITERATIONS {
-        ui.start_spinner("thinking...");
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos() as usize;
+        let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
+        ui.start_spinner(phrase);
 
         let result = match provider {
             Provider::Openai => llm::openai::call_openai(api_key, model, messages).await,
