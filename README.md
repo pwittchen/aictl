@@ -17,21 +17,25 @@ aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE> [--auto]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--provider` | `-p` | LLM provider (`openai` or `anthropic`) |
-| `--api-key` | `-k` | API key (optional, falls back to env var) |
 | `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) |
 | `--message` | `-M` | Message to send to the LLM |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 
 ### API Keys
 
-The API key can be provided via the `--api-key` flag or through environment variables:
+API keys are loaded from a `.env` file in the current directory or from system environment variables. The `.env` file takes priority over system env vars.
 
 | Provider | Environment Variable |
 |----------|---------------------|
 | `openai` | `OPENAI_API_KEY` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
-If both are set, the `--api-key` flag takes precedence.
+Create a `.env` file (see `.env.example`):
+
+```
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
 ### Agent Loop & Tool Calling
 
@@ -63,15 +67,13 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 ### Examples
 
 ```bash
-# Using environment variables
-export OPENAI_API_KEY="sk-..."
+# Using a .env file (recommended)
+echo 'OPENAI_API_KEY=sk-...' > .env
 aictl -p openai -m gpt-4o -M "What is Rust?"
 
+# Using environment variables
 export ANTHROPIC_API_KEY="sk-ant-..."
 aictl -p anthropic -m claude-sonnet-4-20250514 -M "What is Rust?"
-
-# Using the --api-key flag directly
-aictl -p openai -k "sk-..." -m gpt-4o -M "What is Rust?"
 
 # Agent with tool calls (interactive confirmation)
 aictl -p anthropic -m claude-sonnet-4-20250514 -M "List files in the current directory"

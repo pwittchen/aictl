@@ -21,6 +21,9 @@ target
 #.idea/
 
 
+# Environment variables
+.env
+
 # Added by cargo
 
 /target

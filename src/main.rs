@@ -16,10 +16,6 @@ struct Cli {
     #[arg(short, long)]
     provider: Provider,
 
-    /// API key for the provider (falls back to OPENAI_API_KEY or ANTHROPIC_API_KEY)
-    #[arg(short = 'k', long)]
-    api_key: Option<String>,
-
     /// Model to use (e.g. gpt-4o, claude-sonnet-4-20250514)
     #[arg(short, long)]
     model: String,
@@ -31,6 +27,38 @@ struct Cli {
     /// Run in autonomous mode (skip tool confirmation prompts)
     #[arg(long)]
     auto: bool,
+}
+
+fn load_env_file() {
+    let contents = match std::fs::read_to_string(".env") {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let line = line.strip_prefix("export ").unwrap_or(line);
+
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+
+        let key = key.trim();
+        let mut value = value.trim();
+
+        if (value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\''))
+        {
+            value = &value[1..value.len() - 1];
+        }
+
+        // SAFETY: called early in main() before any other threads are spawned.
+        unsafe { std::env::set_var(key, value) };
+    }
 }
 
 // --- Provider-agnostic types ---
@@ -130,6 +158,8 @@ async fn run_agent(
 
 #[tokio::main]
 async fn main() {
+    load_env_file();
+
     let cli = Cli::parse();
 
     let env_var = match cli.provider {
@@ -137,11 +167,11 @@ async fn main() {
         Provider::Anthropic => "ANTHROPIC_API_KEY",
     };
 
-    let api_key = cli.api_key.unwrap_or_else(|| {
-        std::env::var(env_var).unwrap_or_else(|_| {
-            eprintln!("Error: API key not provided. Pass --api-key or set {env_var}");
-            std::process::exit(1);
-        })
+    let api_key = std::env::var(env_var).unwrap_or_else(|_| {
+        eprintln!(
+            "Error: API key not provided. Set {env_var} in .env or as an environment variable"
+        );
+        std::process::exit(1);
     });
 
     if let Err(e) = run_agent(&cli.provider, &api_key, &cli.model, &cli.message, cli.auto).await {
