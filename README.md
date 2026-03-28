@@ -46,6 +46,9 @@ Available tools:
 | `shell` | Execute a shell command via `sh -c` |
 | `read_file` | Read the contents of a file |
 | `write_file` | Write content to a file (first line = path, rest = content) |
+| `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
+| `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
+| `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 
