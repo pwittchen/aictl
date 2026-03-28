@@ -1,4 +1,4 @@
-# aictl
+# aictl 🤖
 
 experimental general purpose AI agent for terminal
 
