@@ -9,8 +9,10 @@
 ## Usage
 
 ```bash
-aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE> [--auto]
+aictl --provider <PROVIDER> --model <MODEL> [--message <MESSAGE>] [--auto] [--usage]
 ```
+
+Omit `--message` to enter interactive REPL mode with persistent conversation history.
 
 ### Parameters
 
@@ -18,8 +20,9 @@ aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE> [--auto]
 |------|-------|-------------|
 | `--provider` | `-p` | LLM provider (`openai` or `anthropic`) |
 | `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) |
-| `--message` | `-M` | Message to send to the LLM |
+| `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
+| `--usage` | | Show token usage and estimated cost after each response |
 
 ### API Keys
 
@@ -30,11 +33,18 @@ API keys are loaded from a `.env` file in the current directory or from system e
 | `openai` | `OPENAI_API_KEY` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
+The `web_search` tool requires a separate key:
+
+| Service | Environment Variable |
+|---------|---------------------|
+| Firecrawl | `FIRECRAWL_API_KEY` |
+
 Create a `.env` file (see `.env.example`):
 
 ```
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
+FIRECRAWL_API_KEY=fc-...
 ```
 
 ### Agent Loop & Tool Calling
@@ -53,6 +63,7 @@ Available tools:
 | `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
+| `web_search` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 
@@ -80,6 +91,12 @@ aictl -p anthropic -m claude-sonnet-4-20250514 -M "List files in the current dir
 
 # Autonomous mode (no confirmation prompts)
 aictl -p anthropic -m claude-sonnet-4-20250514 --auto -M "What OS am I running?"
+
+# Show token usage and cost
+aictl -p openai -m gpt-4o --usage -M "Hello"
+
+# Interactive REPL mode
+aictl -p anthropic -m claude-sonnet-4-20250514
 ```
 
 ## Install
