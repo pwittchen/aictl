@@ -14,9 +14,9 @@ struct Cli {
     #[arg(short, long)]
     provider: Provider,
 
-    /// API key for the provider
+    /// API key for the provider (falls back to OPENAI_API_KEY or ANTHROPIC_API_KEY)
     #[arg(short = 'k', long)]
-    api_key: String,
+    api_key: Option<String>,
 
     /// Model to use (e.g. gpt-4o, claude-sonnet-4-20250514)
     #[arg(short, long)]
@@ -149,9 +149,21 @@ async fn call_anthropic(api_key: &str, model: &str, message: &str) -> Result<Str
 async fn main() {
     let cli = Cli::parse();
 
+    let env_var = match cli.provider {
+        Provider::Openai => "OPENAI_API_KEY",
+        Provider::Anthropic => "ANTHROPIC_API_KEY",
+    };
+
+    let api_key = cli.api_key.unwrap_or_else(|| {
+        std::env::var(env_var).unwrap_or_else(|_| {
+            eprintln!("Error: API key not provided. Pass --api-key or set {env_var}");
+            std::process::exit(1);
+        })
+    });
+
     let result = match cli.provider {
-        Provider::Openai => call_openai(&cli.api_key, &cli.model, &cli.message).await,
-        Provider::Anthropic => call_anthropic(&cli.api_key, &cli.model, &cli.message).await,
+        Provider::Openai => call_openai(&api_key, &cli.model, &cli.message).await,
+        Provider::Anthropic => call_anthropic(&api_key, &cli.model, &cli.message).await,
     };
 
     match result {
