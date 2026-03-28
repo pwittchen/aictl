@@ -6,7 +6,7 @@ goal of this project is to create an experimental AI agent to test integrations 
 ## Usage
 
 ```bash
-aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE>
+aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE> [--auto]
 ```
 
 ### Parameters
@@ -17,6 +17,7 @@ aictl --provider <PROVIDER> --model <MODEL> --message <MESSAGE>
 | `--api-key` | `-k` | API key (optional, falls back to env var) |
 | `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`) |
 | `--message` | `-M` | Message to send to the LLM |
+| `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 
 ### API Keys
 
@@ -28,6 +29,22 @@ The API key can be provided via the `--api-key` flag or through environment vari
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
 If both are set, the `--api-key` flag takes precedence.
+
+### Agent Loop & Tool Calling
+
+aictl runs an agent loop: the LLM can invoke tools, see their results, and continue reasoning until it produces a final answer.
+
+**Shell tool** — the LLM can execute shell commands on your system. By default, every tool call requires confirmation (y/N prompt). Use `--auto` to skip confirmation and run autonomously.
+
+The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
+
+```xml
+<tool name="shell">
+ls -la /tmp
+</tool>
+```
+
+The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr; the final answer goes to stdout.
 
 ### Examples
 
@@ -41,6 +58,12 @@ aictl -p anthropic -m claude-sonnet-4-20250514 -M "What is Rust?"
 
 # Using the --api-key flag directly
 aictl -p openai -k "sk-..." -m gpt-4o -M "What is Rust?"
+
+# Agent with tool calls (interactive confirmation)
+aictl -p anthropic -m claude-sonnet-4-20250514 -M "List files in the current directory"
+
+# Autonomous mode (no confirmation prompts)
+aictl -p anthropic -m claude-sonnet-4-20250514 --auto -M "What OS am I running?"
 ```
 
 ## Install
