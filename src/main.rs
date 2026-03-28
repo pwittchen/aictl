@@ -256,7 +256,8 @@ async fn run_interactive(
     use rustyline::error::ReadlineError;
 
     let ui = InteractiveUI::new();
-    InteractiveUI::print_welcome();
+    let provider_name = format!("{:?}", provider).to_lowercase();
+    InteractiveUI::print_welcome(&provider_name, model);
 
     let mut messages = vec![Message {
         role: Role::System,

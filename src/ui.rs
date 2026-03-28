@@ -135,13 +135,19 @@ impl InteractiveUI {
         }
     }
 
-    pub fn print_welcome() {
-        let rule = "─".repeat(banner_width());
+    pub fn print_welcome(provider: &str, model: &str) {
+        let provider_line = format!("{provider} · {model}");
+        let width = WELCOME_TEXT.len().max(provider_line.len()) + 4;
+        let rule = "─".repeat(width);
         eprintln!("{}", rule.as_str().with(Color::DarkGrey));
         eprintln!(
             "{PAD}{} {}",
             "aictl".with(Color::Cyan).attribute(Attribute::Bold),
             "— AI agent in your terminal".with(Color::DarkGrey),
+        );
+        eprintln!(
+            "{PAD}{}",
+            provider_line.as_str().with(Color::DarkGrey),
         );
         eprintln!("{PAD}{}", WELCOME_TEXT.with(Color::DarkGrey));
         eprintln!("{}", rule.as_str().with(Color::DarkGrey));
