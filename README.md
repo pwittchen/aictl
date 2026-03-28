@@ -1,6 +1,6 @@
 # aictl
 
-[WORK IN PROGRESS] 🚧 experimental general purpose AI agent for terminal
+experimental general purpose AI agent for terminal
 
 ## Usage
 
