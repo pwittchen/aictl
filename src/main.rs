@@ -4,6 +4,7 @@ mod ui;
 
 use clap::{Parser, ValueEnum};
 
+use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -93,11 +94,15 @@ async fn run_agent_turn(
     user_message: &str,
     auto: bool,
     ui: &dyn AgentUI,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage, u32, u32), Box<dyn std::error::Error>> {
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),
     });
+
+    let mut total_usage = TokenUsage::default();
+    let mut llm_calls = 0u32;
+    let mut tool_calls = 0u32;
 
     for _ in 0..MAX_ITERATIONS {
         ui.start_spinner("thinking...");
@@ -111,6 +116,10 @@ async fn run_agent_turn(
 
         let (response, usage) = result?;
 
+        total_usage.input_tokens += usage.input_tokens;
+        total_usage.output_tokens += usage.output_tokens;
+        llm_calls += 1;
+
         messages.push(Message {
             role: Role::Assistant,
             content: response.clone(),
@@ -123,7 +132,7 @@ async fn run_agent_turn(
             Some(tc) => tc,
             None => {
                 // No tool call — this is the final answer
-                return Ok(response);
+                return Ok((response, total_usage, llm_calls, tool_calls));
             }
         };
 
@@ -143,6 +152,7 @@ async fn run_agent_turn(
         };
 
         if approved {
+            tool_calls += 1;
             ui.start_spinner("running tool...");
             let result = tools::execute_tool(&tool_call).await;
             ui.stop_spinner();
@@ -178,7 +188,7 @@ async fn run_agent_single(
     }];
 
     let ui = PlainUI;
-    let answer = run_agent_turn(
+    let (answer, usage, llm_calls, tool_calls) = run_agent_turn(
         provider,
         api_key,
         model,
@@ -189,6 +199,7 @@ async fn run_agent_single(
     )
     .await?;
     ui.show_answer(&answer);
+    ui.show_summary(&usage, model, llm_calls, tool_calls);
     Ok(())
 }
 
@@ -238,7 +249,10 @@ async fn run_interactive(
                 match run_agent_turn(provider, api_key, model, &mut messages, &input, auto, &ui)
                     .await
                 {
-                    Ok(answer) => ui.show_answer(&answer),
+                    Ok((answer, usage, llm_calls, tool_calls)) => {
+                        ui.show_answer(&answer);
+                        ui.show_summary(&usage, model, llm_calls, tool_calls);
+                    }
                     Err(e) => ui.show_error(&format!("Error: {e}")),
                 }
             }

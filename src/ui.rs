@@ -70,6 +70,7 @@ pub trait AgentUI {
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
     fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool);
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32);
 }
 
 // ── PlainUI (single-shot / pipe-friendly) ────────────────────────────
@@ -105,6 +106,18 @@ impl AgentUI for PlainUI {
     }
 
     fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool) {}
+
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32) {
+        let total = usage.input_tokens + usage.output_tokens;
+        let cost_str = match usage.estimate_cost(model) {
+            Some(cost) => format!("  cost: ${cost:.4}"),
+            None => String::new(),
+        };
+        eprintln!(
+            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({} in / {} out){cost_str}\n",
+            usage.input_tokens, usage.output_tokens,
+        );
+    }
 }
 
 // ── InteractiveUI (colors, spinner, markdown) ────────────────────────
@@ -272,13 +285,33 @@ impl AgentUI for InteractiveUI {
             usage.input_tokens, usage.output_tokens, total,
         );
         if final_answer {
-            eprintln!("{PAD}{}", text.with(Color::DarkGreen));
+            eprintln!(
+                "{PAD}{}",
+                text.with(Color::DarkGreen).attribute(Attribute::Dim)
+            );
         } else {
             eprintln!(
                 "{PAD}{} {}",
                 "╭".with(Color::DarkGrey),
-                text.with(Color::DarkGreen),
+                text.with(Color::DarkGreen).attribute(Attribute::Dim),
             );
         }
+    }
+
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32) {
+        let total = usage.input_tokens + usage.output_tokens;
+        let cost_str = match usage.estimate_cost(model) {
+            Some(cost) => format!(" · ${cost:.4}"),
+            None => String::new(),
+        };
+        let text = format!(
+            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {} in / {} out / {} total{cost_str}",
+            usage.input_tokens, usage.output_tokens, total,
+        );
+        eprintln!(
+            "{PAD}{}",
+            text.with(Color::DarkGreen).attribute(Attribute::Dim)
+        );
+        eprintln!();
     }
 }
