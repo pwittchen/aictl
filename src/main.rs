@@ -1,7 +1,10 @@
 mod llm;
 mod tools;
+mod ui;
 
 use clap::{Parser, ValueEnum};
+
+use ui::{AgentUI, InteractiveUI, PlainUI};
 
 #[derive(Debug, Clone, ValueEnum)]
 enum Provider {
@@ -20,9 +23,9 @@ struct Cli {
     #[arg(short, long)]
     model: String,
 
-    /// Message to send to the LLM
+    /// Message to send to the LLM (omit for interactive mode)
     #[arg(short = 'M', long)]
-    message: String,
+    message: Option<String>,
 
     /// Run in autonomous mode (skip tool confirmation prompts)
     #[arg(long)]
@@ -78,33 +81,35 @@ pub struct Message {
 
 // --- Agent loop ---
 
-async fn run_agent(
+const MAX_ITERATIONS: usize = 20;
+
+/// Run one turn of the agent loop: send user_message, handle tool calls,
+/// return the final text answer.
+async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
     model: &str,
+    messages: &mut Vec<Message>,
     user_message: &str,
     auto: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut messages = vec![
-        Message {
-            role: Role::System,
-            content: tools::SYSTEM_PROMPT.to_string(),
-        },
-        Message {
-            role: Role::User,
-            content: user_message.to_string(),
-        },
-    ];
-
-    const MAX_ITERATIONS: usize = 20;
+    ui: &dyn AgentUI,
+) -> Result<String, Box<dyn std::error::Error>> {
+    messages.push(Message {
+        role: Role::User,
+        content: user_message.to_string(),
+    });
 
     for _ in 0..MAX_ITERATIONS {
+        ui.start_spinner("Thinking...");
+
         let response = match provider {
-            Provider::Openai => llm::openai::call_openai(api_key, model, &messages).await?,
-            Provider::Anthropic => {
-                llm::anthropic::call_anthropic(api_key, model, &messages).await?
-            }
+            Provider::Openai => llm::openai::call_openai(api_key, model, messages).await,
+            Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, messages).await,
         };
+
+        ui.stop_spinner();
+
+        let response = response?;
 
         messages.push(Message {
             role: Role::Assistant,
@@ -115,29 +120,30 @@ async fn run_agent(
             Some(tc) => tc,
             None => {
                 // No tool call — this is the final answer
-                println!("{response}");
-                return Ok(());
+                return Ok(response);
             }
         };
 
-        // Print the LLM's reasoning (text before the tool tag) to stderr
+        // Print the LLM's reasoning (text before the tool tag)
         if let Some(idx) = response.find("<tool") {
             let reasoning = response[..idx].trim();
             if !reasoning.is_empty() {
-                eprintln!("{reasoning}");
+                ui.show_reasoning(reasoning);
             }
         }
 
         let approved = if auto {
-            eprintln!("[auto] Running: {}", tool_call.input);
+            ui.show_auto_tool(&tool_call);
             true
         } else {
-            tools::confirm_tool_call(&tool_call)
+            ui.confirm_tool(&tool_call)
         };
 
         if approved {
+            ui.start_spinner("Running tool...");
             let result = tools::execute_tool(&tool_call).await;
-            eprintln!("{result}");
+            ui.stop_spinner();
+            ui.show_tool_result(&result);
             messages.push(Message {
                 role: Role::User,
                 content: format!("<tool_result>\n{result}\n</tool_result>"),
@@ -152,7 +158,107 @@ async fn run_agent(
         }
     }
 
-    eprintln!("Agent loop reached maximum iterations ({MAX_ITERATIONS})");
+    Err(format!("Agent loop reached maximum iterations ({MAX_ITERATIONS})").into())
+}
+
+/// Single-shot mode: run one message and print the result.
+async fn run_agent_single(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    user_message: &str,
+    auto: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut messages = vec![Message {
+        role: Role::System,
+        content: tools::SYSTEM_PROMPT.to_string(),
+    }];
+
+    let ui = PlainUI;
+    let answer = run_agent_turn(
+        provider,
+        api_key,
+        model,
+        &mut messages,
+        user_message,
+        auto,
+        &ui,
+    )
+    .await?;
+    ui.show_answer(&answer);
+    Ok(())
+}
+
+/// Interactive REPL mode: multi-turn conversation with persistent history.
+async fn run_interactive(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    auto: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crossterm::style::{Color, Stylize};
+    use rustyline::error::ReadlineError;
+
+    let ui = InteractiveUI::new();
+    InteractiveUI::print_welcome();
+
+    let mut messages = vec![Message {
+        role: Role::System,
+        content: tools::SYSTEM_PROMPT.to_string(),
+    }];
+
+    let mut rl = rustyline::DefaultEditor::new()?;
+
+    // Load history
+    let history_path = std::env::var("HOME")
+        .map(|h| format!("{h}/.aictl_history"))
+        .unwrap_or_default();
+    if !history_path.is_empty() {
+        let _ = rl.load_history(&history_path);
+    }
+
+    let prompt = format!("{} ", "you>".with(Color::Cyan));
+
+    loop {
+        let line = rl.readline(&prompt);
+        match line {
+            Ok(input) => {
+                let input = input.trim().to_string();
+                if input.is_empty() {
+                    continue;
+                }
+                if input == "exit" || input == "quit" {
+                    break;
+                }
+                let _ = rl.add_history_entry(&input);
+
+                match run_agent_turn(provider, api_key, model, &mut messages, &input, auto, &ui)
+                    .await
+                {
+                    Ok(answer) => ui.show_answer(&answer),
+                    Err(e) => ui.show_error(&format!("Error: {e}")),
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl+C: cancel current line, continue
+                continue;
+            }
+            Err(ReadlineError::Eof) => {
+                // Ctrl+D: exit
+                break;
+            }
+            Err(e) => {
+                ui.show_error(&format!("Input error: {e}"));
+                break;
+            }
+        }
+    }
+
+    // Save history
+    if !history_path.is_empty() {
+        let _ = rl.save_history(&history_path);
+    }
+
     Ok(())
 }
 
@@ -174,7 +280,12 @@ async fn main() {
         std::process::exit(1);
     });
 
-    if let Err(e) = run_agent(&cli.provider, &api_key, &cli.model, &cli.message, cli.auto).await {
+    let result = match cli.message {
+        Some(ref msg) => run_agent_single(&cli.provider, &api_key, &cli.model, msg, cli.auto).await,
+        None => run_interactive(&cli.provider, &api_key, &cli.model, cli.auto).await,
+    };
+
+    if let Err(e) = result {
         eprintln!("Error: {e}");
         std::process::exit(1);
     }
