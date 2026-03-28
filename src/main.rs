@@ -61,6 +61,7 @@ command here
 
 Available tools:
 - shell: Execute a shell command. The command runs via `sh -c`.
+- read_file: Read the contents of a file. Pass the file path as the input.
 
 Rules:
 - Use at most one tool call per response.
@@ -171,6 +172,22 @@ async fn execute_tool(tool_call: &ToolCall) -> String {
                     result
                 }
                 Err(e) => format!("Error executing command: {e}"),
+            }
+        }
+        "read_file" => {
+            let path = tool_call.input.trim();
+            match tokio::fs::read_to_string(path).await {
+                Ok(mut contents) => {
+                    if contents.is_empty() {
+                        contents = "(empty file)".to_string();
+                    }
+                    if contents.len() > 10_000 {
+                        contents.truncate(10_000);
+                        contents.push_str("\n... (truncated)");
+                    }
+                    contents
+                }
+                Err(e) => format!("Error reading file: {e}"),
             }
         }
         _ => format!("Unknown tool: {}", tool_call.name),
