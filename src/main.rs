@@ -31,6 +31,10 @@ struct Cli {
     /// Run in autonomous mode (skip tool confirmation prompts)
     #[arg(long)]
     auto: bool,
+
+    /// Show token usage and estimated cost
+    #[arg(long)]
+    usage: bool,
 }
 
 fn load_env_file() {
@@ -86,6 +90,7 @@ const MAX_ITERATIONS: usize = 20;
 
 /// Run one turn of the agent loop: send user_message, handle tool calls,
 /// return the final text answer.
+#[allow(clippy::too_many_arguments)]
 async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
@@ -93,6 +98,7 @@ async fn run_agent_turn(
     messages: &mut Vec<Message>,
     user_message: &str,
     auto: bool,
+    show_usage: bool,
     ui: &dyn AgentUI,
 ) -> Result<(String, TokenUsage, u32, u32), Box<dyn std::error::Error>> {
     messages.push(Message {
@@ -126,7 +132,9 @@ async fn run_agent_turn(
         });
 
         let tool_call = tools::parse_tool_call(&response);
-        ui.show_token_usage(&usage, model, tool_call.is_none());
+        if show_usage {
+            ui.show_token_usage(&usage, model, tool_call.is_none());
+        }
 
         let tool_call = match tool_call {
             Some(tc) => tc,
@@ -181,6 +189,7 @@ async fn run_agent_single(
     model: &str,
     user_message: &str,
     auto: bool,
+    show_usage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut messages = vec![Message {
         role: Role::System,
@@ -195,11 +204,14 @@ async fn run_agent_single(
         &mut messages,
         user_message,
         auto,
+        show_usage,
         &ui,
     )
     .await?;
     ui.show_answer(&answer);
-    ui.show_summary(&usage, model, llm_calls, tool_calls);
+    if show_usage {
+        ui.show_summary(&usage, model, llm_calls, tool_calls);
+    }
     Ok(())
 }
 
@@ -209,6 +221,7 @@ async fn run_interactive(
     api_key: &str,
     model: &str,
     auto: bool,
+    show_usage: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
@@ -246,12 +259,23 @@ async fn run_interactive(
                 }
                 let _ = rl.add_history_entry(&input);
 
-                match run_agent_turn(provider, api_key, model, &mut messages, &input, auto, &ui)
-                    .await
+                match run_agent_turn(
+                    provider,
+                    api_key,
+                    model,
+                    &mut messages,
+                    &input,
+                    auto,
+                    show_usage,
+                    &ui,
+                )
+                .await
                 {
                     Ok((answer, usage, llm_calls, tool_calls)) => {
                         ui.show_answer(&answer);
-                        ui.show_summary(&usage, model, llm_calls, tool_calls);
+                        if show_usage {
+                            ui.show_summary(&usage, model, llm_calls, tool_calls);
+                        }
                     }
                     Err(e) => ui.show_error(&format!("Error: {e}")),
                 }
@@ -298,8 +322,10 @@ async fn main() {
     });
 
     let result = match cli.message {
-        Some(ref msg) => run_agent_single(&cli.provider, &api_key, &cli.model, msg, cli.auto).await,
-        None => run_interactive(&cli.provider, &api_key, &cli.model, cli.auto).await,
+        Some(ref msg) => {
+            run_agent_single(&cli.provider, &api_key, &cli.model, msg, cli.auto, cli.usage).await
+        }
+        None => run_interactive(&cli.provider, &api_key, &cli.model, cli.auto, cli.usage).await,
     };
 
     if let Err(e) = result {

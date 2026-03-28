@@ -114,7 +114,7 @@ impl AgentUI for PlainUI {
             None => String::new(),
         };
         eprintln!(
-            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({} in / {} out){cost_str}\n",
+            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({}↑ · {}↓){cost_str}\n",
             usage.input_tokens, usage.output_tokens,
         );
     }
@@ -281,7 +281,7 @@ impl AgentUI for InteractiveUI {
             None => String::new(),
         };
         let text = format!(
-            "tokens: {} in / {} out / {} total{cost_str}",
+            "tokens: {}↑ · {}↓ · {} total{cost_str}",
             usage.input_tokens, usage.output_tokens, total,
         );
         if final_answer {
@@ -305,7 +305,7 @@ impl AgentUI for InteractiveUI {
             None => String::new(),
         };
         let text = format!(
-            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {} in / {} out / {} total{cost_str}",
+            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓ · {} total{cost_str}",
             usage.input_tokens, usage.output_tokens, total,
         );
         eprintln!(
