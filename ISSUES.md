@@ -1,5 +1,7 @@
 # ISSUES
 
+features/ideas/bugs:
+
 - add model switch functionality during the session
 - add context limit
 - show used context in percent in usage status bar
