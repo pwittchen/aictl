@@ -2,8 +2,6 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [repl] [ui] add "left ascii wall" to the welcome banner to make it's consistent with the tool call output
-- [repl] [ui] put LLM final output to the same frame like tool calls to make UI look more unified
 - [repl] [ui] add Esc for interrupt
 - [repl] [func] add setup functionality where user can provide api keys, etc. to generate config file
 - [tool] add current geolocation tool
