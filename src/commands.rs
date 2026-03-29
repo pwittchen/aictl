@@ -95,11 +95,24 @@ pub async fn compact(
     });
 
     let result = match provider {
-        Provider::Openai => llm::openai::call_openai(api_key, model, &summary_msgs).await,
-        Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, &summary_msgs).await,
+        Provider::Openai => {
+            crate::with_esc_cancel(llm::openai::call_openai(api_key, model, &summary_msgs)).await
+        }
+        Provider::Anthropic => {
+            crate::with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, &summary_msgs))
+                .await
+        }
     };
 
     ui.stop_spinner();
+
+    let result = match result {
+        Ok(inner) => inner,
+        Err(_interrupted) => {
+            println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
+            return;
+        }
+    };
 
     match result {
         Ok((summary, usage)) => {

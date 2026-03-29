@@ -4,7 +4,8 @@ mod tools;
 mod ui;
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use clap::{Parser, ValueEnum};
 
@@ -90,6 +91,68 @@ pub fn config_get(key: &str) -> Option<String> {
     CONFIG.get().and_then(|m| m.get(key).cloned())
 }
 
+// --- Esc key interrupt support ---
+
+/// Error type for user-initiated interruption via Esc key.
+#[derive(Debug)]
+pub(crate) struct Interrupted;
+
+impl std::fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "interrupted")
+    }
+}
+
+impl std::error::Error for Interrupted {}
+
+/// Wrap a future so that pressing Esc cancels it.
+///
+/// Enables crossterm raw mode for the duration of the call and spawns
+/// a blocking listener that polls for Esc key events. Returns
+/// `Ok(value)` on normal completion or `Err(Interrupted)` if the user
+/// pressed Esc.
+pub(crate) async fn with_esc_cancel<F: std::future::Future>(
+    future: F,
+) -> Result<F::Output, Interrupted> {
+    use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+    use tokio::sync::oneshot;
+
+    let (tx, rx) = oneshot::channel::<()>();
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_clone = stop.clone();
+
+    let listener = tokio::task::spawn_blocking(move || {
+        let _ = crossterm::terminal::enable_raw_mode();
+        let mut tx = Some(tx);
+        loop {
+            if stop_clone.load(Ordering::Relaxed) {
+                break;
+            }
+            if event::poll(std::time::Duration::from_millis(50)).unwrap_or(false)
+                && let Ok(Event::Key(key)) = event::read()
+                && key.code == KeyCode::Esc
+                && key.kind == KeyEventKind::Press
+            {
+                if let Some(tx) = tx.take() {
+                    let _ = tx.send(());
+                }
+                break;
+            }
+        }
+        let _ = crossterm::terminal::disable_raw_mode();
+    });
+
+    let result = tokio::select! {
+        value = future => Ok(value),
+        _ = rx => Err(Interrupted),
+    };
+
+    stop.store(true, Ordering::Relaxed);
+    let _ = listener.await;
+
+    result
+}
+
 // --- Provider-agnostic types ---
 
 #[derive(Debug, Clone)]
@@ -164,13 +227,14 @@ async fn run_agent_turn(
 
         let call_start = std::time::Instant::now();
         let result = match provider {
-            Provider::Openai => llm::openai::call_openai(api_key, model, messages).await,
-            Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, messages).await,
+            Provider::Openai => with_esc_cancel(llm::openai::call_openai(api_key, model, messages)).await,
+            Provider::Anthropic => with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, messages)).await,
         };
         let call_elapsed = call_start.elapsed();
 
         ui.stop_spinner();
 
+        let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
         let (response, usage) = result?;
 
         total_usage.input_tokens += usage.input_tokens;
@@ -211,8 +275,9 @@ async fn run_agent_turn(
         if approved {
             tool_calls += 1;
             ui.start_spinner("running tool...");
-            let result = tools::execute_tool(&tool_call).await;
+            let result = with_esc_cancel(tools::execute_tool(&tool_call)).await;
             ui.stop_spinner();
+            let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
             ui.show_tool_result(&result);
             messages.push(Message {
                 role: Role::User,
@@ -336,6 +401,7 @@ async fn run_interactive(
 
                 let _ = rl.add_history_entry(&input);
 
+                let msg_len_before = messages.len();
                 match run_agent_turn(
                     provider,
                     api_key,
@@ -354,7 +420,14 @@ async fn run_interactive(
                             ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
                         }
                     }
-                    Err(e) => ui.show_error(&format!("Error: {e}")),
+                    Err(e) => {
+                        if e.downcast_ref::<Interrupted>().is_some() {
+                            messages.truncate(msg_len_before);
+                            println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
+                        } else {
+                            ui.show_error(&format!("Error: {e}"));
+                        }
+                    }
                 }
             }
             Err(ReadlineError::Interrupted) => {
