@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- for the final result, add typing effect in the terminal
 - add model switch functionality during the session
 - add context limit
 - show used context in percent in usage status bar
