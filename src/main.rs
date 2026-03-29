@@ -14,7 +14,7 @@ enum Provider {
 }
 
 #[derive(Parser)]
-#[command(name = "aictl", about = "CLI tool for interacting with LLM APIs")]
+#[command(name = "aictl", about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
 struct Cli {
     /// LLM provider to use (default: AICTL_PROVIDER env var)
     #[arg(short, long)]
