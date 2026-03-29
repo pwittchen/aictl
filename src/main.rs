@@ -124,7 +124,7 @@ async fn run_agent_turn(
     auto: bool,
     show_usage: bool,
     ui: &dyn AgentUI,
-) -> Result<(String, TokenUsage, u32, u32), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage, u32, u32, std::time::Duration), Box<dyn std::error::Error>> {
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),
@@ -133,6 +133,7 @@ async fn run_agent_turn(
     let mut total_usage = TokenUsage::default();
     let mut llm_calls = 0u32;
     let mut tool_calls = 0u32;
+    let turn_start = std::time::Instant::now();
 
     for _ in 0..MAX_ITERATIONS {
         let nanos = std::time::SystemTime::now()
@@ -142,10 +143,12 @@ async fn run_agent_turn(
         let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
         ui.start_spinner(phrase);
 
+        let call_start = std::time::Instant::now();
         let result = match provider {
             Provider::Openai => llm::openai::call_openai(api_key, model, messages).await,
             Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, messages).await,
         };
+        let call_elapsed = call_start.elapsed();
 
         ui.stop_spinner();
 
@@ -162,14 +165,14 @@ async fn run_agent_turn(
 
         let tool_call = tools::parse_tool_call(&response);
         if show_usage {
-            ui.show_token_usage(&usage, model, tool_call.is_none(), tool_calls);
+            ui.show_token_usage(&usage, model, tool_call.is_none(), tool_calls, call_elapsed);
         }
 
         let tool_call = match tool_call {
             Some(tc) => tc,
             None => {
                 // No tool call — this is the final answer
-                return Ok((response, total_usage, llm_calls, tool_calls));
+                return Ok((response, total_usage, llm_calls, tool_calls, turn_start.elapsed()));
             }
         };
 
@@ -208,7 +211,7 @@ async fn run_agent_turn(
         }
     }
 
-    Err(format!("Agent loop reached maximum iterations ({MAX_ITERATIONS})").into())
+    Err(format!("Agent loop reached maximum iterations ({MAX_ITERATIONS}) after {:.1}s", turn_start.elapsed().as_secs_f64()).into())
 }
 
 /// Single-shot mode: run one message and print the result.
@@ -226,7 +229,7 @@ async fn run_agent_single(
     }];
 
     let ui = PlainUI;
-    let (answer, usage, llm_calls, tool_calls) = run_agent_turn(
+    let (answer, usage, llm_calls, tool_calls, elapsed) = run_agent_turn(
         provider,
         api_key,
         model,
@@ -239,7 +242,7 @@ async fn run_agent_single(
     .await?;
     ui.show_answer(&answer);
     if show_usage {
-        ui.show_summary(&usage, model, llm_calls, tool_calls);
+        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
     }
     Ok(())
 }
@@ -301,10 +304,10 @@ async fn run_interactive(
                 )
                 .await
                 {
-                    Ok((answer, usage, llm_calls, tool_calls)) => {
+                    Ok((answer, usage, llm_calls, tool_calls, elapsed)) => {
                         ui.show_answer(&answer);
                         if show_usage {
-                            ui.show_summary(&usage, model, llm_calls, tool_calls);
+                            ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
                         }
                     }
                     Err(e) => ui.show_error(&format!("Error: {e}")),

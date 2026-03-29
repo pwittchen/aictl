@@ -69,8 +69,8 @@ pub trait AgentUI {
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
-    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32);
-    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32);
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32, elapsed: Duration);
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32, elapsed: Duration);
 }
 
 // ── PlainUI (single-shot / pipe-friendly) ────────────────────────────
@@ -105,17 +105,17 @@ impl AgentUI for PlainUI {
         eprintln!("{text}");
     }
 
-    fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool, _tool_calls: u32) {}
+    fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool, _tool_calls: u32, _elapsed: Duration) {}
 
-    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32) {
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32, elapsed: Duration) {
         let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!("  cost: ${cost:.4}"),
             None => String::new(),
         };
         eprintln!(
-            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({}↑ · {}↓){cost_str}\n",
-            usage.input_tokens, usage.output_tokens,
+            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({}↑ · {}↓){cost_str}  {:.1}s\n",
+            usage.input_tokens, usage.output_tokens, elapsed.as_secs_f64(),
         );
     }
 }
@@ -280,15 +280,15 @@ impl AgentUI for InteractiveUI {
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
     }
 
-    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32) {
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32, elapsed: Duration) {
         let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
         let text = format!(
-            "tokens: {}↑ · {}↓ · {} total · {} tool(s){cost_str}",
-            usage.input_tokens, usage.output_tokens, total, tool_calls,
+            "tokens: {}↑ · {}↓ · {} total · {} tool(s){cost_str} · {:.1}s",
+            usage.input_tokens, usage.output_tokens, total, tool_calls, elapsed.as_secs_f64(),
         );
         if final_answer {
             eprintln!(
@@ -304,15 +304,15 @@ impl AgentUI for InteractiveUI {
         }
     }
 
-    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32) {
+    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32, elapsed: Duration) {
         let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
         let text = format!(
-            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓ · {} total{cost_str}",
-            usage.input_tokens, usage.output_tokens, total,
+            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓ · {} total{cost_str} · {:.1}s",
+            usage.input_tokens, usage.output_tokens, total, elapsed.as_secs_f64(),
         );
         eprintln!(
             "{PAD}{}",
