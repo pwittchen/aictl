@@ -1,4 +1,4 @@
-# aictl 🤖
+# aictl 🤖 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 
 general purpose AI agent for terminal
 
