@@ -18,3 +18,4 @@ features/ideas/bug-fixes to be added in the future:
 - create GH Action for project versioning based on git tags
 - add some tests
 - add Esc for interrupt
+- add support for `AICTL.md` file (init/read) for providing context for the current dir (similar to claude/codex)
