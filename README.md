@@ -19,9 +19,12 @@ The interactive REPL supports slash commands:
 | Command | Description |
 |---------|-------------|
 | `/clear` | Clear conversation context |
+| `/compact` | Summarize conversation into a compact context |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/exit` | Exit the REPL |
+
+Press **Esc** during any LLM call or tool execution to interrupt the operation and return to the prompt. Conversation history is rolled back so the interrupted turn has no effect.
 
 ### Parameters
 
