@@ -69,7 +69,7 @@ pub trait AgentUI {
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
-    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool);
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32);
     fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32);
 }
 
@@ -105,7 +105,7 @@ impl AgentUI for PlainUI {
         eprintln!("{text}");
     }
 
-    fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool) {}
+    fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool, _tool_calls: u32) {}
 
     fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32) {
         let total = usage.input_tokens + usage.output_tokens;
@@ -280,15 +280,15 @@ impl AgentUI for InteractiveUI {
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
     }
 
-    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool) {
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32) {
         let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
         let text = format!(
-            "tokens: {}↑ · {}↓ · {} total{cost_str}",
-            usage.input_tokens, usage.output_tokens, total,
+            "tokens: {}↑ · {}↓ · {} total · {} tool(s){cost_str}",
+            usage.input_tokens, usage.output_tokens, total, tool_calls,
         );
         if final_answer {
             eprintln!(

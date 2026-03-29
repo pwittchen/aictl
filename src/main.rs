@@ -162,7 +162,7 @@ async fn run_agent_turn(
 
         let tool_call = tools::parse_tool_call(&response);
         if show_usage {
-            ui.show_token_usage(&usage, model, tool_call.is_none());
+            ui.show_token_usage(&usage, model, tool_call.is_none(), tool_calls);
         }
 
         let tool_call = match tool_call {
