@@ -374,7 +374,7 @@ impl AgentUI for InteractiveUI {
             None => String::new(),
         };
         let text = format!(
-            "{llm_calls} reqs · {tool_calls} tools · {}↑ · {}↓{cost_str} · {:.1}s · ctx {context_pct}%",
+            "{llm_calls} reqs · {tool_calls} tool(s) · {}↑ · {}↓{cost_str} · {:.1}s · ctx {context_pct}%",
             usage.input_tokens,
             usage.output_tokens,
             elapsed.as_secs_f64(),
