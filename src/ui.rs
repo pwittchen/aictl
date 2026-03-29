@@ -220,6 +220,7 @@ impl AgentUI for InteractiveUI {
     }
 
     fn show_reasoning(&self, text: &str) {
+        eprintln!("{PAD}{}", "│".with(Color::DarkGrey));
         Self::print_block(text, Color::DarkGrey);
     }
 
