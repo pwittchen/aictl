@@ -12,6 +12,17 @@ aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
 
+### REPL Commands
+
+The interactive REPL supports slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/clear` | Clear conversation context |
+| `/copy` | Copy last response to clipboard |
+| `/help` | Show available commands |
+| `/exit` | Exit the REPL |
+
 ### Parameters
 
 | Flag | Short | Description |

@@ -4,6 +4,8 @@ use crossterm::style::{Color, Stylize};
 pub enum CommandResult {
     /// Exit the REPL.
     Exit,
+    /// Clear conversation context and continue.
+    Clear,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -18,6 +20,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
 
     match cmd {
         "exit" => CommandResult::Exit,
+        "clear" => CommandResult::Clear,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -59,15 +62,19 @@ fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
 fn print_help() {
     println!();
     println!(
-        "  {}  Copy last response to clipboard",
+        "  {}   Clear conversation context",
+        "/clear".with(Color::Cyan)
+    );
+    println!(
+        "  {}    Copy last response to clipboard",
         "/copy".with(Color::Cyan)
     );
     println!(
-        "  {}  Show this help message",
+        "  {}    Show this help message",
         "/help".with(Color::Cyan)
     );
     println!(
-        "  {}  Exit the REPL",
+        "  {}    Exit the REPL",
         "/exit".with(Color::Cyan)
     );
     println!();

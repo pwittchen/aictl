@@ -5,6 +5,7 @@
 ```
 src/
  ├── main.rs          CLI args (clap), agent loop, single-shot & REPL modes
+ ├── commands.rs       REPL slash commands (/clear, /copy, /help, /exit)
  ├── tools.rs          System prompt, XML tool-call parsing, tool execution
  ├── ui.rs             AgentUI trait, PlainUI & InteractiveUI implementations
  └── llm/
@@ -158,12 +159,47 @@ Both single-shot and REPL modes share the same loop:
                      └──────────────────┘
 ```
 
+## REPL Command Dispatch (`commands.rs`)
+
+```
+ User input
+      │
+      ▼
+ starts with '/'?
+      │
+  ┌───┴───┐
+  no     yes
+  │       │
+  ▼       ▼
+ send   commands::handle()
+ to        │
+ agent  ┌──┴──────────┬────────────┬────────────┐
+ loop   ▼             ▼            ▼            ▼
+      /exit         /clear       /copy        /help
+      Exit          Clear        Continue     Continue
+      (break)       (truncate    (pbcopy      (print
+                    messages     last_answer)  commands)
+                    to system
+                    prompt)
+
+ CommandResult enum:
+   Exit        → break REPL loop
+   Clear       → reset messages & last_answer, continue
+   Continue    → command handled, continue
+   NotACommand → pass input to agent loop
+```
+
 ## Data Flow (end to end)
 
 ```
  User ──> CLI args / REPL input
            │
            ▼
+      ┌──────────────┐
+      │ commands.rs  │  (REPL only: slash command dispatch)
+      └──────┬───────┘
+             │ (not a command)
+             ▼
       ┌──────────┐    ┌──────────────┐
       │ main.rs  │───>│  tools.rs    │
       │          │    │              │

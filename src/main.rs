@@ -310,6 +310,12 @@ async fn run_interactive(
                 // Slash commands
                 match commands::handle(&input, &last_answer, &|msg| ui.show_error(msg)) {
                     commands::CommandResult::Exit => break,
+                    commands::CommandResult::Clear => {
+                        let _ = rl.add_history_entry(&input);
+                        messages.truncate(1); // keep only system prompt
+                        last_answer.clear();
+                        continue;
+                    }
                     commands::CommandResult::Continue => {
                         let _ = rl.add_history_entry(&input);
                         continue;
