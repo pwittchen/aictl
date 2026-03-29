@@ -81,6 +81,7 @@ pub trait AgentUI {
         llm_calls: u32,
         tool_calls: u32,
         elapsed: Duration,
+        context_pct: u8,
     );
 }
 
@@ -142,6 +143,7 @@ impl AgentUI for PlainUI {
         _llm_calls: u32,
         _tool_calls: u32,
         _elapsed: Duration,
+        _context_pct: u8,
     ) {
     }
 }
@@ -367,17 +369,16 @@ impl AgentUI for InteractiveUI {
         llm_calls: u32,
         tool_calls: u32,
         elapsed: Duration,
+        context_pct: u8,
     ) {
-        let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
         let text = format!(
-            "total: {llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓ · {} total{cost_str} · {:.1}s",
+            "{llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓{cost_str} · {:.1}s · ctx: {context_pct}%",
             usage.input_tokens,
             usage.output_tokens,
-            total,
             elapsed.as_secs_f64(),
         );
         eprintln!("{PAD}{}", text.with(Color::Green).attribute(Attribute::Dim));

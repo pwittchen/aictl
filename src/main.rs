@@ -353,7 +353,7 @@ async fn run_agent_single(
     .await?;
     ui.show_answer(&answer);
     if llm_calls > 1 {
-        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed, 0);
     }
     Ok(())
 }
@@ -458,7 +458,11 @@ async fn run_interactive(
                         last_answer = answer;
                         last_input_tokens = input_tokens;
                         if llm_calls > 1 {
-                            ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+                            let tp = (input_tokens as f64 / llm::context_limit(model) as f64
+                                * 100.0) as u8;
+                            let mp = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
+                            let cp = tp.max(mp).min(100);
+                            ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed, cp);
                         }
                     }
                     Err(e) => {
