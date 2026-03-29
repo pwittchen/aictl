@@ -75,22 +75,30 @@ pub trait AgentUI {
 
 // ── PlainUI (single-shot / pipe-friendly) ────────────────────────────
 
-pub struct PlainUI;
+pub struct PlainUI {
+    pub quiet: bool,
+}
 
 impl AgentUI for PlainUI {
     fn start_spinner(&self, _msg: &str) {}
     fn stop_spinner(&self) {}
 
     fn show_reasoning(&self, text: &str) {
-        eprintln!("{text}");
+        if !self.quiet {
+            eprintln!("{text}");
+        }
     }
 
     fn show_auto_tool(&self, tool_call: &ToolCall) {
-        eprintln!("[auto] Running: {}", tool_call.input);
+        if !self.quiet {
+            eprintln!("[auto] Running: {}", tool_call.input);
+        }
     }
 
     fn show_tool_result(&self, result: &str) {
-        eprintln!("{result}");
+        if !self.quiet {
+            eprintln!("{result}");
+        }
     }
 
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool {

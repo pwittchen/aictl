@@ -32,6 +32,9 @@ struct Cli {
     #[arg(long)]
     auto: bool,
 
+    /// Suppress tool calls and reasoning, only print the final answer (requires --auto)
+    #[arg(short, long, requires = "auto")]
+    quiet: bool,
 }
 
 fn load_env_file() {
@@ -214,13 +217,14 @@ async fn run_agent_single(
     model: &str,
     user_message: &str,
     auto: bool,
+    quiet: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut messages = vec![Message {
         role: Role::System,
         content: tools::SYSTEM_PROMPT.to_string(),
     }];
 
-    let ui = PlainUI;
+    let ui = PlainUI { quiet };
     let (answer, usage, llm_calls, tool_calls, elapsed) = run_agent_turn(
         provider,
         api_key,
@@ -363,7 +367,7 @@ async fn main() {
 
     let result = match cli.message {
         Some(ref msg) => {
-            run_agent_single(&provider, &api_key, &model, msg, cli.auto).await
+            run_agent_single(&provider, &api_key, &model, msg, cli.auto, cli.quiet).await
         }
         None => run_interactive(&provider, &api_key, &model, cli.auto).await,
     };

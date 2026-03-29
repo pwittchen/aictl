@@ -5,7 +5,7 @@ experimental general purpose AI agent for terminal
 ## Usage
 
 ```bash
-aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto]
+aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -18,6 +18,7 @@ Omit `--message` to enter interactive REPL mode with persistent conversation his
 | `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` env var |
 | `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
+| `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 
 CLI flags take priority over environment variables.
 
@@ -125,6 +126,9 @@ aictl -M "List files in the current directory"
 
 # Autonomous mode (no confirmation prompts)
 aictl --auto -M "What OS am I running?"
+
+# Quiet mode (only final answer, no tool calls or reasoning)
+aictl --auto -q -M "What OS am I running?"
 ```
 
 ## Architecture
