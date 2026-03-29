@@ -1,6 +1,6 @@
 # aictl 🤖
 
-experimental general purpose AI agent for terminal
+general purpose AI agent for terminal
 
 ## Usage
 
