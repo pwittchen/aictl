@@ -58,7 +58,11 @@ fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
                 let _ = stdin.write_all(text.as_bytes());
             }
             match child.wait() {
-                Ok(_) => println!("  {} copied to clipboard", "✓".with(Color::Green)),
+                Ok(_) => {
+                    println!();
+                    println!("  {} copied to clipboard", "✓".with(Color::Green));
+                    println!();
+                }
                 Err(e) => show_error(&format!("Clipboard error: {e}")),
             }
         }
@@ -112,8 +116,10 @@ pub async fn compact(
                     conversation. How can I help you next?"
                     .to_string(),
             });
+            println!();
             ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO);
             println!("  {} context compacted", "✓".with(Color::Green));
+            println!();
         }
         Err(e) => ui.show_error(&format!("Compact failed: {e}")),
     }

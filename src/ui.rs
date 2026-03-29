@@ -287,7 +287,9 @@ impl AgentUI for InteractiveUI {
 
     fn show_error(&self, text: &str) {
         self.first_spinner.set(true);
+        eprintln!();
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
+        eprintln!();
     }
 
     fn show_token_usage(&self, usage: &TokenUsage, model: &str, _final_answer: bool, tool_calls: u32, elapsed: Duration) {
