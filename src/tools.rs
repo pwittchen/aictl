@@ -217,9 +217,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "web_search" => {
             let api_key = match crate::config_get("FIRECRAWL_API_KEY") {
                 Some(key) => key,
-                None => {
-                    return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string()
-                }
+                None => return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string(),
             };
             let query = tool_call.input.trim();
             let client = reqwest::Client::new();
@@ -248,8 +246,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                                 Some(items) if !items.is_empty() => {
                                     let mut output = String::new();
                                     for (i, item) in items.iter().enumerate() {
-                                        let title =
-                                            item["title"].as_str().unwrap_or("(no title)");
+                                        let title = item["title"].as_str().unwrap_or("(no title)");
                                         let url = item["url"].as_str().unwrap_or("(no url)");
                                         let desc = item["description"]
                                             .as_str()
@@ -379,7 +376,9 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
             let url = if ip.is_empty() {
                 "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()
             } else {
-                format!("http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as")
+                format!(
+                    "http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as"
+                )
             };
             let client = reqwest::Client::new();
             match client.get(&url).send().await {
@@ -389,8 +388,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                             let msg = json["message"].as_str().unwrap_or("unknown error");
                             format!("Geolocation lookup failed: {msg}")
                         } else {
-                            serde_json::to_string_pretty(&json)
-                                .unwrap_or_else(|_| json.to_string())
+                            serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
                         }
                     }
                     Err(e) => format!("Error parsing geolocation response: {e}"),

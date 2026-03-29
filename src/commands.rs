@@ -99,8 +99,12 @@ pub async fn compact(
             crate::with_esc_cancel(llm::openai::call_openai(api_key, model, &summary_msgs)).await
         }
         Provider::Anthropic => {
-            crate::with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, &summary_msgs))
-                .await
+            crate::with_esc_cancel(llm::anthropic::call_anthropic(
+                api_key,
+                model,
+                &summary_msgs,
+            ))
+            .await
         }
     };
 
@@ -130,7 +134,7 @@ pub async fn compact(
                     .to_string(),
             });
             println!();
-            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO);
+            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO, 0);
             println!("  {} context compacted", "✓".with(Color::Green));
             println!();
         }
@@ -152,13 +156,7 @@ fn print_help() {
         "  {}    Copy last response to clipboard",
         "/copy".with(Color::Cyan)
     );
-    println!(
-        "  {}    Show this help message",
-        "/help".with(Color::Cyan)
-    );
-    println!(
-        "  {}    Exit the REPL",
-        "/exit".with(Color::Cyan)
-    );
+    println!("  {}    Show this help message", "/help".with(Color::Cyan));
+    println!("  {}    Exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }

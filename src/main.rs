@@ -171,6 +171,7 @@ pub struct Message {
 // --- Agent loop ---
 
 const MAX_ITERATIONS: usize = 20;
+const MAX_MESSAGES: usize = 200;
 
 const SPINNER_PHRASES: &[&str] = &[
     "consulting the mass of wires...",
@@ -206,7 +207,7 @@ async fn run_agent_turn(
     user_message: &str,
     auto: bool,
     ui: &dyn AgentUI,
-) -> Result<(String, TokenUsage, u32, u32, std::time::Duration), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage, u32, u32, std::time::Duration, u64), Box<dyn std::error::Error>> {
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),
@@ -216,6 +217,8 @@ async fn run_agent_turn(
     let mut llm_calls = 0u32;
     let mut tool_calls = 0u32;
     let turn_start = std::time::Instant::now();
+    #[allow(unused_assignments)]
+    let mut last_input_tokens = 0u64;
 
     for _ in 0..MAX_ITERATIONS {
         let nanos = std::time::SystemTime::now()
@@ -227,8 +230,12 @@ async fn run_agent_turn(
 
         let call_start = std::time::Instant::now();
         let result = match provider {
-            Provider::Openai => with_esc_cancel(llm::openai::call_openai(api_key, model, messages)).await,
-            Provider::Anthropic => with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, messages)).await,
+            Provider::Openai => {
+                with_esc_cancel(llm::openai::call_openai(api_key, model, messages)).await
+            }
+            Provider::Anthropic => {
+                with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, messages)).await
+            }
         };
         let call_elapsed = call_start.elapsed();
 
@@ -240,6 +247,11 @@ async fn run_agent_turn(
         total_usage.input_tokens += usage.input_tokens;
         total_usage.output_tokens += usage.output_tokens;
         llm_calls += 1;
+        last_input_tokens = usage.input_tokens;
+
+        let token_pct = (last_input_tokens as f64 / llm::context_limit(model) as f64 * 100.0) as u8;
+        let message_pct = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
+        let context_pct = token_pct.max(message_pct).min(100);
 
         messages.push(Message {
             role: Role::Assistant,
@@ -247,13 +259,27 @@ async fn run_agent_turn(
         });
 
         let tool_call = tools::parse_tool_call(&response);
-        ui.show_token_usage(&usage, model, tool_call.is_none(), tool_calls, call_elapsed);
+        ui.show_token_usage(
+            &usage,
+            model,
+            tool_call.is_none(),
+            tool_calls,
+            call_elapsed,
+            context_pct,
+        );
 
         let tool_call = match tool_call {
             Some(tc) => tc,
             None => {
                 // No tool call — this is the final answer
-                return Ok((response, total_usage, llm_calls, tool_calls, turn_start.elapsed()));
+                return Ok((
+                    response,
+                    total_usage,
+                    llm_calls,
+                    tool_calls,
+                    turn_start.elapsed(),
+                    last_input_tokens,
+                ));
             }
         };
 
@@ -293,7 +319,11 @@ async fn run_agent_turn(
         }
     }
 
-    Err(format!("Agent loop reached maximum iterations ({MAX_ITERATIONS}) after {:.1}s", turn_start.elapsed().as_secs_f64()).into())
+    Err(format!(
+        "Agent loop reached maximum iterations ({MAX_ITERATIONS}) after {:.1}s",
+        turn_start.elapsed().as_secs_f64()
+    )
+    .into())
 }
 
 /// Single-shot mode: run one message and print the result.
@@ -311,7 +341,7 @@ async fn run_agent_single(
     }];
 
     let ui = PlainUI { quiet };
-    let (answer, usage, llm_calls, tool_calls, elapsed) = run_agent_turn(
+    let (answer, usage, llm_calls, tool_calls, elapsed, _) = run_agent_turn(
         provider,
         api_key,
         model,
@@ -359,6 +389,7 @@ async fn run_interactive(
 
     let prompt = format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold));
     let mut last_answer = String::new();
+    let mut last_input_tokens: u64 = 0;
 
     loop {
         let line = rl.readline(&prompt);
@@ -379,17 +410,16 @@ async fn run_interactive(
                         let _ = rl.add_history_entry(&input);
                         messages.truncate(1); // keep only system prompt
                         last_answer.clear();
+                        last_input_tokens = 0;
                         println!();
-                        println!(
-                            "  {} context cleared",
-                            "✓".with(Color::Green)
-                        );
+                        println!("  {} context cleared", "✓".with(Color::Green));
                         println!();
                         continue;
                     }
                     commands::CommandResult::Compact => {
                         let _ = rl.add_history_entry(&input);
                         commands::compact(provider, api_key, model, &mut messages, &ui).await;
+                        last_input_tokens = 0;
                         continue;
                     }
                     commands::CommandResult::Continue => {
@@ -401,21 +431,32 @@ async fn run_interactive(
 
                 let _ = rl.add_history_entry(&input);
 
+                // Auto-compact if context is >= 80%
+                let token_pct = if last_input_tokens > 0 {
+                    (last_input_tokens as f64 / llm::context_limit(model) as f64 * 100.0) as u8
+                } else {
+                    0
+                };
+                let message_pct = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
+                let context_pct = token_pct.max(message_pct).min(100);
+                if context_pct >= 80 {
+                    println!();
+                    println!(
+                        "  {} context at {context_pct}%, auto-compacting...",
+                        "⚠".with(Color::Yellow)
+                    );
+                    commands::compact(provider, api_key, model, &mut messages, &ui).await;
+                    last_input_tokens = 0;
+                }
+
                 let msg_len_before = messages.len();
-                match run_agent_turn(
-                    provider,
-                    api_key,
-                    model,
-                    &mut messages,
-                    &input,
-                    auto,
-                    &ui,
-                )
-                .await
+                match run_agent_turn(provider, api_key, model, &mut messages, &input, auto, &ui)
+                    .await
                 {
-                    Ok((answer, usage, llm_calls, tool_calls, elapsed)) => {
+                    Ok((answer, usage, llm_calls, tool_calls, elapsed, input_tokens)) => {
                         ui.show_answer(&answer);
                         last_answer = answer;
+                        last_input_tokens = input_tokens;
                         if llm_calls > 1 {
                             ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
                         }

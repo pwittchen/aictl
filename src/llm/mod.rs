@@ -72,6 +72,23 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     None
 }
 
+/// Returns the context window size (max input tokens) for known models.
+pub fn context_limit(model: &str) -> u64 {
+    if model.starts_with("gpt-4.1") {
+        return 1_000_000;
+    }
+    if model.starts_with("gpt-4o") || model.starts_with("gpt-5") {
+        return 128_000;
+    }
+    if model.starts_with("o4-mini") || model.starts_with("o3") || model.starts_with("o1") {
+        return 200_000;
+    }
+    if model.contains("claude-") || model.contains("claude") {
+        return 200_000;
+    }
+    128_000
+}
+
 impl TokenUsage {
     /// Estimate cost in USD. Returns None if the model is unknown.
     pub fn estimate_cost(&self, model: &str) -> Option<f64> {
