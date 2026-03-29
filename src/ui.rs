@@ -12,8 +12,8 @@ const PAD: &str = "  ";
 const PIPE: &str = "│";
 const WELCOME_TEXT: &str = "Type a message, \"exit\" or Ctrl+D to quit";
 const MAX_RESULT_LINES: usize = 15;
-const MAX_ANSWER_WIDTH: usize = 80;
-const FALLBACK_WIDTH: u16 = 120;
+const MAX_ANSWER_WIDTH: usize = 76;
+const FALLBACK_WIDTH: u16 = 80;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -29,9 +29,9 @@ fn max_content_width() -> usize {
 }
 
 /// Number of ─ chars in box rules.
-/// Rule is: PAD(2) + ╭/╰(1) + dashes, matching answer content width.
+/// Align right edge with content: PAD(2)+╭(1)+dashes = PAD(2)+│(1)+space(1)+content.
 fn rule_width() -> usize {
-    MAX_ANSWER_WIDTH
+    max_content_width().min(MAX_ANSWER_WIDTH) + 1
 }
 
 fn truncate_line(line: &str, max: usize) -> String {
@@ -342,16 +342,14 @@ impl AgentUI for InteractiveUI {
         elapsed: Duration,
         context_pct: u8,
     ) {
-        let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
         let text = format!(
-            "tokens: {}↑ · {}↓ · {} total · {} tool(s){cost_str} · {:.1}s · ctx: {context_pct}%",
+            "{}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%",
             usage.input_tokens,
             usage.output_tokens,
-            total,
             tool_calls,
             elapsed.as_secs_f64(),
         );
@@ -376,7 +374,7 @@ impl AgentUI for InteractiveUI {
             None => String::new(),
         };
         let text = format!(
-            "{llm_calls} request(s) · {tool_calls} tool call(s) · {}↑ · {}↓{cost_str} · {:.1}s · ctx: {context_pct}%",
+            "{llm_calls} reqs · {tool_calls} tools · {}↑ · {}↓{cost_str} · {:.1}s · ctx {context_pct}%",
             usage.input_tokens,
             usage.output_tokens,
             elapsed.as_secs_f64(),
