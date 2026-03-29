@@ -107,17 +107,7 @@ impl AgentUI for PlainUI {
 
     fn show_token_usage(&self, _usage: &TokenUsage, _model: &str, _final_answer: bool, _tool_calls: u32, _elapsed: Duration) {}
 
-    fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32, elapsed: Duration) {
-        let total = usage.input_tokens + usage.output_tokens;
-        let cost_str = match usage.estimate_cost(model) {
-            Some(cost) => format!("  cost: ${cost:.4}"),
-            None => String::new(),
-        };
-        eprintln!(
-            "\n{llm_calls} request(s), {tool_calls} tool call(s), {total} tokens ({}↑ · {}↓){cost_str}  {:.1}s\n",
-            usage.input_tokens, usage.output_tokens, elapsed.as_secs_f64(),
-        );
-    }
+    fn show_summary(&self, _usage: &TokenUsage, _model: &str, _llm_calls: u32, _tool_calls: u32, _elapsed: Duration) {}
 }
 
 // ── InteractiveUI (colors, spinner, markdown) ────────────────────────
