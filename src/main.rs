@@ -314,6 +314,10 @@ async fn run_interactive(
                         let _ = rl.add_history_entry(&input);
                         messages.truncate(1); // keep only system prompt
                         last_answer.clear();
+                        println!(
+                            "  {} context cleared",
+                            "✓".with(Color::Green)
+                        );
                         continue;
                     }
                     commands::CommandResult::Compact => {
