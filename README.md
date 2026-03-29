@@ -5,7 +5,7 @@ experimental general purpose AI agent for terminal
 ## Usage
 
 ```bash
-aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--usage]
+aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -18,7 +18,6 @@ Omit `--message` to enter interactive REPL mode with persistent conversation his
 | `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` env var |
 | `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
-| `--usage` | | Show token usage and estimated cost after each response |
 
 CLI flags take priority over environment variables.
 
@@ -107,7 +106,7 @@ ls -la /tmp
 </tool>
 ```
 
-The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr; the final answer goes to stdout.
+The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr; the final answer goes to stdout. Token usage, estimated cost, and execution time are always displayed after each response.
 
 ### Examples
 
@@ -126,9 +125,6 @@ aictl -M "List files in the current directory"
 
 # Autonomous mode (no confirmation prompts)
 aictl --auto -M "What OS am I running?"
-
-# Show token usage and cost
-aictl --usage -M "Hello"
 ```
 
 ## Architecture

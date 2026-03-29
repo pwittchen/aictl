@@ -26,7 +26,7 @@ Single-binary async Rust CLI with four modules:
 
 **Modes**: Single-shot (`-M "message"`) uses `PlainUI`; omitting `-M` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output).
 
-**Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Tracks cumulative token usage across iterations.
+**Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 
 **Tools** (`execute_tool` dispatches by tool name):
 - `shell` — runs commands via `tokio::process::Command` (`sh -c`)
@@ -35,9 +35,12 @@ Single-binary async Rust CLI with four modules:
 - `list_directory` — lists directory entries with type prefixes
 - `search_files` — grep-based content search
 - `edit_file` — targeted find-and-replace (requires unique match)
+- `glob` — find files matching a glob pattern with optional base directory
 - `web_search` — web search via Firecrawl API (`FIRECRAWL_API_KEY`)
+- `web_fetch` — fetch a URL and return readable text content (HTML stripped)
+- `think` — scratchpad for reasoning; input is returned unchanged
 
-**Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for optional cost tracking (`--usage`).
+**Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.
 
 **Key dependencies**: `clap` (CLI parsing), `reqwest` (async HTTP with JSON), `serde`/`serde_json` (serialization), `tokio` (async runtime, process, fs), `crossterm` (terminal styling), `indicatif` (spinner), `rustyline` (REPL input/history), `termimad` (markdown rendering).
 
