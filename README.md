@@ -152,6 +152,10 @@ See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
 
 ## Install
 
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && cargo install --git https://github.com/pwittchen/aictl.git
+```
+
 ### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (edition 2024)
