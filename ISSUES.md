@@ -17,3 +17,4 @@ features/ideas/bug-fixes to be added in the future:
 - create project website
 - create GH Action for project versioning based on git tags
 - add some tests
+- add Esc for interrupt
