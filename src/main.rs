@@ -256,7 +256,9 @@ async fn run_agent_single(
     )
     .await?;
     ui.show_answer(&answer);
-    ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+    if llm_calls > 1 {
+        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+    }
     Ok(())
 }
 
@@ -317,7 +319,9 @@ async fn run_interactive(
                 {
                     Ok((answer, usage, llm_calls, tool_calls, elapsed)) => {
                         ui.show_answer(&answer);
-                        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+                        if llm_calls > 1 {
+                            ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
+                        }
                     }
                     Err(e) => ui.show_error(&format!("Error: {e}")),
                 }

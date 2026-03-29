@@ -12,6 +12,7 @@ const PAD: &str = "  ";
 const PIPE: &str = "│";
 const WELCOME_TEXT: &str = "Type a message, \"exit\" or Ctrl+D to quit";
 const MAX_RESULT_LINES: usize = 15;
+const MAX_ANSWER_WIDTH: usize = 80;
 const FALLBACK_WIDTH: u16 = 120;
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -27,15 +28,10 @@ fn max_content_width() -> usize {
     term_width().saturating_sub(5)
 }
 
-/// Total visual width of the banner rule (starts at column 0).
-fn banner_width() -> usize {
-    WELCOME_TEXT.len() + 4
-}
-
-/// Number of ─ chars in tool box rules.
-/// Tool rule is: PAD(2) + ╭(1) + dashes, must end at same column as banner.
-fn tool_rule_width() -> usize {
-    banner_width().saturating_sub(3)
+/// Number of ─ chars in box rules.
+/// Rule is: PAD(2) + ╭/╰(1) + dashes, matching answer content width.
+fn rule_width() -> usize {
+    MAX_ANSWER_WIDTH
 }
 
 fn truncate_line(line: &str, max: usize) -> String {
@@ -134,27 +130,37 @@ impl InteractiveUI {
     }
 
     pub fn print_welcome(provider: &str, model: &str) {
-        let provider_line = format!("{provider} · {model}");
-        let width = WELCOME_TEXT.len().max(provider_line.len()) + 4;
-        let rule = "─".repeat(width);
-        eprintln!("{}", rule.as_str().with(Color::DarkGrey));
+        let dashes = "─".repeat(rule_width());
         eprintln!(
-            "{PAD}{} {} {}",
+            "{PAD}{}{}",
+            "╭".with(Color::DarkGrey),
+            dashes.as_str().with(Color::DarkGrey),
+        );
+        eprintln!(
+            "{PAD}{} {} {} {}",
+            PIPE.with(Color::DarkGrey),
             "aictl".with(Color::Cyan).attribute(Attribute::Bold),
             crate::VERSION.with(Color::DarkGrey),
             "— AI agent in your terminal".with(Color::DarkGrey),
         );
         eprintln!(
-            "{PAD}{}",
-            provider_line.as_str().with(Color::DarkGrey),
+            "{PAD}{} {} {} {}",
+            PIPE.with(Color::DarkGrey),
+            provider.with(Color::Green),
+            "·".with(Color::DarkGrey),
+            model.with(Color::Yellow),
         );
-        eprintln!("{PAD}{}", WELCOME_TEXT.with(Color::DarkGrey));
-        eprintln!("{}", rule.as_str().with(Color::DarkGrey));
+        eprintln!("{PAD}{} {}", PIPE.with(Color::DarkGrey), WELCOME_TEXT.with(Color::DarkGrey));
+        eprintln!(
+            "{PAD}{}{}",
+            "╰".with(Color::DarkGrey),
+            dashes.as_str().with(Color::DarkGrey),
+        );
         eprintln!();
     }
 
     fn bottom_rule() {
-        let dashes = "─".repeat(tool_rule_width());
+        let dashes = "─".repeat(rule_width());
         eprintln!(
             "{PAD}{}{}",
             "╰".with(Color::DarkGrey),
@@ -222,6 +228,7 @@ impl AgentUI for InteractiveUI {
         let input = first_input_line(&tool_call.input);
         let budget = max_w.saturating_sub(tool_call.name.len() + 13);
         let input = truncate_line(&input, budget);
+        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
         eprintln!(
             "{PAD}{} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
@@ -243,6 +250,7 @@ impl AgentUI for InteractiveUI {
         let input = first_input_line(&tool_call.input);
         let budget = max_w.saturating_sub(tool_call.name.len() + 5);
         let input = truncate_line(&input, budget);
+        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
         eprintln!(
             "{PAD}{} {} {} {}",
             PIPE.with(Color::DarkGrey),
@@ -266,11 +274,13 @@ impl AgentUI for InteractiveUI {
     fn show_answer(&self, text: &str) {
         self.first_spinner.set(true);
         let skin = termimad::MadSkin::default();
-        let rendered = format!("{}", skin.term_text(text));
-        eprintln!();
+        let width = max_content_width().min(MAX_ANSWER_WIDTH);
+        let rendered = format!("{}", termimad::FmtText::from_text(&skin, text.into(), Some(width)));
+        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
         for line in rendered.lines() {
-            eprintln!("{PAD}{line}");
+            eprintln!("{PAD}{} {line}", PIPE.with(Color::DarkGrey));
         }
+        Self::bottom_rule();
         eprintln!();
     }
 
@@ -279,7 +289,7 @@ impl AgentUI for InteractiveUI {
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
     }
 
-    fn show_token_usage(&self, usage: &TokenUsage, model: &str, final_answer: bool, tool_calls: u32, elapsed: Duration) {
+    fn show_token_usage(&self, usage: &TokenUsage, model: &str, _final_answer: bool, tool_calls: u32, elapsed: Duration) {
         let total = usage.input_tokens + usage.output_tokens;
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
@@ -289,18 +299,11 @@ impl AgentUI for InteractiveUI {
             "tokens: {}↑ · {}↓ · {} total · {} tool(s){cost_str} · {:.1}s",
             usage.input_tokens, usage.output_tokens, total, tool_calls, elapsed.as_secs_f64(),
         );
-        if final_answer {
-            eprintln!(
-                "{PAD}{}",
-                text.with(Color::Green).attribute(Attribute::Dim)
-            );
-        } else {
-            eprintln!(
-                "{PAD}{} {}",
-                "╭".with(Color::DarkGrey),
-                text.with(Color::Green).attribute(Attribute::Dim),
-            );
-        }
+        eprintln!(
+            "{PAD}{} {}",
+            "╭".with(Color::DarkGrey),
+            text.with(Color::Green).attribute(Attribute::Dim),
+        );
     }
 
     fn show_summary(&self, usage: &TokenUsage, model: &str, llm_calls: u32, tool_calls: u32, elapsed: Duration) {
