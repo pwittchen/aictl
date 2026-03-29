@@ -171,3 +171,7 @@ cargo build --release
 ```
 
 The binary will be at `target/release/aictl`.
+
+## License
+
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free to use for non-commercial purposes, including personal use, research, education, and use by non-profit organizations. For commercial use, please contact [piotr@wittchen.io](mailto:piotr@wittchen.io).
