@@ -293,13 +293,13 @@ impl AgentUI for InteractiveUI {
         if final_answer {
             eprintln!(
                 "{PAD}{}",
-                text.with(Color::DarkGreen).attribute(Attribute::Dim)
+                text.with(Color::Green).attribute(Attribute::Dim)
             );
         } else {
             eprintln!(
                 "{PAD}{} {}",
                 "╭".with(Color::DarkGrey),
-                text.with(Color::DarkGreen).attribute(Attribute::Dim),
+                text.with(Color::Green).attribute(Attribute::Dim),
             );
         }
     }
@@ -316,7 +316,7 @@ impl AgentUI for InteractiveUI {
         );
         eprintln!(
             "{PAD}{}",
-            text.with(Color::DarkGreen).attribute(Attribute::Dim)
+            text.with(Color::Green).attribute(Attribute::Dim)
         );
         eprintln!();
     }
