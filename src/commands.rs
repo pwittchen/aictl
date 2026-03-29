@@ -48,7 +48,7 @@ fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
                 let _ = stdin.write_all(text.as_bytes());
             }
             match child.wait() {
-                Ok(_) => println!("  {} Copied to clipboard.", "✓".with(Color::Green)),
+                Ok(_) => println!("  {} copied to clipboard", "✓".with(Color::Green)),
                 Err(e) => show_error(&format!("Clipboard error: {e}")),
             }
         }
