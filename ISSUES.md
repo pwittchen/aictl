@@ -1,6 +1,6 @@
 # ISSUES
 
-features/ideas/bugs:
+features/ideas/bug-fixes to be added in the future:
 
 - add model switch functionality during the session
 - add context limit
