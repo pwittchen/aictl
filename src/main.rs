@@ -1,3 +1,4 @@
+mod commands;
 mod llm;
 mod tools;
 mod ui;
@@ -292,6 +293,7 @@ async fn run_interactive(
     }
 
     let prompt = format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold));
+    let mut last_answer = String::new();
 
     loop {
         let line = rl.readline(&prompt);
@@ -304,6 +306,17 @@ async fn run_interactive(
                 if input == "exit" || input == "quit" {
                     break;
                 }
+
+                // Slash commands
+                match commands::handle(&input, &last_answer, &|msg| ui.show_error(msg)) {
+                    commands::CommandResult::Exit => break,
+                    commands::CommandResult::Continue => {
+                        let _ = rl.add_history_entry(&input);
+                        continue;
+                    }
+                    commands::CommandResult::NotACommand => {}
+                }
+
                 let _ = rl.add_history_entry(&input);
 
                 match run_agent_turn(
@@ -319,6 +332,7 @@ async fn run_interactive(
                 {
                     Ok((answer, usage, llm_calls, tool_calls, elapsed)) => {
                         ui.show_answer(&answer);
+                        last_answer = answer;
                         if llm_calls > 1 {
                             ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed);
                         }
