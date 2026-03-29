@@ -6,6 +6,7 @@ features/ideas/bug-fixes to be added in the future:
 - add context limit
 - show used context in percent in usage status bar
 - add context compacting feature
+- add context clearing feature
 - add Mistral support
 - add Z.ai support
 - add DeepSeek support
