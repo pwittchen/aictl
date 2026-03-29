@@ -153,7 +153,7 @@ See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
 ## Install
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && cargo install --git https://github.com/pwittchen/aictl.git
+curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh
 ```
 
 ### Prerequisites
