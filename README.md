@@ -142,6 +142,10 @@ See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:
 - UI layer
 - End-to-end data flow
 
+## Known Issues & Ideas
+
+See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
+
 ## Install
 
 ### Prerequisites
