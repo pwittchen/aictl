@@ -4,7 +4,6 @@ features/ideas/bug-fixes to be added in the future:
 
 - [repl] [ui] add Esc for interrupt
 - [repl] [func] add setup functionality where user can provide api keys, etc. to generate config file
-- [tool] add current geolocation tool
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] add provider and model display functionality during the session
 - [func] add context limit

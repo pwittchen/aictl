@@ -101,6 +101,7 @@ Available tools:
 | `web_search` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
 | `glob` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
 | `web_fetch` | Fetch a URL and return readable text content (HTML tags stripped) |
+| `geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 

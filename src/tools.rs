@@ -28,6 +28,7 @@ Available tools:
   >>>
 - glob: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
 - web_fetch: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via web_search.
+- geolocation: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info.
 
 Rules:
 - Use at most one tool call per response.
@@ -371,6 +372,30 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                     }
                 }
                 Err(e) => format!("Error fetching URL: {e}"),
+            }
+        }
+        "geolocation" => {
+            let ip = tool_call.input.trim();
+            let url = if ip.is_empty() {
+                "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()
+            } else {
+                format!("http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as")
+            };
+            let client = reqwest::Client::new();
+            match client.get(&url).send().await {
+                Ok(resp) => match resp.json::<serde_json::Value>().await {
+                    Ok(json) => {
+                        if json["status"].as_str() == Some("fail") {
+                            let msg = json["message"].as_str().unwrap_or("unknown error");
+                            format!("Geolocation lookup failed: {msg}")
+                        } else {
+                            serde_json::to_string_pretty(&json)
+                                .unwrap_or_else(|_| json.to_string())
+                        }
+                    }
+                    Err(e) => format!("Error parsing geolocation response: {e}"),
+                },
+                Err(e) => format!("Error fetching geolocation data: {e}"),
             }
         }
         _ => format!("Unknown tool: {}", tool_call.name),
