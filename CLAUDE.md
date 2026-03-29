@@ -17,10 +17,12 @@ cargo test               # run tests (none yet)
 
 Single-binary async Rust CLI with four modules:
 
-- `src/main.rs` — CLI args (clap), agent loop, single-shot and interactive REPL modes
+- `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), agent loop, single-shot and interactive REPL modes
 - `src/tools.rs` — system prompt, tool-call XML parsing, tool execution dispatch
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
 - `src/llm/` — provider modules (`openai.rs`, `anthropic.rs`) and shared `TokenUsage` type with cost estimation (`mod.rs`)
+
+**Config**: Loaded once at startup from `~/.aictl` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters.
 
 **Flow**: CLI args (clap) → `run_agent_turn` loop → provider call → parse response for `<tool>` tags → execute tool or print final answer.
 
@@ -36,7 +38,7 @@ Single-binary async Rust CLI with four modules:
 - `search_files` — grep-based content search
 - `edit_file` — targeted find-and-replace (requires unique match)
 - `glob` — find files matching a glob pattern with optional base directory
-- `web_search` — web search via Firecrawl API (`FIRECRAWL_API_KEY`)
+- `web_search` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
 - `web_fetch` — fetch a URL and return readable text content (HTML stripped)
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.

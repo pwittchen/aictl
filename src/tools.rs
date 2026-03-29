@@ -214,10 +214,10 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
             }
         }
         "web_search" => {
-            let api_key = match std::env::var("FIRECRAWL_API_KEY") {
-                Ok(key) => key,
-                Err(_) => {
-                    return "Error: FIRECRAWL_API_KEY environment variable not set".to_string()
+            let api_key = match crate::config_get("FIRECRAWL_API_KEY") {
+                Some(key) => key,
+                None => {
+                    return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string()
                 }
             };
             let query = tool_call.input.trim();

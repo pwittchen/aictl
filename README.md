@@ -16,27 +16,27 @@ Omit `--message` to enter interactive REPL mode with persistent conversation his
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` env var |
-| `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` env var |
+| `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
+| `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 
-CLI flags take priority over environment variables.
+CLI flags take priority over config file values.
 
-### Environment Variables
+### Configuration
 
-Configuration is loaded from a `.env` file in the current directory or from system environment variables. The `.env` file takes priority over system env vars.
+Configuration is loaded from `~/.aictl`. This is a single global config file — the program works the same regardless of the current working directory.
 
-| Variable | Description |
-|----------|-------------|
+| Key | Description |
+|-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai` or `anthropic`) |
 | `AICTL_MODEL` | Default model name |
 | `OPENAI_API_KEY` | API key for OpenAI |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`web_search` tool) |
 
-Create a `.env` file (see `.env.example`):
+Create `~/.aictl` (see `.aictl.example`):
 
 ```
 AICTL_PROVIDER=anthropic
@@ -44,6 +44,8 @@ AICTL_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_API_KEY=sk-ant-...
 FIRECRAWL_API_KEY=fc-...
 ```
+
+The file format supports comments (`#`), quoted values, and optional `export` prefixes.
 
 ### Providers
 
@@ -113,7 +115,7 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 ### Examples
 
 ```bash
-# With defaults configured in .env, just run:
+# With defaults configured in ~/.aictl, just run:
 aictl
 
 # Or send a single message:

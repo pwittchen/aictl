@@ -2,10 +2,15 @@ mod llm;
 mod tools;
 mod ui;
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use clap::{Parser, ValueEnum};
 
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
+
+static CONFIG: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 #[derive(Debug, Clone, ValueEnum)]
 enum Provider {
@@ -18,11 +23,11 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Parser)]
 #[command(name = "aictl", version = VERSION, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
 struct Cli {
-    /// LLM provider to use (default: AICTL_PROVIDER env var)
+    /// LLM provider to use (default: AICTL_PROVIDER from ~/.aictl)
     #[arg(short, long)]
     provider: Option<Provider>,
 
-    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: AICTL_MODEL env var)
+    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: AICTL_MODEL from ~/.aictl)
     #[arg(short, long)]
     model: Option<String>,
 
@@ -39,12 +44,21 @@ struct Cli {
     quiet: bool,
 }
 
-fn load_env_file() {
-    let contents = match std::fs::read_to_string(".env") {
+fn load_config() {
+    let home = std::env::var("HOME").unwrap_or_else(|_| {
+        eprintln!("Error: HOME environment variable not set");
+        std::process::exit(1);
+    });
+    let config_path = format!("{home}/.aictl");
+    let contents = match std::fs::read_to_string(&config_path) {
         Ok(c) => c,
-        Err(_) => return,
+        Err(_) => {
+            CONFIG.set(HashMap::new()).ok();
+            return;
+        }
     };
 
+    let mut map = HashMap::new();
     for line in contents.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -66,9 +80,13 @@ fn load_env_file() {
             value = &value[1..value.len() - 1];
         }
 
-        // SAFETY: called early in main() before any other threads are spawned.
-        unsafe { std::env::set_var(key, value) };
+        map.insert(key.to_string(), value.to_string());
     }
+    CONFIG.set(map).ok();
+}
+
+pub fn config_get(key: &str) -> Option<String> {
+    CONFIG.get().and_then(|m| m.get(key).cloned())
 }
 
 // --- Provider-agnostic types ---
@@ -329,41 +347,39 @@ async fn run_interactive(
 
 #[tokio::main]
 async fn main() {
-    load_env_file();
+    load_config();
 
     let cli = Cli::parse();
 
     let provider = cli.provider.unwrap_or_else(|| {
-        match std::env::var("AICTL_PROVIDER").as_deref() {
-            Ok("openai") => Provider::Openai,
-            Ok("anthropic") => Provider::Anthropic,
-            Ok(other) => {
+        match config_get("AICTL_PROVIDER").as_deref() {
+            Some("openai") => Provider::Openai,
+            Some("anthropic") => Provider::Anthropic,
+            Some(other) => {
                 eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai' or 'anthropic')");
                 std::process::exit(1);
             }
-            Err(_) => {
-                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in .env / environment");
+            None => {
+                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in ~/.aictl");
                 std::process::exit(1);
             }
         }
     });
 
     let model = cli.model.unwrap_or_else(|| {
-        std::env::var("AICTL_MODEL").unwrap_or_else(|_| {
-            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in .env / environment");
+        config_get("AICTL_MODEL").unwrap_or_else(|| {
+            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in ~/.aictl");
             std::process::exit(1);
         })
     });
 
-    let env_var = match provider {
+    let key_name = match provider {
         Provider::Openai => "OPENAI_API_KEY",
         Provider::Anthropic => "ANTHROPIC_API_KEY",
     };
 
-    let api_key = std::env::var(env_var).unwrap_or_else(|_| {
-        eprintln!(
-            "Error: API key not provided. Set {env_var} in .env or as an environment variable"
-        );
+    let api_key = config_get(key_name).unwrap_or_else(|| {
+        eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl");
         std::process::exit(1);
     });
 

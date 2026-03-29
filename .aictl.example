@@ -1,3 +1,6 @@
+# ~/.aictl — aictl configuration file
+# Copy this file to ~/.aictl and uncomment/fill in the values.
+
 # Default provider and model (used when --provider / --model are not passed)
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
@@ -5,3 +8,6 @@
 # API keys
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...
+
+# Web search (optional, used by web_search tool)
+# FIRECRAWL_API_KEY=fc-...
