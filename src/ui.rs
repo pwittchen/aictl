@@ -139,8 +139,9 @@ impl InteractiveUI {
         let rule = "─".repeat(width);
         eprintln!("{}", rule.as_str().with(Color::DarkGrey));
         eprintln!(
-            "{PAD}{} {}",
+            "{PAD}{} {} {}",
             "aictl".with(Color::Cyan).attribute(Attribute::Bold),
+            crate::VERSION.with(Color::DarkGrey),
             "— AI agent in your terminal".with(Color::DarkGrey),
         );
         eprintln!(
