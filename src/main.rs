@@ -422,6 +422,16 @@ async fn run_interactive(
                         last_input_tokens = 0;
                         continue;
                     }
+                    commands::CommandResult::Context => {
+                        let _ = rl.add_history_entry(&input);
+                        commands::print_context(
+                            model,
+                            messages.len(),
+                            last_input_tokens,
+                            MAX_MESSAGES,
+                        );
+                        continue;
+                    }
                     commands::CommandResult::Continue => {
                         let _ = rl.add_history_entry(&input);
                         continue;

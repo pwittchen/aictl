@@ -20,6 +20,7 @@ The interactive REPL supports slash commands:
 |---------|-------------|
 | `/clear` | Clear conversation context |
 | `/compact` | Summarize conversation into a compact context |
+| `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/exit` | Exit the REPL |

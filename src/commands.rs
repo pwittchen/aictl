@@ -12,6 +12,8 @@ pub enum CommandResult {
     Clear,
     /// Compact conversation context via LLM summarization.
     Compact,
+    /// Show context usage info.
+    Context,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -28,6 +30,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "exit" => CommandResult::Exit,
         "clear" => CommandResult::Clear,
         "compact" => CommandResult::Compact,
+        "context" => CommandResult::Context,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -142,6 +145,34 @@ pub async fn compact(
     }
 }
 
+pub fn print_context(
+    model: &str,
+    messages_len: usize,
+    last_input_tokens: u64,
+    max_messages: usize,
+) {
+    let limit = llm::context_limit(model);
+    let token_pct = if last_input_tokens > 0 {
+        (last_input_tokens as f64 / limit as f64 * 100.0) as u8
+    } else {
+        0
+    };
+    let message_pct = (messages_len as f64 / max_messages as f64 * 100.0) as u8;
+    let context_pct = token_pct.max(message_pct).min(100);
+
+    println!();
+    println!("  {} {context_pct}%", "context:".with(Color::Cyan),);
+    println!(
+        "  {} {last_input_tokens} / {limit}",
+        "tokens: ".with(Color::DarkGrey),
+    );
+    println!(
+        "  {} {messages_len} / {max_messages}",
+        "messages:".with(Color::DarkGrey),
+    );
+    println!();
+}
+
 fn print_help() {
     println!();
     println!(
@@ -152,6 +183,7 @@ fn print_help() {
         "  {} Compact context into a summary",
         "/compact".with(Color::Cyan)
     );
+    println!("  {} Show context usage", "/context".with(Color::Cyan));
     println!(
         "  {}    Copy last response to clipboard",
         "/copy".with(Color::Cyan)
