@@ -7,7 +7,7 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [ui] add Esc for interrupt
 - [tool] add current geolocation tool
 - [repl] [ui] [func] add model switch functionality during the session
-- [repl] [ui] add model display functionality during the session
+- [repl] [ui] add provider and model display functionality during the session
 - [func] add context limit
 - [repl] [ui] show used context in percent in usage status bar
 - [repl] [ui] [func] add manual context compacting feature
