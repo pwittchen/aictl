@@ -316,6 +316,11 @@ async fn run_interactive(
                         last_answer.clear();
                         continue;
                     }
+                    commands::CommandResult::Compact => {
+                        let _ = rl.add_history_entry(&input);
+                        commands::compact(provider, api_key, model, &mut messages, &ui).await;
+                        continue;
+                    }
                     commands::CommandResult::Continue => {
                         let _ = rl.add_history_entry(&input);
                         continue;

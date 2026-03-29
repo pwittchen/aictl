@@ -1,11 +1,17 @@
 use crossterm::style::{Color, Stylize};
 
+use crate::llm;
+use crate::ui::AgentUI;
+use crate::{Message, Provider, Role};
+
 /// Result of handling a slash command.
 pub enum CommandResult {
     /// Exit the REPL.
     Exit,
     /// Clear conversation context and continue.
     Clear,
+    /// Compact conversation context via LLM summarization.
+    Compact,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -21,6 +27,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
     match cmd {
         "exit" => CommandResult::Exit,
         "clear" => CommandResult::Clear,
+        "compact" => CommandResult::Compact,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -59,11 +66,68 @@ fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
     }
 }
 
+pub async fn compact(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut Vec<Message>,
+    ui: &dyn AgentUI,
+) {
+    if messages.len() <= 1 {
+        ui.show_error("Nothing to compact.");
+        return;
+    }
+
+    ui.start_spinner("compacting context...");
+
+    let mut summary_msgs = messages.clone();
+    summary_msgs.push(Message {
+        role: Role::User,
+        content: "Summarize our conversation so far in a compact form. \
+            Include all key facts, decisions, code changes, file paths, \
+            and open tasks so we can continue without losing context. \
+            Be concise but thorough."
+            .to_string(),
+    });
+
+    let result = match provider {
+        Provider::Openai => llm::openai::call_openai(api_key, model, &summary_msgs).await,
+        Provider::Anthropic => llm::anthropic::call_anthropic(api_key, model, &summary_msgs).await,
+    };
+
+    ui.stop_spinner();
+
+    match result {
+        Ok((summary, usage)) => {
+            let system = messages[0].clone();
+            messages.clear();
+            messages.push(system);
+            messages.push(Message {
+                role: Role::User,
+                content: format!("Here is a summary of our conversation so far:\n\n{summary}"),
+            });
+            messages.push(Message {
+                role: Role::Assistant,
+                content: "Understood. I have the context from our previous \
+                    conversation. How can I help you next?"
+                    .to_string(),
+            });
+            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO);
+            println!("  {} context compacted", "✓".with(Color::Green));
+        }
+        Err(e) => ui.show_error(&format!("Compact failed: {e}")),
+    }
+}
+
 fn print_help() {
     println!();
     println!(
         "  {}   Clear conversation context",
         "/clear".with(Color::Cyan)
+    );
+    println!(
+        "  {} Compact context into a summary",
+        "/compact".with(Color::Cyan)
     );
     println!(
         "  {}    Copy last response to clipboard",

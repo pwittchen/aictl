@@ -8,7 +8,6 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [ui] add provider and model display functionality during the session
 - [func] add context limit
 - [repl] [ui] show used context in percent in usage status bar
-- [repl] [ui] [func] add manual context compacting feature
 - [repl] [func] add auto context compacting feature
 - [llm] add Gemini support
 - [llm] add Mistral support
