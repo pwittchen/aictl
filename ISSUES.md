@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- move config from env vars and .env file to the specified .aictl dotfile in the home dir
 - add model switch functionality during the session
 - add context limit
 - show used context in percent in usage status bar
