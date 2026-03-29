@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- add current geolocation tool
 - add model switch functionality during the session
 - add context limit
 - show used context in percent in usage status bar
