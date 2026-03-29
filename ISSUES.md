@@ -2,13 +2,8 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [repl] [ui] add Esc for interrupt
-- [repl] [func] add setup functionality where user can provide api keys, etc. to generate config file
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] add provider and model display functionality during the session
-- [func] add context limit
-- [repl] [ui] show used context in percent in usage status bar
-- [repl] [func] add auto context compacting feature
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
