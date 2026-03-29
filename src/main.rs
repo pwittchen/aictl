@@ -13,7 +13,7 @@ enum Provider {
     Anthropic,
 }
 
-pub const VERSION: &str = "BETA";
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
 #[command(name = "aictl", version = VERSION, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
