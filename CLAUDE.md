@@ -38,7 +38,6 @@ Single-binary async Rust CLI with four modules:
 - `glob` — find files matching a glob pattern with optional base directory
 - `web_search` — web search via Firecrawl API (`FIRECRAWL_API_KEY`)
 - `web_fetch` — fetch a URL and return readable text content (HTML stripped)
-- `think` — scratchpad for reasoning; input is returned unchanged
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.
 

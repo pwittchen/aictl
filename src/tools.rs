@@ -28,7 +28,6 @@ Available tools:
   >>>
 - glob: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
 - web_fetch: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via web_search.
-- think: A scratchpad for thinking through a problem. Input is returned unchanged. Use this to reason step-by-step before acting.
 
 Rules:
 - Use at most one tool call per response.
@@ -374,7 +373,6 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error fetching URL: {e}"),
             }
         }
-        "think" => tool_call.input.clone(),
         _ => format!("Unknown tool: {}", tool_call.name),
     }
 }
