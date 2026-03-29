@@ -11,3 +11,4 @@ features/ideas/bug-fixes to be added in the future:
 - add DeepSeek support
 - add Ollama support
 - add native models support from disk (e.g. with ONNX or other format like that)
+- add possibility to configure additional customizable ASSISTANT PROMPT, which will be added to the system prompt in order to perform more specific tasks
