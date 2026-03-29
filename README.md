@@ -2,6 +2,8 @@
 
 general purpose AI agent for terminal
 
+![aictl screenshot](screenshot.png)
+
 ## Usage
 
 ```bash
