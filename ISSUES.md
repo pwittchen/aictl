@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- add "left ascii wall" to the welcome banner to make it's consistent with the tool call output
 - add current geolocation tool
 - add model switch functionality during the session
 - add context limit
