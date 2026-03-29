@@ -13,6 +13,7 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [func] add auto context compacting feature
 - [repl] [ui] [func] add context clearing feature
 - [repl] [ui] [func] add final output copying feature
+- [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
 - [llm] add DeepSeek support
