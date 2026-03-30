@@ -5,6 +5,7 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] add provider and model display functionality during the session
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version)
+- [func] add `-a` short flag for auto
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
