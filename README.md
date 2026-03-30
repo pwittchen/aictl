@@ -24,6 +24,7 @@ The interactive REPL supports slash commands:
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, version, OS, binary size) |
+| `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
 | `/exit` | Exit the REPL |
 

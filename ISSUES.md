@@ -2,7 +2,6 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [repl] [ui] [func] add model switch functionality during the session
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support

@@ -399,9 +399,8 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                             let mut text = String::new();
                             for node_ref in document.tree.root().descendants() {
                                 if let scraper::node::Node::Text(t) = node_ref.value() {
-                                    let skip = node_ref
-                                        .ancestors()
-                                        .any(|a| remove_ids.contains(&a.id()));
+                                    let skip =
+                                        node_ref.ancestors().any(|a| remove_ids.contains(&a.id()));
                                     if !skip {
                                         text.push_str(&t.text);
                                     }

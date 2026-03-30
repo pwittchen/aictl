@@ -91,6 +91,37 @@ pub fn config_get(key: &str) -> Option<String> {
     CONFIG.get().and_then(|m| m.get(key).cloned())
 }
 
+/// Write a key=value pair to ~/.aictl, replacing an existing key or appending.
+fn config_set(key: &str, value: &str) {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    let config_path = format!("{home}/.aictl");
+    let contents = std::fs::read_to_string(&config_path).unwrap_or_default();
+
+    let mut found = false;
+    let mut lines: Vec<String> = contents
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            let stripped = trimmed.strip_prefix("export ").unwrap_or(trimmed);
+            if stripped.starts_with(key) && stripped[key.len()..].starts_with('=') {
+                found = true;
+                format!("{key}={value}")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+
+    if !found {
+        lines.push(format!("{key}={value}"));
+    }
+
+    let _ = std::fs::write(&config_path, lines.join("\n") + "\n");
+}
+
 // --- Esc key interrupt support ---
 
 /// Error type for user-initiated interruption via Esc key.
@@ -360,17 +391,16 @@ async fn run_agent_single(
 
 /// Interactive REPL mode: multi-turn conversation with persistent history.
 async fn run_interactive(
-    provider: &Provider,
-    api_key: &str,
-    model: &str,
+    mut provider: Provider,
+    mut api_key: String,
+    mut model: String,
     auto: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
 
     let ui = InteractiveUI::new();
-    let provider_name = format!("{:?}", provider).to_lowercase();
-    InteractiveUI::print_welcome(&provider_name, model);
+    InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model);
 
     let mut messages = vec![Message {
         role: Role::System,
@@ -418,14 +448,14 @@ async fn run_interactive(
                     }
                     commands::CommandResult::Compact => {
                         let _ = rl.add_history_entry(&input);
-                        commands::compact(provider, api_key, model, &mut messages, &ui).await;
+                        commands::compact(&provider, &api_key, &model, &mut messages, &ui).await;
                         last_input_tokens = 0;
                         continue;
                     }
                     commands::CommandResult::Context => {
                         let _ = rl.add_history_entry(&input);
                         commands::print_context(
-                            model,
+                            &model,
                             messages.len(),
                             last_input_tokens,
                             MAX_MESSAGES,
@@ -434,7 +464,37 @@ async fn run_interactive(
                     }
                     commands::CommandResult::Info => {
                         let _ = rl.add_history_entry(&input);
-                        commands::print_info(&provider_name, model);
+                        let pname = format!("{:?}", provider).to_lowercase();
+                        commands::print_info(&pname, &model);
+                        continue;
+                    }
+                    commands::CommandResult::Model => {
+                        let _ = rl.add_history_entry(&input);
+                        if let Some((new_provider, new_model, api_key_name)) =
+                            commands::select_model()
+                        {
+                            let new_api_key = match config_get(&api_key_name) {
+                                Some(k) => k,
+                                None => {
+                                    ui.show_error(&format!(
+                                        "API key not found. Set {api_key_name} in ~/.aictl"
+                                    ));
+                                    continue;
+                                }
+                            };
+                            config_set(
+                                "AICTL_PROVIDER",
+                                &format!("{:?}", new_provider).to_lowercase(),
+                            );
+                            config_set("AICTL_MODEL", &new_model);
+                            provider = new_provider;
+                            model = new_model;
+                            api_key = new_api_key;
+                            let pname = format!("{:?}", provider).to_lowercase();
+                            println!();
+                            println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
+                            println!();
+                        }
                         continue;
                     }
                     commands::CommandResult::Continue => {
@@ -448,7 +508,7 @@ async fn run_interactive(
 
                 // Auto-compact if context is >= 80%
                 let token_pct = if last_input_tokens > 0 {
-                    (last_input_tokens as f64 / llm::context_limit(model) as f64 * 100.0) as u8
+                    (last_input_tokens as f64 / llm::context_limit(&model) as f64 * 100.0) as u8
                 } else {
                     0
                 };
@@ -460,24 +520,32 @@ async fn run_interactive(
                         "  {} context at {context_pct}%, auto-compacting...",
                         "⚠".with(Color::Yellow)
                     );
-                    commands::compact(provider, api_key, model, &mut messages, &ui).await;
+                    commands::compact(&provider, &api_key, &model, &mut messages, &ui).await;
                     last_input_tokens = 0;
                 }
 
                 let msg_len_before = messages.len();
-                match run_agent_turn(provider, api_key, model, &mut messages, &input, auto, &ui)
-                    .await
+                match run_agent_turn(
+                    &provider,
+                    &api_key,
+                    &model,
+                    &mut messages,
+                    &input,
+                    auto,
+                    &ui,
+                )
+                .await
                 {
                     Ok((answer, usage, llm_calls, tool_calls, elapsed, input_tokens)) => {
                         ui.show_answer(&answer);
                         last_answer = answer;
                         last_input_tokens = input_tokens;
                         if llm_calls > 1 {
-                            let tp = (input_tokens as f64 / llm::context_limit(model) as f64
+                            let tp = (input_tokens as f64 / llm::context_limit(&model) as f64
                                 * 100.0) as u8;
                             let mp = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
                             let cp = tp.max(mp).min(100);
-                            ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed, cp);
+                            ui.show_summary(&usage, &model, llm_calls, tool_calls, elapsed, cp);
                         }
                     }
                     Err(e) => {
@@ -555,7 +623,7 @@ async fn main() {
         Some(ref msg) => {
             run_agent_single(&provider, &api_key, &model, msg, cli.auto, cli.quiet).await
         }
-        None => run_interactive(&provider, &api_key, &model, cli.auto).await,
+        None => run_interactive(provider, api_key, model, cli.auto).await,
     };
 
     if let Err(e) = result {

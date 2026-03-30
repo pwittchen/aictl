@@ -5,7 +5,7 @@
 ```
 src/
  ├── main.rs          CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs       REPL slash commands (/clear, /compact, /context, /copy, /help, /info, /tools, /exit)
+ ├── commands.rs       REPL slash commands (/clear, /compact, /context, /copy, /help, /info, /model, /tools, /exit)
  ├── tools.rs          System prompt, XML tool-call parsing, tool execution
  ├── ui.rs             AgentUI trait, PlainUI & InteractiveUI implementations
  └── llm/
@@ -182,7 +182,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /context (Context), /info (Info), /tools (Continue)
+ Also: /context (Context), /info (Info), /model (Model), /tools (Continue)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -190,6 +190,7 @@ Both single-shot and REPL modes share the same loop:
    Compact     → summarize conversation via LLM, continue
    Context     → show token/message usage, continue
    Info        → show provider/model/version info, continue
+   Model       → select new model/provider, persist to ~/.aictl, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
 ```

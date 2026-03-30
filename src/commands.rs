@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crossterm::style::{Color, Stylize};
 
 use crate::llm;
@@ -16,6 +18,8 @@ pub enum CommandResult {
     Context,
     /// Show setup info (provider, model, version, etc.).
     Info,
+    /// Switch model interactively.
+    Model,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -34,6 +38,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "compact" => CommandResult::Compact,
         "context" => CommandResult::Context,
         "info" => CommandResult::Info,
+        "model" => CommandResult::Model,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -198,9 +203,10 @@ fn print_help() {
     println!("  {}    Show this help message", "/help".with(Color::Cyan));
     println!("  {}    Show setup info", "/info".with(Color::Cyan));
     println!(
-        "  {}   Show available tools",
-        "/tools".with(Color::Cyan)
+        "  {}   Switch model and provider",
+        "/model".with(Color::Cyan)
     );
+    println!("  {}   Show available tools", "/tools".with(Color::Cyan));
     println!("  {}    Exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }
@@ -256,6 +262,68 @@ fn print_tools() {
         "geolocate".with(Color::Cyan)
     );
     println!();
+}
+
+/// Available models: (provider_str, model_name, api_key_config_key)
+const MODELS: &[(&str, &str, &str)] = &[
+    ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
+    ("openai", "gpt-4.1-nano", "OPENAI_API_KEY"),
+    ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
+    ("openai", "gpt-4.1", "OPENAI_API_KEY"),
+    ("openai", "gpt-4o-mini", "OPENAI_API_KEY"),
+    ("openai", "gpt-4o", "OPENAI_API_KEY"),
+    ("openai", "o4-mini", "OPENAI_API_KEY"),
+];
+
+/// Interactively select a model. Returns (Provider, model_name, api_key_config_key) or None if cancelled.
+pub fn select_model() -> Option<(Provider, String, String)> {
+    println!();
+    println!("  {}", "Anthropic:".with(Color::Cyan));
+    let mut idx = 1;
+    for (i, (prov, model, _)) in MODELS.iter().enumerate() {
+        if *prov == "openai" && (i == 0 || MODELS[i - 1].0 != "openai") {
+            println!();
+            println!("  {}", "OpenAI:".with(Color::Cyan));
+        }
+        println!("    {}  {model}", format!("{idx}.").with(Color::DarkGrey));
+        idx += 1;
+    }
+    println!();
+
+    print!("  {} ", "Select model (number):".with(Color::DarkGrey));
+    let _ = std::io::stdout().flush();
+
+    let mut input = String::new();
+    if std::io::stdin().read_line(&mut input).is_err() {
+        return None;
+    }
+    let input = input.trim();
+    if input.is_empty() {
+        return None;
+    }
+
+    let num: usize = match input.parse() {
+        Ok(n) => n,
+        Err(_) => {
+            println!("\n  {} invalid selection\n", "✗".with(Color::Red));
+            return None;
+        }
+    };
+
+    if num < 1 || num > MODELS.len() {
+        println!("\n  {} invalid selection\n", "✗".with(Color::Red));
+        return None;
+    }
+
+    let (prov_str, model, api_key_name) = MODELS[num - 1];
+    let provider = match prov_str {
+        "openai" => Provider::Openai,
+        "anthropic" => Provider::Anthropic,
+        _ => unreachable!(),
+    };
+    Some((provider, model.to_string(), api_key_name.to_string()))
 }
 
 pub fn print_info(provider: &str, model: &str) {
