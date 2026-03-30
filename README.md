@@ -7,6 +7,34 @@ general purpose AI agent for terminal
 
 ![aictl screenshot](screenshot.png)
 
+## Install
+
+```bash
+curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh
+```
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) (edition 2024)
+
+### From source
+
+```bash
+git clone git@github.com:pwittchen/aictl.git
+cd aictl
+cargo install --path .
+```
+
+This installs the `aictl` binary to `~/.cargo/bin/`.
+
+### Build without installing
+
+```bash
+cargo build --release
+```
+
+The binary will be at `target/release/aictl`.
+
 ## Usage
 
 ```bash
@@ -181,34 +209,6 @@ See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:
 ## Known Issues & Ideas
 
 See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
-
-## Install
-
-```bash
-curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh
-```
-
-### Prerequisites
-
-- [Rust](https://www.rust-lang.org/tools/install) (edition 2024)
-
-### From source
-
-```bash
-git clone git@github.com:pwittchen/aictl.git
-cd aictl
-cargo install --path .
-```
-
-This installs the `aictl` binary to `~/.cargo/bin/`.
-
-### Build without installing
-
-```bash
-cargo build --release
-```
-
-The binary will be at `target/release/aictl`.
 
 ## License
 
