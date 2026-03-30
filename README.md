@@ -32,8 +32,8 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
-| `--model` | `-m` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
-| `--message` | `-M` | Message to send (omit for interactive mode) |
+| `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
+| `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 
@@ -135,19 +135,19 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 aictl
 
 # Or send a single message:
-aictl -M "What is Rust?"
+aictl -m "What is Rust?"
 
 # Override provider/model from the command line:
-aictl -p openai -m gpt-4o -M "What is Rust?"
+aictl -p openai -M gpt-4o -m "What is Rust?"
 
 # Agent with tool calls (interactive confirmation)
-aictl -M "List files in the current directory"
+aictl -m "List files in the current directory"
 
 # Autonomous mode (no confirmation prompts)
-aictl --auto -M "What OS am I running?"
+aictl --auto -m "What OS am I running?"
 
 # Quiet mode (only final answer, no tool calls or reasoning)
-aictl --auto -q -M "What OS am I running?"
+aictl --auto -q -m "What OS am I running?"
 ```
 
 ## Architecture

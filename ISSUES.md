@@ -8,7 +8,6 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version, binary size, OS)
 - [repl] [func] add `/tools` command, which will display all available tools
 - [func] add `-a` short flag for auto
-- [func] replace short flags `-M` for model, `-m` for message
 - [func] reduce context window for gpt-4 model
 - [docs] update arch diagrams
 - [tool] improve `web_fetch` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query

@@ -30,11 +30,11 @@ struct Cli {
     provider: Option<Provider>,
 
     /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: AICTL_MODEL from ~/.aictl)
-    #[arg(short, long)]
+    #[arg(short = 'M', long)]
     model: Option<String>,
 
     /// Message to send to the LLM (omit for interactive mode)
-    #[arg(short = 'M', long)]
+    #[arg(short, long)]
     message: Option<String>,
 
     /// Run in autonomous mode (skip tool confirmation prompts)
