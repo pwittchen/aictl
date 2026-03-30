@@ -38,7 +38,7 @@ struct Cli {
     message: Option<String>,
 
     /// Run in autonomous mode (skip tool confirmation prompts)
-    #[arg(long)]
+    #[arg(short, long)]
     auto: bool,
 
     /// Suppress tool calls and reasoning, only print the final answer (requires --auto)
