@@ -347,15 +347,14 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
 
     let total = MODELS.len();
 
-    // Enter raw mode for key capture
+    // Enter raw mode for key capture, hide cursor
     let _ = terminal::enable_raw_mode();
-
     let mut stdout = std::io::stdout();
+    let _ = execute!(stdout, cursor::Hide);
 
-    // Draw initial menu
+    // Draw initial menu (leading \r\n moves past the prompt line)
     let (lines, _) = build_menu_lines(selected, current_model);
     let _ = execute!(stdout, cursor::MoveToColumn(0));
-    // Print a blank line, then menu, then hint
     let _ = write!(stdout, "\r\n");
     for line in &lines {
         let _ = write!(stdout, "{line}\r\n");
@@ -366,7 +365,8 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
     );
     let _ = stdout.flush();
-    let total_rendered_lines = lines.len() + 2; // +1 blank at top, +1 hint at bottom
+    // menu lines + blank line before hint + hint line
+    let total_rendered_lines = lines.len() + 2;
 
     loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -388,13 +388,13 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
                     }
                 }
                 KeyCode::Enter => {
-                    let _ = terminal::disable_raw_mode();
-                    // Move below the menu and clear it
                     let _ = execute!(
                         stdout,
                         cursor::MoveUp(total_rendered_lines as u16),
                         terminal::Clear(ClearType::FromCursorDown),
+                        cursor::Show,
                     );
+                    let _ = terminal::disable_raw_mode();
                     let (prov_str, model, api_key_name) = MODELS[selected];
                     let provider = match prov_str {
                         "openai" => Provider::Openai,
@@ -404,12 +404,13 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
                     return Some((provider, model.to_string(), api_key_name.to_string()));
                 }
                 KeyCode::Esc => {
-                    let _ = terminal::disable_raw_mode();
                     let _ = execute!(
                         stdout,
                         cursor::MoveUp(total_rendered_lines as u16),
                         terminal::Clear(ClearType::FromCursorDown),
+                        cursor::Show,
                     );
+                    let _ = terminal::disable_raw_mode();
                     return None;
                 }
                 _ => continue,
@@ -417,14 +418,13 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
             _ => continue,
         }
 
-        // Redraw menu in place
+        // Redraw menu in place (no leading \r\n — cursor is already at the first menu row)
         let (lines, _) = build_menu_lines(selected, current_model);
         let _ = execute!(
             stdout,
             cursor::MoveUp(total_rendered_lines as u16),
             terminal::Clear(ClearType::FromCursorDown),
         );
-        let _ = write!(stdout, "\r\n");
         for line in &lines {
             let _ = write!(stdout, "{line}\r\n");
         }
@@ -436,6 +436,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         let _ = stdout.flush();
     }
 
+    let _ = execute!(stdout, cursor::Show);
     let _ = terminal::disable_raw_mode();
     None
 }
