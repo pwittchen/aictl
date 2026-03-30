@@ -32,7 +32,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
-| `--model` | `-m` | Model name (e.g. `gpt-4o`, `claude-sonnet-4-20250514`). Falls back to `AICTL_MODEL` in `~/.aictl` |
+| `--model` | `-m` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-M` | Message to send (omit for interactive mode) |
 | `--auto` | | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
