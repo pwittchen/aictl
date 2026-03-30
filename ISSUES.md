@@ -9,6 +9,7 @@ features/ideas/bug-fixes to be added in the future:
 - [func] replace short flags `-M` for model, `-m` for message
 - [func] reduce context window for gpt-4 model
 - [docs] update arch diagrams
+- [tool] improve `web_fetch` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
