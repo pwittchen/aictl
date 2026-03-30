@@ -75,7 +75,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
 /// Returns the context window size (max input tokens) for known models.
 pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("gpt-4.1") {
-        return 1_000_000;
+        return 200_000;
     }
     if model.starts_with("gpt-4o") || model.starts_with("gpt-5") {
         return 128_000;
