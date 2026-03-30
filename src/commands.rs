@@ -3,6 +3,7 @@ use std::io::Write;
 use crossterm::style::{Color, Stylize};
 
 use crate::llm;
+use crate::llm::MODELS;
 use crate::ui::AgentUI;
 use crate::{Message, Provider, Role};
 
@@ -263,19 +264,6 @@ fn print_tools() {
     );
     println!();
 }
-
-/// Available models: (provider_str, model_name, api_key_config_key)
-const MODELS: &[(&str, &str, &str)] = &[
-    ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),
-    ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
-    ("anthropic", "claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
-    ("openai", "gpt-4.1-nano", "OPENAI_API_KEY"),
-    ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
-    ("openai", "gpt-4.1", "OPENAI_API_KEY"),
-    ("openai", "gpt-4o-mini", "OPENAI_API_KEY"),
-    ("openai", "gpt-4o", "OPENAI_API_KEY"),
-    ("openai", "o4-mini", "OPENAI_API_KEY"),
-];
 
 /// Build the display lines for the model menu. Each entry is either a
 /// header line (provider name) or a model line with its index into MODELS.

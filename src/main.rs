@@ -1,18 +1,20 @@
 mod commands;
+mod config;
 mod llm;
 mod tools;
 mod ui;
 
-use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
 
 use clap::{Parser, ValueEnum};
 
+use config::{
+    MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, config_get, config_set,
+    load_config,
+};
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
-
-static CONFIG: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 #[derive(Debug, Clone, ValueEnum)]
 enum Provider {
@@ -44,82 +46,6 @@ struct Cli {
     /// Suppress tool calls and reasoning, only print the final answer (requires --auto)
     #[arg(short, long, requires = "auto")]
     quiet: bool,
-}
-
-fn load_config() {
-    let home = std::env::var("HOME").unwrap_or_else(|_| {
-        eprintln!("Error: HOME environment variable not set");
-        std::process::exit(1);
-    });
-    let config_path = format!("{home}/.aictl");
-    let contents = match std::fs::read_to_string(&config_path) {
-        Ok(c) => c,
-        Err(_) => {
-            CONFIG.set(HashMap::new()).ok();
-            return;
-        }
-    };
-
-    let mut map = HashMap::new();
-    for line in contents.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        let line = line.strip_prefix("export ").unwrap_or(line);
-
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-
-        let key = key.trim();
-        let mut value = value.trim();
-
-        if (value.starts_with('"') && value.ends_with('"'))
-            || (value.starts_with('\'') && value.ends_with('\''))
-        {
-            value = &value[1..value.len() - 1];
-        }
-
-        map.insert(key.to_string(), value.to_string());
-    }
-    CONFIG.set(map).ok();
-}
-
-pub fn config_get(key: &str) -> Option<String> {
-    CONFIG.get().and_then(|m| m.get(key).cloned())
-}
-
-/// Write a key=value pair to ~/.aictl, replacing an existing key or appending.
-fn config_set(key: &str, value: &str) {
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => return,
-    };
-    let config_path = format!("{home}/.aictl");
-    let contents = std::fs::read_to_string(&config_path).unwrap_or_default();
-
-    let mut found = false;
-    let mut lines: Vec<String> = contents
-        .lines()
-        .map(|line| {
-            let trimmed = line.trim();
-            let stripped = trimmed.strip_prefix("export ").unwrap_or(trimmed);
-            if stripped.starts_with(key) && stripped[key.len()..].starts_with('=') {
-                found = true;
-                format!("{key}={value}")
-            } else {
-                line.to_string()
-            }
-        })
-        .collect();
-
-    if !found {
-        lines.push(format!("{key}={value}"));
-    }
-
-    let _ = std::fs::write(&config_path, lines.join("\n") + "\n");
 }
 
 // --- Esc key interrupt support ---
@@ -200,33 +126,6 @@ pub struct Message {
 }
 
 // --- Agent loop ---
-
-const MAX_ITERATIONS: usize = 20;
-const MAX_MESSAGES: usize = 200;
-
-const SPINNER_PHRASES: &[&str] = &[
-    "consulting the mass of wires...",
-    "asking the silicon oracle...",
-    "shaking the magic 8-ball...",
-    "reticulating splines...",
-    "bribing the electrons...",
-    "poking the neural hamsters...",
-    "unfolding the paper brain...",
-    "warming up the thought lasers...",
-    "juggling tensors...",
-    "feeding the token monster...",
-    "polishing the crystal CPU...",
-    "summoning the context window...",
-    "defrosting the weights...",
-    "herding stochastic parrots...",
-    "spinning up the vibe engine...",
-    "negotiating with gradient descent...",
-    "tuning the hallucination dial...",
-    "charging the inference hamster wheel...",
-    "compressing the universe into tokens...",
-    "asking a very expensive rock to think...",
-    "thinking...",
-];
 
 /// Run one turn of the agent loop: send user_message, handle tool calls,
 /// return the final text answer.
@@ -368,7 +267,7 @@ async fn run_agent_single(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut messages = vec![Message {
         role: Role::System,
-        content: tools::SYSTEM_PROMPT.to_string(),
+        content: SYSTEM_PROMPT.to_string(),
     }];
 
     let ui = PlainUI { quiet };
@@ -404,7 +303,7 @@ async fn run_interactive(
 
     let mut messages = vec![Message {
         role: Role::System,
-        content: tools::SYSTEM_PROMPT.to_string(),
+        content: SYSTEM_PROMPT.to_string(),
     }];
 
     let mut rl = rustyline::DefaultEditor::new()?;

@@ -1,6 +1,19 @@
 pub mod anthropic;
 pub mod openai;
 
+/// Available models: (provider_str, model_name, api_key_config_key)
+pub const MODELS: &[(&str, &str, &str)] = &[
+    ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
+    ("openai", "gpt-4.1-nano", "OPENAI_API_KEY"),
+    ("openai", "gpt-4.1-mini", "OPENAI_API_KEY"),
+    ("openai", "gpt-4.1", "OPENAI_API_KEY"),
+    ("openai", "gpt-4o-mini", "OPENAI_API_KEY"),
+    ("openai", "gpt-4o", "OPENAI_API_KEY"),
+    ("openai", "o4-mini", "OPENAI_API_KEY"),
+];
+
 #[derive(Debug, Clone, Default)]
 pub struct TokenUsage {
     pub input_tokens: u64,
