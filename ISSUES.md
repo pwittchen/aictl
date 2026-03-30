@@ -4,6 +4,7 @@ features/ideas/bug-fixes to be added in the future:
 
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] add provider and model display functionality during the session
+- [repl] [ui] display current dir in the usage status line
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version)
 - [func] add `-a` short flag for auto
 - [func] replace short flags `-M` for model, `-m` for message
@@ -11,6 +12,7 @@ features/ideas/bug-fixes to be added in the future:
 - [docs] update arch diagrams
 - [tool] improve `web_fetch` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query
 - [tool] add `get_datetime` tool to fetch current date and time and use it for consecutive queries
+- [tool] update tool names to be verbs
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
