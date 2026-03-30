@@ -7,6 +7,8 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version)
 - [func] add `-a` short flag for auto
 - [func] replace short flags `-M` for model, `-m` for message
+- [func] reduce context window for gpt-4 model
+- [docs] update arch diagrams
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
