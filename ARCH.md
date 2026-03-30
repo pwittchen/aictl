@@ -88,16 +88,15 @@ Both single-shot and REPL modes share the same loop:
  │  ┌────────────────┬───────────────────────────┐  │
  │  │ Tool           │ Backend                   │  │
  │  ├────────────────┼───────────────────────────┤  │
- │  │ shell          │ sh -c (tokio::process)    │  │
+ │  │ run_shell      │ sh -c (tokio::process)    │  │
  │  │ read_file      │ tokio::fs::read_to_string │  │
  │  │ write_file     │ tokio::fs::write          │  │
  │  │ edit_file      │ read + replacen + write   │  │
  │  │ list_directory │ tokio::fs::read_dir       │  │
  │  │ search_files   │ grep -rn (subprocess)     │  │
- │  │ glob           │ glob::glob                │  │
- │  │ web_search     │ Firecrawl API (reqwest)   │  │
- │  │ web_fetch      │ HTTP GET (reqwest)        │  │
- │  │ think          │ passthrough (no-op)       │  │
+ │  │ find_files     │ glob::glob                │  │
+ │  │ search_web     │ Firecrawl API (reqwest)   │  │
+ │  │ fetch_url      │ HTTP GET (reqwest)        │  │
  │  └────────────────┴───────────────────────────┘  │
  │                                                  │
  │  All outputs truncated at 10,000 chars           │

@@ -8,9 +8,8 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version, binary size, OS)
 - [repl] [func] add `/tools` command, which will display all available tools
 - [docs] update arch diagrams
-- [tool] improve `web_fetch` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query
+- [tool] improve `fetch_url` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query
 - [tool] add `get_datetime` tool to fetch current date and time and use it for consecutive queries
-- [tool] update tool names to be verbs
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support

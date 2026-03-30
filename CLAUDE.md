@@ -32,15 +32,15 @@ Single-binary async Rust CLI with five modules:
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 
 **Tools** (`execute_tool` dispatches by tool name):
-- `shell` — runs commands via `tokio::process::Command` (`sh -c`)
+- `run_shell` — runs commands via `tokio::process::Command` (`sh -c`)
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)
 - `list_directory` — lists directory entries with type prefixes
 - `search_files` — grep-based content search
 - `edit_file` — targeted find-and-replace (requires unique match)
-- `glob` — find files matching a glob pattern with optional base directory
-- `web_search` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
-- `web_fetch` — fetch a URL and return readable text content (HTML stripped)
+- `find_files` — find files matching a glob pattern with optional base directory
+- `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
+- `fetch_url` — fetch a URL and return readable text content (HTML stripped)
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.
 

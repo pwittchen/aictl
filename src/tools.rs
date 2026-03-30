@@ -8,17 +8,17 @@ pub struct ToolCall {
 
 pub const SYSTEM_PROMPT: &str = r#"You have access to tools that let you interact with the user's system. To use a tool, output an XML tag like this:
 
-<tool name="shell">
+<tool name="run_shell">
 command here
 </tool>
 
 Available tools:
-- shell: Execute a shell command. The command runs via `sh -c`.
+- run_shell: Execute a shell command. The command runs via `sh -c`.
 - read_file: Read the contents of a file. Pass the file path as the input.
 - write_file: Write content to a file. First line is the file path, remaining lines are the content.
 - list_directory: List files and directories at a path. Pass the directory path as input. Returns entries with [FILE] or [DIR] prefixes.
 - search_files: Search file contents with a pattern. First line is the search pattern (grep basic regex), second line (optional) is the directory to search in (defaults to `.`). Returns matching lines with file paths and line numbers.
-- web_search: Search the web for information. Pass a search query as input. Returns titles, URLs, and descriptions of matching results.
+- search_web: Search the web for information. Pass a search query as input. Returns titles, URLs, and descriptions of matching results.
 - edit_file: Apply a targeted find-and-replace edit to a file. Format:
   path/to/file
   <<<
@@ -26,9 +26,9 @@ Available tools:
   ===
   replacement text
   >>>
-- glob: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
-- web_fetch: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via web_search.
-- geolocation: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info.
+- find_files: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
+- fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
+- geolocate: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info.
 
 Rules:
 - Use at most one tool call per response.
@@ -54,7 +54,7 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
 
 pub async fn execute_tool(tool_call: &ToolCall) -> String {
     match tool_call.name.as_str() {
-        "shell" => {
+        "run_shell" => {
             let output = tokio::process::Command::new("sh")
                 .arg("-c")
                 .arg(&tool_call.input)
@@ -214,7 +214,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error writing file: {e}"),
             }
         }
-        "web_search" => {
+        "search_web" => {
             let api_key = match crate::config_get("FIRECRAWL_API_KEY") {
                 Some(key) => key,
                 None => return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string(),
@@ -274,7 +274,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error calling Firecrawl API: {e}"),
             }
         }
-        "glob" => {
+        "find_files" => {
             let input = tool_call.input.trim();
             let (pattern, base_dir) = match input.split_once('\n') {
                 Some((p, d)) => (p.trim(), d.trim()),
@@ -319,7 +319,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error parsing glob pattern: {e}"),
             }
         }
-        "web_fetch" => {
+        "fetch_url" => {
             let url = tool_call.input.trim();
             let client = reqwest::Client::new();
             match client.get(url).send().await {
@@ -371,7 +371,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error fetching URL: {e}"),
             }
         }
-        "geolocation" => {
+        "geolocate" => {
             let ip = tool_call.input.trim();
             let url = if ip.is_empty() {
                 "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()

@@ -49,7 +49,7 @@ Configuration is loaded from `~/.aictl`. This is a single global config file —
 | `AICTL_MODEL` | Default model name |
 | `OPENAI_API_KEY` | API key for OpenAI |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
-| `FIRECRAWL_API_KEY` | API key for Firecrawl (`web_search` tool) |
+| `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
 Create `~/.aictl` (see `.aictl.example`):
 
@@ -107,21 +107,21 @@ Available tools:
 
 | Tool | Description |
 |------|-------------|
-| `shell` | Execute a shell command via `sh -c` |
+| `run_shell` | Execute a shell command via `sh -c` |
 | `read_file` | Read the contents of a file |
 | `write_file` | Write content to a file (first line = path, rest = content) |
 | `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
-| `web_search` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
-| `glob` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
-| `web_fetch` | Fetch a URL and return readable text content (HTML tags stripped) |
-| `geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
+| `search_web` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
+| `find_files` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
+| `fetch_url` | Fetch a URL and return readable text content (HTML tags stripped) |
+| `geolocate` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 
 ```xml
-<tool name="shell">
+<tool name="run_shell">
 ls -la /tmp
 </tool>
 ```
