@@ -10,18 +10,20 @@ cargo build --release    # release build
 cargo run -- <args>      # run with arguments
 cargo clippy             # lint
 cargo fmt                # format
-cargo test               # run tests (none yet)
+cargo test               # run tests
 ```
 
 ## Architecture
 
-Single-binary async Rust CLI with five modules:
+Single-binary async Rust CLI with seven modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), agent loop, single-shot and interactive REPL modes
 - `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/help`, `/info`, `/model`, `/tools`, `/exit`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
-- `src/tools.rs` — system prompt, tool-call XML parsing, tool execution dispatch
+- `src/config.rs` — config file loading (`~/.aictl`), constants (system prompt, spinner phrases, agent loop limits)
+- `src/tools.rs` — tool-call XML parsing, tool execution dispatch
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
-- `src/llm/` — provider modules (`openai.rs`, `anthropic.rs`) and shared `TokenUsage` type with cost estimation (`mod.rs`)
+- `src/llm.rs` — shared `TokenUsage` type with cost estimation, model list, context limits
+- `src/llm_openai.rs`, `src/llm_anthropic.rs` — provider-specific API call implementations
 
 **Config**: Loaded once at startup from `~/.aictl` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters.
 

@@ -1,6 +1,8 @@
 mod commands;
 mod config;
 mod llm;
+mod llm_anthropic;
+mod llm_openai;
 mod tools;
 mod ui;
 
@@ -161,10 +163,10 @@ async fn run_agent_turn(
         let call_start = std::time::Instant::now();
         let result = match provider {
             Provider::Openai => {
-                with_esc_cancel(llm::openai::call_openai(api_key, model, messages)).await
+                with_esc_cancel(llm_openai::call_openai(api_key, model, messages)).await
             }
             Provider::Anthropic => {
-                with_esc_cancel(llm::anthropic::call_anthropic(api_key, model, messages)).await
+                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, messages)).await
             }
         };
         let call_elapsed = call_start.elapsed();

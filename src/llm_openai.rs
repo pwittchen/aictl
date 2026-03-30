@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::TokenUsage;
+use crate::llm::TokenUsage;
 use crate::{Message, Role};
 
 #[derive(Serialize)]

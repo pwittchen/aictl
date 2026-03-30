@@ -1,6 +1,3 @@
-pub mod anthropic;
-pub mod openai;
-
 /// Available models: (provider_str, model_name, api_key_config_key)
 pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),

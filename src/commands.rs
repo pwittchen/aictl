@@ -112,10 +112,10 @@ pub async fn compact(
 
     let result = match provider {
         Provider::Openai => {
-            crate::with_esc_cancel(llm::openai::call_openai(api_key, model, &summary_msgs)).await
+            crate::with_esc_cancel(crate::llm_openai::call_openai(api_key, model, &summary_msgs)).await
         }
         Provider::Anthropic => {
-            crate::with_esc_cancel(llm::anthropic::call_anthropic(
+            crate::with_esc_cancel(crate::llm_anthropic::call_anthropic(
                 api_key,
                 model,
                 &summary_msgs,
