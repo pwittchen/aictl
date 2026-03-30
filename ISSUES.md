@@ -14,6 +14,7 @@ features/ideas/bug-fixes to be added in the future:
 - [llm] add Ollama support
 - [llm] add native models support from disk (e.g. with ONNX or other format like that)
 - [config] add possibility to configure additional customizable ASSISTANT PROMPT, which will be added to the system prompt
+- [config] add possibility to manage multiple ASSISTANT PROMPTS saved in the config, which user can use depending on the use case
 - [marketing] create project website
 - [ci] create GH Action for project versioning based on git tags
 - [tests] add some tests
