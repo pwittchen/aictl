@@ -41,6 +41,7 @@ Single-binary async Rust CLI with five modules:
 - `find_files` — find files matching a glob pattern with optional base directory
 - `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
 - `fetch_url` — fetch a URL and return readable text content (HTML stripped)
+- `extract_web_content` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
 - `fetch_datetime` — get current date, time, timezone, and day of week
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.

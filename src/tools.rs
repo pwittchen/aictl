@@ -28,6 +28,7 @@ Available tools:
   >>>
 - find_files: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
 - fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
+- extract_web_content: Fetch a URL and extract only the main readable content. Pass the URL as input. Strips scripts, styles, navigation, headers, footers, and other boilerplate. Use this instead of fetch_url when you need clean article or page text.
 - fetch_datetime: Get the current date and time. No input required. Returns the current date, time, timezone, and day of week.
 - geolocate: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info.
 
@@ -359,6 +360,70 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                             let mut result = collapsed.trim().to_string();
                             if result.is_empty() {
                                 result = "(empty page)".to_string();
+                            }
+                            if result.len() > 10_000 {
+                                result.truncate(10_000);
+                                result.push_str("\n... (truncated)");
+                            }
+                            result
+                        }
+                        Err(e) => format!("Error reading response body: {e}"),
+                    }
+                }
+                Err(e) => format!("Error fetching URL: {e}"),
+            }
+        }
+        "extract_web_content" => {
+            let url = tool_call.input.trim();
+            let client = reqwest::Client::new();
+            match client.get(url).send().await {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        return format!("Error: HTTP status {}", resp.status());
+                    }
+                    match resp.text().await {
+                        Ok(body) => {
+                            let document = scraper::Html::parse_document(&body);
+                            let noise_selectors = [
+                                "script", "style", "nav", "header", "footer", "noscript", "svg",
+                                "form", "iframe",
+                            ];
+                            let mut remove_ids = std::collections::HashSet::new();
+                            for sel_str in &noise_selectors {
+                                if let Ok(sel) = scraper::Selector::parse(sel_str) {
+                                    for el in document.select(&sel) {
+                                        remove_ids.insert(el.id());
+                                    }
+                                }
+                            }
+                            let mut text = String::new();
+                            for node_ref in document.tree.root().descendants() {
+                                if let scraper::node::Node::Text(t) = node_ref.value() {
+                                    let skip = node_ref
+                                        .ancestors()
+                                        .any(|a| remove_ids.contains(&a.id()));
+                                    if !skip {
+                                        text.push_str(&t.text);
+                                    }
+                                }
+                            }
+                            // Collapse whitespace
+                            let mut result = String::with_capacity(text.len());
+                            let mut prev_ws = false;
+                            for ch in text.chars() {
+                                if ch.is_whitespace() {
+                                    if !prev_ws {
+                                        result.push(if ch == '\n' { '\n' } else { ' ' });
+                                    }
+                                    prev_ws = true;
+                                } else {
+                                    result.push(ch);
+                                    prev_ws = false;
+                                }
+                            }
+                            let mut result = result.trim().to_string();
+                            if result.is_empty() {
+                                result = "(no content extracted)".to_string();
                             }
                             if result.len() > 10_000 {
                                 result.truncate(10_000);

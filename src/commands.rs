@@ -244,6 +244,10 @@ fn print_tools() {
         "fetch_url".with(Color::Cyan)
     );
     println!(
+        "  {} Extract readable content from a URL",
+        "extract_web_content".with(Color::Cyan)
+    );
+    println!(
         "  {} Get current date, time, and timezone",
         "fetch_datetime".with(Color::Cyan)
     );
