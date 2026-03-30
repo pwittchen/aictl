@@ -5,7 +5,7 @@
 ```
 src/
  ├── main.rs          CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs       REPL slash commands (/clear, /copy, /help, /exit)
+ ├── commands.rs       REPL slash commands (/clear, /compact, /context, /copy, /help, /info, /tools, /exit)
  ├── tools.rs          System prompt, XML tool-call parsing, tool execution
  ├── ui.rs             AgentUI trait, PlainUI & InteractiveUI implementations
  └── llm/
@@ -99,6 +99,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_url           │ HTTP GET (reqwest)        │      │
  │  │ extract_web_content │ HTTP GET + scraper (DOM)  │      │
  │  │ fetch_datetime      │ date command (subprocess) │      │
+ │  │ geolocate           │ ip-api.com (reqwest)      │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │  All outputs truncated at 10,000 chars                    │
@@ -174,18 +175,21 @@ Both single-shot and REPL modes share the same loop:
   ▼       ▼
  send   commands::handle()
  to        │
- agent  ┌──┴──────────┬────────────┬────────────┐
- loop   ▼             ▼            ▼            ▼
-      /exit         /clear       /copy        /help
-      Exit          Clear        Continue     Continue
-      (break)       (truncate    (pbcopy      (print
-                    messages     last_answer)  commands)
-                    to system
-                    prompt)
+ agent  ┌──┴────────┬───────────┬───────────┬───────────┐
+ loop   ▼           ▼           ▼           ▼           ▼
+      /exit       /clear      /compact    /copy       /help ...
+      Exit        Clear       Compact     Continue    Continue
+      (break)     (reset      (summarize  (pbcopy     (print
+                  messages)   via LLM)    last_answer) commands)
+
+ Also: /context (Context), /info (Info), /tools (Continue)
 
  CommandResult enum:
    Exit        → break REPL loop
    Clear       → reset messages & last_answer, continue
+   Compact     → summarize conversation via LLM, continue
+   Context     → show token/message usage, continue
+   Info        → show provider/model/version info, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
 ```

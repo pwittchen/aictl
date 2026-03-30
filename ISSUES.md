@@ -4,7 +4,6 @@ features/ideas/bug-fixes to be added in the future:
 
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] display current dir in the usage status line
-- [docs] update arch diagrams
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support

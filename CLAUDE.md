@@ -18,7 +18,7 @@ cargo test               # run tests (none yet)
 Single-binary async Rust CLI with five modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), agent loop, single-shot and interactive REPL modes
-- `src/commands.rs` — REPL slash command handling (`/clear`, `/copy`, `/help`, `/exit`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
+- `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/help`, `/info`, `/tools`, `/exit`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
 - `src/tools.rs` — system prompt, tool-call XML parsing, tool execution dispatch
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
 - `src/llm/` — provider modules (`openai.rs`, `anthropic.rs`) and shared `TokenUsage` type with cost estimation (`mod.rs`)
@@ -43,10 +43,11 @@ Single-binary async Rust CLI with five modules:
 - `fetch_url` — fetch a URL and return readable text content (HTML stripped)
 - `extract_web_content` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
 - `fetch_datetime` — get current date, time, timezone, and day of week
+- `geolocate` — get geolocation data for an IP address via ip-api.com
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.
 
-**Key dependencies**: `clap` (CLI parsing), `reqwest` (async HTTP with JSON), `serde`/`serde_json` (serialization), `tokio` (async runtime, process, fs), `crossterm` (terminal styling), `indicatif` (spinner), `rustyline` (REPL input/history), `termimad` (markdown rendering).
+**Key dependencies**: `clap` (CLI parsing), `reqwest` (async HTTP with JSON), `serde`/`serde_json` (serialization), `tokio` (async runtime, process, fs), `crossterm` (terminal styling), `indicatif` (spinner), `rustyline` (REPL input/history), `termimad` (markdown rendering), `scraper` (HTML DOM parsing with CSS selectors), `glob` (file glob pattern matching).
 
 ## Conventions
 
