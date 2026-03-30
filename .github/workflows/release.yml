@@ -1,0 +1,64 @@
+name: RELEASE
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Cargo.toml version if needed
+        run: |
+          current=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          tag_version="${{ steps.version.outputs.version }}"
+          if [ "$current" != "$tag_version" ]; then
+            sed -i "s/^version = \"$current\"/version = \"$tag_version\"/" Cargo.toml
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Cargo.toml
+            git commit -m "Bump version to $tag_version"
+            git push origin HEAD:master
+          fi
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          previous_tag=$(git tag --list 'v*' --sort=-v:refname | sed -n '2p')
+          if [ -n "$previous_tag" ]; then
+            log=$(git log --pretty=format:'- %s (%h)' "$previous_tag".."$GITHUB_REF_NAME" -- | grep -v 'Bump version to')
+          else
+            log=$(git log --pretty=format:'- %s (%h)' "$GITHUB_REF_NAME" -- | grep -v 'Bump version to')
+          fi
+          {
+            echo 'body<<EOF'
+            echo "$log"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.body }}
+          generate_release_notes: false

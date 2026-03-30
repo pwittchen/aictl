@@ -11,6 +11,5 @@ features/ideas/bug-fixes to be added in the future:
 - [config] add possibility to configure additional customizable ASSISTANT PROMPT, which will be added to the system prompt
 - [config] add possibility to manage multiple ASSISTANT PROMPTS saved in the config, which user can use depending on the use case
 - [marketing] create project website
-- [ci] create GH Action for project versioning based on git tags
 - [tests] add some tests
 - [config] add support for `AICTL.md` file (init/read) for providing context for the current dir (similar to claude/codex)
