@@ -6,7 +6,6 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [ui] add provider and model display functionality during the session
 - [repl] [ui] display current dir in the usage status line
 - [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version, binary size, OS)
-- [repl] [func] add `/tools` command, which will display all available tools
 - [docs] update arch diagrams
 - [tool] improve `fetch_url` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query
 - [llm] add Gemini support
