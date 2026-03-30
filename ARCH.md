@@ -97,6 +97,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ find_files     │ glob::glob                │  │
  │  │ search_web     │ Firecrawl API (reqwest)   │  │
  │  │ fetch_url      │ HTTP GET (reqwest)        │  │
+ │  │ fetch_datetime │ date command (subprocess) │  │
  │  └────────────────┴───────────────────────────┘  │
  │                                                  │
  │  All outputs truncated at 10,000 chars           │

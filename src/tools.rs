@@ -28,6 +28,7 @@ Available tools:
   >>>
 - find_files: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
 - fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
+- fetch_datetime: Get the current date and time. No input required. Returns the current date, time, timezone, and day of week.
 - geolocate: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info.
 
 Rules:
@@ -369,6 +370,23 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                     }
                 }
                 Err(e) => format!("Error fetching URL: {e}"),
+            }
+        }
+        "fetch_datetime" => {
+            match tokio::process::Command::new("date")
+                .arg("+%Y-%m-%d %H:%M:%S %Z (%A)")
+                .output()
+                .await
+            {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if stdout.is_empty() {
+                        "(could not determine date/time)".to_string()
+                    } else {
+                        stdout
+                    }
+                }
+                Err(e) => format!("Error fetching date/time: {e}"),
             }
         }
         "geolocate" => {
