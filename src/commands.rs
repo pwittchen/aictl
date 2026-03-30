@@ -14,6 +14,8 @@ pub enum CommandResult {
     Compact,
     /// Show context usage info.
     Context,
+    /// Show setup info (provider, model, version, etc.).
+    Info,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -31,6 +33,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "clear" => CommandResult::Clear,
         "compact" => CommandResult::Compact,
         "context" => CommandResult::Context,
+        "info" => CommandResult::Info,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -193,6 +196,7 @@ fn print_help() {
         "/copy".with(Color::Cyan)
     );
     println!("  {}    Show this help message", "/help".with(Color::Cyan));
+    println!("  {}    Show setup info", "/info".with(Color::Cyan));
     println!(
         "  {}   Show available tools",
         "/tools".with(Color::Cyan)
@@ -247,5 +251,31 @@ fn print_tools() {
         "  {}      Get geolocation data for an IP address",
         "geolocate".with(Color::Cyan)
     );
+    println!();
+}
+
+pub fn print_info(provider: &str, model: &str) {
+    let version = crate::VERSION;
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let binary_size = std::env::current_exe()
+        .ok()
+        .and_then(|p| std::fs::metadata(p).ok())
+        .map(|m| {
+            let bytes = m.len();
+            if bytes >= 1_048_576 {
+                format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+            } else {
+                format!("{:.1} KB", bytes as f64 / 1_024.0)
+            }
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    println!();
+    println!("  {} {version}", "version: ".with(Color::Cyan));
+    println!("  {} {provider}", "provider:".with(Color::Cyan));
+    println!("  {} {model}", "model:   ".with(Color::Cyan));
+    println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
+    println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
     println!();
 }

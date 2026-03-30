@@ -432,6 +432,11 @@ async fn run_interactive(
                         );
                         continue;
                     }
+                    commands::CommandResult::Info => {
+                        let _ = rl.add_history_entry(&input);
+                        commands::print_info(&provider_name, model);
+                        continue;
+                    }
                     commands::CommandResult::Continue => {
                         let _ = rl.add_history_entry(&input);
                         continue;

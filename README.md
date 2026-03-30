@@ -23,6 +23,7 @@ The interactive REPL supports slash commands:
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
+| `/info` | Show setup info (provider, model, version, OS, binary size) |
 | `/tools` | Show available tools |
 | `/exit` | Exit the REPL |
 
