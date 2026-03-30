@@ -342,6 +342,12 @@ impl AgentUI for InteractiveUI {
         elapsed: Duration,
         context_pct: u8,
     ) {
+        // Shorten claude model names by stripping the date suffix
+        let display_model = if model.starts_with("claude-") {
+            model.rsplit_once('-').map_or(model, |(prefix, _)| prefix)
+        } else {
+            model
+        };
         let cost_str = match usage.estimate_cost(model) {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
@@ -356,7 +362,7 @@ impl AgentUI for InteractiveUI {
             format!(" · {cwd}")
         };
         let text = format!(
-            "{}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
+            "{display_model} · {}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,
