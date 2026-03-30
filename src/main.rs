@@ -471,7 +471,7 @@ async fn run_interactive(
                     commands::CommandResult::Model => {
                         let _ = rl.add_history_entry(&input);
                         if let Some((new_provider, new_model, api_key_name)) =
-                            commands::select_model()
+                            commands::select_model(&model)
                         {
                             let new_api_key = match config_get(&api_key_name) {
                                 Some(k) => k,

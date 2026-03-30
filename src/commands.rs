@@ -277,53 +277,167 @@ const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "o4-mini", "OPENAI_API_KEY"),
 ];
 
-/// Interactively select a model. Returns (Provider, model_name, api_key_config_key) or None if cancelled.
-pub fn select_model() -> Option<(Provider, String, String)> {
-    println!();
-    println!("  {}", "Anthropic:".with(Color::Cyan));
-    let mut idx = 1;
-    for (i, (prov, model, _)) in MODELS.iter().enumerate() {
-        if *prov == "openai" && (i == 0 || MODELS[i - 1].0 != "openai") {
-            println!();
-            println!("  {}", "OpenAI:".with(Color::Cyan));
+/// Build the display lines for the model menu. Each entry is either a
+/// header line (provider name) or a model line with its index into MODELS.
+/// Returns `(lines, model_indices)` where `model_indices[i]` maps selectable
+/// row `i` to its position in MODELS.
+fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<usize>) {
+    let mut lines = Vec::new();
+    let mut model_indices = Vec::new();
+
+    for (sel_row, (i, (prov, model, _))) in MODELS.iter().enumerate().enumerate() {
+        // Print provider header when provider changes
+        if i == 0 || MODELS[i - 1].0 != *prov {
+            let label = match *prov {
+                "anthropic" => "Anthropic:",
+                "openai" => "OpenAI:",
+                _ => prov,
+            };
+            lines.push(format!("  {}", label.with(Color::Cyan)));
         }
-        println!("    {}  {model}", format!("{idx}.").with(Color::DarkGrey));
-        idx += 1;
-    }
-    println!();
 
-    print!("  {} ", "Select model (number):".with(Color::DarkGrey));
-    let _ = std::io::stdout().flush();
+        let is_selected = sel_row == selected;
+        let is_current = *model == current_model;
 
-    let mut input = String::new();
-    if std::io::stdin().read_line(&mut input).is_err() {
-        return None;
-    }
-    let input = input.trim();
-    if input.is_empty() {
-        return None;
+        let marker = if is_current { "●" } else { " " };
+        let name = if is_selected {
+            format!(
+                "    {} {}",
+                marker.with(Color::Green),
+                model
+                    .with(Color::White)
+                    .attribute(crossterm::style::Attribute::Bold)
+            )
+        } else {
+            format!(
+                "    {} {}",
+                marker.with(Color::Green),
+                model.with(Color::DarkGrey)
+            )
+        };
+
+        let line = if is_selected {
+            format!("  {} {name}", "›".with(Color::Cyan))
+        } else {
+            format!("    {name}")
+        };
+
+        lines.push(line);
+        model_indices.push(i);
     }
 
-    let num: usize = match input.parse() {
-        Ok(n) => n,
-        Err(_) => {
-            println!("\n  {} invalid selection\n", "✗".with(Color::Red));
-            return None;
-        }
+    (lines, model_indices)
+}
+
+/// Interactively select a model with arrow keys.
+/// Returns (Provider, model_name, api_key_config_key) or None if cancelled (Esc).
+pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
+    use crossterm::{
+        cursor,
+        event::{self, Event, KeyCode, KeyEventKind},
+        execute,
+        terminal::{self, ClearType},
     };
 
-    if num < 1 || num > MODELS.len() {
-        println!("\n  {} invalid selection\n", "✗".with(Color::Red));
-        return None;
+    // Find the index of the current model in the selectable rows
+    let mut selected: usize = MODELS
+        .iter()
+        .position(|(_, m, _)| *m == current_model)
+        .unwrap_or(0);
+
+    let total = MODELS.len();
+
+    // Enter raw mode for key capture
+    let _ = terminal::enable_raw_mode();
+
+    let mut stdout = std::io::stdout();
+
+    // Draw initial menu
+    let (lines, _) = build_menu_lines(selected, current_model);
+    let _ = execute!(stdout, cursor::MoveToColumn(0));
+    // Print a blank line, then menu, then hint
+    let _ = write!(stdout, "\r\n");
+    for line in &lines {
+        let _ = write!(stdout, "{line}\r\n");
+    }
+    let _ = write!(
+        stdout,
+        "\r\n  {}\r\n",
+        "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
+    );
+    let _ = stdout.flush();
+    let total_rendered_lines = lines.len() + 2; // +1 blank at top, +1 hint at bottom
+
+    loop {
+        if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+            continue;
+        }
+        let ev = match event::read() {
+            Ok(ev) => ev,
+            Err(_) => break,
+        };
+
+        match ev {
+            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                KeyCode::Up => {
+                    selected = selected.saturating_sub(1);
+                }
+                KeyCode::Down => {
+                    if selected + 1 < total {
+                        selected += 1;
+                    }
+                }
+                KeyCode::Enter => {
+                    let _ = terminal::disable_raw_mode();
+                    // Move below the menu and clear it
+                    let _ = execute!(
+                        stdout,
+                        cursor::MoveUp(total_rendered_lines as u16),
+                        terminal::Clear(ClearType::FromCursorDown),
+                    );
+                    let (prov_str, model, api_key_name) = MODELS[selected];
+                    let provider = match prov_str {
+                        "openai" => Provider::Openai,
+                        "anthropic" => Provider::Anthropic,
+                        _ => unreachable!(),
+                    };
+                    return Some((provider, model.to_string(), api_key_name.to_string()));
+                }
+                KeyCode::Esc => {
+                    let _ = terminal::disable_raw_mode();
+                    let _ = execute!(
+                        stdout,
+                        cursor::MoveUp(total_rendered_lines as u16),
+                        terminal::Clear(ClearType::FromCursorDown),
+                    );
+                    return None;
+                }
+                _ => continue,
+            },
+            _ => continue,
+        }
+
+        // Redraw menu in place
+        let (lines, _) = build_menu_lines(selected, current_model);
+        let _ = execute!(
+            stdout,
+            cursor::MoveUp(total_rendered_lines as u16),
+            terminal::Clear(ClearType::FromCursorDown),
+        );
+        let _ = write!(stdout, "\r\n");
+        for line in &lines {
+            let _ = write!(stdout, "{line}\r\n");
+        }
+        let _ = write!(
+            stdout,
+            "\r\n  {}\r\n",
+            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
+        );
+        let _ = stdout.flush();
     }
 
-    let (prov_str, model, api_key_name) = MODELS[num - 1];
-    let provider = match prov_str {
-        "openai" => Provider::Openai,
-        "anthropic" => Provider::Anthropic,
-        _ => unreachable!(),
-    };
-    Some((provider, model.to_string(), api_key_name.to_string()))
+    let _ = terminal::disable_raw_mode();
+    None
 }
 
 pub fn print_info(provider: &str, model: &str) {
