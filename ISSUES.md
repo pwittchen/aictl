@@ -10,6 +10,7 @@ features/ideas/bug-fixes to be added in the future:
 - [func] reduce context window for gpt-4 model
 - [docs] update arch diagrams
 - [tool] improve `web_fetch` tool (or add another tool - e.g. `web_extract`) - it often says that page is "too technical", so in case it thinks this way, it should remove all the technical details and try to extract non-technical info relevant for the query
+- [tool] add `get_datetime` tool to fetch current date and time and use it for consecutive queries
 - [llm] add Gemini support
 - [llm] add Mistral support
 - [llm] add Z.ai support
