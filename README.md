@@ -158,6 +158,14 @@ aictl --auto -m "What OS am I running?"
 aictl --auto -q -m "What OS am I running?"
 ```
 
+## Tests
+
+```bash
+cargo test
+```
+
+Unit tests cover core logic across five modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), and `llm` (cost estimation and model matching).
+
 ## Architecture
 
 See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:

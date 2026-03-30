@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "aictl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "crossterm 0.28.1",
