@@ -346,8 +346,17 @@ impl AgentUI for InteractiveUI {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
+        let cwd = std::env::current_dir()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_default();
+        let cwd_str = if cwd.is_empty() {
+            String::new()
+        } else {
+            format!(" · {cwd}")
+        };
         let text = format!(
-            "{}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%",
+            "{}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,
