@@ -88,7 +88,7 @@ Both single-shot and REPL modes share the same loop:
  │  ┌─────────────────────┬───────────────────────────┐      │
  │  │ Tool                │ Backend                   │      │
  │  ├─────────────────────┼───────────────────────────┤      │
- │  │ run_shell           │ sh -c (tokio::process)    │      │
+ │  │ exec_shell          │ sh -c (tokio::process)    │      │
  │  │ read_file           │ tokio::fs::read_to_string │      │
  │  │ write_file          │ tokio::fs::write          │      │
  │  │ edit_file           │ read + replacen + write   │      │
@@ -99,7 +99,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_url           │ HTTP GET (reqwest)        │      │
  │  │ extract_web_content │ HTTP GET + scraper (DOM)  │      │
  │  │ fetch_datetime      │ date command (subprocess) │      │
- │  │ geolocate           │ ip-api.com (reqwest)      │      │
+ │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │  All outputs truncated at 10,000 chars                    │

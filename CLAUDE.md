@@ -34,7 +34,7 @@ Single-binary async Rust CLI with seven modules:
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 
 **Tools** (`execute_tool` dispatches by tool name):
-- `run_shell` — runs commands via `tokio::process::Command` (`sh -c`)
+- `exec_shell` — runs commands via `tokio::process::Command` (`sh -c`)
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)
 - `list_directory` — lists directory entries with type prefixes
@@ -45,7 +45,7 @@ Single-binary async Rust CLI with seven modules:
 - `fetch_url` — fetch a URL and return readable text content (HTML stripped)
 - `extract_web_content` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
 - `fetch_datetime` — get current date, time, timezone, and day of week
-- `geolocate` — get geolocation data for an IP address via ip-api.com
+- `fetch_geolocation` — get geolocation data for an IP address via ip-api.com
 
 **Providers**: OpenAI (`call_openai`) and Anthropic (`call_anthropic`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI includes system messages inline. Both return `TokenUsage` for cost tracking and timing display.
 

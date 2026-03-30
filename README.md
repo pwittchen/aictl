@@ -141,7 +141,7 @@ Available tools:
 
 | Tool | Description |
 |------|-------------|
-| `run_shell` | Execute a shell command via `sh -c` |
+| `exec_shell` | Execute a shell command via `sh -c` |
 | `read_file` | Read the contents of a file |
 | `write_file` | Write content to a file (first line = path, rest = content) |
 | `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
@@ -152,12 +152,12 @@ Available tools:
 | `fetch_url` | Fetch a URL and return readable text content (HTML tags stripped) |
 | `extract_web_content` | Fetch a URL and extract only the main readable content (strips scripts, styles, nav, boilerplate) |
 | `fetch_datetime` | Get the current date, time, timezone, and day of week |
-| `geolocate` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
+| `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 
 ```xml
-<tool name="run_shell">
+<tool name="exec_shell">
 ls -la /tmp
 </tool>
 ```

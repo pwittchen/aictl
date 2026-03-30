@@ -300,7 +300,7 @@ fn print_tools() {
     println!();
     println!(
         "  {}      Execute a shell command via sh -c",
-        "run_shell".with(Color::Cyan)
+        "exec_shell".with(Color::Cyan)
     );
     println!(
         "  {}      Read the contents of a file",
@@ -344,7 +344,7 @@ fn print_tools() {
     );
     println!(
         "  {}      Get geolocation data for an IP address",
-        "geolocate".with(Color::Cyan)
+        "fetch_geolocation".with(Color::Cyan)
     );
     println!();
 }

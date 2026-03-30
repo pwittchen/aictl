@@ -24,7 +24,7 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
 
 pub async fn execute_tool(tool_call: &ToolCall) -> String {
     match tool_call.name.as_str() {
-        "run_shell" => {
+        "exec_shell" => {
             let output = tokio::process::Command::new("sh")
                 .arg("-c")
                 .arg(&tool_call.input)
@@ -421,7 +421,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error fetching date/time: {e}"),
             }
         }
-        "geolocate" => {
+        "fetch_geolocation" => {
             let ip = tool_call.input.trim();
             let url = if ip.is_empty() {
                 "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn parse_missing_closing_tag() {
-        let resp = r#"<tool name="run_shell">ls -la"#;
+        let resp = r#"<tool name="exec_shell">ls -la"#;
         assert!(parse_tool_call(resp).is_none());
     }
 
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn parse_incomplete_opening_tag() {
-        let resp = r#"<tool name="run_shell"#;
+        let resp = r#"<tool name="exec_shell"#;
         assert!(parse_tool_call(resp).is_none());
     }
 }

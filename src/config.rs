@@ -38,12 +38,12 @@ pub const SPINNER_PHRASES: &[&str] = &[
 
 pub const SYSTEM_PROMPT: &str = r#"You have access to tools that let you interact with the user's system. To use a tool, output an XML tag like this:
 
-<tool name="run_shell">
+<tool name="exec_shell">
 command here
 </tool>
 
 Available tools:
-- run_shell: Execute a shell command. The command runs via `sh -c`.
+- exec_shell: Execute a shell command. The command runs via `sh -c`.
 - read_file: Read the contents of a file. Pass the file path as the input.
 - write_file: Write content to a file. First line is the file path, remaining lines are the content.
 - list_directory: List files and directories at a path. Pass the directory path as input. Returns entries with [FILE] or [DIR] prefixes.
@@ -60,7 +60,7 @@ Available tools:
 - fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
 - extract_web_content: Fetch a URL and extract only the main readable content. Pass the URL as input. Strips scripts, styles, navigation, headers, footers, and other boilerplate. Use this instead of fetch_url when you need clean article or page text.
 - fetch_datetime: Get the current date and time. No input required. Returns the current date, time, timezone, and day of week. Always call this tool first when the user's message involves relative time references like "today", "now", "tonight", "this week", "yesterday", "tomorrow", "currently", etc. so your answer is grounded in the actual current date and time.
-- geolocate: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info. Always call this tool first (with empty input) when the user's message involves location references like "here", "near me", "nearby", "in this area", "in my city", "local", "around me", etc. so your answer is grounded in the user's actual location.
+- fetch_geolocation: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info. Always call this tool first (with empty input) when the user's message involves location references like "here", "near me", "nearby", "in this area", "in my city", "local", "around me", etc. so your answer is grounded in the user's actual location.
 
 Rules:
 - Use at most one tool call per response.
