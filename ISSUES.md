@@ -5,7 +5,8 @@ features/ideas/bug-fixes to be added in the future:
 - [repl] [ui] [func] add model switch functionality during the session
 - [repl] [ui] add provider and model display functionality during the session
 - [repl] [ui] display current dir in the usage status line
-- [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version)
+- [repl] [func] add `/info` command, which will display details about current setup (provider, model, app version, binary size, OS)
+- [repl] [func] add `/tools` command, which will display all available tools
 - [func] add `-a` short flag for auto
 - [func] replace short flags `-M` for model, `-m` for message
 - [func] reduce context window for gpt-4 model
