@@ -462,3 +462,71 @@ pub fn confirm_tool_call(tool_call: &ToolCall) -> bool {
     }
     matches!(input.trim(), "y" | "Y" | "yes" | "Yes")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_valid_simple() {
+        let resp = r#"<tool name="read_file">src/main.rs</tool>"#;
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "read_file");
+        assert_eq!(tc.input, "src/main.rs");
+    }
+
+    #[test]
+    fn parse_valid_multiline_input() {
+        let resp = "<tool name=\"write_file\">\npath/to/file\nline one\nline two\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "write_file");
+        assert_eq!(tc.input, "path/to/file\nline one\nline two");
+    }
+
+    #[test]
+    fn parse_extra_text_around_tags() {
+        let resp = "Let me read that file for you.\n<tool name=\"read_file\">foo.txt</tool>\nDone.";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "read_file");
+        assert_eq!(tc.input, "foo.txt");
+    }
+
+    #[test]
+    fn parse_missing_closing_tag() {
+        let resp = r#"<tool name="run_shell">ls -la"#;
+        assert!(parse_tool_call(resp).is_none());
+    }
+
+    #[test]
+    fn parse_missing_opening_tag() {
+        let resp = "some text</tool>";
+        assert!(parse_tool_call(resp).is_none());
+    }
+
+    #[test]
+    fn parse_empty_input_between_tags() {
+        let resp = r#"<tool name="fetch_datetime"></tool>"#;
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "fetch_datetime");
+        assert_eq!(tc.input, "");
+    }
+
+    #[test]
+    fn parse_tool_name_with_underscore() {
+        let resp = r#"<tool name="search_files">pattern</tool>"#;
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "search_files");
+    }
+
+    #[test]
+    fn parse_no_tool_call_plain_text() {
+        let resp = "Here is the answer to your question.";
+        assert!(parse_tool_call(resp).is_none());
+    }
+
+    #[test]
+    fn parse_incomplete_opening_tag() {
+        let resp = r#"<tool name="run_shell"#;
+        assert!(parse_tool_call(resp).is_none());
+    }
+}

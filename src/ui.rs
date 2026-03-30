@@ -398,3 +398,61 @@ impl AgentUI for InteractiveUI {
         eprintln!();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- truncate_line ---
+
+    #[test]
+    fn truncate_fits_within_limit() {
+        assert_eq!(truncate_line("hello", 10), "hello");
+    }
+
+    #[test]
+    fn truncate_exact_limit() {
+        assert_eq!(truncate_line("hello", 5), "hello");
+    }
+
+    #[test]
+    fn truncate_exceeds_limit() {
+        let result = truncate_line("hello world", 6);
+        assert_eq!(result, "hello…");
+    }
+
+    #[test]
+    fn truncate_empty_string() {
+        assert_eq!(truncate_line("", 10), "");
+    }
+
+    #[test]
+    fn truncate_max_less_than_2() {
+        assert_eq!(truncate_line("hello", 1), "");
+        assert_eq!(truncate_line("hello", 0), "");
+    }
+
+    #[test]
+    fn truncate_unicode() {
+        // 4 chars: café
+        assert_eq!(truncate_line("café", 4), "café");
+        assert_eq!(truncate_line("café", 3), "ca…");
+    }
+
+    // --- first_input_line ---
+
+    #[test]
+    fn first_input_single_line() {
+        assert_eq!(first_input_line("hello"), "hello");
+    }
+
+    #[test]
+    fn first_input_multiline() {
+        assert_eq!(first_input_line("first\nsecond\nthird"), "first …");
+    }
+
+    #[test]
+    fn first_input_empty() {
+        assert_eq!(first_input_line(""), "");
+    }
+}

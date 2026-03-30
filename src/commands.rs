@@ -212,6 +212,90 @@ fn print_help() {
     println!();
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn noop_error(_msg: &str) {}
+
+    #[test]
+    fn cmd_exit() {
+        assert!(matches!(handle("/exit", "", &noop_error), CommandResult::Exit));
+    }
+
+    #[test]
+    fn cmd_clear() {
+        assert!(matches!(
+            handle("/clear", "", &noop_error),
+            CommandResult::Clear
+        ));
+    }
+
+    #[test]
+    fn cmd_compact() {
+        assert!(matches!(
+            handle("/compact", "", &noop_error),
+            CommandResult::Compact
+        ));
+    }
+
+    #[test]
+    fn cmd_context() {
+        assert!(matches!(
+            handle("/context", "", &noop_error),
+            CommandResult::Context
+        ));
+    }
+
+    #[test]
+    fn cmd_info() {
+        assert!(matches!(
+            handle("/info", "", &noop_error),
+            CommandResult::Info
+        ));
+    }
+
+    #[test]
+    fn cmd_model() {
+        assert!(matches!(
+            handle("/model", "", &noop_error),
+            CommandResult::Model
+        ));
+    }
+
+    #[test]
+    fn cmd_unknown() {
+        assert!(matches!(
+            handle("/foo", "", &noop_error),
+            CommandResult::Continue
+        ));
+    }
+
+    #[test]
+    fn cmd_not_a_command() {
+        assert!(matches!(
+            handle("hello", "", &noop_error),
+            CommandResult::NotACommand
+        ));
+    }
+
+    #[test]
+    fn cmd_help_returns_continue() {
+        assert!(matches!(
+            handle("/help", "", &noop_error),
+            CommandResult::Continue
+        ));
+    }
+
+    #[test]
+    fn cmd_tools_returns_continue() {
+        assert!(matches!(
+            handle("/tools", "", &noop_error),
+            CommandResult::Continue
+        ));
+    }
+}
+
 fn print_tools() {
     println!();
     println!(

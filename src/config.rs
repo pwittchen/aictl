@@ -84,6 +84,11 @@ pub fn load_config() {
         }
     };
 
+    let map = parse_config(&contents);
+    CONFIG.set(map).ok();
+}
+
+fn parse_config(contents: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for line in contents.lines() {
         let line = line.trim();
@@ -108,7 +113,7 @@ pub fn load_config() {
 
         map.insert(key.to_string(), value.to_string());
     }
-    CONFIG.set(map).ok();
+    map
 }
 
 pub fn config_get(key: &str) -> Option<String> {
@@ -144,4 +149,75 @@ pub fn config_set(key: &str, value: &str) {
     }
 
     let _ = std::fs::write(&config_path, lines.join("\n") + "\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_config_empty_input() {
+        let map = parse_config("");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn parse_config_comments_and_blank_lines() {
+        let input = "# this is a comment\n\n  # indented comment\n\n";
+        let map = parse_config(input);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn parse_config_export_prefix_stripped() {
+        let input = "export API_KEY=abc123";
+        let map = parse_config(input);
+        assert_eq!(map.get("API_KEY").unwrap(), "abc123");
+    }
+
+    #[test]
+    fn parse_config_double_quoted_value() {
+        let input = "KEY=\"hello world\"";
+        let map = parse_config(input);
+        assert_eq!(map.get("KEY").unwrap(), "hello world");
+    }
+
+    #[test]
+    fn parse_config_single_quoted_value() {
+        let input = "KEY='hello world'";
+        let map = parse_config(input);
+        assert_eq!(map.get("KEY").unwrap(), "hello world");
+    }
+
+    #[test]
+    fn parse_config_unquoted_value() {
+        let input = "KEY=value";
+        let map = parse_config(input);
+        assert_eq!(map.get("KEY").unwrap(), "value");
+    }
+
+    #[test]
+    fn parse_config_lines_without_equals_skipped() {
+        let input = "no-equals-here\nKEY=val\njust text";
+        let map = parse_config(input);
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get("KEY").unwrap(), "val");
+    }
+
+    #[test]
+    fn parse_config_mixed() {
+        let input = "\
+# config file
+export PROVIDER=\"anthropic\"
+MODEL=gpt-4o
+  API_KEY='sk-123'
+
+bad line
+";
+        let map = parse_config(input);
+        assert_eq!(map.get("PROVIDER").unwrap(), "anthropic");
+        assert_eq!(map.get("MODEL").unwrap(), "gpt-4o");
+        assert_eq!(map.get("API_KEY").unwrap(), "sk-123");
+        assert_eq!(map.len(), 3);
+    }
 }
