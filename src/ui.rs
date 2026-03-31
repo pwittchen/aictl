@@ -8,6 +8,17 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::llm::TokenUsage;
 use crate::tools::ToolCall;
 
+/// Result of a tool-call confirmation prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolApproval {
+    /// Allow this single tool call.
+    Allow,
+    /// Deny this tool call.
+    Deny,
+    /// Allow this call and switch to auto mode for the rest of the session.
+    AutoAccept,
+}
+
 const PAD: &str = "  ";
 const PIPE: &str = "│";
 const WELCOME_TEXT: &str = "Type a message, \"exit\" or Ctrl+D to quit";
@@ -62,7 +73,7 @@ pub trait AgentUI {
     fn show_reasoning(&self, text: &str);
     fn show_auto_tool(&self, tool_call: &ToolCall);
     fn show_tool_result(&self, result: &str);
-    fn confirm_tool(&self, tool_call: &ToolCall) -> bool;
+    fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
     fn show_token_usage(
@@ -113,8 +124,12 @@ impl AgentUI for PlainUI {
         }
     }
 
-    fn confirm_tool(&self, tool_call: &ToolCall) -> bool {
-        crate::tools::confirm_tool_call(tool_call)
+    fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval {
+        if crate::tools::confirm_tool_call(tool_call) {
+            ToolApproval::Allow
+        } else {
+            ToolApproval::Deny
+        }
     }
 
     fn show_answer(&self, text: &str) {
@@ -284,7 +299,7 @@ impl AgentUI for InteractiveUI {
         Self::bottom_rule();
     }
 
-    fn confirm_tool(&self, tool_call: &ToolCall) -> bool {
+    fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval {
         use crossterm::{
             cursor,
             event::{self, Event, KeyCode, KeyEventKind},
@@ -305,8 +320,8 @@ impl AgentUI for InteractiveUI {
             input.with(Color::DarkGrey),
         );
 
-        let mut selected: usize = 0; // 0 = Allow, 1 = Deny
-        let options = ["Allow", "Deny"];
+        let mut selected: usize = 0;
+        let options = ["Allow", "Deny", "Auto-accept"];
 
         let draw = |sel: usize, out: &mut std::io::Stdout| {
             for (i, label) in options.iter().enumerate() {
@@ -343,7 +358,7 @@ impl AgentUI for InteractiveUI {
             }
             let ev = match event::read() {
                 Ok(ev) => ev,
-                Err(_) => break false,
+                Err(_) => break ToolApproval::Deny,
             };
             match ev {
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
@@ -355,10 +370,15 @@ impl AgentUI for InteractiveUI {
                             selected += 1;
                         }
                     }
-                    KeyCode::Enter => break selected == 0,
-                    KeyCode::Esc => break false,
-                    KeyCode::Char('y') | KeyCode::Char('Y') => break true,
-                    KeyCode::Char('n') | KeyCode::Char('N') => break false,
+                    KeyCode::Enter => break match selected {
+                        0 => ToolApproval::Allow,
+                        2 => ToolApproval::AutoAccept,
+                        _ => ToolApproval::Deny,
+                    },
+                    KeyCode::Esc => break ToolApproval::Deny,
+                    KeyCode::Char('y') | KeyCode::Char('Y') => break ToolApproval::Allow,
+                    KeyCode::Char('n') | KeyCode::Char('N') => break ToolApproval::Deny,
+                    KeyCode::Char('a') | KeyCode::Char('A') => break ToolApproval::AutoAccept,
                     _ => continue,
                 },
                 _ => continue,

@@ -137,7 +137,7 @@ async fn run_agent_turn(
     model: &str,
     messages: &mut Vec<Message>,
     user_message: &str,
-    auto: bool,
+    auto: &mut bool,
     ui: &dyn AgentUI,
 ) -> Result<(String, TokenUsage, u32, u32, std::time::Duration, u64), Box<dyn std::error::Error>> {
     messages.push(Message {
@@ -223,14 +223,18 @@ async fn run_agent_turn(
             }
         }
 
-        let approved = if auto {
+        let approval = if *auto {
             ui.show_auto_tool(&tool_call);
-            true
+            ui::ToolApproval::Allow
         } else {
             ui.confirm_tool(&tool_call)
         };
 
-        if approved {
+        if approval == ui::ToolApproval::AutoAccept {
+            *auto = true;
+        }
+
+        if approval == ui::ToolApproval::Allow || approval == ui::ToolApproval::AutoAccept {
             tool_calls += 1;
             ui.start_spinner("running tool...");
             let result = with_esc_cancel(tools::execute_tool(&tool_call)).await;
@@ -272,6 +276,7 @@ async fn run_agent_single(
         content: SYSTEM_PROMPT.to_string(),
     }];
 
+    let mut auto = auto;
     let ui = PlainUI { quiet };
     let (answer, usage, llm_calls, tool_calls, elapsed, _) = run_agent_turn(
         provider,
@@ -279,7 +284,7 @@ async fn run_agent_single(
         model,
         &mut messages,
         user_message,
-        auto,
+        &mut auto,
         &ui,
     )
     .await?;
@@ -447,7 +452,7 @@ async fn run_interactive(
                     &model,
                     &mut messages,
                     &input,
-                    auto,
+                    &mut auto,
                     &ui,
                 )
                 .await
