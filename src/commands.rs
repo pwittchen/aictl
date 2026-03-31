@@ -312,55 +312,26 @@ mod tests {
 }
 
 fn print_tools() {
+    let tools: &[(&str, &str)] = &[
+        ("exec_shell", "Execute a shell command via sh -c"),
+        ("read_file", "Read the contents of a file"),
+        ("write_file", "Write content to a file"),
+        ("edit_file", "Edit a file with find-and-replace"),
+        ("list_directory", "List files and directories at a path"),
+        ("search_files", "Search file contents by pattern"),
+        ("find_files", "Find files matching a glob pattern"),
+        ("search_web", "Search the web via Firecrawl API"),
+        ("fetch_url", "Fetch a URL and return text content"),
+        ("extract_website", "Extract readable content from a URL"),
+        ("fetch_datetime", "Get current date, time, and timezone"),
+        ("fetch_geolocation", "Get geolocation data for an IP address"),
+    ];
+    let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
     println!();
-    println!(
-        "  {}      Execute a shell command via sh -c",
-        "exec_shell".with(Color::Cyan)
-    );
-    println!(
-        "  {}      Read the contents of a file",
-        "read_file".with(Color::Cyan)
-    );
-    println!(
-        "  {}     Write content to a file",
-        "write_file".with(Color::Cyan)
-    );
-    println!(
-        "  {}      Edit a file with find-and-replace",
-        "edit_file".with(Color::Cyan)
-    );
-    println!(
-        "  {} List files and directories at a path",
-        "list_directory".with(Color::Cyan)
-    );
-    println!(
-        "  {}   Search file contents by pattern",
-        "search_files".with(Color::Cyan)
-    );
-    println!(
-        "  {}     Find files matching a glob pattern",
-        "find_files".with(Color::Cyan)
-    );
-    println!(
-        "  {}     Search the web via Firecrawl API",
-        "search_web".with(Color::Cyan)
-    );
-    println!(
-        "  {}      Fetch a URL and return text content",
-        "fetch_url".with(Color::Cyan)
-    );
-    println!(
-        "  {} Extract readable content from a URL",
-        "extract_website".with(Color::Cyan)
-    );
-    println!(
-        "  {} Get current date, time, and timezone",
-        "fetch_datetime".with(Color::Cyan)
-    );
-    println!(
-        "  {}      Get geolocation data for an IP address",
-        "fetch_geolocation".with(Color::Cyan)
-    );
+    for (name, desc) in tools {
+        let pad = max_len - name.len() + 2;
+        println!("  {}{:pad$}{desc}", name.with(Color::Cyan), "");
+    }
     println!();
 }
 
