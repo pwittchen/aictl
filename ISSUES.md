@@ -2,6 +2,8 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [func] rename `extract_web_content` tool to `extract_website` to keep max 2 words in tool name
+- [ui] fix padding in `/tools` command output
 - [repl] [ui] [func] add `/mode` command, which will allow to switch mode between "auto" and "human-in-the-loop" during the sessions
 - [ui] in the interactive mode in status line, add an icon/indicator showing that we're in the "auto" mode
 - [config] add possibility to manage multiple ASSISTANT PROMPTS saved in the config, which user can use depending on the use case - it can be done, by providing prompt file while running the program - this will give the user flexibility in terms of managing prompts and storing them and we avoid complexity of managing this on the app level - think if we should provide prompt file by param or by convention or both
