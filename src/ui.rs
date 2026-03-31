@@ -285,6 +285,13 @@ impl AgentUI for InteractiveUI {
     }
 
     fn confirm_tool(&self, tool_call: &ToolCall) -> bool {
+        use crossterm::{
+            cursor,
+            event::{self, Event, KeyCode, KeyEventKind},
+            execute,
+            terminal::{self, ClearType},
+        };
+
         let max_w = max_content_width();
         let input = first_input_line(&tool_call.input);
         let budget = max_w.saturating_sub(tool_call.name.len() + 5);
@@ -297,17 +304,85 @@ impl AgentUI for InteractiveUI {
             "──".with(Color::DarkGrey),
             input.with(Color::DarkGrey),
         );
-        eprint!(
-            "{PAD}{} {} ",
-            PIPE.with(Color::DarkGrey),
-            "allow? [y/N]".with(Color::Yellow),
+
+        let mut selected: usize = 0; // 0 = Allow, 1 = Deny
+        let options = ["Allow", "Deny"];
+
+        let draw = |sel: usize, out: &mut std::io::Stdout| {
+            for (i, label) in options.iter().enumerate() {
+                if i == sel {
+                    let _ = write!(
+                        out,
+                        "  {} {}\r\n",
+                        "›".with(Color::Green).attribute(Attribute::Bold),
+                        label.with(Color::White).attribute(Attribute::Bold),
+                    );
+                } else {
+                    let _ = write!(out, "    {}\r\n", label.with(Color::DarkGrey));
+                }
+            }
+            let _ = write!(
+                out,
+                "\r\n  {}\r\n",
+                "↑/↓ navigate · enter select".with(Color::DarkGrey)
+            );
+            let _ = out.flush();
+        };
+
+        let total_lines = options.len() + 2; // options + blank + hint
+
+        let _ = terminal::enable_raw_mode();
+        let mut stdout = std::io::stdout();
+        let _ = execute!(stdout, cursor::Hide);
+        let _ = write!(stdout, "\r\n");
+        draw(selected, &mut stdout);
+
+        let result = loop {
+            if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+                continue;
+            }
+            let ev = match event::read() {
+                Ok(ev) => ev,
+                Err(_) => break false,
+            };
+            match ev {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Up | KeyCode::Left => {
+                        selected = selected.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Right => {
+                        if selected + 1 < options.len() {
+                            selected += 1;
+                        }
+                    }
+                    KeyCode::Enter => break selected == 0,
+                    KeyCode::Esc => break false,
+                    KeyCode::Char('y') | KeyCode::Char('Y') => break true,
+                    KeyCode::Char('n') | KeyCode::Char('N') => break false,
+                    _ => continue,
+                },
+                _ => continue,
+            }
+
+            // Redraw
+            let _ = execute!(
+                stdout,
+                cursor::MoveUp(total_lines as u16),
+                terminal::Clear(ClearType::FromCursorDown),
+            );
+            draw(selected, &mut stdout);
+        };
+
+        // Clean up: erase the selector and restore terminal
+        let _ = execute!(
+            stdout,
+            cursor::MoveUp(total_lines as u16 + 1),
+            terminal::Clear(ClearType::FromCursorDown),
+            cursor::Show,
         );
-        std::io::stderr().flush().ok();
-        let mut buf = String::new();
-        if std::io::stdin().read_line(&mut buf).is_err() {
-            return false;
-        }
-        matches!(buf.trim(), "y" | "Y" | "yes" | "Yes")
+        let _ = terminal::disable_raw_mode();
+
+        result
     }
 
     fn show_answer(&self, text: &str) {
