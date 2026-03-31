@@ -55,3 +55,4 @@ Single-binary async Rust CLI with seven modules:
 
 - Rust edition 2024, default rustfmt and clippy settings.
 - Commit messages follow the rules in `.claude/skills/commit/SKILL.md` — no AI attribution lines, imperative mood, short messages for small changes, detailed body for larger ones.
+- After implementing a new feature or fixing a bug, check `ISSUES.md` — if the change resolves an issue listed there, remove that issue from the list.
