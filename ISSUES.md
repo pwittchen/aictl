@@ -2,8 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [claude] add claude code skill evalutaing project quality and good Rust software development practices
-- [claude] add claude code skill updating project docs in readme.md, arch.md and claude.md
+- [claude] add claude code skill evaluating project quality and good Rust software development practices
 - [config] add possibility to manage multiple ASSISTANT PROMPTS saved in the config, which user can use depending on the use case - it can be done, by providing prompt file while running the program - this will give the user flexibility in terms of managing prompts and storing them and we avoid complexity of managing this on the app level - think if we should provide prompt file by param or by convention or both
 - [config] [func] add `/init` command, which will help to generate assistant prompt with the dir contents and/or general user instruction - filename can be by convention e.g. `AICTL.md`
 - [func] research possibilities of adding new caching and data compression capabilities
