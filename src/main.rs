@@ -324,11 +324,19 @@ async fn run_interactive(
         let _ = rl.load_history(&history_path);
     }
 
-    let prompt = format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold));
     let mut last_answer = String::new();
     let mut last_input_tokens: u64 = 0;
 
     loop {
+        let prompt = if auto {
+            format!(
+                "{} {} ",
+                "[auto]".with(Color::Yellow),
+                "❯".with(Color::Cyan).attribute(Attribute::Bold),
+            )
+        } else {
+            format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
+        };
         let line = rl.readline(&prompt);
         match line {
             Ok(input) => {
