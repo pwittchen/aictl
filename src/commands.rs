@@ -21,6 +21,8 @@ pub enum CommandResult {
     Info,
     /// Switch model interactively.
     Model,
+    /// Switch auto/human-in-the-loop mode.
+    Mode,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -40,6 +42,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "context" => CommandResult::Context,
         "info" => CommandResult::Info,
         "model" => CommandResult::Model,
+        "mode" => CommandResult::Mode,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -204,6 +207,10 @@ fn print_help() {
     println!("  {}    Show this help message", "/help".with(Color::Cyan));
     println!("  {}    Show setup info", "/info".with(Color::Cyan));
     println!(
+        "  {}    Switch auto/human-in-the-loop mode",
+        "/mode".with(Color::Cyan)
+    );
+    println!(
         "  {}   Switch model and provider",
         "/model".with(Color::Cyan)
     );
@@ -260,6 +267,14 @@ mod tests {
         assert!(matches!(
             handle("/model", "", &noop_error),
             CommandResult::Model
+        ));
+    }
+
+    #[test]
+    fn cmd_mode() {
+        assert!(matches!(
+            handle("/mode", "", &noop_error),
+            CommandResult::Mode
         ));
     }
 
@@ -513,8 +528,146 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
     None
 }
 
-pub fn print_info(provider: &str, model: &str) {
+const MODES: &[(&str, &str)] = &[
+    ("human-in-the-loop", "Ask confirmation before each tool call"),
+    ("auto", "Run tools without confirmation"),
+];
+
+fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (i, (name, desc)) in MODES.iter().enumerate() {
+        let is_selected = i == selected;
+        let is_current = (*name == "auto") == current_auto;
+
+        let marker = if is_current { "●" } else { " " };
+        let name_styled = if is_selected {
+            format!(
+                "{} {}",
+                marker.with(Color::Green),
+                name.with(Color::White)
+                    .attribute(crossterm::style::Attribute::Bold)
+            )
+        } else {
+            format!(
+                "{} {}",
+                marker.with(Color::Green),
+                name.with(Color::DarkGrey)
+            )
+        };
+
+        let desc_styled = format!("{}", desc.with(Color::DarkGrey));
+
+        let line = if is_selected {
+            format!("  {} {name_styled}  {desc_styled}", "›".with(Color::Cyan))
+        } else {
+            format!("    {name_styled}  {desc_styled}")
+        };
+
+        lines.push(line);
+    }
+    lines
+}
+
+/// Interactively select auto/human-in-the-loop mode with arrow keys.
+/// Returns `Some(auto_bool)` or `None` if cancelled (Esc).
+pub fn select_mode(current_auto: bool) -> Option<bool> {
+    use crossterm::{
+        cursor,
+        event::{self, Event, KeyCode, KeyEventKind},
+        execute,
+        terminal::{self, ClearType},
+    };
+
+    let mut selected: usize = if current_auto { 1 } else { 0 };
+    let total = MODES.len();
+
+    let _ = terminal::enable_raw_mode();
+    let mut stdout = std::io::stdout();
+    let _ = execute!(stdout, cursor::Hide);
+
+    let lines = build_mode_menu_lines(selected, current_auto);
+    let _ = execute!(stdout, cursor::MoveToColumn(0));
+    let _ = write!(stdout, "\r\n");
+    for line in &lines {
+        let _ = write!(stdout, "{line}\r\n");
+    }
+    let _ = write!(
+        stdout,
+        "\r\n  {}\r\n",
+        "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
+    );
+    let _ = stdout.flush();
+    let total_rendered_lines = lines.len() + 2;
+
+    loop {
+        if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+            continue;
+        }
+        let ev = match event::read() {
+            Ok(ev) => ev,
+            Err(_) => break,
+        };
+
+        match ev {
+            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                KeyCode::Up => {
+                    selected = selected.saturating_sub(1);
+                }
+                KeyCode::Down => {
+                    if selected + 1 < total {
+                        selected += 1;
+                    }
+                }
+                KeyCode::Enter => {
+                    let _ = execute!(
+                        stdout,
+                        cursor::MoveUp(total_rendered_lines as u16),
+                        terminal::Clear(ClearType::FromCursorDown),
+                        cursor::Show,
+                    );
+                    let _ = terminal::disable_raw_mode();
+                    return Some(MODES[selected].0 == "auto");
+                }
+                KeyCode::Esc => {
+                    let _ = execute!(
+                        stdout,
+                        cursor::MoveUp(total_rendered_lines as u16),
+                        terminal::Clear(ClearType::FromCursorDown),
+                        cursor::Show,
+                    );
+                    let _ = terminal::disable_raw_mode();
+                    return None;
+                }
+                _ => continue,
+            },
+            _ => continue,
+        }
+
+        let lines = build_mode_menu_lines(selected, current_auto);
+        let _ = execute!(
+            stdout,
+            cursor::MoveUp(total_rendered_lines as u16),
+            terminal::Clear(ClearType::FromCursorDown),
+        );
+        for line in &lines {
+            let _ = write!(stdout, "{line}\r\n");
+        }
+        let _ = write!(
+            stdout,
+            "\r\n  {}\r\n",
+            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
+        );
+        let _ = stdout.flush();
+    }
+
+    let _ = execute!(stdout, cursor::Show);
+    let _ = terminal::disable_raw_mode();
+    None
+}
+
+pub fn print_info(provider: &str, model: &str, auto: bool) {
     let version = crate::VERSION;
+    let mode = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let binary_size = std::env::current_exe()
@@ -534,6 +687,7 @@ pub fn print_info(provider: &str, model: &str) {
     println!("  {} {version}", "version: ".with(Color::Cyan));
     println!("  {} {provider}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
+    println!("  {} {mode}", "mode:    ".with(Color::Cyan));
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
     println!();

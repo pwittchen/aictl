@@ -54,7 +54,8 @@ The interactive REPL supports slash commands:
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
-| `/info` | Show setup info (provider, model, version, OS, binary size) |
+| `/info` | Show setup info (provider, model, mode, version, OS, binary size) |
+| `/mode` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
 | `/exit` | Exit the REPL |

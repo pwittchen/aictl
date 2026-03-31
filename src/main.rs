@@ -300,6 +300,7 @@ async fn run_interactive(
     use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
 
+    let mut auto = auto;
     let ui = InteractiveUI::new();
     InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model);
 
@@ -366,7 +367,7 @@ async fn run_interactive(
                     commands::CommandResult::Info => {
                         let _ = rl.add_history_entry(&input);
                         let pname = format!("{:?}", provider).to_lowercase();
-                        commands::print_info(&pname, &model);
+                        commands::print_info(&pname, &model, auto);
                         continue;
                     }
                     commands::CommandResult::Model => {
@@ -394,6 +395,20 @@ async fn run_interactive(
                             let pname = format!("{:?}", provider).to_lowercase();
                             println!();
                             println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
+                            println!();
+                        }
+                        continue;
+                    }
+                    commands::CommandResult::Mode => {
+                        let _ = rl.add_history_entry(&input);
+                        if let Some(new_auto) = commands::select_mode(auto) {
+                            auto = new_auto;
+                            let mode_name = if auto { "auto" } else { "human-in-the-loop" };
+                            println!();
+                            println!(
+                                "  {} switched to {mode_name} mode",
+                                "✓".with(Color::Green)
+                            );
                             println!();
                         }
                         continue;
