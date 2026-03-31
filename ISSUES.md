@@ -14,4 +14,5 @@ features/ideas/bug-fixes to be added in the future:
 - [llm] add DeepSeek support
 - [llm] add Ollama support
 - [llm] add native models support from disk (e.g. with ONNX or other format like that)
+- [ci] add gh action, which will do automatic dependency check and update
 - [marketing] create project website
