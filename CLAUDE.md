@@ -18,7 +18,7 @@ cargo test               # run tests
 Single-binary async Rust CLI with seven modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), agent loop, single-shot and interactive REPL modes
-- `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/help`, `/info`, `/model`, `/tools`, `/exit`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
+- `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/mode`, `/model`, `/tools`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
 - `src/config.rs` — config file loading (`~/.aictl`), constants (system prompt, spinner phrases, agent loop limits)
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations

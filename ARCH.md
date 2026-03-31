@@ -4,14 +4,14 @@
 
 ```
 src/
- ├── main.rs          CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs       REPL slash commands (/clear, /compact, /context, /copy, /help, /info, /model, /tools, /exit)
- ├── tools.rs          System prompt, XML tool-call parsing, tool execution
- ├── ui.rs             AgentUI trait, PlainUI & InteractiveUI implementations
- └── llm/
-      ├── mod.rs       TokenUsage type, cost estimation (price_per_million)
-      ├── openai.rs    OpenAI chat completions client
-      └── anthropic.rs Anthropic messages client
+ ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
+ ├── commands.rs         REPL slash commands (/clear, /compact, /context, /copy, /exit, /help, /info, /mode, /model, /tools)
+ ├── config.rs           Config file loading (~/.aictl), constants (system prompt, spinner phrases, agent loop limits)
+ ├── tools.rs            XML tool-call parsing, tool execution dispatch
+ ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
+ ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
+ ├── llm_openai.rs       OpenAI chat completions client
+ └── llm_anthropic.rs    Anthropic messages client
 ```
 
 ## Startup Flow
@@ -20,14 +20,14 @@ src/
  ┌──────────────────────────────────────────────────────────────────┐
  │  main()                                                          │
  │                                                                  │
- │  1. load_env_file()          read .env into process env vars     │
- │  2. Cli::parse()             parse --provider, --model, -M, ...  │
- │  3. resolve provider         flag > AICTL_PROVIDER env > error   │
- │  4. resolve model            flag > AICTL_MODEL env > error      │
+ │  1. load_config()            read ~/.aictl into OnceLock HashMap  │
+ │  2. Cli::parse()             parse --provider, --model, -m, ...  │
+ │  3. resolve provider         flag > AICTL_PROVIDER config > error│
+ │  4. resolve model            flag > AICTL_MODEL config > error   │
  │  5. resolve api_key          OPENAI_API_KEY or ANTHROPIC_API_KEY │
  │  6. dispatch:                                                    │
- │     ├─ -M given ──> run_agent_single()  (PlainUI)                │
- │     └─ no -M ───> run_interactive()     (InteractiveUI + REPL)   │
+ │     ├─ -m given ──> run_agent_single()  (PlainUI)                │
+ │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)   │
  └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -182,7 +182,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /context (Context), /info (Info), /model (Model), /tools (Continue)
+ Also: /context (Context), /info (Info), /mode (Mode), /model (Model), /tools (Continue)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -191,6 +191,7 @@ Both single-shot and REPL modes share the same loop:
    Context     → show token/message usage, continue
    Info        → show provider/model/version info, continue
    Model       → select new model/provider, persist to ~/.aictl, continue
+   Mode        → switch auto/human-in-the-loop mode, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
 ```
@@ -209,15 +210,19 @@ Both single-shot and REPL modes share the same loop:
       ┌──────────┐    ┌──────────────┐
       │ main.rs  │───>│  tools.rs    │
       │          │    │              │
-      │ agent    │    │ SYSTEM_PROMPT│
-      │ loop     │    │ parse_tool() │
-      │          │    │ execute_tool │
+      │ agent    │    │ parse_tool() │
+      │ loop     │    │ execute_tool │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
+      │          │───>│  config.rs   │
+      │          │    │ SYSTEM_PROMPT│
+      │          │    │ load_config  │
       └────┬─────┘    └──────────────┘
            │
            ├──────────────────────────┐
            ▼                          ▼
       ┌──────────┐             ┌──────────┐
-      │ llm/     │             │ ui.rs    │
+      │ llm*.rs  │             │ ui.rs    │
       │          │             │          │
       │ openai   │             │ spinner  │
       │ anthropic│             │ confirm  │
