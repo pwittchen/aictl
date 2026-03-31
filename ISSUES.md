@@ -3,6 +3,7 @@
 features/ideas/bug-fixes to be added in the future:
 
 - [claude] add claude code skill evalutaing project quality and good Rust software development practices
+- [claude] add claude code skill updating project docs in readme.md, arch.md and claude.md
 - [func] rename `extract_web_content` tool to `extract_website` to keep max 2 words in tool name
 - [ui] fix padding in `/tools` command output
 - [repl] [ui] [func] add `/mode` command, which will allow to switch mode between "auto" and "human-in-the-loop" during the sessions
