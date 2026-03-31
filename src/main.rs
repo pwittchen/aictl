@@ -295,6 +295,60 @@ async fn run_agent_single(
     Ok(())
 }
 
+// --- Slash command tab completion ---
+
+struct SlashCommandHelper;
+
+impl rustyline::completion::Completer for SlashCommandHelper {
+    type Candidate = rustyline::completion::Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        if let Some(prefix) = line[..pos].strip_prefix('/') {
+            let matches: Vec<_> = commands::COMMANDS
+                .iter()
+                .filter(|cmd| cmd.starts_with(prefix))
+                .map(|cmd| rustyline::completion::Pair {
+                    display: format!("/{cmd}"),
+                    replacement: format!("/{cmd}"),
+                })
+                .collect();
+            Ok((0, matches))
+        } else {
+            Ok((0, vec![]))
+        }
+    }
+}
+
+impl rustyline::hint::Hinter for SlashCommandHelper {
+    type Hint = String;
+
+    fn hint(&self, line: &str, pos: usize, _ctx: &rustyline::Context<'_>) -> Option<String> {
+        if pos != line.len() {
+            return None;
+        }
+        let prefix = line.strip_prefix('/')?;
+        if prefix.is_empty() {
+            return None;
+        }
+        commands::COMMANDS
+            .iter()
+            .find(|cmd| cmd.starts_with(prefix) && **cmd != prefix)
+            .map(|cmd| cmd[prefix.len()..].to_string())
+    }
+}
+impl rustyline::highlight::Highlighter for SlashCommandHelper {
+    fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
+        std::borrow::Cow::Owned(format!("\x1b[90m{hint}\x1b[0m"))
+    }
+}
+impl rustyline::validate::Validator for SlashCommandHelper {}
+impl rustyline::Helper for SlashCommandHelper {}
+
 /// Interactive REPL mode: multi-turn conversation with persistent history.
 async fn run_interactive(
     mut provider: Provider,
@@ -314,7 +368,8 @@ async fn run_interactive(
         content: SYSTEM_PROMPT.to_string(),
     }];
 
-    let mut rl = rustyline::DefaultEditor::new()?;
+    let mut rl = rustyline::Editor::new()?;
+    rl.set_helper(Some(SlashCommandHelper));
 
     // Load history
     let history_path = std::env::var("HOME")

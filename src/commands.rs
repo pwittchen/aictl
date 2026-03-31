@@ -7,6 +7,12 @@ use crate::llm::MODELS;
 use crate::ui::AgentUI;
 use crate::{Message, Provider, Role};
 
+/// All slash command names (without `/`), sorted alphabetically.
+/// Used by the REPL tab completer.
+pub const COMMANDS: &[&str] = &[
+    "clear", "compact", "context", "copy", "exit", "help", "info", "mode", "model", "tools",
+];
+
 /// Result of handling a slash command.
 pub enum CommandResult {
     /// Exit the REPL.
@@ -308,6 +314,17 @@ mod tests {
             handle("/tools", "", &noop_error),
             CommandResult::Continue
         ));
+    }
+
+    #[test]
+    fn commands_list_matches_handler() {
+        for cmd in COMMANDS {
+            let input = format!("/{cmd}");
+            assert!(
+                !matches!(handle(&input, "", &noop_error), CommandResult::NotACommand),
+                "/{cmd} should be recognized as a command"
+            );
+        }
     }
 }
 
