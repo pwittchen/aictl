@@ -43,7 +43,7 @@ Single-binary async Rust CLI with seven modules:
 - `find_files` — find files matching a glob pattern with optional base directory
 - `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
 - `fetch_url` — fetch a URL and return readable text content (HTML stripped)
-- `extract_web_content` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
+- `extract_website` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
 - `fetch_datetime` — get current date, time, timezone, and day of week
 - `fetch_geolocation` — get geolocation data for an IP address via ip-api.com
 

@@ -341,7 +341,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
                 Err(e) => format!("Error fetching URL: {e}"),
             }
         }
-        "extract_web_content" => {
+        "extract_website" => {
             let url = tool_call.input.trim();
             let client = reqwest::Client::new();
             match client.get(url).send().await {

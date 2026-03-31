@@ -351,7 +351,7 @@ fn print_tools() {
     );
     println!(
         "  {} Extract readable content from a URL",
-        "extract_web_content".with(Color::Cyan)
+        "extract_website".with(Color::Cyan)
     );
     println!(
         "  {} Get current date, time, and timezone",

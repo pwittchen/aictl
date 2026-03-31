@@ -151,7 +151,7 @@ Available tools:
 | `search_web` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
 | `find_files` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
 | `fetch_url` | Fetch a URL and return readable text content (HTML tags stripped) |
-| `extract_web_content` | Fetch a URL and extract only the main readable content (strips scripts, styles, nav, boilerplate) |
+| `extract_website` | Fetch a URL and extract only the main readable content (strips scripts, styles, nav, boilerplate) |
 | `fetch_datetime` | Get the current date, time, timezone, and day of week |
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 

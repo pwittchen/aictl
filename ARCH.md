@@ -97,7 +97,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ find_files          │ glob::glob                │      │
  │  │ search_web          │ Firecrawl API (reqwest)   │      │
  │  │ fetch_url           │ HTTP GET (reqwest)        │      │
- │  │ extract_web_content │ HTTP GET + scraper (DOM)  │      │
+ │  │ extract_website     │ HTTP GET + scraper (DOM)  │      │
  │  │ fetch_datetime      │ date command (subprocess) │      │
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  └─────────────────────┴───────────────────────────┘      │
