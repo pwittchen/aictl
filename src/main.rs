@@ -26,30 +26,29 @@ enum Provider {
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Check if the current version is the latest by fetching the remote Cargo.toml.
-/// Returns a string like "(latest)" or "(X.Y.Z available)", or empty on failure.
-async fn check_latest_version() -> String {
-    let check = async {
-        let url = "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/Cargo.toml";
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(3))
-            .build()
-            .ok()?;
-        let body = client.get(url).send().await.ok()?.text().await.ok()?;
-        let remote_version = body.lines().find_map(|line| {
-            let rest = line.strip_prefix("version")?;
-            let (_, val) = rest.split_once('=')?;
-            Some(val.trim().trim_matches('"').to_string())
-        })?;
+/// Fetch the version from the remote Cargo.toml on GitHub.
+/// Returns `Some(version_string)` on success, `None` on failure.
+pub(crate) async fn fetch_remote_version() -> Option<String> {
+    let url = "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/Cargo.toml";
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .ok()?;
+    let body = client.get(url).send().await.ok()?.text().await.ok()?;
+    body.lines().find_map(|line| {
+        let rest = line.strip_prefix("version")?;
+        let (_, val) = rest.split_once('=')?;
+        Some(val.trim().trim_matches('"').to_string())
+    })
+}
 
-        if remote_version == VERSION {
-            Some("(latest)".to_string())
-        } else {
-            Some(format!("({remote_version} available)"))
-        }
-    };
-
-    check.await.unwrap_or_default()
+/// Format a version status string from a remote version check result.
+pub(crate) fn version_info_string(remote: &Option<String>) -> String {
+    match remote {
+        Some(v) if v == VERSION => "(latest)".to_string(),
+        Some(v) => format!("({v} available)"),
+        None => String::new(),
+    }
 }
 
 #[derive(Parser)]
@@ -58,6 +57,10 @@ struct Cli {
     /// Print version information
     #[arg(short = 'V', long = "version")]
     version: bool,
+
+    /// Update to the latest version
+    #[arg(short = 'u', long = "update")]
+    update: bool,
 
     /// LLM provider to use (default: AICTL_PROVIDER from ~/.aictl)
     #[arg(short, long)]
@@ -391,7 +394,7 @@ async fn run_interactive(
 
     let mut auto = auto;
     let ui = InteractiveUI::new();
-    let version_info = check_latest_version().await;
+    let version_info = version_info_string(&fetch_remote_version().await);
     InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model, &version_info);
 
     let mut messages = vec![Message {
@@ -467,6 +470,13 @@ async fn run_interactive(
                         let _ = rl.add_history_entry(&input);
                         let pname = format!("{:?}", provider).to_lowercase();
                         commands::print_info(&pname, &model, auto, &version_info);
+                        continue;
+                    }
+                    commands::CommandResult::Update => {
+                        let _ = rl.add_history_entry(&input);
+                        if commands::run_update(&|msg| ui.show_error(msg)).await {
+                            break;
+                        }
                         continue;
                     }
                     commands::CommandResult::Model => {
@@ -603,12 +613,17 @@ async fn main() {
     let cli = Cli::parse();
 
     if cli.version {
-        let version_info = check_latest_version().await;
+        let version_info = version_info_string(&fetch_remote_version().await);
         if version_info.is_empty() {
             println!("aictl {VERSION}");
         } else {
             println!("aictl {VERSION} {version_info}");
         }
+        return;
+    }
+
+    if cli.update {
+        commands::run_update_cli().await;
         return;
     }
 

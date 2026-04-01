@@ -11,6 +11,7 @@ use crate::{Message, Provider, Role};
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
     "clear", "compact", "context", "copy", "exit", "help", "info", "mode", "model", "tools",
+    "update",
 ];
 
 /// Result of handling a slash command.
@@ -29,6 +30,8 @@ pub enum CommandResult {
     Model,
     /// Switch auto/human-in-the-loop mode.
     Mode,
+    /// Update to the latest version.
+    Update,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -49,6 +52,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "info" => CommandResult::Info,
         "model" => CommandResult::Model,
         "mode" => CommandResult::Mode,
+        "update" => CommandResult::Update,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -221,6 +225,7 @@ fn print_help() {
         "/model".with(Color::Cyan)
     );
     println!("  {}   Show available tools", "/tools".with(Color::Cyan));
+    println!("  {}  Update to the latest version", "/update".with(Color::Cyan));
     println!("  {}    Exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }
@@ -690,4 +695,114 @@ pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
     println!();
+}
+
+const UPDATE_CMD: &str =
+    "curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh";
+
+/// Run the update process interactively (REPL `/update`).
+/// Returns `true` if the binary was updated and the REPL should exit.
+pub async fn run_update(show_error: &dyn Fn(&str)) -> bool {
+    println!();
+    println!(
+        "  {} checking for updates...",
+        "↓".with(Color::Cyan),
+    );
+
+    let remote = crate::fetch_remote_version().await;
+    match &remote {
+        Some(v) if v == crate::VERSION => {
+            println!(
+                "  {} already on latest version ({})",
+                "✓".with(Color::Green),
+                crate::VERSION,
+            );
+            println!();
+            return false;
+        }
+        Some(v) => {
+            println!(
+                "  {} updating {} → {v}...",
+                "↓".with(Color::Cyan),
+                crate::VERSION,
+            );
+            println!();
+        }
+        None => {
+            show_error("Could not check remote version. Please try again later.");
+            return false;
+        }
+    }
+
+    let status = tokio::process::Command::new("sh")
+        .arg("-c")
+        .arg(UPDATE_CMD)
+        .status()
+        .await;
+
+    match status {
+        Ok(s) if s.success() => {
+            println!();
+            println!(
+                "  {} updated successfully. Please restart aictl.",
+                "✓".with(Color::Green),
+            );
+            println!();
+            true
+        }
+        Ok(s) => {
+            show_error(&format!(
+                "Update failed with exit code: {}",
+                s.code().unwrap_or(-1)
+            ));
+            false
+        }
+        Err(e) => {
+            show_error(&format!("Failed to run update: {e}"));
+            false
+        }
+    }
+}
+
+/// Run the update process from the CLI (`--update` flag).
+pub async fn run_update_cli() {
+    eprintln!("Checking for updates...");
+
+    let remote = crate::fetch_remote_version().await;
+    match &remote {
+        Some(v) if v == crate::VERSION => {
+            println!("Already on latest version ({}).", crate::VERSION);
+            return;
+        }
+        Some(v) => {
+            eprintln!("Updating {} → {v}...", crate::VERSION);
+        }
+        None => {
+            eprintln!("Error: could not check remote version. Please try again later.");
+            std::process::exit(1);
+        }
+    }
+
+    let status = tokio::process::Command::new("sh")
+        .arg("-c")
+        .arg(UPDATE_CMD)
+        .status()
+        .await;
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("Updated successfully.");
+        }
+        Ok(s) => {
+            eprintln!(
+                "Update failed with exit code: {}",
+                s.code().unwrap_or(-1)
+            );
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("Failed to run update: {e}");
+            std::process::exit(1);
+        }
+    }
 }

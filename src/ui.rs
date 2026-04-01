@@ -220,6 +220,13 @@ impl InteractiveUI {
             PIPE.with(Color::DarkGrey),
             WELCOME_TEXT.with(Color::DarkGrey)
         );
+        if version_info.contains("available") {
+            eprintln!(
+                "{PAD}{} {}",
+                PIPE.with(Color::DarkGrey),
+                "Run /update or aictl --update to upgrade".with(Color::Yellow),
+            );
+        }
         eprintln!(
             "{PAD}{}{}",
             "╰".with(Color::DarkGrey),
