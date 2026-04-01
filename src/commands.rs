@@ -186,8 +186,24 @@ pub fn print_context(
     let message_pct = (messages_len as f64 / max_messages as f64 * 100.0) as u8;
     let context_pct = token_pct.max(message_pct).min(100);
 
+    let bar_width = 30;
+    let filled = (context_pct as usize * bar_width / 100).min(bar_width);
+    let empty = bar_width - filled;
+    let bar_color = if context_pct >= 80 {
+        Color::Red
+    } else if context_pct >= 50 {
+        Color::Yellow
+    } else {
+        Color::Green
+    };
+
     println!();
-    println!("  {} {context_pct}%", "context:".with(Color::Cyan),);
+    println!(
+        "  {} {}{} {context_pct}%",
+        "context:".with(Color::Cyan),
+        "█".repeat(filled).with(bar_color),
+        "░".repeat(empty).with(Color::DarkGrey),
+    );
     println!(
         "  {} {last_input_tokens} / {limit}",
         "tokens: ".with(Color::DarkGrey),

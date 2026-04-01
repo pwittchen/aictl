@@ -2,7 +2,6 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [ui] add some ASCII context visualisation
 - [func] [confing] research & implement more secure way of storing api keys instead of the plain text
 - [func] [config] add configuration functionality, so when user runs app for the first time, he can configure it with api keys, provider and model
 - [claude] add claude code skill evaluating project quality and good Rust software development practices
