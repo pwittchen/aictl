@@ -32,7 +32,7 @@ jobs:
     - name: Check for outdated dependencies
       id: check
       run: |
-        cargo upgrade --dry-run --incompatible --verbose 2>&1 | tee /tmp/upgrade-output.txt
+        cargo upgrade --dry-run --verbose 2>&1 | tee /tmp/upgrade-output.txt
         if grep -q "Upgrading" /tmp/upgrade-output.txt; then
           echo "has_updates=true" >> "$GITHUB_OUTPUT"
         else
