@@ -11,6 +11,7 @@ features/ideas/bug-fixes to be added in the future:
 - [tool] [func] add image processing capability
 - [tool] [func] add document processing capability (pdf/docx)
 - [llm] add Gemini support
+- [llm] add Grok support
 - [llm] add Mistral support
 - [llm] add Z.ai support
 - [llm] add DeepSeek support
