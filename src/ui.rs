@@ -379,9 +379,8 @@ impl AgentUI for InteractiveUI {
             if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
                 continue;
             }
-            let ev = match event::read() {
-                Ok(ev) => ev,
-                Err(_) => break ToolApproval::Deny,
+            let Ok(ev) = event::read() else {
+                break ToolApproval::Deny;
             };
             match ev {
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
@@ -400,16 +399,16 @@ impl AgentUI for InteractiveUI {
                             _ => ToolApproval::Deny,
                         };
                     }
-                    KeyCode::Esc => break ToolApproval::Deny,
-                    KeyCode::Char('y') | KeyCode::Char('Y') => break ToolApproval::Allow,
-                    KeyCode::Char('n') | KeyCode::Char('N') => break ToolApproval::Deny,
-                    KeyCode::Char('a') | KeyCode::Char('A') => break ToolApproval::AutoAccept,
+                    KeyCode::Esc | KeyCode::Char('n' | 'N') => break ToolApproval::Deny,
+                    KeyCode::Char('y' | 'Y') => break ToolApproval::Allow,
+                    KeyCode::Char('a' | 'A') => break ToolApproval::AutoAccept,
                     _ => continue,
                 },
                 _ => continue,
             }
 
             // Redraw
+            #[allow(clippy::cast_possible_truncation)]
             let _ = execute!(
                 stdout,
                 cursor::MoveUp(total_lines as u16),
@@ -419,6 +418,7 @@ impl AgentUI for InteractiveUI {
         };
 
         // Clean up: erase the selector and restore terminal
+        #[allow(clippy::cast_possible_truncation)]
         let _ = execute!(
             stdout,
             cursor::MoveUp(total_lines as u16 + 1),

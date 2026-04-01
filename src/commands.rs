@@ -73,13 +73,13 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
 }
 
 fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
     if text.is_empty() {
         show_error("Nothing to copy yet.");
         return;
     }
-
-    use std::io::Write;
-    use std::process::{Command, Stdio};
 
     match Command::new("pbcopy").stdin(Stdio::piped()).spawn() {
         Ok(mut child) => {
@@ -183,12 +183,8 @@ pub fn print_context(
     max_messages: usize,
 ) {
     let limit = llm::context_limit(model);
-    let token_pct = if last_input_tokens > 0 {
-        (last_input_tokens as f64 / limit as f64 * 100.0) as u8
-    } else {
-        0
-    };
-    let message_pct = (messages_len as f64 / max_messages as f64 * 100.0) as u8;
+    let token_pct = llm::pct(last_input_tokens, limit);
+    let message_pct = llm::pct_usize(messages_len, max_messages);
     let context_pct = token_pct.max(message_pct).min(100);
 
     let bar_width = 30;
@@ -440,7 +436,8 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
 }
 
 /// Interactively select a model with arrow keys.
-/// Returns (Provider, model_name, api_key_config_key) or None if cancelled (Esc).
+/// Returns (Provider, `model_name`, `api_key_config_key`) or None if cancelled (Esc).
+#[allow(clippy::cast_possible_truncation)]
 pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
     use crossterm::{
         cursor,
@@ -482,10 +479,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
             continue;
         }
-        let ev = match event::read() {
-            Ok(ev) => ev,
-            Err(_) => break,
-        };
+        let Ok(ev) = event::read() else { break };
 
         match ev {
             Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
@@ -596,6 +590,7 @@ fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
 
 /// Interactively select auto/human-in-the-loop mode with arrow keys.
 /// Returns `Some(auto_bool)` or `None` if cancelled (Esc).
+#[allow(clippy::cast_possible_truncation)]
 pub fn select_mode(current_auto: bool) -> Option<bool> {
     use crossterm::{
         cursor,
@@ -604,7 +599,7 @@ pub fn select_mode(current_auto: bool) -> Option<bool> {
         terminal::{self, ClearType},
     };
 
-    let mut selected: usize = if current_auto { 1 } else { 0 };
+    let mut selected: usize = usize::from(current_auto);
     let total = MODES.len();
 
     let _ = terminal::enable_raw_mode();
@@ -629,10 +624,7 @@ pub fn select_mode(current_auto: bool) -> Option<bool> {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
             continue;
         }
-        let ev = match event::read() {
-            Ok(ev) => ev,
-            Err(_) => break,
-        };
+        let Ok(ev) = event::read() else { break };
 
         match ev {
             Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
@@ -699,15 +691,18 @@ pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     let binary_size = std::env::current_exe()
         .ok()
         .and_then(|p| std::fs::metadata(p).ok())
-        .map(|m| {
-            let bytes = m.len();
-            if bytes >= 1_048_576 {
-                format!("{:.1} MB", bytes as f64 / 1_048_576.0)
-            } else {
-                format!("{:.1} KB", bytes as f64 / 1_024.0)
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string());
+        .map_or_else(
+            || "unknown".to_string(),
+            #[allow(clippy::cast_precision_loss)]
+            |m| {
+                let bytes = m.len();
+                if bytes >= 1_048_576 {
+                    format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+                } else {
+                    format!("{:.1} KB", bytes as f64 / 1_024.0)
+                }
+            },
+        );
 
     let version_display = if version_info.is_empty() {
         version.to_string()

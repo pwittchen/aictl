@@ -1,4 +1,4 @@
-/// Available models: (provider_str, model_name, api_key_config_key)
+/// Available models: (`provider_str`, `model_name`, `api_key_config_key`)
 pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),
     ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
@@ -101,12 +101,39 @@ pub fn context_limit(model: &str) -> u64 {
 
 impl TokenUsage {
     /// Estimate cost in USD. Returns None if the model is unknown.
+    #[allow(clippy::cast_precision_loss)]
     pub fn estimate_cost(&self, model: &str) -> Option<f64> {
         let (input_ppm, output_ppm) = price_per_million(model)?;
         let cost = (self.input_tokens as f64 * input_ppm + self.output_tokens as f64 * output_ppm)
             / 1_000_000.0;
         Some(cost)
     }
+}
+
+/// Compute a percentage (0–100) from a part/total pair.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+pub fn pct(part: u64, total: u64) -> u8 {
+    if total == 0 {
+        return 0;
+    }
+    (part as f64 / total as f64 * 100.0).min(100.0) as u8
+}
+
+/// Compute a percentage (0–100) from usize values.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+pub fn pct_usize(part: usize, total: usize) -> u8 {
+    if total == 0 {
+        return 0;
+    }
+    (part as f64 / total as f64 * 100.0).min(100.0) as u8
 }
 
 #[cfg(test)]

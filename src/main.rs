@@ -43,7 +43,7 @@ pub(crate) async fn fetch_remote_version() -> Option<String> {
 }
 
 /// Format a version status string from a remote version check result.
-pub(crate) fn version_info_string(remote: &Option<String>) -> String {
+pub(crate) fn version_info_string(remote: Option<&str>) -> String {
     match remote {
         Some(v) if v == VERSION => "(latest)".to_string(),
         Some(v) => format!("({v} available)"),
@@ -53,6 +53,7 @@ pub(crate) fn version_info_string(remote: &Option<String>) -> String {
 
 #[derive(Parser)]
 #[command(name = "aictl", version = VERSION, disable_version_flag = true, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
+#[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Print version information
     #[arg(short = 'V', long = "version")]
@@ -62,11 +63,11 @@ struct Cli {
     #[arg(short = 'u', long = "update")]
     update: bool,
 
-    /// LLM provider to use (default: AICTL_PROVIDER from ~/.aictl)
+    /// LLM provider to use (default: `AICTL_PROVIDER` from ~/.aictl)
     #[arg(short, long)]
     provider: Option<Provider>,
 
-    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: AICTL_MODEL from ~/.aictl)
+    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: `AICTL_MODEL` from ~/.aictl)
     #[arg(short = 'M', long)]
     model: Option<String>,
 
@@ -162,8 +163,9 @@ pub struct Message {
 
 // --- Agent loop ---
 
-/// Run one turn of the agent loop: send user_message, handle tool calls,
+/// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
+#[allow(clippy::too_many_lines)]
 async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
@@ -214,9 +216,9 @@ async fn run_agent_turn(
         llm_calls += 1;
         last_input_tokens = usage.input_tokens;
 
-        let token_pct = (last_input_tokens as f64 / llm::context_limit(model) as f64 * 100.0) as u8;
-        let message_pct = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
-        let context_pct = token_pct.max(message_pct).min(100);
+        let token_pct = llm::pct(last_input_tokens, llm::context_limit(model));
+        let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
+        let context_pct = token_pct.max(message_pct);
 
         messages.push(Message {
             role: Role::Assistant,
@@ -233,19 +235,16 @@ async fn run_agent_turn(
             context_pct,
         );
 
-        let tool_call = match tool_call {
-            Some(tc) => tc,
-            None => {
-                // No tool call — this is the final answer
-                return Ok((
-                    response,
-                    total_usage,
-                    llm_calls,
-                    tool_calls,
-                    turn_start.elapsed(),
-                    last_input_tokens,
-                ));
-            }
+        let Some(tool_call) = tool_call else {
+            // No tool call — this is the final answer
+            return Ok((
+                response,
+                total_usage,
+                llm_calls,
+                tool_calls,
+                turn_start.elapsed(),
+                last_input_tokens,
+            ));
         };
 
         // Print the LLM's reasoning (text before the tool tag)
@@ -383,6 +382,7 @@ impl rustyline::validate::Validator for SlashCommandHelper {}
 impl rustyline::Helper for SlashCommandHelper {}
 
 /// Interactive REPL mode: multi-turn conversation with persistent history.
+#[allow(clippy::too_many_lines)]
 async fn run_interactive(
     mut provider: Provider,
     mut api_key: String,
@@ -394,9 +394,9 @@ async fn run_interactive(
 
     let mut auto = auto;
     let ui = InteractiveUI::new();
-    let version_info = version_info_string(&fetch_remote_version().await);
+    let version_info = version_info_string(fetch_remote_version().await.as_deref());
     InteractiveUI::print_welcome(
-        &format!("{:?}", provider).to_lowercase(),
+        &format!("{provider:?}").to_lowercase(),
         &model,
         &version_info,
     );
@@ -472,7 +472,7 @@ async fn run_interactive(
                     }
                     commands::CommandResult::Info => {
                         let _ = rl.add_history_entry(&input);
-                        let pname = format!("{:?}", provider).to_lowercase();
+                        let pname = format!("{provider:?}").to_lowercase();
                         commands::print_info(&pname, &model, auto, &version_info);
                         continue;
                     }
@@ -488,24 +488,21 @@ async fn run_interactive(
                         if let Some((new_provider, new_model, api_key_name)) =
                             commands::select_model(&model)
                         {
-                            let new_api_key = match config_get(&api_key_name) {
-                                Some(k) => k,
-                                None => {
-                                    ui.show_error(&format!(
-                                        "API key not found. Set {api_key_name} in ~/.aictl"
-                                    ));
-                                    continue;
-                                }
+                            let Some(new_api_key) = config_get(&api_key_name) else {
+                                ui.show_error(&format!(
+                                    "API key not found. Set {api_key_name} in ~/.aictl"
+                                ));
+                                continue;
                             };
                             config_set(
                                 "AICTL_PROVIDER",
-                                &format!("{:?}", new_provider).to_lowercase(),
+                                &format!("{new_provider:?}").to_lowercase(),
                             );
                             config_set("AICTL_MODEL", &new_model);
                             provider = new_provider;
                             model = new_model;
                             api_key = new_api_key;
-                            let pname = format!("{:?}", provider).to_lowercase();
+                            let pname = format!("{provider:?}").to_lowercase();
                             println!();
                             println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
                             println!();
@@ -533,13 +530,9 @@ async fn run_interactive(
                 let _ = rl.add_history_entry(&input);
 
                 // Auto-compact if context is >= 80%
-                let token_pct = if last_input_tokens > 0 {
-                    (last_input_tokens as f64 / llm::context_limit(&model) as f64 * 100.0) as u8
-                } else {
-                    0
-                };
-                let message_pct = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
-                let context_pct = token_pct.max(message_pct).min(100);
+                let token_pct = llm::pct(last_input_tokens, llm::context_limit(&model));
+                let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
+                let context_pct = token_pct.max(message_pct);
                 if context_pct >= 80 {
                     println!();
                     println!(
@@ -567,10 +560,9 @@ async fn run_interactive(
                         last_answer = answer;
                         last_input_tokens = input_tokens;
                         if llm_calls > 1 {
-                            let tp = (input_tokens as f64 / llm::context_limit(&model) as f64
-                                * 100.0) as u8;
-                            let mp = (messages.len() as f64 / MAX_MESSAGES as f64 * 100.0) as u8;
-                            let cp = tp.max(mp).min(100);
+                            let tp = llm::pct(input_tokens, llm::context_limit(&model));
+                            let mp = llm::pct_usize(messages.len(), MAX_MESSAGES);
+                            let cp = tp.max(mp);
                             ui.show_summary(&usage, &model, llm_calls, tool_calls, elapsed, cp);
                         }
                     }
@@ -585,8 +577,7 @@ async fn run_interactive(
                 }
             }
             Err(ReadlineError::Interrupted) => {
-                // Ctrl+C: cancel current line, continue
-                continue;
+                // Ctrl+C: cancel current line
             }
             Err(ReadlineError::Eof) => {
                 // Ctrl+D: exit
@@ -614,7 +605,7 @@ async fn main() {
     let cli = Cli::parse();
 
     if cli.version {
-        let version_info = version_info_string(&fetch_remote_version().await);
+        let version_info = version_info_string(fetch_remote_version().await.as_deref());
         if version_info.is_empty() {
             println!("aictl {VERSION}");
         } else {

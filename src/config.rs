@@ -76,12 +76,9 @@ pub fn load_config() {
         std::process::exit(1);
     });
     let config_path = format!("{home}/.aictl");
-    let contents = match std::fs::read_to_string(&config_path) {
-        Ok(c) => c,
-        Err(_) => {
-            CONFIG.set(HashMap::new()).ok();
-            return;
-        }
+    let Ok(contents) = std::fs::read_to_string(&config_path) else {
+        CONFIG.set(HashMap::new()).ok();
+        return;
     };
 
     let map = parse_config(&contents);
@@ -122,9 +119,8 @@ pub fn config_get(key: &str) -> Option<String> {
 
 /// Write a key=value pair to ~/.aictl, replacing an existing key or appending.
 pub fn config_set(key: &str, value: &str) {
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => return,
+    let Ok(home) = std::env::var("HOME") else {
+        return;
     };
     let config_path = format!("{home}/.aictl");
     let contents = std::fs::read_to_string(&config_path).unwrap_or_default();

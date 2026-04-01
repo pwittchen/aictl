@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::io::Write;
 
 #[derive(Debug)]
@@ -32,7 +33,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "search_files" => tool_search_files(input).await,
         "edit_file" => tool_edit_file(input).await,
         "search_web" => tool_search_web(input).await,
-        "find_files" => tool_find_files(input).await,
+        "find_files" => tool_find_files(input),
         "fetch_url" => tool_fetch_url(input).await,
         "extract_website" => tool_extract_website(input).await,
         "fetch_datetime" => tool_fetch_datetime().await,
@@ -124,7 +125,7 @@ async fn tool_list_directory(input: &str) -> String {
                     Ok(ft) if ft.is_symlink() => "[LINK]",
                     _ => "[FILE]",
                 };
-                result.push_str(&format!("{prefix}  {name}\n"));
+                let _ = writeln!(result, "{prefix}  {name}");
             }
             if result.is_empty() {
                 "(empty directory)".to_string()
@@ -205,9 +206,8 @@ async fn tool_edit_file(input: &str) -> String {
 }
 
 async fn tool_search_web(input: &str) -> String {
-    let api_key = match crate::config::config_get("FIRECRAWL_API_KEY") {
-        Some(key) => key,
-        None => return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string(),
+    let Some(api_key) = crate::config::config_get("FIRECRAWL_API_KEY") else {
+        return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string();
     };
     let query = input.trim();
     let client = reqwest::Client::new();
@@ -245,13 +245,14 @@ async fn tool_search_web(input: &str) -> String {
                                 if i > 0 {
                                     output.push('\n');
                                 }
-                                output.push_str(&format!(
+                                let _ = write!(
+                                    output,
                                     "[{}] {}\nURL: {}\n{}\n",
                                     i + 1,
                                     title,
                                     url,
                                     desc
-                                ));
+                                );
                             }
                             output
                         }
@@ -265,7 +266,7 @@ async fn tool_search_web(input: &str) -> String {
     }
 }
 
-async fn tool_find_files(input: &str) -> String {
+fn tool_find_files(input: &str) -> String {
     let input = input.trim();
     let (pattern, base_dir) = match input.split_once('\n') {
         Some((p, d)) => (p.trim(), d.trim()),
@@ -296,7 +297,7 @@ async fn tool_find_files(input: &str) -> String {
                         if !result.is_empty() {
                             result.push('\n');
                         }
-                        result.push_str(&format!("(error: {e})"));
+                        let _ = write!(result, "(error: {e})");
                     }
                 }
                 if result.len() > 10_000 {
