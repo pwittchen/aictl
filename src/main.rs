@@ -30,11 +30,16 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns `Some(version_string)` on success, `None` on failure.
 pub(crate) async fn fetch_remote_version() -> Option<String> {
     let url = "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/Cargo.toml";
-    let client = reqwest::Client::builder()
+    let client = config::http_client();
+    let body = client
+        .get(url)
         .timeout(std::time::Duration::from_secs(3))
-        .build()
+        .send()
+        .await
+        .ok()?
+        .text()
+        .await
         .ok()?;
-    let body = client.get(url).send().await.ok()?.text().await.ok()?;
     body.lines().find_map(|line| {
         let rest = line.strip_prefix("version")?;
         let (_, val) = rest.split_once('=')?;

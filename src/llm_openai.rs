@@ -37,7 +37,7 @@ pub async fn call_openai(
     model: &str,
     messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
 
     let oai_messages: Vec<OpenAiMessage> = messages
         .iter()

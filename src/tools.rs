@@ -208,7 +208,7 @@ async fn tool_search_web(input: &str) -> String {
         return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string();
     };
     let query = input.trim();
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
     let body = serde_json::json!({
         "query": query,
         "limit": 5
@@ -312,7 +312,7 @@ fn tool_find_files(input: &str) -> String {
 
 async fn tool_fetch_url(input: &str) -> String {
     let url = input.trim();
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
     match client.get(url).send().await {
         Ok(resp) => {
             if !resp.status().is_success() {
@@ -362,7 +362,7 @@ async fn tool_fetch_url(input: &str) -> String {
 
 async fn tool_extract_website(input: &str) -> String {
     let url = input.trim();
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
     match client.get(url).send().await {
         Ok(resp) => {
             if !resp.status().is_success() {
@@ -447,7 +447,7 @@ async fn tool_fetch_geolocation(input: &str) -> String {
             "http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as"
         )
     };
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
     match client.get(&url).send().await {
         Ok(resp) => match resp.json::<serde_json::Value>().await {
             Ok(json) => {

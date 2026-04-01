@@ -40,7 +40,7 @@ pub async fn call_anthropic(
     model: &str,
     messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
+    let client = crate::config::http_client();
 
     let mut system_text: Option<String> = None;
     let mut api_messages: Vec<AnthropicMessage> = Vec::new();

@@ -2,6 +2,12 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 static CONFIG: OnceLock<HashMap<String, String>> = OnceLock::new();
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// Return a shared `reqwest::Client`, creating it on first access.
+pub fn http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(reqwest::Client::new)
+}
 
 // --- Agent loop limits ---
 
