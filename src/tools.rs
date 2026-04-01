@@ -23,430 +23,450 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
 }
 
 pub async fn execute_tool(tool_call: &ToolCall) -> String {
+    let input = &tool_call.input;
     match tool_call.name.as_str() {
-        "exec_shell" => {
-            let output = tokio::process::Command::new("sh")
-                .arg("-c")
-                .arg(&tool_call.input)
-                .output()
-                .await;
-            match output {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    let mut result = String::new();
-                    if !stdout.is_empty() {
-                        result.push_str(&stdout);
-                    }
-                    if !stderr.is_empty() {
-                        if !result.is_empty() {
-                            result.push('\n');
-                        }
-                        result.push_str("[stderr]\n");
-                        result.push_str(&stderr);
-                    }
-                    if result.is_empty() {
-                        result.push_str("(no output)");
-                    }
-                    // Truncate large output
-                    if result.len() > 10_000 {
-                        result.truncate(10_000);
-                        result.push_str("\n... (truncated)");
-                    }
-                    result
-                }
-                Err(e) => format!("Error executing command: {e}"),
-            }
-        }
-        "read_file" => {
-            let path = tool_call.input.trim();
-            match tokio::fs::read_to_string(path).await {
-                Ok(mut contents) => {
-                    if contents.is_empty() {
-                        contents = "(empty file)".to_string();
-                    }
-                    if contents.len() > 10_000 {
-                        contents.truncate(10_000);
-                        contents.push_str("\n... (truncated)");
-                    }
-                    contents
-                }
-                Err(e) => format!("Error reading file: {e}"),
-            }
-        }
-        "write_file" => {
-            let input = tool_call.input.trim();
-            match input.split_once('\n') {
-                Some((path, content)) => {
-                    let path = path.trim();
-                    match tokio::fs::write(path, content).await {
-                        Ok(()) => format!("Wrote {} bytes to {path}", content.len()),
-                        Err(e) => format!("Error writing file: {e}"),
-                    }
-                }
-                None => {
-                    "Invalid input: expected first line as file path, remaining lines as content"
-                        .to_string()
-                }
-            }
-        }
-        "list_directory" => {
-            let path = tool_call.input.trim();
-            let path = if path.is_empty() { "." } else { path };
-            match tokio::fs::read_dir(path).await {
-                Ok(mut entries) => {
-                    let mut result = String::new();
-                    while let Ok(Some(entry)) = entries.next_entry().await {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        let prefix = match entry.file_type().await {
-                            Ok(ft) if ft.is_dir() => "[DIR]",
-                            Ok(ft) if ft.is_symlink() => "[LINK]",
-                            _ => "[FILE]",
-                        };
-                        result.push_str(&format!("{prefix}  {name}\n"));
-                    }
-                    if result.is_empty() {
-                        "(empty directory)".to_string()
-                    } else {
-                        result
-                    }
-                }
-                Err(e) => format!("Error listing directory: {e}"),
-            }
-        }
-        "search_files" => {
-            let input = tool_call.input.trim();
-            let (pattern, dir) = match input.split_once('\n') {
-                Some((p, d)) => (p.trim(), d.trim()),
-                None => (input, "."),
-            };
-            let dir = if dir.is_empty() { "." } else { dir };
-            let output = tokio::process::Command::new("grep")
-                .args(["-rn", "--include=*", pattern, dir])
-                .output()
-                .await;
-            match output {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    if stdout.is_empty() {
-                        "No matches found.".to_string()
-                    } else {
-                        let mut result = stdout.to_string();
-                        if result.len() > 10_000 {
-                            result.truncate(10_000);
-                            result.push_str("\n... (truncated)");
-                        }
-                        result
-                    }
-                }
-                Err(e) => format!("Error running search: {e}"),
-            }
-        }
-        "edit_file" => {
-            let input = tool_call.input.trim();
-            // Parse: path\n<<<\nold\n===\nnew\n>>>
-            let Some((path, rest)) = input.split_once('\n') else {
-                return "Invalid input: expected file path on first line".to_string();
-            };
-            let path = path.trim();
-            let rest = rest.trim();
-            let Some(rest) = rest.strip_prefix("<<<") else {
-                return "Invalid input: expected <<< delimiter after file path".to_string();
-            };
-            let Some((old_new, _)) = rest.split_once(">>>") else {
-                return "Invalid input: expected >>> closing delimiter".to_string();
-            };
-            let Some((old_text, new_text)) = old_new.split_once("===") else {
-                return "Invalid input: expected === separator between old and new text"
-                    .to_string();
-            };
-            let old_text = old_text.strip_prefix('\n').unwrap_or(old_text);
-            let old_text = old_text.strip_suffix('\n').unwrap_or(old_text);
-            let new_text = new_text.strip_prefix('\n').unwrap_or(new_text);
-            let new_text = new_text.strip_suffix('\n').unwrap_or(new_text);
+        "exec_shell" => tool_exec_shell(input).await,
+        "read_file" => tool_read_file(input).await,
+        "write_file" => tool_write_file(input).await,
+        "list_directory" => tool_list_directory(input).await,
+        "search_files" => tool_search_files(input).await,
+        "edit_file" => tool_edit_file(input).await,
+        "search_web" => tool_search_web(input).await,
+        "find_files" => tool_find_files(input).await,
+        "fetch_url" => tool_fetch_url(input).await,
+        "extract_website" => tool_extract_website(input).await,
+        "fetch_datetime" => tool_fetch_datetime().await,
+        "fetch_geolocation" => tool_fetch_geolocation(input).await,
+        _ => format!("Unknown tool: {}", tool_call.name),
+    }
+}
 
-            let contents = match tokio::fs::read_to_string(path).await {
-                Ok(c) => c,
-                Err(e) => return format!("Error reading file: {e}"),
-            };
-            let count = contents.matches(old_text).count();
-            if count == 0 {
-                return "Error: old text not found in file".to_string();
+/// Truncate a result string to the output size limit.
+fn truncate_output(s: &mut String) {
+    if s.len() > 10_000 {
+        s.truncate(10_000);
+        s.push_str("\n... (truncated)");
+    }
+}
+
+async fn tool_exec_shell(input: &str) -> String {
+    let output = tokio::process::Command::new("sh")
+        .arg("-c")
+        .arg(input)
+        .output()
+        .await;
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let mut result = String::new();
+            if !stdout.is_empty() {
+                result.push_str(&stdout);
             }
-            if count > 1 {
-                return format!(
-                    "Error: old text found {count} times in file — provide more context to match uniquely"
-                );
+            if !stderr.is_empty() {
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                result.push_str("[stderr]\n");
+                result.push_str(&stderr);
             }
-            let updated = contents.replacen(old_text, new_text, 1);
-            match tokio::fs::write(path, &updated).await {
-                Ok(()) => format!("Edited {path} (replaced 1 occurrence)"),
+            if result.is_empty() {
+                result.push_str("(no output)");
+            }
+            truncate_output(&mut result);
+            result
+        }
+        Err(e) => format!("Error executing command: {e}"),
+    }
+}
+
+async fn tool_read_file(input: &str) -> String {
+    let path = input.trim();
+    match tokio::fs::read_to_string(path).await {
+        Ok(mut contents) => {
+            if contents.is_empty() {
+                contents = "(empty file)".to_string();
+            }
+            truncate_output(&mut contents);
+            contents
+        }
+        Err(e) => format!("Error reading file: {e}"),
+    }
+}
+
+async fn tool_write_file(input: &str) -> String {
+    let input = input.trim();
+    match input.split_once('\n') {
+        Some((path, content)) => {
+            let path = path.trim();
+            match tokio::fs::write(path, content).await {
+                Ok(()) => format!("Wrote {} bytes to {path}", content.len()),
                 Err(e) => format!("Error writing file: {e}"),
             }
         }
-        "search_web" => {
-            let api_key = match crate::config::config_get("FIRECRAWL_API_KEY") {
-                Some(key) => key,
-                None => return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string(),
-            };
-            let query = tool_call.input.trim();
-            let client = reqwest::Client::new();
-            let body = serde_json::json!({
-                "query": query,
-                "limit": 5
-            });
-            match client
-                .post("https://api.firecrawl.dev/v2/search")
-                .header("Authorization", format!("Bearer {api_key}"))
-                .header("Content-Type", "application/json")
-                .json(&body)
-                .send()
-                .await
-            {
-                Ok(resp) => {
-                    if !resp.status().is_success() {
-                        return format!("Error: Firecrawl API returned status {}", resp.status());
-                    }
-                    match resp.json::<serde_json::Value>().await {
-                        Ok(json) => {
-                            let results = json["data"]
-                                .as_array()
-                                .or_else(|| json["data"]["web"].as_array());
-                            match results {
-                                Some(items) if !items.is_empty() => {
-                                    let mut output = String::new();
-                                    for (i, item) in items.iter().enumerate() {
-                                        let title = item["title"].as_str().unwrap_or("(no title)");
-                                        let url = item["url"].as_str().unwrap_or("(no url)");
-                                        let desc = item["description"]
-                                            .as_str()
-                                            .or_else(|| item["snippet"].as_str())
-                                            .unwrap_or("(no description)");
-                                        if i > 0 {
-                                            output.push('\n');
-                                        }
-                                        output.push_str(&format!(
-                                            "[{}] {}\nURL: {}\n{}\n",
-                                            i + 1,
-                                            title,
-                                            url,
-                                            desc
-                                        ));
-                                    }
-                                    output
-                                }
-                                _ => "No results found.".to_string(),
-                            }
-                        }
-                        Err(e) => format!("Error parsing Firecrawl response: {e}"),
-                    }
-                }
-                Err(e) => format!("Error calling Firecrawl API: {e}"),
-            }
+        None => {
+            "Invalid input: expected first line as file path, remaining lines as content"
+                .to_string()
         }
-        "find_files" => {
-            let input = tool_call.input.trim();
-            let (pattern, base_dir) = match input.split_once('\n') {
-                Some((p, d)) => (p.trim(), d.trim()),
-                None => (input, "."),
-            };
-            let base_dir = if base_dir.is_empty() { "." } else { base_dir };
-            let full_pattern = if std::path::Path::new(pattern).is_absolute() {
-                pattern.to_string()
+    }
+}
+
+async fn tool_list_directory(input: &str) -> String {
+    let path = input.trim();
+    let path = if path.is_empty() { "." } else { path };
+    match tokio::fs::read_dir(path).await {
+        Ok(mut entries) => {
+            let mut result = String::new();
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let prefix = match entry.file_type().await {
+                    Ok(ft) if ft.is_dir() => "[DIR]",
+                    Ok(ft) if ft.is_symlink() => "[LINK]",
+                    _ => "[FILE]",
+                };
+                result.push_str(&format!("{prefix}  {name}\n"));
+            }
+            if result.is_empty() {
+                "(empty directory)".to_string()
             } else {
-                format!("{base_dir}/{pattern}")
-            };
-            match glob::glob(&full_pattern) {
-                Ok(paths) => {
-                    let mut result = String::new();
-                    for entry in paths {
-                        match entry {
-                            Ok(path) => {
-                                if !result.is_empty() {
-                                    result.push('\n');
-                                }
-                                result.push_str(&path.to_string_lossy());
-                            }
-                            Err(e) => {
-                                if !result.is_empty() {
-                                    result.push('\n');
-                                }
-                                result.push_str(&format!("(error: {e})"));
-                            }
-                        }
-                        if result.len() > 10_000 {
-                            result.truncate(10_000);
-                            result.push_str("\n... (truncated)");
-                            break;
-                        }
-                    }
-                    if result.is_empty() {
-                        "No matches found.".to_string()
-                    } else {
-                        result
-                    }
-                }
-                Err(e) => format!("Error parsing glob pattern: {e}"),
+                result
             }
         }
-        "fetch_url" => {
-            let url = tool_call.input.trim();
-            let client = reqwest::Client::new();
-            match client.get(url).send().await {
-                Ok(resp) => {
-                    if !resp.status().is_success() {
-                        return format!("Error: HTTP status {}", resp.status());
-                    }
-                    match resp.text().await {
-                        Ok(body) => {
-                            // Strip HTML tags
-                            let mut result = String::with_capacity(body.len());
-                            let mut in_tag = false;
-                            for ch in body.chars() {
-                                if ch == '<' {
-                                    in_tag = true;
-                                } else if ch == '>' {
-                                    in_tag = false;
-                                } else if !in_tag {
-                                    result.push(ch);
-                                }
-                            }
-                            // Collapse whitespace runs
-                            let mut collapsed = String::with_capacity(result.len());
-                            let mut prev_ws = false;
-                            for ch in result.chars() {
-                                if ch.is_whitespace() {
-                                    if !prev_ws {
-                                        collapsed.push(if ch == '\n' { '\n' } else { ' ' });
-                                    }
-                                    prev_ws = true;
-                                } else {
-                                    collapsed.push(ch);
-                                    prev_ws = false;
-                                }
-                            }
-                            let mut result = collapsed.trim().to_string();
-                            if result.is_empty() {
-                                result = "(empty page)".to_string();
-                            }
-                            if result.len() > 10_000 {
-                                result.truncate(10_000);
-                                result.push_str("\n... (truncated)");
-                            }
-                            result
-                        }
-                        Err(e) => format!("Error reading response body: {e}"),
-                    }
-                }
-                Err(e) => format!("Error fetching URL: {e}"),
-            }
-        }
-        "extract_website" => {
-            let url = tool_call.input.trim();
-            let client = reqwest::Client::new();
-            match client.get(url).send().await {
-                Ok(resp) => {
-                    if !resp.status().is_success() {
-                        return format!("Error: HTTP status {}", resp.status());
-                    }
-                    match resp.text().await {
-                        Ok(body) => {
-                            let document = scraper::Html::parse_document(&body);
-                            let noise_selectors = [
-                                "script", "style", "nav", "header", "footer", "noscript", "svg",
-                                "form", "iframe",
-                            ];
-                            let mut remove_ids = std::collections::HashSet::new();
-                            for sel_str in &noise_selectors {
-                                if let Ok(sel) = scraper::Selector::parse(sel_str) {
-                                    for el in document.select(&sel) {
-                                        remove_ids.insert(el.id());
-                                    }
-                                }
-                            }
-                            let mut text = String::new();
-                            for node_ref in document.tree.root().descendants() {
-                                if let scraper::node::Node::Text(t) = node_ref.value() {
-                                    let skip =
-                                        node_ref.ancestors().any(|a| remove_ids.contains(&a.id()));
-                                    if !skip {
-                                        text.push_str(&t.text);
-                                    }
-                                }
-                            }
-                            // Collapse whitespace
-                            let mut result = String::with_capacity(text.len());
-                            let mut prev_ws = false;
-                            for ch in text.chars() {
-                                if ch.is_whitespace() {
-                                    if !prev_ws {
-                                        result.push(if ch == '\n' { '\n' } else { ' ' });
-                                    }
-                                    prev_ws = true;
-                                } else {
-                                    result.push(ch);
-                                    prev_ws = false;
-                                }
-                            }
-                            let mut result = result.trim().to_string();
-                            if result.is_empty() {
-                                result = "(no content extracted)".to_string();
-                            }
-                            if result.len() > 10_000 {
-                                result.truncate(10_000);
-                                result.push_str("\n... (truncated)");
-                            }
-                            result
-                        }
-                        Err(e) => format!("Error reading response body: {e}"),
-                    }
-                }
-                Err(e) => format!("Error fetching URL: {e}"),
-            }
-        }
-        "fetch_datetime" => {
-            match tokio::process::Command::new("date")
-                .arg("+%Y-%m-%d %H:%M:%S %Z (%A)")
-                .output()
-                .await
-            {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if stdout.is_empty() {
-                        "(could not determine date/time)".to_string()
-                    } else {
-                        stdout
-                    }
-                }
-                Err(e) => format!("Error fetching date/time: {e}"),
-            }
-        }
-        "fetch_geolocation" => {
-            let ip = tool_call.input.trim();
-            let url = if ip.is_empty() {
-                "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()
+        Err(e) => format!("Error listing directory: {e}"),
+    }
+}
+
+async fn tool_search_files(input: &str) -> String {
+    let input = input.trim();
+    let (pattern, dir) = match input.split_once('\n') {
+        Some((p, d)) => (p.trim(), d.trim()),
+        None => (input, "."),
+    };
+    let dir = if dir.is_empty() { "." } else { dir };
+    let output = tokio::process::Command::new("grep")
+        .args(["-rn", "--include=*", pattern, dir])
+        .output()
+        .await;
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            if stdout.is_empty() {
+                "No matches found.".to_string()
             } else {
-                format!(
-                    "http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as"
-                )
-            };
-            let client = reqwest::Client::new();
-            match client.get(&url).send().await {
-                Ok(resp) => match resp.json::<serde_json::Value>().await {
-                    Ok(json) => {
-                        if json["status"].as_str() == Some("fail") {
-                            let msg = json["message"].as_str().unwrap_or("unknown error");
-                            format!("Geolocation lookup failed: {msg}")
+                let mut result = stdout.to_string();
+                truncate_output(&mut result);
+                result
+            }
+        }
+        Err(e) => format!("Error running search: {e}"),
+    }
+}
+
+async fn tool_edit_file(input: &str) -> String {
+    let input = input.trim();
+    // Parse: path\n<<<\nold\n===\nnew\n>>>
+    let Some((path, rest)) = input.split_once('\n') else {
+        return "Invalid input: expected file path on first line".to_string();
+    };
+    let path = path.trim();
+    let rest = rest.trim();
+    let Some(rest) = rest.strip_prefix("<<<") else {
+        return "Invalid input: expected <<< delimiter after file path".to_string();
+    };
+    let Some((old_new, _)) = rest.split_once(">>>") else {
+        return "Invalid input: expected >>> closing delimiter".to_string();
+    };
+    let Some((old_text, new_text)) = old_new.split_once("===") else {
+        return "Invalid input: expected === separator between old and new text".to_string();
+    };
+    let old_text = old_text.strip_prefix('\n').unwrap_or(old_text);
+    let old_text = old_text.strip_suffix('\n').unwrap_or(old_text);
+    let new_text = new_text.strip_prefix('\n').unwrap_or(new_text);
+    let new_text = new_text.strip_suffix('\n').unwrap_or(new_text);
+
+    let contents = match tokio::fs::read_to_string(path).await {
+        Ok(c) => c,
+        Err(e) => return format!("Error reading file: {e}"),
+    };
+    let count = contents.matches(old_text).count();
+    if count == 0 {
+        return "Error: old text not found in file".to_string();
+    }
+    if count > 1 {
+        return format!(
+            "Error: old text found {count} times in file — provide more context to match uniquely"
+        );
+    }
+    let updated = contents.replacen(old_text, new_text, 1);
+    match tokio::fs::write(path, &updated).await {
+        Ok(()) => format!("Edited {path} (replaced 1 occurrence)"),
+        Err(e) => format!("Error writing file: {e}"),
+    }
+}
+
+async fn tool_search_web(input: &str) -> String {
+    let api_key = match crate::config::config_get("FIRECRAWL_API_KEY") {
+        Some(key) => key,
+        None => return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string(),
+    };
+    let query = input.trim();
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "query": query,
+        "limit": 5
+    });
+    match client
+        .post("https://api.firecrawl.dev/v2/search")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            if !resp.status().is_success() {
+                return format!("Error: Firecrawl API returned status {}", resp.status());
+            }
+            match resp.json::<serde_json::Value>().await {
+                Ok(json) => {
+                    let results = json["data"]
+                        .as_array()
+                        .or_else(|| json["data"]["web"].as_array());
+                    match results {
+                        Some(items) if !items.is_empty() => {
+                            let mut output = String::new();
+                            for (i, item) in items.iter().enumerate() {
+                                let title = item["title"].as_str().unwrap_or("(no title)");
+                                let url = item["url"].as_str().unwrap_or("(no url)");
+                                let desc = item["description"]
+                                    .as_str()
+                                    .or_else(|| item["snippet"].as_str())
+                                    .unwrap_or("(no description)");
+                                if i > 0 {
+                                    output.push('\n');
+                                }
+                                output.push_str(&format!(
+                                    "[{}] {}\nURL: {}\n{}\n",
+                                    i + 1,
+                                    title,
+                                    url,
+                                    desc
+                                ));
+                            }
+                            output
+                        }
+                        _ => "No results found.".to_string(),
+                    }
+                }
+                Err(e) => format!("Error parsing Firecrawl response: {e}"),
+            }
+        }
+        Err(e) => format!("Error calling Firecrawl API: {e}"),
+    }
+}
+
+async fn tool_find_files(input: &str) -> String {
+    let input = input.trim();
+    let (pattern, base_dir) = match input.split_once('\n') {
+        Some((p, d)) => (p.trim(), d.trim()),
+        None => (input, "."),
+    };
+    let base_dir = if base_dir.is_empty() {
+        "."
+    } else {
+        base_dir
+    };
+    let full_pattern = if std::path::Path::new(pattern).is_absolute() {
+        pattern.to_string()
+    } else {
+        format!("{base_dir}/{pattern}")
+    };
+    match glob::glob(&full_pattern) {
+        Ok(paths) => {
+            let mut result = String::new();
+            for entry in paths {
+                match entry {
+                    Ok(path) => {
+                        if !result.is_empty() {
+                            result.push('\n');
+                        }
+                        result.push_str(&path.to_string_lossy());
+                    }
+                    Err(e) => {
+                        if !result.is_empty() {
+                            result.push('\n');
+                        }
+                        result.push_str(&format!("(error: {e})"));
+                    }
+                }
+                if result.len() > 10_000 {
+                    result.truncate(10_000);
+                    result.push_str("\n... (truncated)");
+                    break;
+                }
+            }
+            if result.is_empty() {
+                "No matches found.".to_string()
+            } else {
+                result
+            }
+        }
+        Err(e) => format!("Error parsing glob pattern: {e}"),
+    }
+}
+
+async fn tool_fetch_url(input: &str) -> String {
+    let url = input.trim();
+    let client = reqwest::Client::new();
+    match client.get(url).send().await {
+        Ok(resp) => {
+            if !resp.status().is_success() {
+                return format!("Error: HTTP status {}", resp.status());
+            }
+            match resp.text().await {
+                Ok(body) => {
+                    // Strip HTML tags
+                    let mut result = String::with_capacity(body.len());
+                    let mut in_tag = false;
+                    for ch in body.chars() {
+                        if ch == '<' {
+                            in_tag = true;
+                        } else if ch == '>' {
+                            in_tag = false;
+                        } else if !in_tag {
+                            result.push(ch);
+                        }
+                    }
+                    // Collapse whitespace runs
+                    let mut collapsed = String::with_capacity(result.len());
+                    let mut prev_ws = false;
+                    for ch in result.chars() {
+                        if ch.is_whitespace() {
+                            if !prev_ws {
+                                collapsed.push(if ch == '\n' { '\n' } else { ' ' });
+                            }
+                            prev_ws = true;
                         } else {
-                            serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
+                            collapsed.push(ch);
+                            prev_ws = false;
                         }
                     }
-                    Err(e) => format!("Error parsing geolocation response: {e}"),
-                },
-                Err(e) => format!("Error fetching geolocation data: {e}"),
+                    let mut result = collapsed.trim().to_string();
+                    if result.is_empty() {
+                        result = "(empty page)".to_string();
+                    }
+                    truncate_output(&mut result);
+                    result
+                }
+                Err(e) => format!("Error reading response body: {e}"),
             }
         }
-        _ => format!("Unknown tool: {}", tool_call.name),
+        Err(e) => format!("Error fetching URL: {e}"),
+    }
+}
+
+async fn tool_extract_website(input: &str) -> String {
+    let url = input.trim();
+    let client = reqwest::Client::new();
+    match client.get(url).send().await {
+        Ok(resp) => {
+            if !resp.status().is_success() {
+                return format!("Error: HTTP status {}", resp.status());
+            }
+            match resp.text().await {
+                Ok(body) => {
+                    let document = scraper::Html::parse_document(&body);
+                    let noise_selectors = [
+                        "script", "style", "nav", "header", "footer", "noscript", "svg", "form",
+                        "iframe",
+                    ];
+                    let mut remove_ids = std::collections::HashSet::new();
+                    for sel_str in &noise_selectors {
+                        if let Ok(sel) = scraper::Selector::parse(sel_str) {
+                            for el in document.select(&sel) {
+                                remove_ids.insert(el.id());
+                            }
+                        }
+                    }
+                    let mut text = String::new();
+                    for node_ref in document.tree.root().descendants() {
+                        if let scraper::node::Node::Text(t) = node_ref.value() {
+                            let skip =
+                                node_ref.ancestors().any(|a| remove_ids.contains(&a.id()));
+                            if !skip {
+                                text.push_str(&t.text);
+                            }
+                        }
+                    }
+                    // Collapse whitespace
+                    let mut result = String::with_capacity(text.len());
+                    let mut prev_ws = false;
+                    for ch in text.chars() {
+                        if ch.is_whitespace() {
+                            if !prev_ws {
+                                result.push(if ch == '\n' { '\n' } else { ' ' });
+                            }
+                            prev_ws = true;
+                        } else {
+                            result.push(ch);
+                            prev_ws = false;
+                        }
+                    }
+                    let mut result = result.trim().to_string();
+                    if result.is_empty() {
+                        result = "(no content extracted)".to_string();
+                    }
+                    truncate_output(&mut result);
+                    result
+                }
+                Err(e) => format!("Error reading response body: {e}"),
+            }
+        }
+        Err(e) => format!("Error fetching URL: {e}"),
+    }
+}
+
+async fn tool_fetch_datetime() -> String {
+    match tokio::process::Command::new("date")
+        .arg("+%Y-%m-%d %H:%M:%S %Z (%A)")
+        .output()
+        .await
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if stdout.is_empty() {
+                "(could not determine date/time)".to_string()
+            } else {
+                stdout
+            }
+        }
+        Err(e) => format!("Error fetching date/time: {e}"),
+    }
+}
+
+async fn tool_fetch_geolocation(input: &str) -> String {
+    let ip = input.trim();
+    let url = if ip.is_empty() {
+        "http://ip-api.com/json/?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as".to_string()
+    } else {
+        format!(
+            "http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as"
+        )
+    };
+    let client = reqwest::Client::new();
+    match client.get(&url).send().await {
+        Ok(resp) => match resp.json::<serde_json::Value>().await {
+            Ok(json) => {
+                if json["status"].as_str() == Some("fail") {
+                    let msg = json["message"].as_str().unwrap_or("unknown error");
+                    format!("Geolocation lookup failed: {msg}")
+                } else {
+                    serde_json::to_string_pretty(&json).unwrap_or_else(|_| json.to_string())
+                }
+            }
+            Err(e) => format!("Error parsing geolocation response: {e}"),
+        },
+        Err(e) => format!("Error fetching geolocation data: {e}"),
     }
 }
 
