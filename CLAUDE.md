@@ -18,7 +18,7 @@ cargo test               # run tests
 Single-binary async Rust CLI with seven modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), agent loop, single-shot and interactive REPL modes
-- `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/mode`, `/model`, `/tools`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
+- `src/commands.rs` — REPL slash command handling (`/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/mode`, `/model`, `/tools`, `/update`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
 - `src/config.rs` — config file loading (`~/.aictl`), constants (system prompt, spinner phrases, agent loop limits)
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
@@ -38,7 +38,7 @@ Single-binary async Rust CLI with seven modules:
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)
 - `list_directory` — lists directory entries with type prefixes
-- `search_files` — grep-based content search
+- `search_files` — content search via glob traversal and string matching
 - `edit_file` — targeted find-and-replace (requires unique match)
 - `find_files` — find files matching a glob pattern with optional base directory
 - `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)

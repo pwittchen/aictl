@@ -5,7 +5,7 @@
 ```
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs         REPL slash commands (/clear, /compact, /context, /copy, /exit, /help, /info, /mode, /model, /tools)
+ ├── commands.rs         REPL slash commands (/clear, /compact, /context, /copy, /exit, /help, /info, /mode, /model, /tools, /update)
  ├── config.rs           Config file loading (~/.aictl), constants (system prompt, spinner phrases, agent loop limits)
  ├── tools.rs            XML tool-call parsing, tool execution dispatch
  ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
@@ -93,7 +93,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ write_file          │ tokio::fs::write          │      │
  │  │ edit_file           │ read + replacen + write   │      │
  │  │ list_directory      │ tokio::fs::read_dir       │      │
- │  │ search_files        │ grep -rn (subprocess)     │      │
+ │  │ search_files        │ glob + string match       │      │
  │  │ find_files          │ glob::glob                │      │
  │  │ search_web          │ Firecrawl API (reqwest)   │      │
  │  │ fetch_url           │ HTTP GET (reqwest)        │      │
@@ -182,7 +182,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /context (Context), /info (Info), /mode (Mode), /model (Model), /tools (Continue)
+ Also: /context (Context), /info (Info), /mode (Mode), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -190,6 +190,7 @@ Both single-shot and REPL modes share the same loop:
    Compact     → summarize conversation via LLM, continue
    Context     → show token/message usage, continue
    Info        → show provider/model/version info, continue
+   Update      → run update, restart if updated, continue
    Model       → select new model/provider, persist to ~/.aictl, continue
    Mode        → switch auto/human-in-the-loop mode, continue
    Continue    → command handled, continue

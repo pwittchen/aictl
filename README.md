@@ -38,7 +38,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet]
+aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -58,6 +58,7 @@ The interactive REPL supports slash commands:
 | `/mode` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
+| `/update` | Update to the latest version |
 | `/exit` | Exit the REPL |
 
 Press **Esc** during any LLM call or tool execution to interrupt the operation and return to the prompt. Conversation history is rolled back so the interrupted turn has no effect.
@@ -66,6 +67,8 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 
 | Flag | Short | Description |
 |------|-------|-------------|
+| `--version` | `-V` | Print version information |
+| `--update` | `-u` | Update to the latest version |
 | `--provider` | `-p` | LLM provider (`openai` or `anthropic`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
