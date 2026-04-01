@@ -1,6 +1,8 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
+use crate::config::MAX_TOOL_OUTPUT_LEN;
+
 #[derive(Debug)]
 pub struct ToolCall {
     pub name: String,
@@ -44,8 +46,8 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
 
 /// Truncate a result string to the output size limit.
 fn truncate_output(s: &mut String) {
-    if s.len() > 10_000 {
-        s.truncate(10_000);
+    if s.len() > MAX_TOOL_OUTPUT_LEN {
+        s.truncate(MAX_TOOL_OUTPUT_LEN);
         s.push_str("\n... (truncated)");
     }
 }
@@ -171,8 +173,8 @@ fn search_files_blocking(pattern: &str, dir: &str) -> String {
                     result.push('\n');
                 }
                 let _ = write!(result, "{path_str}:{}:{line}", i + 1);
-                if result.len() > 10_000 {
-                    result.truncate(10_000);
+                if result.len() > MAX_TOOL_OUTPUT_LEN {
+                    result.truncate(MAX_TOOL_OUTPUT_LEN);
                     result.push_str("\n... (truncated)");
                     return result;
                 }
@@ -319,8 +321,8 @@ fn tool_find_files(input: &str) -> String {
                         let _ = write!(result, "(error: {e})");
                     }
                 }
-                if result.len() > 10_000 {
-                    result.truncate(10_000);
+                if result.len() > MAX_TOOL_OUTPUT_LEN {
+                    result.truncate(MAX_TOOL_OUTPUT_LEN);
                     result.push_str("\n... (truncated)");
                     break;
                 }

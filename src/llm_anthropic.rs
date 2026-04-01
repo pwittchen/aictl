@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::config::MAX_RESPONSE_TOKENS;
 use crate::llm::TokenUsage;
 use crate::{Message, Role};
 
@@ -67,7 +68,7 @@ pub async fn call_anthropic(
 
     let body = AnthropicRequest {
         model: model.to_string(),
-        max_tokens: 4096,
+        max_tokens: MAX_RESPONSE_TOKENS,
         messages: api_messages,
         system: system_text,
     };
