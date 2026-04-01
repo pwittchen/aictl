@@ -570,4 +570,279 @@ mod tests {
         let resp = r#"<tool name="exec_shell"#;
         assert!(parse_tool_call(resp).is_none());
     }
+
+    // --- Tool execution tests ---
+
+    fn tmp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("aictl_test_{name}_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        dir
+    }
+
+    #[tokio::test]
+    async fn exec_read_file() {
+        let dir = tmp_dir("read");
+        let path = dir.join("hello.txt");
+        std::fs::write(&path, "hello world").unwrap();
+        let result = execute_tool(&ToolCall {
+            name: "read_file".into(),
+            input: path.to_string_lossy().into(),
+        })
+        .await;
+        assert_eq!(result, "hello world");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_read_file_empty() {
+        let dir = tmp_dir("read_empty");
+        let path = dir.join("empty.txt");
+        std::fs::write(&path, "").unwrap();
+        let result = execute_tool(&ToolCall {
+            name: "read_file".into(),
+            input: path.to_string_lossy().into(),
+        })
+        .await;
+        assert_eq!(result, "(empty file)");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_read_file_not_found() {
+        let result = execute_tool(&ToolCall {
+            name: "read_file".into(),
+            input: "/tmp/aictl_nonexistent_file_xyz".into(),
+        })
+        .await;
+        assert!(result.starts_with("Error reading file:"));
+    }
+
+    #[tokio::test]
+    async fn exec_write_file() {
+        let dir = tmp_dir("write");
+        let path = dir.join("out.txt");
+        let input = format!("{}\nfile content here", path.display());
+        let result = execute_tool(&ToolCall {
+            name: "write_file".into(),
+            input,
+        })
+        .await;
+        assert!(result.starts_with("Wrote"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "file content here");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_write_file_no_newline() {
+        let result = execute_tool(&ToolCall {
+            name: "write_file".into(),
+            input: "single_line_no_newline".into(),
+        })
+        .await;
+        assert!(result.contains("Invalid input"));
+    }
+
+    #[tokio::test]
+    async fn exec_list_directory() {
+        let dir = tmp_dir("listdir");
+        std::fs::write(dir.join("a.txt"), "").unwrap();
+        std::fs::create_dir_all(dir.join("subdir")).unwrap();
+        let result = execute_tool(&ToolCall {
+            name: "list_directory".into(),
+            input: dir.to_string_lossy().into(),
+        })
+        .await;
+        assert!(result.contains("[FILE]"));
+        assert!(result.contains("[DIR]"));
+        assert!(result.contains("a.txt"));
+        assert!(result.contains("subdir"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_list_directory_empty() {
+        let dir = tmp_dir("listdir_empty");
+        let result = execute_tool(&ToolCall {
+            name: "list_directory".into(),
+            input: dir.to_string_lossy().into(),
+        })
+        .await;
+        assert_eq!(result, "(empty directory)");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_edit_file_success() {
+        let dir = tmp_dir("edit_ok");
+        let path = dir.join("file.txt");
+        std::fs::write(&path, "hello world").unwrap();
+        let input = format!("{}\n<<<\nhello\n===\ngoodbye\n>>>", path.display());
+        let result = execute_tool(&ToolCall {
+            name: "edit_file".into(),
+            input,
+        })
+        .await;
+        assert!(result.contains("replaced 1 occurrence"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "goodbye world");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_edit_file_not_found() {
+        let dir = tmp_dir("edit_nf");
+        let path = dir.join("file.txt");
+        std::fs::write(&path, "hello world").unwrap();
+        let input = format!(
+            "{}\n<<<\nno such text\n===\nreplacement\n>>>",
+            path.display()
+        );
+        let result = execute_tool(&ToolCall {
+            name: "edit_file".into(),
+            input,
+        })
+        .await;
+        assert!(result.contains("old text not found"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_edit_file_multiple() {
+        let dir = tmp_dir("edit_multi");
+        let path = dir.join("file.txt");
+        std::fs::write(&path, "aaa bbb aaa").unwrap();
+        let input = format!("{}\n<<<\naaa\n===\nccc\n>>>", path.display());
+        let result = execute_tool(&ToolCall {
+            name: "edit_file".into(),
+            input,
+        })
+        .await;
+        assert!(result.contains("found 2 times"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_find_files() {
+        let dir = tmp_dir("find");
+        std::fs::write(dir.join("a.rs"), "").unwrap();
+        std::fs::write(dir.join("b.txt"), "").unwrap();
+        let input = format!("*.rs\n{}", dir.display());
+        let result = execute_tool(&ToolCall {
+            name: "find_files".into(),
+            input,
+        })
+        .await;
+        assert!(result.contains("a.rs"));
+        assert!(!result.contains("b.txt"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_find_files_no_matches() {
+        let dir = tmp_dir("find_none");
+        let input = format!("*.xyz\n{}", dir.display());
+        let result = execute_tool(&ToolCall {
+            name: "find_files".into(),
+            input,
+        })
+        .await;
+        assert_eq!(result, "No matches found.");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_search_files() {
+        let dir = tmp_dir("search");
+        std::fs::write(dir.join("match.txt"), "needle in haystack").unwrap();
+        std::fs::write(dir.join("other.txt"), "nothing here").unwrap();
+        let input = format!("needle\n{}", dir.display());
+        let result = execute_tool(&ToolCall {
+            name: "search_files".into(),
+            input,
+        })
+        .await;
+        assert!(result.contains("match.txt"));
+        assert!(result.contains("needle in haystack"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_search_files_no_matches() {
+        let dir = tmp_dir("search_none");
+        std::fs::write(dir.join("file.txt"), "hello").unwrap();
+        let input = format!("zzzzz\n{}", dir.display());
+        let result = execute_tool(&ToolCall {
+            name: "search_files".into(),
+            input,
+        })
+        .await;
+        assert_eq!(result, "No matches found.");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_shell_stdout() {
+        let result = execute_tool(&ToolCall {
+            name: "exec_shell".into(),
+            input: "echo hello".into(),
+        })
+        .await;
+        assert_eq!(result.trim(), "hello");
+    }
+
+    #[tokio::test]
+    async fn exec_shell_stderr() {
+        let result = execute_tool(&ToolCall {
+            name: "exec_shell".into(),
+            input: "echo oops >&2".into(),
+        })
+        .await;
+        assert!(result.contains("[stderr]"));
+        assert!(result.contains("oops"));
+    }
+
+    #[tokio::test]
+    async fn exec_shell_no_output() {
+        let result = execute_tool(&ToolCall {
+            name: "exec_shell".into(),
+            input: "true".into(),
+        })
+        .await;
+        assert_eq!(result, "(no output)");
+    }
+
+    #[tokio::test]
+    async fn exec_fetch_datetime() {
+        let result = execute_tool(&ToolCall {
+            name: "fetch_datetime".into(),
+            input: String::new(),
+        })
+        .await;
+        assert!(!result.is_empty());
+        assert!(result.starts_with("20"));
+    }
+
+    #[test]
+    fn truncate_output_short() {
+        let mut s = "short".to_string();
+        truncate_output(&mut s);
+        assert_eq!(s, "short");
+    }
+
+    #[test]
+    fn truncate_output_over_limit() {
+        let mut s = "x".repeat(MAX_TOOL_OUTPUT_LEN + 100);
+        truncate_output(&mut s);
+        assert!(s.ends_with("\n... (truncated)"));
+        assert!(s.len() <= MAX_TOOL_OUTPUT_LEN + 20);
+    }
+
+    #[tokio::test]
+    async fn exec_unknown_tool() {
+        let result = execute_tool(&ToolCall {
+            name: "nonexistent".into(),
+            input: String::new(),
+        })
+        .await;
+        assert_eq!(result, "Unknown tool: nonexistent");
+    }
 }

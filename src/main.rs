@@ -178,9 +178,60 @@ pub struct Message {
 
 // --- Agent loop ---
 
+enum ToolAction {
+    Executed,
+    Denied,
+}
+
+/// Handle a single tool call: display reasoning, get approval, execute, push result.
+async fn handle_tool_call(
+    tool_call: &tools::ToolCall,
+    response: &str,
+    auto: &mut bool,
+    ui: &dyn AgentUI,
+    messages: &mut Vec<Message>,
+) -> Result<ToolAction, Interrupted> {
+    // Print the LLM's reasoning (text before the tool tag)
+    if let Some(idx) = response.find("<tool") {
+        let reasoning = response[..idx].trim();
+        if !reasoning.is_empty() {
+            ui.show_reasoning(reasoning);
+        }
+    }
+
+    let approval = if *auto {
+        ui.show_auto_tool(tool_call);
+        ui::ToolApproval::Allow
+    } else {
+        ui.confirm_tool(tool_call)
+    };
+
+    if approval == ui::ToolApproval::AutoAccept {
+        *auto = true;
+    }
+
+    if approval == ui::ToolApproval::Allow || approval == ui::ToolApproval::AutoAccept {
+        ui.start_spinner("running tool...");
+        let result = with_esc_cancel(tools::execute_tool(tool_call)).await?;
+        ui.stop_spinner();
+        ui.show_tool_result(&result);
+        messages.push(Message {
+            role: Role::User,
+            content: format!("<tool_result>\n{result}\n</tool_result>"),
+        });
+        Ok(ToolAction::Executed)
+    } else {
+        messages.push(Message {
+            role: Role::User,
+            content: "Tool call denied by user. Try a different approach or answer without tools."
+                .to_string(),
+        });
+        Ok(ToolAction::Denied)
+    }
+}
+
 /// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
-#[allow(clippy::too_many_lines)]
 async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
@@ -261,43 +312,12 @@ async fn run_agent_turn(
             });
         };
 
-        // Print the LLM's reasoning (text before the tool tag)
-        if let Some(idx) = response.find("<tool") {
-            let reasoning = response[..idx].trim();
-            if !reasoning.is_empty() {
-                ui.show_reasoning(reasoning);
+        match handle_tool_call(&tool_call, &response, auto, ui, messages).await {
+            Ok(ToolAction::Executed) => {
+                tool_calls += 1;
             }
-        }
-
-        let approval = if *auto {
-            ui.show_auto_tool(&tool_call);
-            ui::ToolApproval::Allow
-        } else {
-            ui.confirm_tool(&tool_call)
-        };
-
-        if approval == ui::ToolApproval::AutoAccept {
-            *auto = true;
-        }
-
-        if approval == ui::ToolApproval::Allow || approval == ui::ToolApproval::AutoAccept {
-            tool_calls += 1;
-            ui.start_spinner("running tool...");
-            let result = with_esc_cancel(tools::execute_tool(&tool_call)).await;
-            ui.stop_spinner();
-            let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
-            ui.show_tool_result(&result);
-            messages.push(Message {
-                role: Role::User,
-                content: format!("<tool_result>\n{result}\n</tool_result>"),
-            });
-        } else {
-            messages.push(Message {
-                role: Role::User,
-                content:
-                    "Tool call denied by user. Try a different approach or answer without tools."
-                        .to_string(),
-            });
+            Ok(ToolAction::Denied) => {}
+            Err(e) => return Err(Box::new(e)),
         }
     }
 
@@ -402,8 +422,180 @@ impl rustyline::highlight::Highlighter for SlashCommandHelper {
 impl rustyline::validate::Validator for SlashCommandHelper {}
 impl rustyline::Helper for SlashCommandHelper {}
 
+enum ReplAction {
+    Continue,
+    Break,
+    RunAgentTurn,
+}
+
+/// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+async fn handle_repl_input(
+    input: &str,
+    last_answer: &mut String,
+    ui: &InteractiveUI,
+    rl: &mut rustyline::Editor<SlashCommandHelper, rustyline::history::DefaultHistory>,
+    messages: &mut Vec<Message>,
+    last_input_tokens: &mut u64,
+    provider: &mut Provider,
+    api_key: &mut String,
+    model: &mut String,
+    auto: &mut bool,
+    version_info: &str,
+) -> ReplAction {
+    use crossterm::style::{Color, Stylize};
+
+    if input.is_empty() {
+        return ReplAction::Continue;
+    }
+    if input == "exit" || input == "quit" {
+        return ReplAction::Break;
+    }
+
+    match commands::handle(input, last_answer, &|msg| ui.show_error(msg)) {
+        commands::CommandResult::Exit => return ReplAction::Break,
+        commands::CommandResult::Clear => {
+            let _ = rl.add_history_entry(input);
+            messages.truncate(1);
+            last_answer.clear();
+            *last_input_tokens = 0;
+            println!();
+            println!("  {} context cleared", "✓".with(Color::Green));
+            println!();
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Compact => {
+            let _ = rl.add_history_entry(input);
+            commands::compact(provider, api_key, model, messages, ui).await;
+            *last_input_tokens = 0;
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Context => {
+            let _ = rl.add_history_entry(input);
+            commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Info => {
+            let _ = rl.add_history_entry(input);
+            let pname = format!("{provider:?}").to_lowercase();
+            commands::print_info(&pname, model, *auto, version_info);
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Update => {
+            let _ = rl.add_history_entry(input);
+            if commands::run_update(&|msg| ui.show_error(msg)).await {
+                return ReplAction::Break;
+            }
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Model => {
+            let _ = rl.add_history_entry(input);
+            if let Some((new_provider, new_model, api_key_name)) = commands::select_model(model) {
+                let Some(new_api_key) = config_get(&api_key_name) else {
+                    ui.show_error(&format!(
+                        "API key not found. Set {api_key_name} in ~/.aictl"
+                    ));
+                    return ReplAction::Continue;
+                };
+                config_set(
+                    "AICTL_PROVIDER",
+                    &format!("{new_provider:?}").to_lowercase(),
+                );
+                config_set("AICTL_MODEL", &new_model);
+                *provider = new_provider;
+                *model = new_model;
+                *api_key = new_api_key;
+                let pname = format!("{provider:?}").to_lowercase();
+                println!();
+                println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
+                println!();
+            }
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Mode => {
+            let _ = rl.add_history_entry(input);
+            if let Some(new_auto) = commands::select_mode(*auto) {
+                *auto = new_auto;
+                let mode_name = if *auto { "auto" } else { "human-in-the-loop" };
+                println!();
+                println!("  {} switched to {mode_name} mode", "✓".with(Color::Green));
+                println!();
+            }
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Continue => {
+            let _ = rl.add_history_entry(input);
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::NotACommand => {}
+    }
+
+    let _ = rl.add_history_entry(input);
+
+    // Auto-compact if context is >= 80%
+    let token_pct = llm::pct(*last_input_tokens, llm::context_limit(model));
+    let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
+    let context_pct = token_pct.max(message_pct);
+    if context_pct >= 80 {
+        println!();
+        println!(
+            "  {} context at {context_pct}%, auto-compacting...",
+            "⚠".with(Color::Yellow)
+        );
+        commands::compact(provider, api_key, model, messages, ui).await;
+        *last_input_tokens = 0;
+    }
+
+    ReplAction::RunAgentTurn
+}
+
+/// Run an agent turn and display the result, updating REPL state.
+#[allow(clippy::too_many_arguments)]
+async fn run_and_display_turn(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut Vec<Message>,
+    input: &str,
+    auto: &mut bool,
+    ui: &InteractiveUI,
+    last_answer: &mut String,
+    last_input_tokens: &mut u64,
+) {
+    use crossterm::style::{Color, Stylize};
+
+    let msg_len_before = messages.len();
+    match run_agent_turn(provider, api_key, model, messages, input, auto, ui).await {
+        Ok(turn) => {
+            ui.show_answer(&turn.answer);
+            *last_answer = turn.answer;
+            *last_input_tokens = turn.last_input_tokens;
+            if turn.llm_calls > 1 {
+                let tp = llm::pct(turn.last_input_tokens, llm::context_limit(model));
+                let mp = llm::pct_usize(messages.len(), MAX_MESSAGES);
+                let cp = tp.max(mp);
+                ui.show_summary(
+                    &turn.usage,
+                    model,
+                    turn.llm_calls,
+                    turn.tool_calls,
+                    turn.elapsed,
+                    cp,
+                );
+            }
+        }
+        Err(e) => {
+            if e.downcast_ref::<Interrupted>().is_some() {
+                messages.truncate(msg_len_before);
+                println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
+            } else {
+                ui.show_error(&format!("Error: {e}"));
+            }
+        }
+    }
+}
+
 /// Interactive REPL mode: multi-turn conversation with persistent history.
-#[allow(clippy::too_many_lines)]
 async fn run_interactive(
     mut provider: Provider,
     mut api_key: String,
@@ -455,117 +647,28 @@ async fn run_interactive(
         match line {
             Ok(input) => {
                 let input = input.trim().to_string();
-                if input.is_empty() {
-                    continue;
-                }
-                if input == "exit" || input == "quit" {
-                    break;
-                }
 
-                // Slash commands
-                match commands::handle(&input, &last_answer, &|msg| ui.show_error(msg)) {
-                    commands::CommandResult::Exit => break,
-                    commands::CommandResult::Clear => {
-                        let _ = rl.add_history_entry(&input);
-                        messages.truncate(1); // keep only system prompt
-                        last_answer.clear();
-                        last_input_tokens = 0;
-                        println!();
-                        println!("  {} context cleared", "✓".with(Color::Green));
-                        println!();
-                        continue;
-                    }
-                    commands::CommandResult::Compact => {
-                        let _ = rl.add_history_entry(&input);
-                        commands::compact(&provider, &api_key, &model, &mut messages, &ui).await;
-                        last_input_tokens = 0;
-                        continue;
-                    }
-                    commands::CommandResult::Context => {
-                        let _ = rl.add_history_entry(&input);
-                        commands::print_context(
-                            &model,
-                            messages.len(),
-                            last_input_tokens,
-                            MAX_MESSAGES,
-                        );
-                        continue;
-                    }
-                    commands::CommandResult::Info => {
-                        let _ = rl.add_history_entry(&input);
-                        let pname = format!("{provider:?}").to_lowercase();
-                        commands::print_info(&pname, &model, auto, &version_info);
-                        continue;
-                    }
-                    commands::CommandResult::Update => {
-                        let _ = rl.add_history_entry(&input);
-                        if commands::run_update(&|msg| ui.show_error(msg)).await {
-                            break;
-                        }
-                        continue;
-                    }
-                    commands::CommandResult::Model => {
-                        let _ = rl.add_history_entry(&input);
-                        if let Some((new_provider, new_model, api_key_name)) =
-                            commands::select_model(&model)
-                        {
-                            let Some(new_api_key) = config_get(&api_key_name) else {
-                                ui.show_error(&format!(
-                                    "API key not found. Set {api_key_name} in ~/.aictl"
-                                ));
-                                continue;
-                            };
-                            config_set(
-                                "AICTL_PROVIDER",
-                                &format!("{new_provider:?}").to_lowercase(),
-                            );
-                            config_set("AICTL_MODEL", &new_model);
-                            provider = new_provider;
-                            model = new_model;
-                            api_key = new_api_key;
-                            let pname = format!("{provider:?}").to_lowercase();
-                            println!();
-                            println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
-                            println!();
-                        }
-                        continue;
-                    }
-                    commands::CommandResult::Mode => {
-                        let _ = rl.add_history_entry(&input);
-                        if let Some(new_auto) = commands::select_mode(auto) {
-                            auto = new_auto;
-                            let mode_name = if auto { "auto" } else { "human-in-the-loop" };
-                            println!();
-                            println!("  {} switched to {mode_name} mode", "✓".with(Color::Green));
-                            println!();
-                        }
-                        continue;
-                    }
-                    commands::CommandResult::Continue => {
-                        let _ = rl.add_history_entry(&input);
-                        continue;
-                    }
-                    commands::CommandResult::NotACommand => {}
+                match handle_repl_input(
+                    &input,
+                    &mut last_answer,
+                    &ui,
+                    &mut rl,
+                    &mut messages,
+                    &mut last_input_tokens,
+                    &mut provider,
+                    &mut api_key,
+                    &mut model,
+                    &mut auto,
+                    &version_info,
+                )
+                .await
+                {
+                    ReplAction::Continue => continue,
+                    ReplAction::Break => break,
+                    ReplAction::RunAgentTurn => {}
                 }
 
-                let _ = rl.add_history_entry(&input);
-
-                // Auto-compact if context is >= 80%
-                let token_pct = llm::pct(last_input_tokens, llm::context_limit(&model));
-                let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
-                let context_pct = token_pct.max(message_pct);
-                if context_pct >= 80 {
-                    println!();
-                    println!(
-                        "  {} context at {context_pct}%, auto-compacting...",
-                        "⚠".with(Color::Yellow)
-                    );
-                    commands::compact(&provider, &api_key, &model, &mut messages, &ui).await;
-                    last_input_tokens = 0;
-                }
-
-                let msg_len_before = messages.len();
-                match run_agent_turn(
+                run_and_display_turn(
                     &provider,
                     &api_key,
                     &model,
@@ -573,36 +676,10 @@ async fn run_interactive(
                     &input,
                     &mut auto,
                     &ui,
+                    &mut last_answer,
+                    &mut last_input_tokens,
                 )
-                .await
-                {
-                    Ok(turn) => {
-                        ui.show_answer(&turn.answer);
-                        last_answer = turn.answer;
-                        last_input_tokens = turn.last_input_tokens;
-                        if turn.llm_calls > 1 {
-                            let tp = llm::pct(turn.last_input_tokens, llm::context_limit(&model));
-                            let mp = llm::pct_usize(messages.len(), MAX_MESSAGES);
-                            let cp = tp.max(mp);
-                            ui.show_summary(
-                                &turn.usage,
-                                &model,
-                                turn.llm_calls,
-                                turn.tool_calls,
-                                turn.elapsed,
-                                cp,
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        if e.downcast_ref::<Interrupted>().is_some() {
-                            messages.truncate(msg_len_before);
-                            println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
-                        } else {
-                            ui.show_error(&format!("Error: {e}"));
-                        }
-                    }
-                }
+                .await;
             }
             Err(ReadlineError::Interrupted) => {
                 // Ctrl+C: cancel current line

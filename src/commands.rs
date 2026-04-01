@@ -435,10 +435,15 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
     (lines, model_indices)
 }
 
-/// Interactively select a model with arrow keys.
-/// Returns (Provider, `model_name`, `api_key_config_key`) or None if cancelled (Esc).
+/// Generic arrow-key menu selector.
+/// `item_count` is the number of selectable items, `initial_selected` is the
+/// starting index, and `build_lines` returns the display lines for a given
+/// selected index.  Returns `Some(selected_index)` or `None` if cancelled.
 #[allow(clippy::cast_possible_truncation)]
-pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
+fn select_from_menu<F>(item_count: usize, initial_selected: usize, build_lines: F) -> Option<usize>
+where
+    F: Fn(usize) -> Vec<String>,
+{
     use crossterm::{
         cursor,
         event::{self, Event, KeyCode, KeyEventKind},
@@ -446,21 +451,13 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         terminal::{self, ClearType},
     };
 
-    // Find the index of the current model in the selectable rows
-    let mut selected: usize = MODELS
-        .iter()
-        .position(|(_, m, _)| *m == current_model)
-        .unwrap_or(0);
+    let mut selected = initial_selected;
 
-    let total = MODELS.len();
-
-    // Enter raw mode for key capture, hide cursor
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
-    // Draw initial menu (leading \r\n moves past the prompt line)
-    let (lines, _) = build_menu_lines(selected, current_model);
+    let lines = build_lines(selected);
     let _ = execute!(stdout, cursor::MoveToColumn(0));
     let _ = write!(stdout, "\r\n");
     for line in &lines {
@@ -472,7 +469,6 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
     );
     let _ = stdout.flush();
-    // menu lines + blank line before hint + hint line
     let total_rendered_lines = lines.len() + 2;
 
     loop {
@@ -487,7 +483,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
                     selected = selected.saturating_sub(1);
                 }
                 KeyCode::Down => {
-                    if selected + 1 < total {
+                    if selected + 1 < item_count {
                         selected += 1;
                     }
                 }
@@ -499,13 +495,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
                         cursor::Show,
                     );
                     let _ = terminal::disable_raw_mode();
-                    let (prov_str, model, api_key_name) = MODELS[selected];
-                    let provider = match prov_str {
-                        "openai" => Provider::Openai,
-                        "anthropic" => Provider::Anthropic,
-                        _ => unreachable!(),
-                    };
-                    return Some((provider, model.to_string(), api_key_name.to_string()));
+                    return Some(selected);
                 }
                 KeyCode::Esc => {
                     let _ = execute!(
@@ -522,8 +512,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
             _ => continue,
         }
 
-        // Redraw menu in place (no leading \r\n — cursor is already at the first menu row)
-        let (lines, _) = build_menu_lines(selected, current_model);
+        let lines = build_lines(selected);
         let _ = execute!(
             stdout,
             cursor::MoveUp(total_rendered_lines as u16),
@@ -543,6 +532,25 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
     let _ = execute!(stdout, cursor::Show);
     let _ = terminal::disable_raw_mode();
     None
+}
+
+/// Interactively select a model with arrow keys.
+/// Returns (Provider, `model_name`, `api_key_config_key`) or None if cancelled (Esc).
+pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
+    let initial = MODELS
+        .iter()
+        .position(|(_, m, _)| *m == current_model)
+        .unwrap_or(0);
+    let selected = select_from_menu(MODELS.len(), initial, |sel| {
+        build_menu_lines(sel, current_model).0
+    })?;
+    let (prov_str, model, api_key_name) = MODELS[selected];
+    let provider = match prov_str {
+        "openai" => Provider::Openai,
+        "anthropic" => Provider::Anthropic,
+        _ => unreachable!(),
+    };
+    Some((provider, model.to_string(), api_key_name.to_string()))
 }
 
 const MODES: &[(&str, &str)] = &[
@@ -590,97 +598,12 @@ fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
 
 /// Interactively select auto/human-in-the-loop mode with arrow keys.
 /// Returns `Some(auto_bool)` or `None` if cancelled (Esc).
-#[allow(clippy::cast_possible_truncation)]
 pub fn select_mode(current_auto: bool) -> Option<bool> {
-    use crossterm::{
-        cursor,
-        event::{self, Event, KeyCode, KeyEventKind},
-        execute,
-        terminal::{self, ClearType},
-    };
-
-    let mut selected: usize = usize::from(current_auto);
-    let total = MODES.len();
-
-    let _ = terminal::enable_raw_mode();
-    let mut stdout = std::io::stdout();
-    let _ = execute!(stdout, cursor::Hide);
-
-    let lines = build_mode_menu_lines(selected, current_auto);
-    let _ = execute!(stdout, cursor::MoveToColumn(0));
-    let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
-    let _ = write!(
-        stdout,
-        "\r\n  {}\r\n",
-        "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
-    );
-    let _ = stdout.flush();
-    let total_rendered_lines = lines.len() + 2;
-
-    loop {
-        if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
-            continue;
-        }
-        let Ok(ev) = event::read() else { break };
-
-        match ev {
-            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                KeyCode::Up => {
-                    selected = selected.saturating_sub(1);
-                }
-                KeyCode::Down => {
-                    if selected + 1 < total {
-                        selected += 1;
-                    }
-                }
-                KeyCode::Enter => {
-                    let _ = execute!(
-                        stdout,
-                        cursor::MoveUp(total_rendered_lines as u16),
-                        terminal::Clear(ClearType::FromCursorDown),
-                        cursor::Show,
-                    );
-                    let _ = terminal::disable_raw_mode();
-                    return Some(MODES[selected].0 == "auto");
-                }
-                KeyCode::Esc => {
-                    let _ = execute!(
-                        stdout,
-                        cursor::MoveUp(total_rendered_lines as u16),
-                        terminal::Clear(ClearType::FromCursorDown),
-                        cursor::Show,
-                    );
-                    let _ = terminal::disable_raw_mode();
-                    return None;
-                }
-                _ => continue,
-            },
-            _ => continue,
-        }
-
-        let lines = build_mode_menu_lines(selected, current_auto);
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(total_rendered_lines as u16),
-            terminal::Clear(ClearType::FromCursorDown),
-        );
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(
-            stdout,
-            "\r\n  {}\r\n",
-            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
-        );
-        let _ = stdout.flush();
-    }
-
-    let _ = execute!(stdout, cursor::Show);
-    let _ = terminal::disable_raw_mode();
-    None
+    let initial = usize::from(current_auto);
+    let selected = select_from_menu(MODES.len(), initial, |sel| {
+        build_mode_menu_lines(sel, current_auto)
+    })?;
+    Some(MODES[selected].0 == "auto")
 }
 
 pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
