@@ -8,6 +8,7 @@ features/ideas/bug-fixes to be added in the future:
 - [config] add possibility to manage multiple AGENT PROMPTS saved in the config, which user can use depending on the use case - it can be done, by providing prompt file while running the program - this will give the user flexibility in terms of managing prompts and storing them and we avoid complexity of managing this on the app level - think if we should provide prompt file by param or by convention or both - this can be done via keeping prompt definitions in `~/.aictl/agents/` dir, and there should be commands allowing user to manage assistants: create, use, discard, delete
 - [func] research possibilities of adding new caching and data compression capabilities
 - [func] consider adding session persistence/restoration - maybe consider this per assistant (it's related to another issue in this backlog) - messages can be stored in `.aictl.session` file in the current dir and after session restoration it should be read, compacted saved and used for the future conversations - persistence should be invoked on purpose - e.g. with `--session`/`--memory` param - it can be done via `~/.aictl/sessions/` dir, where user can persist all the sessions with name and datetime, if there's no name defined, there should be random name; later user can restore session
+- [security] add some basic checks before running potentially unsafe/dangerous actions, especially via bash and block them as unsafe
 - [llm] add Gemini support
 - [llm] add Grok support
 - [llm] add Mistral support
