@@ -6,13 +6,13 @@ license-file = "LICENSE"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-crossterm = "0.28"
-indicatif = "0.17"
-rustyline = "15"
-termimad = "0.30"
+crossterm = "0.29"
+indicatif = "0.18"
+rustyline = "18"
+termimad = "0.34"
 glob = "0.3"
-scraper = "0.22"
+scraper = "0.26"
