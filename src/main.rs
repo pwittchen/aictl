@@ -18,6 +18,16 @@ use config::{
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
 
+/// Result of a single agent turn.
+struct TurnResult {
+    answer: String,
+    usage: TokenUsage,
+    llm_calls: u32,
+    tool_calls: u32,
+    elapsed: std::time::Duration,
+    last_input_tokens: u64,
+}
+
 #[derive(Debug, Clone, ValueEnum)]
 enum Provider {
     Openai,
@@ -179,7 +189,7 @@ async fn run_agent_turn(
     user_message: &str,
     auto: &mut bool,
     ui: &dyn AgentUI,
-) -> Result<(String, TokenUsage, u32, u32, std::time::Duration, u64), Box<dyn std::error::Error>> {
+) -> Result<TurnResult, Box<dyn std::error::Error>> {
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),
@@ -242,14 +252,14 @@ async fn run_agent_turn(
 
         let Some(tool_call) = tool_call else {
             // No tool call — this is the final answer
-            return Ok((
-                response,
-                total_usage,
+            return Ok(TurnResult {
+                answer: response,
+                usage: total_usage,
                 llm_calls,
                 tool_calls,
-                turn_start.elapsed(),
+                elapsed: turn_start.elapsed(),
                 last_input_tokens,
-            ));
+            });
         };
 
         // Print the LLM's reasoning (text before the tool tag)
@@ -315,7 +325,7 @@ async fn run_agent_single(
 
     let mut auto = auto;
     let ui = PlainUI { quiet };
-    let (answer, usage, llm_calls, tool_calls, elapsed, _) = run_agent_turn(
+    let turn = run_agent_turn(
         provider,
         api_key,
         model,
@@ -325,9 +335,9 @@ async fn run_agent_single(
         &ui,
     )
     .await?;
-    ui.show_answer(&answer);
-    if llm_calls > 1 {
-        ui.show_summary(&usage, model, llm_calls, tool_calls, elapsed, 0);
+    ui.show_answer(&turn.answer);
+    if turn.llm_calls > 1 {
+        ui.show_summary(&turn.usage, model, turn.llm_calls, turn.tool_calls, turn.elapsed, 0);
     }
     Ok(())
 }
@@ -560,15 +570,15 @@ async fn run_interactive(
                 )
                 .await
                 {
-                    Ok((answer, usage, llm_calls, tool_calls, elapsed, input_tokens)) => {
-                        ui.show_answer(&answer);
-                        last_answer = answer;
-                        last_input_tokens = input_tokens;
-                        if llm_calls > 1 {
-                            let tp = llm::pct(input_tokens, llm::context_limit(&model));
+                    Ok(turn) => {
+                        ui.show_answer(&turn.answer);
+                        last_answer = turn.answer;
+                        last_input_tokens = turn.last_input_tokens;
+                        if turn.llm_calls > 1 {
+                            let tp = llm::pct(turn.last_input_tokens, llm::context_limit(&model));
                             let mp = llm::pct_usize(messages.len(), MAX_MESSAGES);
                             let cp = tp.max(mp);
-                            ui.show_summary(&usage, &model, llm_calls, tool_calls, elapsed, cp);
+                            ui.show_summary(&turn.usage, &model, turn.llm_calls, turn.tool_calls, turn.elapsed, cp);
                         }
                     }
                     Err(e) => {
