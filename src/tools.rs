@@ -142,22 +142,47 @@ async fn tool_search_files(input: &str) -> String {
         None => (input, "."),
     };
     let dir = if dir.is_empty() { "." } else { dir };
-    let output = tokio::process::Command::new("grep")
-        .args(["-rn", "--include=*", pattern, dir])
-        .output()
-        .await;
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            if stdout.is_empty() {
-                "No matches found.".to_string()
-            } else {
-                let mut result = stdout.to_string();
-                truncate_output(&mut result);
-                result
+    let pattern = pattern.to_string();
+    let dir = dir.to_string();
+    tokio::task::spawn_blocking(move || search_files_blocking(&pattern, &dir))
+        .await
+        .unwrap_or_else(|e| format!("Error running search: {e}"))
+}
+
+fn search_files_blocking(pattern: &str, dir: &str) -> String {
+    let glob_pattern = format!("{dir}/**/*");
+    let entries = match glob::glob(&glob_pattern) {
+        Ok(paths) => paths,
+        Err(e) => return format!("Error: invalid path pattern: {e}"),
+    };
+    let mut result = String::new();
+    for entry in entries {
+        let Ok(path) = entry else { continue };
+        if !path.is_file() {
+            continue;
+        }
+        let Ok(contents) = std::fs::read_to_string(&path) else {
+            continue; // skip binary / unreadable files
+        };
+        let path_str = path.to_string_lossy();
+        for (i, line) in contents.lines().enumerate() {
+            if line.contains(pattern) {
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                let _ = write!(result, "{path_str}:{}:{line}", i + 1);
+                if result.len() > 10_000 {
+                    result.truncate(10_000);
+                    result.push_str("\n... (truncated)");
+                    return result;
+                }
             }
         }
-        Err(e) => format!("Error running search: {e}"),
+    }
+    if result.is_empty() {
+        "No matches found.".to_string()
+    } else {
+        result
     }
 }
 

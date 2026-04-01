@@ -196,13 +196,12 @@ async fn run_agent_turn(
     });
 
     let mut total_usage = TokenUsage::default();
-    let mut llm_calls = 0u32;
     let mut tool_calls = 0u32;
     let turn_start = std::time::Instant::now();
     #[allow(unused_assignments)]
     let mut last_input_tokens = 0u64;
 
-    for _ in 0..MAX_ITERATIONS {
+    for llm_calls in 1..=MAX_ITERATIONS {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -228,7 +227,6 @@ async fn run_agent_turn(
 
         total_usage.input_tokens += usage.input_tokens;
         total_usage.output_tokens += usage.output_tokens;
-        llm_calls += 1;
         last_input_tokens = usage.input_tokens;
 
         let token_pct = llm::pct(last_input_tokens, llm::context_limit(model));
@@ -255,7 +253,8 @@ async fn run_agent_turn(
             return Ok(TurnResult {
                 answer: response,
                 usage: total_usage,
-                llm_calls,
+                #[allow(clippy::cast_possible_truncation)] // MAX_ITERATIONS is 20
+                llm_calls: llm_calls as u32,
                 tool_calls,
                 elapsed: turn_start.elapsed(),
                 last_input_tokens,
@@ -337,7 +336,14 @@ async fn run_agent_single(
     .await?;
     ui.show_answer(&turn.answer);
     if turn.llm_calls > 1 {
-        ui.show_summary(&turn.usage, model, turn.llm_calls, turn.tool_calls, turn.elapsed, 0);
+        ui.show_summary(
+            &turn.usage,
+            model,
+            turn.llm_calls,
+            turn.tool_calls,
+            turn.elapsed,
+            0,
+        );
     }
     Ok(())
 }
@@ -578,7 +584,14 @@ async fn run_interactive(
                             let tp = llm::pct(turn.last_input_tokens, llm::context_limit(&model));
                             let mp = llm::pct_usize(messages.len(), MAX_MESSAGES);
                             let cp = tp.max(mp);
-                            ui.show_summary(&turn.usage, &model, turn.llm_calls, turn.tool_calls, turn.elapsed, cp);
+                            ui.show_summary(
+                                &turn.usage,
+                                &model,
+                                turn.llm_calls,
+                                turn.tool_calls,
+                                turn.elapsed,
+                                cp,
+                            );
                         }
                     }
                     Err(e) => {
