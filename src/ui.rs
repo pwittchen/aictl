@@ -393,11 +393,13 @@ impl AgentUI for InteractiveUI {
                             selected += 1;
                         }
                     }
-                    KeyCode::Enter => break match selected {
-                        0 => ToolApproval::Allow,
-                        2 => ToolApproval::AutoAccept,
-                        _ => ToolApproval::Deny,
-                    },
+                    KeyCode::Enter => {
+                        break match selected {
+                            0 => ToolApproval::Allow,
+                            2 => ToolApproval::AutoAccept,
+                            _ => ToolApproval::Deny,
+                        };
+                    }
                     KeyCode::Esc => break ToolApproval::Deny,
                     KeyCode::Char('y') | KeyCode::Char('Y') => break ToolApproval::Allow,
                     KeyCode::Char('n') | KeyCode::Char('N') => break ToolApproval::Deny,

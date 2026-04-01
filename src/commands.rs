@@ -125,7 +125,12 @@ pub async fn compact(
 
     let result = match provider {
         Provider::Openai => {
-            crate::with_esc_cancel(crate::llm_openai::call_openai(api_key, model, &summary_msgs)).await
+            crate::with_esc_cancel(crate::llm_openai::call_openai(
+                api_key,
+                model,
+                &summary_msgs,
+            ))
+            .await
         }
         Provider::Anthropic => {
             crate::with_esc_cancel(crate::llm_anthropic::call_anthropic(
@@ -241,7 +246,10 @@ fn print_help() {
         "/model".with(Color::Cyan)
     );
     println!("  {}   Show available tools", "/tools".with(Color::Cyan));
-    println!("  {}  Update to the latest version", "/update".with(Color::Cyan));
+    println!(
+        "  {}  Update to the latest version",
+        "/update".with(Color::Cyan)
+    );
     println!("  {}    Exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }
@@ -254,7 +262,10 @@ mod tests {
 
     #[test]
     fn cmd_exit() {
-        assert!(matches!(handle("/exit", "", &noop_error), CommandResult::Exit));
+        assert!(matches!(
+            handle("/exit", "", &noop_error),
+            CommandResult::Exit
+        ));
     }
 
     #[test]
@@ -362,7 +373,10 @@ fn print_tools() {
         ("fetch_url", "Fetch a URL and return text content"),
         ("extract_website", "Extract readable content from a URL"),
         ("fetch_datetime", "Get current date, time, and timezone"),
-        ("fetch_geolocation", "Get geolocation data for an IP address"),
+        (
+            "fetch_geolocation",
+            "Get geolocation data for an IP address",
+        ),
     ];
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
     println!();
@@ -538,7 +552,10 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
 }
 
 const MODES: &[(&str, &str)] = &[
-    ("human-in-the-loop", "Ask confirmation before each tool call"),
+    (
+        "human-in-the-loop",
+        "Ask confirmation before each tool call",
+    ),
     ("auto", "Run tools without confirmation"),
 ];
 
@@ -720,10 +737,7 @@ const UPDATE_CMD: &str =
 /// Returns `true` if the binary was updated and the REPL should exit.
 pub async fn run_update(show_error: &dyn Fn(&str)) -> bool {
     println!();
-    println!(
-        "  {} checking for updates...",
-        "↓".with(Color::Cyan),
-    );
+    println!("  {} checking for updates...", "↓".with(Color::Cyan),);
 
     let remote = crate::fetch_remote_version().await;
     match &remote {
@@ -810,10 +824,7 @@ pub async fn run_update_cli() {
             println!("Updated successfully.");
         }
         Ok(s) => {
-            eprintln!(
-                "Update failed with exit code: {}",
-                s.code().unwrap_or(-1)
-            );
+            eprintln!("Update failed with exit code: {}", s.code().unwrap_or(-1));
             std::process::exit(1);
         }
         Err(e) => {

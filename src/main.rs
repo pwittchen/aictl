@@ -395,7 +395,11 @@ async fn run_interactive(
     let mut auto = auto;
     let ui = InteractiveUI::new();
     let version_info = version_info_string(&fetch_remote_version().await);
-    InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model, &version_info);
+    InteractiveUI::print_welcome(
+        &format!("{:?}", provider).to_lowercase(),
+        &model,
+        &version_info,
+    );
 
     let mut messages = vec![Message {
         role: Role::System,
@@ -514,10 +518,7 @@ async fn run_interactive(
                             auto = new_auto;
                             let mode_name = if auto { "auto" } else { "human-in-the-loop" };
                             println!();
-                            println!(
-                                "  {} switched to {mode_name} mode",
-                                "✓".with(Color::Green)
-                            );
+                            println!("  {} switched to {mode_name} mode", "✓".with(Color::Green));
                             println!();
                         }
                         continue;
