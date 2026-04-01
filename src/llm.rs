@@ -1,6 +1,6 @@
 /// Available models: (`provider_str`, `model_name`, `api_key_config_key`)
 pub const MODELS: &[(&str, &str, &str)] = &[
-    ("anthropic", "claude-haiku-4-20250414", "ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-haiku-4-5-20251001", "ANTHROPIC_API_KEY"),
     ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "OPENAI_API_KEY"),
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn price_claude_haiku_4() {
-        let (i, o) = price_per_million("claude-haiku-4-20250414").unwrap();
+        let (i, o) = price_per_million("claude-haiku-4-5-20251001").unwrap();
         assert_eq!(i, 1.00);
         assert_eq!(o, 5.00);
     }
