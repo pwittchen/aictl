@@ -178,20 +178,36 @@ impl InteractiveUI {
         }
     }
 
-    pub fn print_welcome(provider: &str, model: &str) {
+    pub fn print_welcome(provider: &str, model: &str, version_info: &str) {
         let dashes = "─".repeat(rule_width());
         eprintln!(
             "{PAD}{}{}",
             "╭".with(Color::DarkGrey),
             dashes.as_str().with(Color::DarkGrey),
         );
-        eprintln!(
-            "{PAD}{} {} {} {}",
-            PIPE.with(Color::DarkGrey),
-            "aictl".with(Color::Cyan).attribute(Attribute::Bold),
-            crate::VERSION.with(Color::DarkGrey),
-            "— AI agent in your terminal".with(Color::DarkGrey),
-        );
+        let version_color = if version_info.contains("latest") {
+            Color::Green
+        } else {
+            Color::Yellow
+        };
+        if version_info.is_empty() {
+            eprintln!(
+                "{PAD}{} {} {} {}",
+                PIPE.with(Color::DarkGrey),
+                "aictl".with(Color::Cyan).attribute(Attribute::Bold),
+                crate::VERSION.with(Color::DarkGrey),
+                "— AI agent in your terminal".with(Color::DarkGrey),
+            );
+        } else {
+            eprintln!(
+                "{PAD}{} {} {} {} {}",
+                PIPE.with(Color::DarkGrey),
+                "aictl".with(Color::Cyan).attribute(Attribute::Bold),
+                crate::VERSION.with(Color::DarkGrey),
+                version_info.with(version_color),
+                "— AI agent in your terminal".with(Color::DarkGrey),
+            );
+        }
         eprintln!(
             "{PAD}{} {} {} {}",
             PIPE.with(Color::DarkGrey),

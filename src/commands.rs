@@ -653,7 +653,7 @@ pub fn select_mode(current_auto: bool) -> Option<bool> {
     None
 }
 
-pub fn print_info(provider: &str, model: &str, auto: bool) {
+pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     let version = crate::VERSION;
     let mode = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
@@ -671,8 +671,19 @@ pub fn print_info(provider: &str, model: &str, auto: bool) {
         })
         .unwrap_or_else(|| "unknown".to_string());
 
+    let version_display = if version_info.is_empty() {
+        version.to_string()
+    } else {
+        let version_color = if version_info.contains("latest") {
+            Color::Green
+        } else {
+            Color::Yellow
+        };
+        format!("{version} {}", version_info.with(version_color))
+    };
+
     println!();
-    println!("  {} {version}", "version: ".with(Color::Cyan));
+    println!("  {} {version_display}", "version: ".with(Color::Cyan));
     println!("  {} {provider}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
     println!("  {} {mode}", "mode:    ".with(Color::Cyan));

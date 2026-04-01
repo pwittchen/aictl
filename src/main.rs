@@ -26,9 +26,39 @@ enum Provider {
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Check if the current version is the latest by fetching the remote Cargo.toml.
+/// Returns a string like "(latest)" or "(X.Y.Z available)", or empty on failure.
+async fn check_latest_version() -> String {
+    let check = async {
+        let url = "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/Cargo.toml";
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()
+            .ok()?;
+        let body = client.get(url).send().await.ok()?.text().await.ok()?;
+        let remote_version = body.lines().find_map(|line| {
+            let rest = line.strip_prefix("version")?;
+            let (_, val) = rest.split_once('=')?;
+            Some(val.trim().trim_matches('"').to_string())
+        })?;
+
+        if remote_version == VERSION {
+            Some("(latest)".to_string())
+        } else {
+            Some(format!("({remote_version} available)"))
+        }
+    };
+
+    check.await.unwrap_or_default()
+}
+
 #[derive(Parser)]
-#[command(name = "aictl", version = VERSION, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
+#[command(name = "aictl", version = VERSION, disable_version_flag = true, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
 struct Cli {
+    /// Print version information
+    #[arg(short = 'V', long = "version")]
+    version: bool,
+
     /// LLM provider to use (default: AICTL_PROVIDER from ~/.aictl)
     #[arg(short, long)]
     provider: Option<Provider>,
@@ -361,7 +391,8 @@ async fn run_interactive(
 
     let mut auto = auto;
     let ui = InteractiveUI::new();
-    InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model);
+    let version_info = check_latest_version().await;
+    InteractiveUI::print_welcome(&format!("{:?}", provider).to_lowercase(), &model, &version_info);
 
     let mut messages = vec![Message {
         role: Role::System,
@@ -435,7 +466,7 @@ async fn run_interactive(
                     commands::CommandResult::Info => {
                         let _ = rl.add_history_entry(&input);
                         let pname = format!("{:?}", provider).to_lowercase();
-                        commands::print_info(&pname, &model, auto);
+                        commands::print_info(&pname, &model, auto, &version_info);
                         continue;
                     }
                     commands::CommandResult::Model => {
@@ -570,6 +601,16 @@ async fn main() {
     load_config();
 
     let cli = Cli::parse();
+
+    if cli.version {
+        let version_info = check_latest_version().await;
+        if version_info.is_empty() {
+            println!("aictl {VERSION}");
+        } else {
+            println!("aictl {VERSION} {version_info}");
+        }
+        return;
+    }
 
     let provider = cli.provider.unwrap_or_else(|| {
         match config_get("AICTL_PROVIDER").as_deref() {

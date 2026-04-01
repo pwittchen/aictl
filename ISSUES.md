@@ -2,7 +2,6 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [func] add latest version checking
 - [func] add version update functionality
 - [ui] add some ASCII context visualisation
 - [func] [confing] research & implement more secure way of storing api keys instead of the plain text
