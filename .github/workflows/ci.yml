@@ -25,3 +25,12 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Clippy pedantic audit
+      run: |
+        count=$(cargo clippy -- -W clippy::all -W clippy::pedantic 2>&1 | grep -c '^warning:' || true)
+        echo "## Clippy Pedantic: ${count} warning(s)" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$count" -gt 0 ]; then
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cargo clippy -- -W clippy::all -W clippy::pedantic 2>&1 | grep '^warning:' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        fi
