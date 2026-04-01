@@ -105,10 +105,8 @@ async fn tool_write_file(input: &str) -> String {
                 Err(e) => format!("Error writing file: {e}"),
             }
         }
-        None => {
-            "Invalid input: expected first line as file path, remaining lines as content"
-                .to_string()
-        }
+        None => "Invalid input: expected first line as file path, remaining lines as content"
+            .to_string(),
     }
 }
 
@@ -272,11 +270,7 @@ fn tool_find_files(input: &str) -> String {
         Some((p, d)) => (p.trim(), d.trim()),
         None => (input, "."),
     };
-    let base_dir = if base_dir.is_empty() {
-        "."
-    } else {
-        base_dir
-    };
+    let base_dir = if base_dir.is_empty() { "." } else { base_dir };
     let full_pattern = if std::path::Path::new(pattern).is_absolute() {
         pattern.to_string()
     } else {
@@ -392,8 +386,7 @@ async fn tool_extract_website(input: &str) -> String {
                     let mut text = String::new();
                     for node_ref in document.tree.root().descendants() {
                         if let scraper::node::Node::Text(t) = node_ref.value() {
-                            let skip =
-                                node_ref.ancestors().any(|a| remove_ids.contains(&a.id()));
+                            let skip = node_ref.ancestors().any(|a| remove_ids.contains(&a.id()));
                             if !skip {
                                 text.push_str(&t.text);
                             }
