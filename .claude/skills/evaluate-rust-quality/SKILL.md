@@ -1,5 +1,5 @@
 ---
-name: evaluate
+name: evaluate-rust-quality
 description: Evaluate project quality and Rust software development practices
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
@@ -109,8 +109,8 @@ Print a structured report with these sections:
 After printing the report, save it to the .claude/reports/ directory:
 
 - Use the Bash tool to get the current timestamp: date '+%Y-%m-%d_%H-%M-%S'
-- Write the report as a markdown file named evaluate-YYYY-MM-DD_HH-MM-SS.md
-- The file path is .claude/reports/evaluate-<timestamp>.md
+- Write the report as a markdown file named evaluate-rust-quality-YYYY-MM-DD_HH-MM-SS.md
+- The file path is .claude/reports/evaluate-rust-quality-<timestamp>.md
 - Add a top-level heading with the date and time: # Evaluation Report -- YYYY-MM-DD HH:MM:SS
 - Confirm the file was saved by printing the path.
 
