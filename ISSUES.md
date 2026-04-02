@@ -2,7 +2,6 @@
 
 features/ideas/bug-fixes to be added in the future:
 
-- [security] add restricted dirs and files policy config - can be separate for read and write - these files and dirs cannot be accessed
 - [func] [config] research & implement more secure way of storing api keys instead of the plain text - consider using keyring, and use env in plain text as a fallback - add some note in the welcome banner and info that keys are secure or not
 - [func] [ui] [config] once secure keys storage will be implemented in the app, in the `/info` command we can show info that specified API key is set or not and if it's secured (saved in keyring) or not (saved in config file in plain text)
 - [func] [config] add configuration functionality, so when user runs app for the first time, he can configure it with api keys, provider and model - do this with `/setup` command
