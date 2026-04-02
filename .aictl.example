@@ -42,6 +42,12 @@
 # Max file write size in bytes (default: 1048576 = 1 MB, 0 = unlimited)
 # AICTL_SECURITY_MAX_WRITE=1048576
 
+# Comma-separated tool names to disable (e.g. exec_shell,search_web)
+# Available tools: exec_shell, read_file, write_file, remove_file, edit_file,
+# list_directory, search_files, find_files, search_web, fetch_url,
+# extract_website, fetch_datetime, fetch_geolocation
+# AICTL_SECURITY_DISABLED_TOOLS=
+
 # Comma-separated additional env vars to scrub from shell subprocesses
 # (vars matching *_KEY, *_SECRET, *_TOKEN, *_PASSWORD are always scrubbed)
 # AICTL_SECURITY_BLOCKED_ENV=

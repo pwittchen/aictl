@@ -61,6 +61,7 @@ pub struct SecurityPolicy {
     pub paths: PathPolicy,
     pub resources: ResourcePolicy,
     pub env: EnvPolicy,
+    pub disabled_tools: Vec<String>,
 }
 
 pub struct ShellPolicy {
@@ -110,6 +111,7 @@ pub fn init(unrestricted: bool) {
             env: EnvPolicy {
                 blocked_env_vars: vec![],
             },
+            disabled_tools: vec![],
         }
     } else {
         load_policy()
@@ -142,6 +144,7 @@ pub fn policy() -> &'static SecurityPolicy {
             env: EnvPolicy {
                 blocked_env_vars: vec![],
             },
+            disabled_tools: vec![],
         })
     })
 }
@@ -206,6 +209,10 @@ fn load_policy() -> SecurityPolicy {
         &config_get("AICTL_SECURITY_BLOCKED_ENV").unwrap_or_default(),
     ));
 
+    let disabled_tools = parse_csv(
+        &config_get("AICTL_SECURITY_DISABLED_TOOLS").unwrap_or_default(),
+    );
+
     SecurityPolicy {
         enabled,
         shell: ShellPolicy {
@@ -224,6 +231,7 @@ fn load_policy() -> SecurityPolicy {
             max_file_write_bytes,
         },
         env: EnvPolicy { blocked_env_vars },
+        disabled_tools,
     }
 }
 
@@ -243,6 +251,13 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
     let pol = policy();
     if !pol.enabled {
         return Ok(());
+    }
+
+    if pol.disabled_tools.iter().any(|t| t == &tool_call.name) {
+        return Err(format!(
+            "tool '{}' is disabled by security policy",
+            tool_call.name
+        ));
     }
 
     let input = &tool_call.input;
@@ -802,6 +817,15 @@ pub fn policy_summary() -> Vec<(String, String)> {
         format!("{} entries", pol.paths.blocked_paths.len()),
     ));
 
+    lines.push((
+        "disabled tools".to_string(),
+        if pol.disabled_tools.is_empty() {
+            "none".to_string()
+        } else {
+            pol.disabled_tools.join(", ")
+        },
+    ));
+
     lines
 }
 
@@ -850,6 +874,7 @@ mod tests {
             env: EnvPolicy {
                 blocked_env_vars: vec![],
             },
+            disabled_tools: vec![],
         }
     }
 
