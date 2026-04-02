@@ -211,6 +211,20 @@ See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:
 - UI layer
 - End-to-end data flow
 
+## Claude Code Skills
+
+This project includes [Claude Code](https://claude.ai/code) skills for common workflows. Run them as slash commands in a Claude Code session:
+
+| Skill | Description |
+|-------|-------------|
+| `/commit` | Commit staged and unstaged changes with a clear commit message |
+| `/update-docs` | Update README.md, CLAUDE.md, and ARCH.md to match the current project state |
+| `/evaluate-rust-quality` | Audit code quality, idiomatic Rust usage, and best practices |
+| `/evaluate-rust-security` | Audit security posture, injection risks, and credential handling |
+| `/evaluate-rust-performance` | Audit performance patterns, allocations, and CLI responsiveness |
+
+Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
+
 ## Known Issues & Ideas
 
 See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
