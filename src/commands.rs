@@ -224,17 +224,35 @@ pub fn print_context(
 
 fn print_help() {
     println!();
-    println!("  {}    Clear conversation context", "/clear".with(Color::Cyan));
-    println!("  {}  Compact context into a summary", "/compact".with(Color::Cyan));
+    println!(
+        "  {}    Clear conversation context",
+        "/clear".with(Color::Cyan)
+    );
+    println!(
+        "  {}  Compact context into a summary",
+        "/compact".with(Color::Cyan)
+    );
     println!("  {}  Show context usage", "/context".with(Color::Cyan));
-    println!("  {}     Copy last response to clipboard", "/copy".with(Color::Cyan));
+    println!(
+        "  {}     Copy last response to clipboard",
+        "/copy".with(Color::Cyan)
+    );
     println!("  {}     Show this help message", "/help".with(Color::Cyan));
     println!("  {}     Show setup info", "/info".with(Color::Cyan));
-    println!("  {}     Switch auto/human-in-the-loop mode", "/mode".with(Color::Cyan));
-    println!("  {}    Switch model and provider", "/model".with(Color::Cyan));
+    println!(
+        "  {}     Switch auto/human-in-the-loop mode",
+        "/mode".with(Color::Cyan)
+    );
+    println!(
+        "  {}    Switch model and provider",
+        "/model".with(Color::Cyan)
+    );
     println!("  {} Show security policy", "/security".with(Color::Cyan));
     println!("  {}    Show available tools", "/tools".with(Color::Cyan));
-    println!("  {}   Update to the latest version", "/update".with(Color::Cyan));
+    println!(
+        "  {}   Update to the latest version",
+        "/update".with(Color::Cyan)
+    );
     println!("  {}     Exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }
