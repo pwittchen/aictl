@@ -499,13 +499,13 @@ fn extract_base_command(segment: &str) -> String {
 
 /// Find the position of the first unquoted space.
 fn find_unquoted_space(s: &str) -> Option<usize> {
-    let mut in_sq = false;
-    let mut in_dq = false;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
     for (i, ch) in s.chars().enumerate() {
         match ch {
-            '\'' if !in_dq => in_sq = !in_sq,
-            '"' if !in_sq => in_dq = !in_dq,
-            ' ' | '\t' if !in_sq && !in_dq => return Some(i),
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            ' ' | '\t' if !in_single_quote && !in_double_quote => return Some(i),
             _ => {}
         }
     }
@@ -515,19 +515,19 @@ fn find_unquoted_space(s: &str) -> Option<usize> {
 /// Extract the first whitespace-delimited word, respecting quotes.
 fn extract_first_word(s: &str) -> String {
     let mut word = String::new();
-    let mut in_sq = false;
-    let mut in_dq = false;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
     for ch in s.chars() {
         match ch {
-            '\'' if !in_dq => {
-                in_sq = !in_sq;
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
                 word.push(ch);
             }
-            '"' if !in_sq => {
-                in_dq = !in_dq;
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
                 word.push(ch);
             }
-            ' ' | '\t' if !in_sq && !in_dq => break,
+            ' ' | '\t' if !in_single_quote && !in_double_quote => break,
             _ => word.push(ch),
         }
     }
@@ -611,7 +611,7 @@ fn check_path(path_str: &str, is_write: bool) -> Result<PathBuf, String> {
             blocked.clone()
         };
         if canonical.starts_with(&blocked_canon) {
-            return Err(format!("path '{}' is blocked by security policy", path_str));
+            return Err(format!("path '{path_str}' is blocked by security policy"));
         }
     }
 

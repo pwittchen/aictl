@@ -486,7 +486,7 @@ async fn handle_repl_input(
             commands::print_info(&pname, model, *auto, version_info);
             return ReplAction::Continue;
         }
-        commands::CommandResult::Security => {
+        commands::CommandResult::Security | commands::CommandResult::Continue => {
             let _ = rl.add_history_entry(input);
             return ReplAction::Continue;
         }
@@ -530,10 +530,6 @@ async fn handle_repl_input(
                 println!("  {} switched to {mode_name} mode", "✓".with(Color::Green));
                 println!();
             }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Continue => {
-            let _ = rl.add_history_entry(input);
             return ReplAction::Continue;
         }
         commands::CommandResult::NotACommand => {}
