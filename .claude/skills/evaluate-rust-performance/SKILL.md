@@ -140,11 +140,12 @@ Use impact labels for each finding: CRITICAL, HIGH, MEDIUM, LOW, INFO.
 
 ### 11. Save the report
 
-After printing the report, save it to the .claude/reports/ directory:
+After printing the report, save it to the .claude/reports/performance/ directory:
 
 - Use the Bash tool to get the current timestamp: date '+%Y-%m-%d_%H-%M-%S'
+- Create the directory if it does not exist: mkdir -p .claude/reports/performance
 - Write the report as a markdown file named rust-performance-report-YYYY-MM-DD_HH-MM-SS.md
-- The file path is .claude/reports/rust-performance-report-<timestamp>.md
+- The file path is .claude/reports/performance/rust-performance-report-<timestamp>.md
 - Add a top-level heading with the date and time: # Performance Report -- YYYY-MM-DD HH:MM:SS
 - Confirm the file was saved by printing the path.
 

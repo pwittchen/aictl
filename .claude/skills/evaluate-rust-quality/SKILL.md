@@ -106,11 +106,12 @@ Print a structured report with these sections:
 
 ### 9. Save the report
 
-After printing the report, save it to the .claude/reports/ directory:
+After printing the report, save it to the .claude/reports/quality/ directory:
 
 - Use the Bash tool to get the current timestamp: date '+%Y-%m-%d_%H-%M-%S'
+- Create the directory if it does not exist: mkdir -p .claude/reports/quality
 - Write the report as a markdown file named rust-quality-report-YYYY-MM-DD_HH-MM-SS.md
-- The file path is .claude/reports/rust-quality-report-<timestamp>.md
+- The file path is .claude/reports/quality/rust-quality-report-<timestamp>.md
 - Add a top-level heading with the date and time: # Evaluation Report -- YYYY-MM-DD HH:MM:SS
 - Confirm the file was saved by printing the path.
 
