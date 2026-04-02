@@ -231,6 +231,13 @@ impl InteractiveUI {
                 "Run /update or aictl --update to upgrade".with(Color::Yellow),
             );
         }
+        if !crate::security::policy().enabled {
+            eprintln!(
+                "{PAD}{} {}",
+                PIPE.with(Color::DarkGrey),
+                "security restrictions disabled (--unrestricted)".with(Color::Yellow),
+            );
+        }
         eprintln!(
             "{PAD}{}{}",
             "╰".with(Color::DarkGrey),
