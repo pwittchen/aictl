@@ -20,7 +20,7 @@ jobs:
 
     - name: Cache cargo-edit
       id: cache-cargo-edit
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: ~/.cargo/bin/cargo-upgrade
         key: cargo-edit-${{ runner.os }}-${{ hashFiles('**/rust-toolchain*') }}
