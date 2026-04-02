@@ -3,6 +3,7 @@ mod config;
 mod llm;
 mod llm_anthropic;
 mod llm_openai;
+mod security;
 mod tools;
 mod ui;
 
@@ -97,6 +98,10 @@ struct Cli {
     /// Suppress tool calls and reasoning, only print the final answer (requires --auto)
     #[arg(short, long, requires = "auto")]
     quiet: bool,
+
+    /// Disable security restrictions (use with caution)
+    #[arg(long)]
+    unrestricted: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -481,6 +486,10 @@ async fn handle_repl_input(
             commands::print_info(&pname, model, *auto, version_info);
             return ReplAction::Continue;
         }
+        commands::CommandResult::Security => {
+            let _ = rl.add_history_entry(input);
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Update => {
             let _ = rl.add_history_entry(input);
             if commands::run_update(&|msg| ui.show_error(msg)).await {
@@ -708,6 +717,11 @@ async fn main() {
     load_config();
 
     let cli = Cli::parse();
+
+    security::init(cli.unrestricted);
+    if cli.unrestricted {
+        eprintln!("Warning: security restrictions disabled (--unrestricted)");
+    }
 
     if cli.version {
         let version_info = version_info_string(fetch_remote_version().await.as_deref());

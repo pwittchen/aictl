@@ -1,6 +1,10 @@
 /// Available models: (`provider_str`, `model_name`, `api_key_config_key`)
 pub const MODELS: &[(&str, &str, &str)] = &[
-    ("anthropic", "claude-haiku-4-5-20251001", "ANTHROPIC_API_KEY"),
+    (
+        "anthropic",
+        "claude-haiku-4-5-20251001",
+        "ANTHROPIC_API_KEY",
+    ),
     ("anthropic", "claude-sonnet-4-20250514", "ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-20250514", "ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "OPENAI_API_KEY"),

@@ -120,7 +120,11 @@ impl AgentUI for PlainUI {
 
     fn show_tool_result(&self, result: &str) {
         if !self.quiet {
-            eprintln!("{result}");
+            if result.starts_with("Security policy denied:") {
+                eprintln!("{}", result.with(Color::Red));
+            } else {
+                eprintln!("{result}");
+            }
         }
     }
 
@@ -318,7 +322,11 @@ impl AgentUI for InteractiveUI {
 
     fn show_tool_result(&self, result: &str) {
         eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
-        Self::print_block(result, Color::DarkGrey);
+        if result.starts_with("Security policy denied:") {
+            Self::print_block(result, Color::Red);
+        } else {
+            Self::print_block(result, Color::DarkGrey);
+        }
         Self::bottom_rule();
     }
 

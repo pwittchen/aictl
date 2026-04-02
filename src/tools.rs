@@ -26,8 +26,13 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
 }
 
 pub async fn execute_tool(tool_call: &ToolCall) -> String {
+    // Security gate
+    if let Err(reason) = crate::security::validate_tool(tool_call) {
+        return format!("Security policy denied: {reason}");
+    }
+
     let input = &tool_call.input;
-    match tool_call.name.as_str() {
+    let result = match tool_call.name.as_str() {
         "exec_shell" => tool_exec_shell(input).await,
         "read_file" => tool_read_file(input).await,
         "write_file" => tool_write_file(input).await,
@@ -41,7 +46,8 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "fetch_datetime" => tool_fetch_datetime().await,
         "fetch_geolocation" => tool_fetch_geolocation(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
-    }
+    };
+    crate::security::sanitize_output(&result)
 }
 
 /// Truncate a result string to the output size limit.
@@ -53,11 +59,25 @@ fn truncate_output(s: &mut String) {
 }
 
 async fn tool_exec_shell(input: &str) -> String {
-    let output = tokio::process::Command::new("sh")
-        .arg("-c")
-        .arg(input)
-        .output()
-        .await;
+    let mut cmd = tokio::process::Command::new("sh");
+    cmd.arg("-c").arg(input);
+
+    // Environment scrubbing
+    cmd.env_clear();
+    for (key, value) in crate::security::scrubbed_env() {
+        cmd.env(key, value);
+    }
+
+    let future = cmd.output();
+    let output = if let Some(timeout) = crate::security::shell_timeout() {
+        match tokio::time::timeout(timeout, future).await {
+            Ok(result) => result,
+            Err(_) => return format!("Error: command timed out after {}s", timeout.as_secs()),
+        }
+    } else {
+        future.await
+    };
+
     match output {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout);

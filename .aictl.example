@@ -11,3 +11,37 @@
 
 # Web search (optional, used by web_search tool)
 # FIRECRAWL_API_KEY=fc-...
+
+# Security settings (all optional, sensible defaults apply)
+# Master switch (default: true)
+# AICTL_SECURITY=true
+
+# Restrict file/directory tools to the current working directory (default: true)
+# AICTL_SECURITY_CWD_RESTRICT=true
+
+# Comma-separated whitelist of allowed shell commands (empty = all except blocked)
+# AICTL_SECURITY_SHELL_ALLOWED=
+
+# Comma-separated additional blocked shell commands (added to built-in defaults:
+# rm, rmdir, mkfs, dd, shutdown, reboot, halt, poweroff, sudo, su, doas, eval, exec, nc, ncat, netcat)
+# AICTL_SECURITY_SHELL_BLOCKED=
+
+# Block $(), backticks, and process substitution in shell commands (default: true)
+# AICTL_SECURITY_BLOCK_SUBSHELL=true
+
+# Comma-separated additional blocked paths (added to built-in defaults:
+# ~/.ssh, ~/.gnupg, ~/.aictl, ~/.aws, ~/.config/gcloud, /etc/shadow, /etc/sudoers)
+# AICTL_SECURITY_BLOCKED_PATHS=
+
+# Comma-separated paths allowed outside the working directory
+# AICTL_SECURITY_ALLOWED_PATHS=/tmp/project-cache
+
+# Shell command timeout in seconds (default: 30, 0 = unlimited)
+# AICTL_SECURITY_SHELL_TIMEOUT=30
+
+# Max file write size in bytes (default: 1048576 = 1 MB, 0 = unlimited)
+# AICTL_SECURITY_MAX_WRITE=1048576
+
+# Comma-separated additional env vars to scrub from shell subprocesses
+# (vars matching *_KEY, *_SECRET, *_TOKEN, *_PASSWORD are always scrubbed)
+# AICTL_SECURITY_BLOCKED_ENV=

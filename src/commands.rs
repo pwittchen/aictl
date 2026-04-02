@@ -10,8 +10,8 @@ use crate::{Message, Provider, Role};
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "clear", "compact", "context", "copy", "exit", "help", "info", "mode", "model", "tools",
-    "update",
+    "clear", "compact", "context", "copy", "exit", "help", "info", "mode", "model", "security",
+    "tools", "update",
 ];
 
 /// Result of handling a slash command.
@@ -26,6 +26,8 @@ pub enum CommandResult {
     Context,
     /// Show setup info (provider, model, version, etc.).
     Info,
+    /// Show security policy status.
+    Security,
     /// Switch model interactively.
     Model,
     /// Switch auto/human-in-the-loop mode.
@@ -50,6 +52,10 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "compact" => CommandResult::Compact,
         "context" => CommandResult::Context,
         "info" => CommandResult::Info,
+        "security" => {
+            print_security();
+            CommandResult::Security
+        }
         "model" => CommandResult::Model,
         "mode" => CommandResult::Mode,
         "update" => CommandResult::Update,
@@ -233,6 +239,7 @@ fn print_help() {
     );
     println!("  {}    Show this help message", "/help".with(Color::Cyan));
     println!("  {}    Show setup info", "/info".with(Color::Cyan));
+    println!("  {} Show security policy", "/security".with(Color::Cyan));
     println!(
         "  {}    Switch auto/human-in-the-loop mode",
         "/mode".with(Color::Cyan)
@@ -354,6 +361,17 @@ mod tests {
             );
         }
     }
+}
+
+fn print_security() {
+    let summary = crate::security::policy_summary();
+    let max_key = summary.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+    println!();
+    for (key, value) in &summary {
+        let pad = max_key - key.len() + 2;
+        println!("  {}:{:pad$}{}", key.as_str().with(Color::Cyan), "", value);
+    }
+    println!();
 }
 
 fn print_tools() {
