@@ -18,4 +18,6 @@ features/ideas/bug-fixes to be added in the future:
 - [llm] add native models support from disk (e.g. with ONNX or other format like that)
 - [tool] [func] add image processing capability
 - [tool] [func] add document processing capability (pdf/docx)
+- [optimization] implement prompt caching
+- [optimization] implement selective history with last messages window and optional compact - allow user to choose thinking mode: smart/fast
 - [marketing] create project website
