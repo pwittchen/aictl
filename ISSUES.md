@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [config] add `LLM_` prefix before each LLM API key in the config
 - [func] [config] research & implement more secure way of storing api keys instead of the plain text - consider using keyring, and use env in plain text as a fallback - add some note in the welcome banner and info that keys are secure or not
 - [func] [ui] [config] once secure keys storage will be implemented in the app, in the `/info` command we can show info that specified API key is set or not and if it's secured (saved in keyring) or not (saved in config file in plain text) - there can be additional command like `/lock-keys`, which will copy api keys to keyring and remove them from config file and `/unlock-keys` which will do opposite operation and `/clear-keys`, which will remove it everywhere; also keys storage info should be printed in `/security` command
 - [config] add possibility to manage multiple AGENT PROMPTS saved in the config, which user can use depending on the use case - it can be done, by providing prompt file while running the program - this will give the user flexibility in terms of managing prompts and storing them and we avoid complexity of managing this on the app level - think if we should provide prompt file by param or by convention or both - this can be done via keeping prompt definitions in `~/.aictl/agents/` dir, and there should be commands allowing user to manage assistants: create, use, discard, delete
