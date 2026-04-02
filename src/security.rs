@@ -209,9 +209,8 @@ fn load_policy() -> SecurityPolicy {
         &config_get("AICTL_SECURITY_BLOCKED_ENV").unwrap_or_default(),
     ));
 
-    let disabled_tools = parse_csv(
-        &config_get("AICTL_SECURITY_DISABLED_TOOLS").unwrap_or_default(),
-    );
+    let disabled_tools =
+        parse_csv(&config_get("AICTL_SECURITY_DISABLED_TOOLS").unwrap_or_default());
 
     SecurityPolicy {
         enabled,

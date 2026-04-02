@@ -2,6 +2,9 @@
 name = "aictl"
 version = "0.4.1"
 edition = "2024"
+description = "AI agent for the terminal"
+repository = "https://github.com/pwittchen/aictl"
+authors = ["Piotr Wittchen"]
 license-file = "LICENSE"
 
 [dependencies]
