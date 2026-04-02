@@ -39,7 +39,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet]
+aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -56,6 +56,7 @@ The interactive REPL supports slash commands:
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, mode, version, OS, binary size) |
+| `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/mode` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
@@ -75,6 +76,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
+| `--unrestricted` | | Disable all security restrictions (use with caution) |
 
 CLI flags take priority over config file values.
 
@@ -89,6 +91,16 @@ Configuration is loaded from `~/.aictl`. This is a single global config file —
 | `OPENAI_API_KEY` | API key for OpenAI |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
+| `AICTL_SECURITY` | Master security switch (default: `true`) |
+| `AICTL_SECURITY_CWD_RESTRICT` | Restrict file tools to working directory (default: `true`) |
+| `AICTL_SECURITY_SHELL_ALLOWED` | Comma-separated whitelist of allowed shell commands (empty = all except blocked) |
+| `AICTL_SECURITY_SHELL_BLOCKED` | Additional blocked shell commands (added to built-in defaults) |
+| `AICTL_SECURITY_BLOCK_SUBSHELL` | Block `$()`, backticks, and process substitution (default: `true`) |
+| `AICTL_SECURITY_BLOCKED_PATHS` | Additional blocked file paths (added to built-in defaults) |
+| `AICTL_SECURITY_ALLOWED_PATHS` | Paths allowed outside the working directory |
+| `AICTL_SECURITY_SHELL_TIMEOUT` | Shell command timeout in seconds (default: `30`) |
+| `AICTL_SECURITY_MAX_WRITE` | Max file write size in bytes (default: `1048576` = 1 MB) |
+| `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
 
 Create `~/.aictl` (see `.aictl.example`):
 
@@ -169,6 +181,20 @@ ls -la /tmp
 
 The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr; the final answer goes to stdout. Token usage, estimated cost, and execution time are always displayed after each response.
 
+### Security
+
+All tool calls pass through a configurable security policy (`src/security.rs`) before execution. By default:
+
+- **Shell command blocking**: dangerous commands are blocked (`rm`, `sudo`, `dd`, `mkfs`, `nc`, etc.). Command substitution (`$(...)`, backticks) is blocked. Compound commands (`|`, `&&`, `||`, `;`) are split and each segment is validated independently.
+- **CWD jail**: file tools (`read_file`, `write_file`, `edit_file`, `list_directory`, `search_files`, `find_files`) can only operate within the working directory. Path traversal via `..` is defeated by canonicalization.
+- **Blocked paths**: sensitive paths are always blocked (`~/.ssh`, `~/.gnupg`, `~/.aictl`, `~/.aws`, `~/.config/gcloud`, `/etc/shadow`, `/etc/sudoers`).
+- **Environment scrubbing**: shell subprocesses receive a clean environment — vars matching `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD` are stripped so API keys cannot leak.
+- **Shell timeout**: commands are killed after 30 seconds (configurable).
+- **Write size limit**: file writes are capped at 1 MB (configurable).
+- **Output sanitization**: tool results are sanitized to prevent prompt injection via `<tool>` tags.
+
+Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl`.
+
 ### Examples
 
 ```bash
@@ -197,7 +223,7 @@ aictl --auto -q -m "What OS am I running?"
 cargo test
 ```
 
-Unit tests cover core logic across five modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), and `llm` (cost estimation and model matching).
+Unit tests cover core logic across six modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), `llm` (cost estimation and model matching), and `security` (shell validation, path validation, output sanitization).
 
 ## Architecture
 
