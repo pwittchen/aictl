@@ -267,6 +267,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
                 Ok(()) // will fail later in tool_write_file with "Invalid input"
             }
         }
+        "remove_file" => check_path_write(input.trim()).map(|_| ()),
         "edit_file" => {
             let input = input.trim();
             if let Some((path, _)) = input.split_once('\n') {

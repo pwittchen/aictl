@@ -36,6 +36,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "exec_shell" => tool_exec_shell(input).await,
         "read_file" => tool_read_file(input).await,
         "write_file" => tool_write_file(input).await,
+        "remove_file" => tool_remove_file(input).await,
         "list_directory" => tool_list_directory(input).await,
         "search_files" => tool_search_files(input).await,
         "edit_file" => tool_edit_file(input).await,
@@ -129,6 +130,14 @@ async fn tool_write_file(input: &str) -> String {
         }
         None => "Invalid input: expected first line as file path, remaining lines as content"
             .to_string(),
+    }
+}
+
+async fn tool_remove_file(input: &str) -> String {
+    let path = input.trim();
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => format!("Removed {path}"),
+        Err(e) => format!("Error removing file: {e}"),
     }
 }
 
@@ -660,6 +669,32 @@ mod tests {
         })
         .await;
         assert!(result.contains("Invalid input"));
+    }
+
+    #[tokio::test]
+    async fn exec_remove_file() {
+        let dir = tmp_dir("remove");
+        let path = dir.join("deleteme.txt");
+        std::fs::write(&path, "gone soon").unwrap();
+        assert!(path.exists());
+        let result = execute_tool(&ToolCall {
+            name: "remove_file".into(),
+            input: path.to_string_lossy().into(),
+        })
+        .await;
+        assert!(result.starts_with("Removed"));
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_remove_file_not_found() {
+        let result = execute_tool(&ToolCall {
+            name: "remove_file".into(),
+            input: "/tmp/aictl_nonexistent_file_xyz".into(),
+        })
+        .await;
+        assert!(result.starts_with("Error removing file:"));
     }
 
     #[tokio::test]
