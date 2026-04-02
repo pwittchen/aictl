@@ -94,6 +94,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ exec_shell          │ sh -c (env scrub+timeout) │      │
  │  │ read_file           │ tokio::fs::read_to_string │      │
  │  │ write_file          │ tokio::fs::write          │      │
+ │  │ remove_file         │ tokio::fs::remove_file    │      │
  │  │ edit_file           │ read + replacen + write   │      │
  │  │ list_directory      │ tokio::fs::read_dir       │      │
  │  │ search_files        │ glob + string match       │      │

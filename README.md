@@ -100,6 +100,7 @@ Configuration is loaded from `~/.aictl`. This is a single global config file —
 | `AICTL_SECURITY_ALLOWED_PATHS` | Paths allowed outside the working directory |
 | `AICTL_SECURITY_SHELL_TIMEOUT` | Shell command timeout in seconds (default: `30`) |
 | `AICTL_SECURITY_MAX_WRITE` | Max file write size in bytes (default: `1048576` = 1 MB) |
+| `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web`) |
 | `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
 
 Create `~/.aictl` (see `.aictl.example`):
@@ -161,6 +162,7 @@ Available tools:
 | `exec_shell` | Execute a shell command via `sh -c` |
 | `read_file` | Read the contents of a file |
 | `write_file` | Write content to a file (first line = path, rest = content) |
+| `remove_file` | Remove (delete) a file (regular files only, not directories) |
 | `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |

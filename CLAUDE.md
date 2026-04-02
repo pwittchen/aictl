@@ -34,12 +34,13 @@ Single-binary async Rust CLI with eight modules:
 
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 
-**Security** (`src/security.rs`): All tool calls pass through `security::validate_tool()` before execution. Shell commands are validated against blocked/allowed lists with command substitution blocking. File tools are restricted to the working directory (CWD jail) with path canonicalization to defeat traversal attacks. Shell subprocesses get a scrubbed environment (strips `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`) and a configurable timeout (default 30s). Tool output is sanitized to prevent `<tool>` tag injection. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl`. Bypassed entirely with `--unrestricted`.
+**Security** (`src/security.rs`): All tool calls pass through `security::validate_tool()` before execution. Shell commands are validated against blocked/allowed lists with command substitution blocking. File tools are restricted to the working directory (CWD jail) with path canonicalization to defeat traversal attacks. Individual tools can be disabled via `AICTL_SECURITY_DISABLED_TOOLS`. Shell subprocesses get a scrubbed environment (strips `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`) and a configurable timeout (default 30s). Tool output is sanitized to prevent `<tool>` tag injection. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl`. Bypassed entirely with `--unrestricted`.
 
 **Tools** (`execute_tool` dispatches by tool name):
 - `exec_shell` — runs commands via `tokio::process::Command` (`sh -c`) with env scrubbing and timeout
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)
+- `remove_file` — removes a file via `tokio::fs::remove_file` (regular files only)
 - `list_directory` — lists directory entries with type prefixes
 - `search_files` — content search via glob traversal and string matching
 - `edit_file` — targeted find-and-replace (requires unique match)
