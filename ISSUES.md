@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [ci] in realse notes skipp trivial stuff like update ISSUES.md etc.
 - [config] add `LLM_` prefix before each LLM API key in the config
 - [func] [config] research & implement more secure way of storing api keys instead of the plain text - consider using keyring, and use env in plain text as a fallback - add some note in the welcome banner and info that keys are secure or not
 - [func] [ui] [config] once secure keys storage will be implemented in the app, in the `/info` command we can show info that specified API key is set or not and if it's secured (saved in keyring) or not (saved in config file in plain text) - there can be additional command like `/lock-keys`, which will copy api keys to keyring and remove them from config file and `/unlock-keys` which will do opposite operation and `/clear-keys`, which will remove it everywhere; also keys storage info should be printed in `/security` command
