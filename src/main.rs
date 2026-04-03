@@ -639,14 +639,27 @@ async fn run_interactive(
     let mut last_input_tokens: u64 = 0;
 
     loop {
-        let prompt = if auto {
-            format!(
+        let unrestricted = !crate::security::policy().enabled;
+        let prompt = match (auto, unrestricted) {
+            (true, true) => format!(
+                "{} {} {} ",
+                "[auto]".with(Color::Yellow),
+                "[unrestricted]".with(Color::Red),
+                "❯".with(Color::Cyan).attribute(Attribute::Bold),
+            ),
+            (true, false) => format!(
                 "{} {} ",
                 "[auto]".with(Color::Yellow),
                 "❯".with(Color::Cyan).attribute(Attribute::Bold),
-            )
-        } else {
-            format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
+            ),
+            (false, true) => format!(
+                "{} {} ",
+                "[unrestricted]".with(Color::Red),
+                "❯".with(Color::Cyan).attribute(Attribute::Bold),
+            ),
+            (false, false) => {
+                format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
+            }
         };
         let line = rl.readline(&prompt);
         match line {

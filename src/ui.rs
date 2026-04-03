@@ -235,7 +235,7 @@ impl InteractiveUI {
             eprintln!(
                 "{PAD}{} {}",
                 PIPE.with(Color::DarkGrey),
-                "security restrictions disabled (--unrestricted)".with(Color::Yellow),
+                "security restrictions disabled (--unrestricted)".with(Color::Red),
             );
         }
         eprintln!(
