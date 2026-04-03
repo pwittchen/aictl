@@ -243,6 +243,23 @@ impl InteractiveUI {
                 PIPE.with(Color::DarkGrey),
                 "security restrictions disabled (--unrestricted)".with(Color::Red),
             );
+        } else {
+            let pol = crate::security::policy();
+            let cwd_jail = if pol.paths.restrict_to_cwd { "on" } else { "off" };
+            let subshell = if pol.shell.block_subshell { "blocked" } else { "allowed" };
+            let timeout = if pol.resources.shell_timeout_secs == 0 {
+                "none".to_string()
+            } else {
+                format!("{}s", pol.resources.shell_timeout_secs)
+            };
+            let disabled = pol.disabled_tools.len().to_string();
+            eprintln!(
+                "{PAD}{} {}",
+                PIPE.with(Color::DarkGrey),
+                format!(
+                    "cwd jail: {cwd_jail} · subshell: {subshell} · timeout: {timeout} · disabled tools: {disabled}"
+                ).with(Color::DarkGrey),
+            );
         }
         eprintln!(
             "{PAD}{}{}",
