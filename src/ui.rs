@@ -253,27 +253,9 @@ impl InteractiveUI {
             cwd.as_str().with(Color::DarkGrey),
         );
 
-        // Line 2: welcome text
-        eprintln!(
-            "{PAD}{} {}{}",
-            PIPE.with(Color::DarkGrey),
-            m[2].with(Color::Cyan),
-            WELCOME_TEXT.with(Color::DarkGrey)
-        );
-
-        // Line 3: optional update / security info
-        let mut line3_used = false;
-        if version_info.contains("available") {
-            eprintln!(
-                "{PAD}{} {}{}",
-                PIPE.with(Color::DarkGrey),
-                m[3].with(Color::Cyan),
-                "Run /update or aictl --update to upgrade".with(Color::Yellow),
-            );
-            line3_used = true;
-        }
+        // Line 2: security info
+        let mut next = 2;
         if crate::security::policy().enabled {
-            let mi = if line3_used { 4 } else { 3 };
             let pol = crate::security::policy();
             let cwd_jail = if pol.paths.restrict_to_cwd {
                 "on"
@@ -294,18 +276,37 @@ impl InteractiveUI {
             eprintln!(
                 "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
-                m[mi].with(Color::Cyan),
+                m[next].with(Color::Cyan),
                 format!(
                     "cwd jail: {cwd_jail} · subshell: {subshell} · timeout: {timeout} · disabled tools: {disabled}"
                 ).with(Color::DarkGrey),
             );
         } else {
-            let mi = if line3_used { 4 } else { 3 };
             eprintln!(
                 "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
-                m[mi].with(Color::Cyan),
+                m[next].with(Color::Cyan),
                 "security restrictions disabled (--unrestricted)".with(Color::Red),
+            );
+        }
+        next += 1;
+
+        // Welcome text
+        eprintln!(
+            "{PAD}{} {}{}",
+            PIPE.with(Color::DarkGrey),
+            m[next].with(Color::Cyan),
+            WELCOME_TEXT.with(Color::DarkGrey)
+        );
+        next += 1;
+
+        // Optional update hint
+        if version_info.contains("available") {
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                m[next].with(Color::Cyan),
+                "Run /update or aictl --update to upgrade".with(Color::Yellow),
             );
         }
         eprintln!(
