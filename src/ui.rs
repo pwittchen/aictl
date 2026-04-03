@@ -239,13 +239,17 @@ impl InteractiveUI {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
+        let tools_count = crate::tools::TOOL_COUNT
+            - crate::security::policy().disabled_tools.len();
         eprintln!(
-            "{PAD}{} {}{} {} {} {} {}",
+            "{PAD}{} {}{} {} {} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
             m[1].with(Color::Cyan),
             provider.with(Color::Green),
             "·".with(Color::DarkGrey),
             model.with(Color::Yellow),
+            "·".with(Color::DarkGrey),
+            format!("{tools_count} tools").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
             cwd.as_str().with(Color::DarkGrey),
         );

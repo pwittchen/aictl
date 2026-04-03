@@ -9,6 +9,8 @@ pub struct ToolCall {
     pub input: String,
 }
 
+pub const TOOL_COUNT: usize = 14;
+
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
     let start_idx = response.find(start_prefix)?;
