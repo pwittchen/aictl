@@ -212,12 +212,18 @@ impl InteractiveUI {
                 "— AI agent in your terminal".with(Color::DarkGrey),
             );
         }
+        let cwd = std::env::current_dir()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default();
         eprintln!(
-            "{PAD}{} {} {} {}",
+            "{PAD}{} {} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
             provider.with(Color::Green),
             "·".with(Color::DarkGrey),
             model.with(Color::Yellow),
+            "·".with(Color::DarkGrey),
+            cwd.as_str().with(Color::DarkGrey),
         );
         eprintln!(
             "{PAD}{} {}",
