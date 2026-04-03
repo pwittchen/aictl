@@ -86,9 +86,11 @@ Configuration is loaded from `~/.aictl`. This is a single global config file —
 
 #### Basic configuration
 
-Firecrawl API key is optional and needed only if you want to use `search_web` tool.
+`FIRECRAWL_API_KEY` is optional and is needed only if you want to use `search_web` tool.
 
 Not all API keys are required. You need to provide only those, for which you set `AICTL_PROVIDER` and `AICTL_MODEL`.
+
+If you want to use multiple LLM providers, then you need to provide appropriate keys.
 
 | Key | Description |
 |-----|-------------|
