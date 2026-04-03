@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [ui] add minimal ascii mascot
 - [ci] in realse notes skipp trivial stuff like update ISSUES.md etc.
 - [config] add `LLM_` prefix before each LLM API key in the config
 - [func] [config] research & implement more secure way of storing api keys instead of the plain text - consider using keyring, and use env in plain text as a fallback - add some note in the welcome banner and info that keys are secure or not
