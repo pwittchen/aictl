@@ -10,7 +10,7 @@ use crate::{Message, Provider, Role};
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "clear", "compact", "context", "copy", "exit", "help", "info", "mode", "model", "security",
+    "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "model", "security",
     "tools", "update",
 ];
 
@@ -57,7 +57,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             CommandResult::Security
         }
         "model" => CommandResult::Model,
-        "mode" => CommandResult::Mode,
+        "behavior" => CommandResult::Mode,
         "update" => CommandResult::Update,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
@@ -240,8 +240,8 @@ fn print_help() {
     println!("  {}     Show this help message", "/help".with(Color::Cyan));
     println!("  {}     Show setup info", "/info".with(Color::Cyan));
     println!(
-        "  {}     Switch auto/human-in-the-loop mode",
-        "/mode".with(Color::Cyan)
+        "  {} Switch auto/human-in-the-loop mode",
+        "/behavior".with(Color::Cyan)
     );
     println!(
         "  {}    Switch model and provider",
@@ -312,9 +312,9 @@ mod tests {
     }
 
     #[test]
-    fn cmd_mode() {
+    fn cmd_behavior() {
         assert!(matches!(
-            handle("/mode", "", &noop_error),
+            handle("/behavior", "", &noop_error),
             CommandResult::Mode
         ));
     }

@@ -525,9 +525,9 @@ async fn handle_repl_input(
             let _ = rl.add_history_entry(input);
             if let Some(new_auto) = commands::select_mode(*auto) {
                 *auto = new_auto;
-                let mode_name = if *auto { "auto" } else { "human-in-the-loop" };
+                let behavior = if *auto { "auto" } else { "human-in-the-loop" };
                 println!();
-                println!("  {} switched to {mode_name} mode", "✓".with(Color::Green));
+                println!("  {} switched to {behavior} behavior", "✓".with(Color::Green));
                 println!();
             }
             return ReplAction::Continue;

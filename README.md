@@ -57,7 +57,7 @@ The interactive REPL supports slash commands:
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, mode, version, OS, binary size) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
-| `/mode` | Switch between auto and human-in-the-loop mode during the session |
+| `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
 | `/update` | Update to the latest version |
