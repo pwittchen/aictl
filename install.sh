@@ -23,7 +23,7 @@ banner() {
 
 EOF
   printf "${RESET}"
-  printf "  ${DIM}AI-powered CLI assistant${RESET}\n"
+  printf "  ${DIM}AI agent in your terminal${RESET}\n"
   printf "  ${DIM}github.com/pwittchen/aictl${RESET}\n\n"
 }
 
