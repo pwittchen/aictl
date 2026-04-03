@@ -225,35 +225,35 @@ pub fn print_context(
 fn print_help() {
     println!();
     println!(
-        "  {}    Clear conversation context",
+        "  {}    clear conversation context",
         "/clear".with(Color::Cyan)
     );
     println!(
-        "  {}  Compact context into a summary",
+        "  {}  compact context into a summary",
         "/compact".with(Color::Cyan)
     );
-    println!("  {}  Show context usage", "/context".with(Color::Cyan));
+    println!("  {}  show context usage", "/context".with(Color::Cyan));
     println!(
-        "  {}     Copy last response to clipboard",
+        "  {}     copy last response to clipboard",
         "/copy".with(Color::Cyan)
     );
-    println!("  {}     Show this help message", "/help".with(Color::Cyan));
-    println!("  {}     Show setup info", "/info".with(Color::Cyan));
+    println!("  {}     show this help message", "/help".with(Color::Cyan));
+    println!("  {}     show setup info", "/info".with(Color::Cyan));
     println!(
-        "  {} Switch auto/human-in-the-loop behavior",
+        "  {} switch auto/human-in-the-loop behavior",
         "/behavior".with(Color::Cyan)
     );
     println!(
-        "  {}    Switch model and provider",
+        "  {}    switch model and provider",
         "/model".with(Color::Cyan)
     );
-    println!("  {} Show security policy", "/security".with(Color::Cyan));
-    println!("  {}    Show available tools", "/tools".with(Color::Cyan));
+    println!("  {} show security policy", "/security".with(Color::Cyan));
+    println!("  {}    show available tools", "/tools".with(Color::Cyan));
     println!(
-        "  {}   Update to the latest version",
+        "  {}   update to the latest version",
         "/update".with(Color::Cyan)
     );
-    println!("  {}     Exit the REPL", "/exit".with(Color::Cyan));
+    println!("  {}     exit the REPL", "/exit".with(Color::Cyan));
     println!();
 }
 
@@ -376,20 +376,20 @@ fn print_security() {
 
 fn print_tools() {
     let tools: &[(&str, &str)] = &[
-        ("exec_shell", "Execute a shell command via sh -c"),
-        ("read_file", "Read the contents of a file"),
-        ("write_file", "Write content to a file"),
-        ("edit_file", "Edit a file with find-and-replace"),
-        ("list_directory", "List files and directories at a path"),
-        ("search_files", "Search file contents by pattern"),
-        ("find_files", "Find files matching a glob pattern"),
-        ("search_web", "Search the web via Firecrawl API"),
-        ("fetch_url", "Fetch a URL and return text content"),
-        ("extract_website", "Extract readable content from a URL"),
-        ("fetch_datetime", "Get current date, time, and timezone"),
+        ("exec_shell", "execute a shell command via sh -c"),
+        ("read_file", "read the contents of a file"),
+        ("write_file", "write content to a file"),
+        ("edit_file", "edit a file with find-and-replace"),
+        ("list_directory", "list files and directories at a path"),
+        ("search_files", "search file contents by pattern"),
+        ("find_files", "find files matching a glob pattern"),
+        ("search_web", "search the web via Firecrawl API"),
+        ("fetch_url", "fetch a URL and return text content"),
+        ("extract_website", "extract readable content from a URL"),
+        ("fetch_datetime", "get current date, time, and timezone"),
         (
             "fetch_geolocation",
-            "Get geolocation data for an IP address",
+            "get geolocation data for an IP address",
         ),
     ];
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
@@ -574,9 +574,9 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
 const MODES: &[(&str, &str)] = &[
     (
         "human-in-the-loop",
-        "Ask confirmation before each tool call",
+        "ask confirmation before each tool call",
     ),
-    ("auto", "Run tools without confirmation"),
+    ("auto", "run tools without confirmation"),
 ];
 
 fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
