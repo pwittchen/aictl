@@ -1,6 +1,14 @@
 # ~/.aictl — aictl configuration file
 # Copy this file to ~/.aictl and uncomment/fill in the values.
 
+
+################################
+#                              #
+#         BASIC CONFIG         #
+#                              #
+################################
+
+
 # Default provider and model (used when --provider / --model are not passed)
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
@@ -11,6 +19,14 @@
 
 # Web search (optional, used by web_search tool)
 # FIRECRAWL_API_KEY=fc-...
+
+
+################################
+#                              #
+#  SECURITY CONFIG (OPTIONAL)  #
+#                              #
+################################
+
 
 # Security settings (all optional, sensible defaults apply)
 # Master switch (default: true)
