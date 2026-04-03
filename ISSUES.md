@@ -18,5 +18,6 @@ features/ideas/bugs:
 - [tool] [func] add xslx processing capability with calamine
 - [optimization] implement prompt caching
 - [optimization] implement selective history with last messages window and optional compact - allow user to choose thinking/reasoning mode: smart/fast or memory: long/short
+- [bug] sometimes it can happen, that LLM generate tool output to be executer - especially shell command, but agent is not executing it and just prints it. It may be related to some errors like inexistent command or something like this - update agent-loop, so it will never print tool output as a final result, but try different approach to achieve the result
 - [marketing] create project website
 - [func] add displaying issues/roadmap (this file)
