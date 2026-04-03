@@ -434,7 +434,11 @@ enum ReplAction {
 }
 
 /// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools, clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_lines
+)]
 async fn handle_repl_input(
     input: &str,
     last_answer: &mut String,
