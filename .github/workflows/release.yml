@@ -46,9 +46,9 @@ jobs:
         run: |
           previous_tag=$(git tag --list 'v*' --sort=-v:refname | sed -n '2p')
           if [ -n "$previous_tag" ]; then
-            log=$(git log --pretty=format:'- %s (%h)' "$previous_tag".."$GITHUB_REF_NAME" -- | grep -v 'Bump version to')
+            log=$(git log --pretty=format:'- %s (%h)' "$previous_tag".."$GITHUB_REF_NAME" -- | grep -viE '^- (Bump version to|[Uu]pdate (ISSUES|README|CLAUDE|CHANGELOG)\.md)')
           else
-            log=$(git log --pretty=format:'- %s (%h)' "$GITHUB_REF_NAME" -- | grep -v 'Bump version to')
+            log=$(git log --pretty=format:'- %s (%h)' "$GITHUB_REF_NAME" -- | grep -viE '^- (Bump version to|[Uu]pdate (ISSUES|README|CLAUDE|CHANGELOG)\.md)')
           fi
           {
             echo 'body<<EOF'
