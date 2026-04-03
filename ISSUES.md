@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [infra] make install script more fancy - maybe add some ascii art and colors, also add confirmation before installing rust and the app itself
 - [repl] replace `/mode` command with something else - it's too similar to `/model` - we can use e.g. `/behavior`
 - [ui] show working dir in the welcome banner
 - [ui] add minimal ascii mascot
