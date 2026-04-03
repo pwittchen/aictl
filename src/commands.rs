@@ -240,7 +240,7 @@ fn print_help() {
     println!("  {}     Show this help message", "/help".with(Color::Cyan));
     println!("  {}     Show setup info", "/info".with(Color::Cyan));
     println!(
-        "  {} Switch auto/human-in-the-loop mode",
+        "  {} Switch auto/human-in-the-loop behavior",
         "/behavior".with(Color::Cyan)
     );
     println!(
