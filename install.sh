@@ -74,7 +74,8 @@ if confirm "Install aictl?"; then
   info "This may take a minute on first install.\n"
   cargo install --git https://github.com/pwittchen/aictl.git
   echo ""
-  printf "${GREEN}>>>${RESET} ${BOLD}Installation complete!${RESET}\n\n"
+  AICTL_VERSION=$(aictl --version 2>/dev/null || echo "unknown")
+  printf "${GREEN}>>>${RESET} ${BOLD}Installation complete!${RESET} ${DIM}(${AICTL_VERSION})${RESET}\n\n"
   printf "  Run ${CYAN}aictl${RESET} to get started.\n"
   printf "  Run ${CYAN}aictl --help${RESET} for usage info.\n\n"
 else
