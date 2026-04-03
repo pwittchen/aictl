@@ -21,6 +21,7 @@ features/ideas/bug-fixes to be added in the future:
 - [llm] add DeepSeek support
 - [llm] add Ollama support
 - [llm] add native models support from disk (e.g. with ONNX or other format like that)
+- [tool] add `create_dir` tool
 - [tool] [func] add image processing capability
 - [tool] [func] add document processing capability (pdf/docx)
 - [tool] [func] add xslx processing capability with calamine
