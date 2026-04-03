@@ -1,10 +1,10 @@
-# aictl 🤖 
+# aictl 🤖
 
 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPS](https://github.com/pwittchen/aictl/actions/workflows/deps.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deps.yml)
 
-general purpose AI agent for terminal
+AI agent in your terminal
 
 ![aictl screenshot](screenshot.png)
 
