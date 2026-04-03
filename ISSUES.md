@@ -16,6 +16,7 @@ features/ideas/bug-fixes to be added in the future:
 - [llm] add native models support from disk (e.g. with ONNX or other format like that)
 - [tool] [func] add image processing capability
 - [tool] [func] add document processing capability (pdf/docx)
+- [tool] [func] add xslx processing capability with calamine
 - [optimization] implement prompt caching
 - [optimization] implement selective history with last messages window and optional compact - allow user to choose thinking/reasoning mode: smart/fast or memory: long/short
 - [marketing] create project website
