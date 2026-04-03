@@ -37,6 +37,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "read_file" => tool_read_file(input).await,
         "write_file" => tool_write_file(input).await,
         "remove_file" => tool_remove_file(input).await,
+        "create_directory" => tool_create_directory(input).await,
         "list_directory" => tool_list_directory(input).await,
         "search_files" => tool_search_files(input).await,
         "edit_file" => tool_edit_file(input).await,
@@ -138,6 +139,14 @@ async fn tool_remove_file(input: &str) -> String {
     match tokio::fs::remove_file(path).await {
         Ok(()) => format!("Removed {path}"),
         Err(e) => format!("Error removing file: {e}"),
+    }
+}
+
+async fn tool_create_directory(input: &str) -> String {
+    let path = input.trim();
+    match tokio::fs::create_dir_all(path).await {
+        Ok(()) => format!("Created directory {path}"),
+        Err(e) => format!("Error creating directory: {e}"),
     }
 }
 
@@ -695,6 +704,21 @@ mod tests {
         })
         .await;
         assert!(result.starts_with("Error removing file:"));
+    }
+
+    #[tokio::test]
+    async fn exec_create_directory() {
+        let dir = tmp_dir("create_dir");
+        let new_dir = dir.join("a/b/c");
+        assert!(!new_dir.exists());
+        let result = execute_tool(&ToolCall {
+            name: "create_directory".into(),
+            input: new_dir.to_string_lossy().into(),
+        })
+        .await;
+        assert!(result.starts_with("Created directory"));
+        assert!(new_dir.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

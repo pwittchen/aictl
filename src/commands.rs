@@ -380,6 +380,7 @@ fn print_tools() {
         ("read_file", "read the contents of a file"),
         ("write_file", "write content to a file"),
         ("edit_file", "edit a file with find-and-replace"),
+        ("create_directory", "create a directory and any missing parents"),
         ("list_directory", "list files and directories at a path"),
         ("search_files", "search file contents by pattern"),
         ("find_files", "find files matching a glob pattern"),

@@ -55,6 +55,7 @@ Available tools:
 - read_file: Read the contents of a file. Pass the file path as the input.
 - write_file: Write content to a file. First line is the file path, remaining lines are the content.
 - remove_file: Remove (delete) a file. Pass the file path as the input. Only removes regular files, not directories.
+- create_directory: Create a directory (and any missing parent directories). Pass the directory path as input.
 - list_directory: List files and directories at a path. Pass the directory path as input. Returns entries with [FILE] or [DIR] prefixes.
 - search_files: Search file contents with a pattern. First line is the search pattern (grep basic regex), second line (optional) is the directory to search in (defaults to `.`). Returns matching lines with file paths and line numbers.
 - search_web: Search the web for information. Pass a search query as input. Returns titles, URLs, and descriptions of matching results.
