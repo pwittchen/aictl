@@ -100,7 +100,7 @@ struct Cli {
     quiet: bool,
 
     /// Disable security restrictions (use with caution)
-    #[arg(long)]
+    #[arg(long, short = 'U')]
     unrestricted: bool,
 }
 

@@ -76,7 +76,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
-| `--unrestricted` | | Disable all security restrictions (use with caution) |
+| `--unrestricted` | `-U` | Disable all security restrictions (use with caution) |
 
 CLI flags take priority over config file values.
 
