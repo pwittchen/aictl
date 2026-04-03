@@ -176,6 +176,7 @@ Available tools:
 | `read_file` | Read the contents of a file |
 | `write_file` | Write content to a file (first line = path, rest = content) |
 | `remove_file` | Remove (delete) a file (regular files only, not directories) |
+| `create_directory` | Create a directory and any missing parent directories |
 | `list_directory` | List files and directories at a path with `[FILE]`/`[DIR]`/`[LINK]` prefixes |
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
@@ -201,7 +202,7 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 All tool calls pass through a configurable security policy (`src/security.rs`) before execution. By default:
 
 - **Shell command blocking**: dangerous commands are blocked (`rm`, `sudo`, `dd`, `mkfs`, `nc`, etc.). Command substitution (`$(...)`, backticks) is blocked. Compound commands (`|`, `&&`, `||`, `;`) are split and each segment is validated independently.
-- **CWD jail**: file tools (`read_file`, `write_file`, `edit_file`, `list_directory`, `search_files`, `find_files`) can only operate within the working directory. Path traversal via `..` is defeated by canonicalization.
+- **CWD jail**: file tools (`read_file`, `write_file`, `remove_file`, `edit_file`, `create_directory`, `list_directory`, `search_files`, `find_files`) can only operate within the working directory. Path traversal via `..` is defeated by canonicalization.
 - **Blocked paths**: sensitive paths are always blocked (`~/.ssh`, `~/.gnupg`, `~/.aictl`, `~/.aws`, `~/.config/gcloud`, `/etc/shadow`, `/etc/sudoers`).
 - **Environment scrubbing**: shell subprocesses receive a clean environment — vars matching `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD` are stripped so API keys cannot leak.
 - **Shell timeout**: commands are killed after 30 seconds (configurable).

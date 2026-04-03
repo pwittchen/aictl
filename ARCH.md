@@ -5,7 +5,7 @@
 ```
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs         REPL slash commands (/clear, /compact, /context, /copy, /exit, /help, /info, /mode, /model, /security, /tools, /update)
+ ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /model, /security, /tools, /update)
  ├── config.rs           Config file loading (~/.aictl), constants (system prompt, spinner phrases, agent loop limits)
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
@@ -26,7 +26,7 @@ src/
  │  2b. security::init()        load SecurityPolicy into OnceLock   │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error│
  │  4. resolve model            flag > AICTL_MODEL config > error   │
- │  5. resolve api_key          OPENAI_API_KEY or ANTHROPIC_API_KEY │
+ │  5. resolve api_key          LLM_OPENAI_API_KEY or LLM_ANTHROPIC_API_KEY│
  │  6. dispatch:                                                    │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)   │
@@ -95,6 +95,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ read_file           │ tokio::fs::read_to_string │      │
  │  │ write_file          │ tokio::fs::write          │      │
  │  │ remove_file         │ tokio::fs::remove_file    │      │
+ │  │ create_directory    │ tokio::fs::create_dir_all │      │
  │  │ edit_file           │ read + replacen + write   │      │
  │  │ list_directory      │ tokio::fs::read_dir       │      │
  │  │ search_files        │ glob + string match       │      │
@@ -188,7 +189,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /context (Context), /info (Info), /security (Security), /mode (Mode), /model (Model), /tools (Continue), /update (Update)
+ Also: /behavior (Mode), /context (Context), /info (Info), /security (Security), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop

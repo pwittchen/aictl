@@ -41,6 +41,7 @@ Single-binary async Rust CLI with eight modules:
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)
 - `remove_file` — removes a file via `tokio::fs::remove_file` (regular files only)
+- `create_directory` — creates a directory (and parents) via `tokio::fs::create_dir_all`
 - `list_directory` — lists directory entries with type prefixes
 - `search_files` — content search via glob traversal and string matching
 - `edit_file` — targeted find-and-replace (requires unique match)
