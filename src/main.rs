@@ -434,7 +434,7 @@ enum ReplAction {
 }
 
 /// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools, clippy::too_many_lines)]
 async fn handle_repl_input(
     input: &str,
     last_answer: &mut String,
@@ -527,7 +527,10 @@ async fn handle_repl_input(
                 *auto = new_auto;
                 let behavior = if *auto { "auto" } else { "human-in-the-loop" };
                 println!();
-                println!("  {} switched to {behavior} behavior", "✓".with(Color::Green));
+                println!(
+                    "  {} switched to {behavior} behavior",
+                    "✓".with(Color::Green)
+                );
                 println!();
             }
             return ReplAction::Continue;
@@ -770,8 +773,8 @@ async fn main() {
     });
 
     let key_name = match provider {
-        Provider::Openai => "OPENAI_API_KEY",
-        Provider::Anthropic => "ANTHROPIC_API_KEY",
+        Provider::Openai => "LLM_OPENAI_API_KEY",
+        Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
     };
 
     let api_key = config_get(key_name).unwrap_or_else(|| {

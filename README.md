@@ -96,8 +96,8 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 |-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai` or `anthropic`) |
 | `AICTL_MODEL` | Default model name |
-| `OPENAI_API_KEY` | API key for OpenAI |
-| `ANTHROPIC_API_KEY` | API key for Anthropic |
+| `LLM_OPENAI_API_KEY` | API key for OpenAI |
+| `LLM_ANTHROPIC_API_KEY` | API key for Anthropic |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
 #### Security configuration (optional)
@@ -121,7 +121,7 @@ Create `~/.aictl` (see `.aictl.example`):
 ```
 AICTL_PROVIDER=anthropic
 AICTL_MODEL=claude-sonnet-4-20250514
-ANTHROPIC_API_KEY=sk-ant-...
+LLM_ANTHROPIC_API_KEY=sk-ant-...
 FIRECRAWL_API_KEY=fc-...
 ```
 
@@ -133,7 +133,7 @@ aictl supports two LLM providers:
 
 #### OpenAI
 
-Requires `OPENAI_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
 
 | Model | Input | Output |
 |-------|-------|--------|
@@ -150,7 +150,7 @@ Requires `OPENAI_API_KEY`. Supported models with cost estimates (input/output pe
 
 #### Anthropic
 
-Requires `ANTHROPIC_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
 
 | Model | Input | Output |
 |-------|-------|--------|
