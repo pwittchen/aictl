@@ -2,6 +2,7 @@
 
 features/ideas/bug-fixes to be added in the future:
 
+- [repl] replace `/mode` command with something else - it's too similar to `/model` - we can use e.g. `/behavior`
 - [ui] add minimal ascii mascot
 - [ci] in realse notes skipp trivial stuff like update ISSUES.md etc.
 - [config] add `LLM_` prefix before each LLM API key in the config
