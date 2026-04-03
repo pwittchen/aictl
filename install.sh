@@ -29,7 +29,7 @@ EOF
 
 confirm() {
   printf "${YELLOW}$1${RESET} [y/N] "
-  read -r reply
+  read -r reply </dev/tty
   case "$reply" in
     [Yy]|[Yy][Ee][Ss]) return 0 ;;
     *) return 1 ;;
