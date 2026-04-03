@@ -182,7 +182,24 @@ impl InteractiveUI {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn print_welcome(provider: &str, model: &str, version_info: &str) {
+        const BLANK: &str = "      ";
+        const MASCOTS: [[&str; 2]; 6] = [
+            ["[o_o] ", " |_|  "],
+            ["[^_^] ", " |_|  "],
+            ["[>_<] ", " |_|  "],
+            ["[-_-] ", " |_|  "],
+            ["[o_O] ", " |_|  "],
+            ["[._.) ", " |_|  "],
+        ];
+        let pick = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as usize)
+            % MASCOTS.len();
+        let face = MASCOTS[pick];
+        let m = [face[0], face[1], BLANK, BLANK, BLANK];
+
         let dashes = "─".repeat(rule_width());
         eprintln!(
             "{PAD}{}{}",
@@ -194,59 +211,77 @@ impl InteractiveUI {
         } else {
             Color::Yellow
         };
+
+        // Line 0: title
         if version_info.is_empty() {
             eprintln!(
-                "{PAD}{} {} {} {}",
+                "{PAD}{} {}{} {} {}",
                 PIPE.with(Color::DarkGrey),
+                m[0].with(Color::Cyan),
                 "aictl".with(Color::Cyan).attribute(Attribute::Bold),
                 crate::VERSION.with(Color::DarkGrey),
                 "— AI agent in your terminal".with(Color::DarkGrey),
             );
         } else {
             eprintln!(
-                "{PAD}{} {} {} {} {}",
+                "{PAD}{} {}{} {} {} {}",
                 PIPE.with(Color::DarkGrey),
+                m[0].with(Color::Cyan),
                 "aictl".with(Color::Cyan).attribute(Attribute::Bold),
                 crate::VERSION.with(Color::DarkGrey),
                 version_info.with(version_color),
                 "— AI agent in your terminal".with(Color::DarkGrey),
             );
         }
+
+        // Line 1: provider · model · cwd
         let cwd = std::env::current_dir()
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
         eprintln!(
-            "{PAD}{} {} {} {} {} {}",
+            "{PAD}{} {}{} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
+            m[1].with(Color::Cyan),
             provider.with(Color::Green),
             "·".with(Color::DarkGrey),
             model.with(Color::Yellow),
             "·".with(Color::DarkGrey),
             cwd.as_str().with(Color::DarkGrey),
         );
+
+        // Line 2: welcome text
         eprintln!(
-            "{PAD}{} {}",
+            "{PAD}{} {}{}",
             PIPE.with(Color::DarkGrey),
+            m[2].with(Color::Cyan),
             WELCOME_TEXT.with(Color::DarkGrey)
         );
+
+        // Line 3: optional update / security info
+        let mut line3_used = false;
         if version_info.contains("available") {
             eprintln!(
-                "{PAD}{} {}",
+                "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
+                m[3].with(Color::Cyan),
                 "Run /update or aictl --update to upgrade".with(Color::Yellow),
             );
+            line3_used = true;
         }
-        if !crate::security::policy().enabled {
-            eprintln!(
-                "{PAD}{} {}",
-                PIPE.with(Color::DarkGrey),
-                "security restrictions disabled (--unrestricted)".with(Color::Red),
-            );
-        } else {
+        if crate::security::policy().enabled {
+            let mi = if line3_used { 4 } else { 3 };
             let pol = crate::security::policy();
-            let cwd_jail = if pol.paths.restrict_to_cwd { "on" } else { "off" };
-            let subshell = if pol.shell.block_subshell { "blocked" } else { "allowed" };
+            let cwd_jail = if pol.paths.restrict_to_cwd {
+                "on"
+            } else {
+                "off"
+            };
+            let subshell = if pol.shell.block_subshell {
+                "blocked"
+            } else {
+                "allowed"
+            };
             let timeout = if pol.resources.shell_timeout_secs == 0 {
                 "none".to_string()
             } else {
@@ -254,11 +289,20 @@ impl InteractiveUI {
             };
             let disabled = pol.disabled_tools.len().to_string();
             eprintln!(
-                "{PAD}{} {}",
+                "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
+                m[mi].with(Color::Cyan),
                 format!(
                     "cwd jail: {cwd_jail} · subshell: {subshell} · timeout: {timeout} · disabled tools: {disabled}"
                 ).with(Color::DarkGrey),
+            );
+        } else {
+            let mi = if line3_used { 4 } else { 3 };
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                m[mi].with(Color::Cyan),
+                "security restrictions disabled (--unrestricted)".with(Color::Red),
             );
         }
         eprintln!(
