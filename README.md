@@ -84,6 +84,12 @@ CLI flags take priority over config file values.
 
 Configuration is loaded from `~/.aictl`. This is a single global config file — the program works the same regardless of the current working directory.
 
+#### Basic configuration
+
+Firecrawl API key is optional and needed only if you want to use `search_web` tool.
+
+Not all API keys are required. You need to provide only those, for which you set `AICTL_PROVIDER` and `AICTL_MODEL`.
+
 | Key | Description |
 |-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai` or `anthropic`) |
@@ -91,6 +97,11 @@ Configuration is loaded from `~/.aictl`. This is a single global config file —
 | `OPENAI_API_KEY` | API key for OpenAI |
 | `ANTHROPIC_API_KEY` | API key for Anthropic |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
+
+#### Security configuration (optional)
+
+| Key | Description |
+|-----|-------------|
 | `AICTL_SECURITY` | Master security switch (default: `true`) |
 | `AICTL_SECURITY_CWD_RESTRICT` | Restrict file tools to working directory (default: `true`) |
 | `AICTL_SECURITY_SHELL_ALLOWED` | Comma-separated whitelist of allowed shell commands (empty = all except blocked) |
