@@ -189,7 +189,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /behavior (Mode), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /model (Model), /tools (Continue), /update (Update)
+ Also: /behavior (Behavior), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -201,7 +201,7 @@ Both single-shot and REPL modes share the same loop:
    Issues      → fetch and display known issues, continue
    Update      → run update, restart if updated, continue
    Model       → select new model/provider, persist to ~/.aictl, continue
-   Mode        → switch auto/human-in-the-loop mode, continue
+   Behavior    → switch auto/human-in-the-loop behavior, continue
    Thinking    → switch thinking mode (smart/fast), persist to ~/.aictl, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
