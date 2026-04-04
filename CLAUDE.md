@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cargo build              # debug build
 cargo build --release    # release build
 cargo run -- <args>      # run with arguments
-cargo clippy             # lint
+cargo lint               # lint (clippy pedantic, alias in .cargo/config.toml)
 cargo fmt                # format
 cargo test               # run tests
 ```
