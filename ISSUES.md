@@ -16,6 +16,8 @@
 
 - **Update config file path** `[config]` — Move the config file from `~/.aictl` to `~/.aictl/config`. A dedicated project directory opens up more possibilities for structured storage (sessions, agent profiles, etc.).
 
+- **Configure Agent Loop steps number** `[config]` -  make Agent Loop steps configurable and fall back to default value when it's not configured. Also add validation for reasonable steps limit, so it cannot be too high.
+
 ## LLM Providers
 
 - **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
