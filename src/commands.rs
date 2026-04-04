@@ -630,7 +630,7 @@ pub fn select_mode(current_auto: bool) -> Option<bool> {
 
 pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     let version = crate::VERSION;
-    let mode = if auto { "auto" } else { "human-in-the-loop" };
+    let behavior = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let binary_size = std::env::current_exe()
@@ -664,7 +664,7 @@ pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     println!("  {} {version_display}", "version: ".with(Color::Cyan));
     println!("  {} {provider}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
-    println!("  {} {mode}", "mode:    ".with(Color::Cyan));
+    println!("  {} {behavior}", "behavior:".with(Color::Cyan));
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
     println!();
