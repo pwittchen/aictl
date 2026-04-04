@@ -40,4 +40,3 @@
 ## Other
 
 - **Project website** `[marketing]` — Create a public-facing project website.
-- **Display issues and roadmap in-app** `[func]` — Add a command to display the contents of this file within the application.

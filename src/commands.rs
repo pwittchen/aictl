@@ -10,8 +10,8 @@ use crate::{Message, Provider, Role};
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "model", "security",
-    "tools", "update",
+    "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "issues", "model",
+    "security", "tools", "update",
 ];
 
 /// Result of handling a slash command.
@@ -34,6 +34,8 @@ pub enum CommandResult {
     Mode,
     /// Update to the latest version.
     Update,
+    /// Fetch and display known issues.
+    Issues,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -59,6 +61,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "model" => CommandResult::Model,
         "behavior" => CommandResult::Mode,
         "update" => CommandResult::Update,
+        "issues" => CommandResult::Issues,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -239,6 +242,7 @@ fn print_help() {
     );
     println!("  {}     show this help message", "/help".with(Color::Cyan));
     println!("  {}     show setup info", "/info".with(Color::Cyan));
+    println!("  {}   show known issues", "/issues".with(Color::Cyan));
     println!(
         "  {} switch auto/human-in-the-loop behavior",
         "/behavior".with(Color::Cyan)
@@ -300,6 +304,14 @@ mod tests {
         assert!(matches!(
             handle("/info", "", &noop_error),
             CommandResult::Info
+        ));
+    }
+
+    #[test]
+    fn cmd_issues() {
+        assert!(matches!(
+            handle("/issues", "", &noop_error),
+            CommandResult::Issues
         ));
     }
 
@@ -667,6 +679,46 @@ pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     println!("  {} {behavior}", "behavior:".with(Color::Cyan));
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
+    println!();
+}
+
+const ISSUES_URL: &str =
+    "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/ISSUES.md";
+
+/// Fetch and display known issues from the remote ISSUES.md.
+pub async fn run_issues(show_error: &dyn Fn(&str)) {
+    println!();
+    println!("  {} fetching issues...", "↓".with(Color::Cyan));
+
+    let client = crate::config::http_client();
+    let result = client
+        .get(ISSUES_URL)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .ok();
+
+    let Some(response) = result else {
+        show_error("Could not fetch ISSUES.md. Please try again later.");
+        return;
+    };
+
+    let Ok(body) = response.text().await else {
+        show_error("Could not read ISSUES.md response body.");
+        return;
+    };
+
+    let skin = termimad::MadSkin::default();
+    let width = crossterm::terminal::size().map_or(80, |(w, _)| w as usize).min(100);
+    let rendered = format!(
+        "{}",
+        termimad::FmtText::from_text(&skin, body.as_str().into(), Some(width))
+    );
+    println!();
+    for line in rendered.lines() {
+        println!("  {line}");
+    }
     println!();
 }
 

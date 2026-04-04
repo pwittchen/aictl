@@ -494,6 +494,11 @@ async fn handle_repl_input(
             let _ = rl.add_history_entry(input);
             return ReplAction::Continue;
         }
+        commands::CommandResult::Issues => {
+            let _ = rl.add_history_entry(input);
+            commands::run_issues(&|msg| ui.show_error(msg)).await;
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Update => {
             let _ = rl.add_history_entry(input);
             if commands::run_update(&|msg| ui.show_error(msg)).await {
