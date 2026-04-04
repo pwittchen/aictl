@@ -250,7 +250,7 @@ impl InteractiveUI {
             "·".with(Color::DarkGrey),
             format!("{tools_count} tools").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
-            cwd.as_str().with(Color::DarkGrey),
+            format!("dir: {cwd}/").as_str().with(Color::DarkGrey),
         );
 
         // Line 2: security info
