@@ -18,19 +18,19 @@ src/
 ## Startup Flow
 
 ```
- ┌──────────────────────────────────────────────────────────────────┐
- │  main()                                                          │
- │                                                                  │
- │  1. load_config()            read ~/.aictl into OnceLock HashMap  │
- │  2. Cli::parse()             parse --provider, --model, -m, ...  │
- │  2b. security::init()        load SecurityPolicy into OnceLock   │
- │  3. resolve provider         flag > AICTL_PROVIDER config > error│
- │  4. resolve model            flag > AICTL_MODEL config > error   │
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │  main()                                                                  │
+ │                                                                          │
+ │  1. load_config()            read ~/.aictl into OnceLock HashMap         │
+ │  2. Cli::parse()             parse --provider, --model, -m, ...          │
+ │  2b. security::init()        load SecurityPolicy into OnceLock           │
+ │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
+ │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_OPENAI_API_KEY or LLM_ANTHROPIC_API_KEY│
- │  6. dispatch:                                                    │
- │     ├─ -m given ──> run_agent_single()  (PlainUI)                │
- │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)   │
- └──────────────────────────────────────────────────────────────────┘
+ │  6. dispatch:                                                            │
+ │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
+ │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
+ └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Agent Loop (`run_agent_turn`)
