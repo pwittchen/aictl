@@ -17,7 +17,8 @@ src/
  ├── llm_grok.rs         xAI Grok chat completions client
  ├── llm_mistral.rs      Mistral chat completions client
  ├── llm_deepseek.rs     DeepSeek chat completions client
- └── llm_zai.rs          Z.ai chat completions client
+ ├── llm_zai.rs          Z.ai chat completions client
+ └── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
 ```
 
 ## Startup Flow
@@ -33,6 +34,7 @@ src/
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
  │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY               │
+ │                              (Ollama: no key needed)                     │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
@@ -61,6 +63,7 @@ Both single-shot and REPL modes share the same loop:
  │  │                  │  mistral::call_mistral()          │
  │  │                  │  deepseek::call_deepseek()        │
  │  │                  │  zai::call_zai()                  │
+ │  │                  │  ollama::call_ollama()            │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -131,25 +134,25 @@ Both single-shot and REPL modes share the same loop:
                              │  &[Message]  │
                              └──────┬───────┘
                                     │
-               ┌────────────┬───────┼───────┬────────────┬────────────┬────────────┬────────────┐
-               ▼            ▼       │       ▼            ▼            ▼            ▼            ▼
- ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
- │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │ │ call_deepseek()  │ │  call_zai()      │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │
- │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │
- │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │
- │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │
- │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │ │ POST /chat/      │ │ POST /api/paas/  │
- │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │ │ completions      │ │ v4/chat/         │
- │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │ │ (deepseek.com)   │ │ completions      │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │ (z.ai)           │
- └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
-          │                    │                     │                    │                    │                    │                    │
-          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┘
-                               ▼                     │                    │                    │                    │
-                    ┌──────────────────┐             │                    │                    │                    │
-                    │ (String,         │ <───────────┴────────────────────┴────────────────────┴────────────────────┘
+               ┌────────────┬───────┼───────┬────────────┬────────────┬────────────┬────────────┬────────────┐
+               ▼            ▼       │       ▼            ▼            ▼            ▼            ▼            ▼
+ ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+ │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │ │ call_deepseek()  │ │  call_zai()      │ │  call_ollama()   │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
+ │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │
+ │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │
+ │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
+ │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │ │ POST /chat/      │ │ POST /api/paas/  │ │ POST /api/chat   │
+ │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │ │ completions      │ │ v4/chat/         │ │ (localhost:11434)│
+ │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │ │ (deepseek.com)   │ │ completions      │ │ no auth needed   │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │ (z.ai)           │ │                  │
+ └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+          │                    │                     │                    │                    │                    │                    │                    │
+          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┘
+                               ▼                     │                    │                    │                    │                    │
+                    ┌──────────────────┐             │                    │                    │                    │                    │
+                    │ (String,         │ <───────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┘
                     │  TokenUsage)     │
                     │                  │
                     │ response text +  │
@@ -262,6 +265,7 @@ Both single-shot and REPL modes share the same loop:
       │ mistral  │             │          │
       │ deepseek │             │          │
       │ zai      │             │          │
+      │ ollama   │             │          │
       └──────────┘             └──────────┘
            │                          │
            ▼                          ▼

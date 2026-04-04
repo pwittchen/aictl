@@ -6,6 +6,7 @@ mod llm_deepseek;
 mod llm_gemini;
 mod llm_grok;
 mod llm_mistral;
+mod llm_ollama;
 mod llm_openai;
 mod llm_zai;
 mod security;
@@ -44,6 +45,7 @@ enum Provider {
     Mistral,
     Deepseek,
     Zai,
+    Ollama,
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -317,6 +319,9 @@ async fn run_agent_turn(
             Provider::Zai => {
                 with_esc_cancel(llm_zai::call_zai(api_key, model, &llm_messages)).await
             }
+            Provider::Ollama => {
+                with_esc_cancel(llm_ollama::call_ollama(model, &llm_messages)).await
+            }
         };
         let call_elapsed = call_start.elapsed();
 
@@ -565,21 +570,32 @@ async fn handle_repl_input(
         }
         commands::CommandResult::Model => {
             let _ = rl.add_history_entry(input);
-            if let Some((new_provider, new_model, api_key_name)) = commands::select_model(model) {
-                let Some(new_api_key) = config_get(&api_key_name) else {
-                    ui.show_error(&format!(
-                        "API key not found. Set {api_key_name} in ~/.aictl"
-                    ));
-                    return ReplAction::Continue;
-                };
-                config_set(
-                    "AICTL_PROVIDER",
-                    &format!("{new_provider:?}").to_lowercase(),
-                );
-                config_set("AICTL_MODEL", &new_model);
-                *provider = new_provider;
-                *model = new_model;
-                *api_key = new_api_key;
+            let ollama_models = llm_ollama::list_models().await;
+            if let Some((new_provider, new_model, api_key_name)) =
+                commands::select_model(model, &ollama_models)
+            {
+                if matches!(new_provider, Provider::Ollama) {
+                    config_set("AICTL_PROVIDER", "ollama");
+                    config_set("AICTL_MODEL", &new_model);
+                    *provider = new_provider;
+                    *model = new_model;
+                    *api_key = String::new();
+                } else {
+                    let Some(new_api_key) = config_get(&api_key_name) else {
+                        ui.show_error(&format!(
+                            "API key not found. Set {api_key_name} in ~/.aictl"
+                        ));
+                        return ReplAction::Continue;
+                    };
+                    config_set(
+                        "AICTL_PROVIDER",
+                        &format!("{new_provider:?}").to_lowercase(),
+                    );
+                    config_set("AICTL_MODEL", &new_model);
+                    *provider = new_provider;
+                    *model = new_model;
+                    *api_key = new_api_key;
+                }
                 let pname = format!("{provider:?}").to_lowercase();
                 println!();
                 println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
@@ -860,8 +876,9 @@ async fn main() {
             Some("mistral") => Provider::Mistral,
             Some("deepseek") => Provider::Deepseek,
             Some("zai") => Provider::Zai,
+            Some("ollama") => Provider::Ollama,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', or 'zai')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'zai', or 'ollama')");
                 std::process::exit(1);
             }
             None => {
@@ -878,20 +895,24 @@ async fn main() {
         })
     });
 
-    let key_name = match provider {
-        Provider::Openai => "LLM_OPENAI_API_KEY",
-        Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
-        Provider::Gemini => "LLM_GEMINI_API_KEY",
-        Provider::Grok => "LLM_GROK_API_KEY",
-        Provider::Mistral => "LLM_MISTRAL_API_KEY",
-        Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
-        Provider::Zai => "LLM_ZAI_API_KEY",
+    let api_key = if matches!(provider, Provider::Ollama) {
+        String::new()
+    } else {
+        let key_name = match provider {
+            Provider::Openai => "LLM_OPENAI_API_KEY",
+            Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
+            Provider::Gemini => "LLM_GEMINI_API_KEY",
+            Provider::Grok => "LLM_GROK_API_KEY",
+            Provider::Mistral => "LLM_MISTRAL_API_KEY",
+            Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
+            Provider::Zai => "LLM_ZAI_API_KEY",
+            Provider::Ollama => unreachable!(),
+        };
+        config_get(key_name).unwrap_or_else(|| {
+            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl");
+            std::process::exit(1);
+        })
     };
-
-    let api_key = config_get(key_name).unwrap_or_else(|| {
-        eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl");
-        std::process::exit(1);
-    });
 
     let result = match cli.message {
         Some(ref msg) => {

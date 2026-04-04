@@ -72,7 +72,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, or `zai`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
+| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
@@ -95,7 +95,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, or `zai`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
@@ -105,6 +105,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_MISTRAL_API_KEY` | API key for Mistral |
 | `LLM_DEEPSEEK_API_KEY` | API key for DeepSeek |
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
+| `AICTL_OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
 #### Security configuration (optional)
@@ -136,7 +137,7 @@ The file format supports comments (`#`), quoted values, and optional `export` pr
 
 ### Providers
 
-aictl supports seven LLM providers:
+aictl supports eight LLM providers:
 
 #### OpenAI
 
@@ -215,6 +216,28 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 | `glm-5` | $0.72 | $2.30 |
 | `glm-4.7` | $0.39 | $1.75 |
 | `glm-4.7-flash` | $0.06 | $0.40 |
+
+#### Ollama
+
+Ollama runs models locally — no API key required. Install Ollama from [ollama.com](https://ollama.com), pull a model, and start the server:
+
+```bash
+ollama pull llama3.2
+ollama serve
+```
+
+Then configure aictl to use it:
+
+```
+AICTL_PROVIDER=ollama
+AICTL_MODEL=llama3.2:latest
+```
+
+Available models are detected automatically from your local Ollama instance via the REST API. The `/model` command shows only models you have pulled locally. If Ollama is not running, it will not appear in the model menu.
+
+By default, aictl connects to `http://localhost:11434`. To use a different address, set `AICTL_OLLAMA_BASE_URL` in `~/.aictl`.
+
+All Ollama models are free (self-hosted), so cost estimation shows $0.00.
 
 Any model string can be passed via `--model`; cost estimation uses pattern matching on the model name and falls back to zero if unrecognized.
 

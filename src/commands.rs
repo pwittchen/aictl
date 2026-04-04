@@ -202,6 +202,9 @@ pub async fn compact(
         Provider::Zai => {
             crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &summary_msgs)).await
         }
+        Provider::Ollama => {
+            crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &summary_msgs)).await
+        }
     };
 
     ui.stop_spinner();
@@ -495,14 +498,46 @@ fn print_tools() {
 /// header line (provider name) or a model line with its index into MODELS.
 /// Returns `(lines, model_indices)` where `model_indices[i]` maps selectable
 /// row `i` to its position in MODELS.
-fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<usize>) {
+/// A combined model entry used for building the menu (static + dynamic Ollama models).
+struct MenuModel {
+    provider: String,
+    model: String,
+    api_key_name: String,
+}
+
+fn build_combined_models(ollama_models: &[String]) -> Vec<MenuModel> {
+    let mut combined: Vec<MenuModel> = MODELS
+        .iter()
+        .map(|(prov, model, key)| MenuModel {
+            provider: (*prov).to_string(),
+            model: (*model).to_string(),
+            api_key_name: (*key).to_string(),
+        })
+        .collect();
+
+    for m in ollama_models {
+        combined.push(MenuModel {
+            provider: "ollama".to_string(),
+            model: m.clone(),
+            api_key_name: String::new(),
+        });
+    }
+
+    combined
+}
+
+fn build_menu_lines(
+    selected: usize,
+    current_model: &str,
+    models: &[MenuModel],
+) -> (Vec<String>, Vec<usize>) {
     let mut lines = Vec::new();
     let mut model_indices = Vec::new();
 
-    for (sel_row, (i, (prov, model, _))) in MODELS.iter().enumerate().enumerate() {
+    for (sel_row, (i, entry)) in models.iter().enumerate().enumerate() {
         // Print provider header when provider changes
-        if i == 0 || MODELS[i - 1].0 != *prov {
-            let label = match *prov {
+        if i == 0 || models[i - 1].provider != entry.provider {
+            let label = match entry.provider.as_str() {
                 "anthropic" => "Anthropic:",
                 "openai" => "OpenAI:",
                 "gemini" => "Gemini:",
@@ -510,20 +545,23 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
                 "mistral" => "Mistral:",
                 "deepseek" => "DeepSeek:",
                 "zai" => "Z.ai:",
-                _ => prov,
+                "ollama" => "Ollama:",
+                _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
         }
 
         let is_selected = sel_row == selected;
-        let is_current = *model == current_model;
+        let is_current = entry.model == current_model;
 
         let marker = if is_current { "●" } else { " " };
         let name = if is_selected {
             format!(
                 "       {} {}",
                 marker.with(Color::Green),
-                model
+                entry
+                    .model
+                    .as_str()
                     .with(Color::White)
                     .attribute(crossterm::style::Attribute::Bold)
             )
@@ -531,7 +569,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
             format!(
                 "       {} {}",
                 marker.with(Color::Green),
-                model.with(Color::DarkGrey)
+                entry.model.as_str().with(Color::DarkGrey)
             )
         };
 
@@ -648,17 +686,22 @@ where
 }
 
 /// Interactively select a model with arrow keys.
+/// `ollama_models` are dynamically fetched model names (empty if Ollama is not running).
 /// Returns (Provider, `model_name`, `api_key_config_key`) or None if cancelled (Esc).
-pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
-    let initial = MODELS
+pub fn select_model(
+    current_model: &str,
+    ollama_models: &[String],
+) -> Option<(Provider, String, String)> {
+    let combined = build_combined_models(ollama_models);
+    let initial = combined
         .iter()
-        .position(|(_, m, _)| *m == current_model)
+        .position(|m| m.model == current_model)
         .unwrap_or(0);
-    let selected = select_from_menu(MODELS.len(), initial, |sel| {
-        build_menu_lines(sel, current_model).0
+    let selected = select_from_menu(combined.len(), initial, |sel| {
+        build_menu_lines(sel, current_model, &combined).0
     })?;
-    let (prov_str, model, api_key_name) = MODELS[selected];
-    let provider = match prov_str {
+    let entry = &combined[selected];
+    let provider = match entry.provider.as_str() {
         "openai" => Provider::Openai,
         "anthropic" => Provider::Anthropic,
         "gemini" => Provider::Gemini,
@@ -666,9 +709,10 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "mistral" => Provider::Mistral,
         "deepseek" => Provider::Deepseek,
         "zai" => Provider::Zai,
+        "ollama" => Provider::Ollama,
         _ => unreachable!(),
     };
-    Some((provider, model.to_string(), api_key_name.to_string()))
+    Some((provider, entry.model.clone(), entry.api_key_name.clone()))
 }
 
 const BEHAVIORS: &[(&str, &str)] = &[
