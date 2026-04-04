@@ -18,7 +18,6 @@
 
 ## LLM Providers
 
-- **Make configurable Ollama host** `[llm]` `[config]` -  make `OLLAMA_HOST` configurable - when it's not configured, fall-back to: `http://localhost:11434`
 - **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
 
 ## Tools
