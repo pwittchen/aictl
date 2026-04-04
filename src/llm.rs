@@ -26,6 +26,10 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-2.0-flash", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3", "LLM_GROK_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
+    ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
 ];
 
 #[derive(Debug, Clone, Default)]
@@ -120,6 +124,20 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((3.00, 15.00));
     }
 
+    // Mistral
+    if model.starts_with("mistral-large") {
+        return Some((2.00, 6.00));
+    }
+    if model.starts_with("mistral-medium") {
+        return Some((0.40, 2.00));
+    }
+    if model.starts_with("mistral-small") {
+        return Some((0.10, 0.30));
+    }
+    if model.starts_with("codestral") {
+        return Some((0.30, 0.90));
+    }
+
     None
 }
 
@@ -142,6 +160,9 @@ pub fn context_limit(model: &str) -> u64 {
     }
     if model.starts_with("grok-") {
         return 131_072;
+    }
+    if model.starts_with("mistral-") || model.starts_with("codestral") {
+        return 128_000;
     }
     128_000
 }

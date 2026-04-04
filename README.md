@@ -73,7 +73,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, or `grok`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
+| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, or `mistral`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
@@ -96,13 +96,14 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, or `grok`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, or `mistral`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
 | `LLM_ANTHROPIC_API_KEY` | API key for Anthropic |
 | `LLM_GEMINI_API_KEY` | API key for Google Gemini |
 | `LLM_GROK_API_KEY` | API key for xAI Grok |
+| `LLM_MISTRAL_API_KEY` | API key for Mistral |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
 #### Security configuration (optional)
@@ -134,7 +135,7 @@ The file format supports comments (`#`), quoted values, and optional `export` pr
 
 ### Providers
 
-aictl supports four LLM providers:
+aictl supports five LLM providers:
 
 #### OpenAI
 
@@ -183,6 +184,17 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 |-------|-------|--------|
 | `grok-3` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
+
+#### Mistral
+
+Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `mistral-large-latest` | $2.00 | $6.00 |
+| `mistral-medium-latest` | $0.40 | $2.00 |
+| `mistral-small-latest` | $0.10 | $0.30 |
+| `codestral-latest` | $0.30 | $0.90 |
 
 Any model string can be passed via `--model`; cost estimation uses pattern matching on the model name and falls back to zero if unrecognized.
 

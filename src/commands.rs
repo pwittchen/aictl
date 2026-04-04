@@ -182,6 +182,14 @@ pub async fn compact(
         Provider::Grok => {
             crate::with_esc_cancel(crate::llm_grok::call_grok(api_key, model, &summary_msgs)).await
         }
+        Provider::Mistral => {
+            crate::with_esc_cancel(crate::llm_mistral::call_mistral(
+                api_key,
+                model,
+                &summary_msgs,
+            ))
+            .await
+        }
     };
 
     ui.stop_spinner();
@@ -485,6 +493,8 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
                 "anthropic" => "Anthropic:",
                 "openai" => "OpenAI:",
                 "gemini" => "Gemini:",
+                "grok" => "Grok:",
+                "mistral" => "Mistral:",
                 _ => prov,
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
@@ -638,6 +648,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "anthropic" => Provider::Anthropic,
         "gemini" => Provider::Gemini,
         "grok" => Provider::Grok,
+        "mistral" => Provider::Mistral,
         _ => unreachable!(),
     };
     Some((provider, model.to_string(), api_key_name.to_string()))

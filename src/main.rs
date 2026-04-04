@@ -4,6 +4,7 @@ mod llm;
 mod llm_anthropic;
 mod llm_gemini;
 mod llm_grok;
+mod llm_mistral;
 mod llm_openai;
 mod security;
 mod tools;
@@ -38,6 +39,7 @@ enum Provider {
     Anthropic,
     Gemini,
     Grok,
+    Mistral,
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -301,6 +303,9 @@ async fn run_agent_turn(
             }
             Provider::Grok => {
                 with_esc_cancel(llm_grok::call_grok(api_key, model, &llm_messages)).await
+            }
+            Provider::Mistral => {
+                with_esc_cancel(llm_mistral::call_mistral(api_key, model, &llm_messages)).await
             }
         };
         let call_elapsed = call_start.elapsed();
@@ -842,8 +847,9 @@ async fn main() {
             Some("anthropic") => Provider::Anthropic,
             Some("gemini") => Provider::Gemini,
             Some("grok") => Provider::Grok,
+            Some("mistral") => Provider::Mistral,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', or 'grok')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', or 'mistral')");
                 std::process::exit(1);
             }
             None => {
@@ -865,6 +871,7 @@ async fn main() {
         Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
         Provider::Gemini => "LLM_GEMINI_API_KEY",
         Provider::Grok => "LLM_GROK_API_KEY",
+        Provider::Mistral => "LLM_MISTRAL_API_KEY",
     };
 
     let api_key = config_get(key_name).unwrap_or_else(|| {
