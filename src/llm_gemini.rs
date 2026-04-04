@@ -107,6 +107,25 @@ pub async fn call_gemini(
     let text = resp.text().await?;
 
     if !status.is_success() {
+        // Try to extract a concise error message from the JSON response
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+            let msg = json["error"]["message"]
+                .as_str()
+                .and_then(|m| m.lines().next())
+                .unwrap_or("unknown error");
+            let model_name = json["error"]["details"]
+                .as_array()
+                .and_then(|details| {
+                    details.iter().find_map(|d| {
+                        d["violations"]
+                            .as_array()?
+                            .first()?["quotaDimensions"]["model"]
+                            .as_str()
+                    })
+                })
+                .unwrap_or(model);
+            return Err(format!("Gemini API error ({status}): {msg} [model: {model_name}]").into());
+        }
         return Err(format!("Gemini API error ({status}): {text}").into());
     }
 
