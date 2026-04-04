@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod llm;
 mod llm_anthropic;
+mod llm_deepseek;
 mod llm_gemini;
 mod llm_grok;
 mod llm_mistral;
@@ -41,6 +42,7 @@ enum Provider {
     Gemini,
     Grok,
     Mistral,
+    Deepseek,
     Zai,
 }
 
@@ -308,6 +310,9 @@ async fn run_agent_turn(
             }
             Provider::Mistral => {
                 with_esc_cancel(llm_mistral::call_mistral(api_key, model, &llm_messages)).await
+            }
+            Provider::Deepseek => {
+                with_esc_cancel(llm_deepseek::call_deepseek(api_key, model, &llm_messages)).await
             }
             Provider::Zai => {
                 with_esc_cancel(llm_zai::call_zai(api_key, model, &llm_messages)).await
@@ -853,9 +858,10 @@ async fn main() {
             Some("gemini") => Provider::Gemini,
             Some("grok") => Provider::Grok,
             Some("mistral") => Provider::Mistral,
+            Some("deepseek") => Provider::Deepseek,
             Some("zai") => Provider::Zai,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', or 'zai')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', or 'zai')");
                 std::process::exit(1);
             }
             None => {
@@ -878,6 +884,7 @@ async fn main() {
         Provider::Gemini => "LLM_GEMINI_API_KEY",
         Provider::Grok => "LLM_GROK_API_KEY",
         Provider::Mistral => "LLM_MISTRAL_API_KEY",
+        Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
         Provider::Zai => "LLM_ZAI_API_KEY",
     };
 

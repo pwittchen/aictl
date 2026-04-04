@@ -16,7 +16,6 @@
 
 ## LLM Providers
 
-- **Add DeepSeek support** `[llm]`
 - **Add Ollama support** `[llm]`
 - **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
 

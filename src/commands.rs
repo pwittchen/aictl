@@ -129,6 +129,7 @@ fn copy_to_clipboard(text: &str, show_error: &dyn Fn(&str)) {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn compact(
     provider: &Provider,
     api_key: &str,
@@ -184,6 +185,14 @@ pub async fn compact(
         }
         Provider::Mistral => {
             crate::with_esc_cancel(crate::llm_mistral::call_mistral(
+                api_key,
+                model,
+                &summary_msgs,
+            ))
+            .await
+        }
+        Provider::Deepseek => {
+            crate::with_esc_cancel(crate::llm_deepseek::call_deepseek(
                 api_key,
                 model,
                 &summary_msgs,
@@ -499,6 +508,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
                 "gemini" => "Gemini:",
                 "grok" => "Grok:",
                 "mistral" => "Mistral:",
+                "deepseek" => "DeepSeek:",
                 "zai" => "Z.ai:",
                 _ => prov,
             };
@@ -654,6 +664,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "gemini" => Provider::Gemini,
         "grok" => Provider::Grok,
         "mistral" => Provider::Mistral,
+        "deepseek" => Provider::Deepseek,
         "zai" => Provider::Zai,
         _ => unreachable!(),
     };

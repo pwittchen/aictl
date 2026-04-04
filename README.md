@@ -73,7 +73,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, or `zai`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
+| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, or `zai`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
@@ -96,7 +96,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, or `zai`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, or `zai`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
@@ -104,6 +104,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_GEMINI_API_KEY` | API key for Google Gemini |
 | `LLM_GROK_API_KEY` | API key for xAI Grok |
 | `LLM_MISTRAL_API_KEY` | API key for Mistral |
+| `LLM_DEEPSEEK_API_KEY` | API key for DeepSeek |
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
@@ -136,7 +137,7 @@ The file format supports comments (`#`), quoted values, and optional `export` pr
 
 ### Providers
 
-aictl supports six LLM providers:
+aictl supports seven LLM providers:
 
 #### OpenAI
 
@@ -196,6 +197,15 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `mistral-medium-latest` | $0.40 | $2.00 |
 | `mistral-small-latest` | $0.10 | $0.30 |
 | `codestral-latest` | $0.30 | $0.90 |
+
+#### DeepSeek
+
+Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `deepseek-chat` | $0.27 | $1.10 |
+| `deepseek-reasoner` | $0.55 | $2.19 |
 
 #### Z.ai
 

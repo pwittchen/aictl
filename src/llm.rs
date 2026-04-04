@@ -30,6 +30,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
+    ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
+    ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flash", "LLM_ZAI_API_KEY"),
@@ -141,6 +143,14 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.30, 0.90));
     }
 
+    // DeepSeek
+    if model.starts_with("deepseek-reasoner") {
+        return Some((0.55, 2.19));
+    }
+    if model.starts_with("deepseek-chat") {
+        return Some((0.27, 1.10));
+    }
+
     // Z.ai
     if model.starts_with("glm-5") {
         return Some((0.72, 2.30));
@@ -176,6 +186,9 @@ pub fn context_limit(model: &str) -> u64 {
         return 131_072;
     }
     if model.starts_with("mistral-") || model.starts_with("codestral") {
+        return 128_000;
+    }
+    if model.starts_with("deepseek-") {
         return 128_000;
     }
     if model.starts_with("glm-") {
