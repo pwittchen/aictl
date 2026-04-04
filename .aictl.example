@@ -13,6 +13,9 @@
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
 
+# Thinking mode: smart (all messages) or fast (sliding window with recent messages)
+# AICTL_THINKING=smart
+
 # API keys
 # LLM_OPENAI_API_KEY=sk-...
 # LLM_ANTHROPIC_API_KEY=sk-ant-...
@@ -21,9 +24,6 @@
 # LLM_MISTRAL_API_KEY=...
 # LLM_DEEPSEEK_API_KEY=sk-...
 # LLM_ZAI_API_KEY=...
-
-# Thinking mode: smart (all messages) or fast (sliding window with recent messages)
-# AICTL_THINKING=smart
 
 # Web search (optional, used by web_search tool)
 # FIRECRAWL_API_KEY=fc-...
