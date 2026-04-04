@@ -521,7 +521,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
         let marker = if is_current { "●" } else { " " };
         let name = if is_selected {
             format!(
-                "    {} {}",
+                "       {} {}",
                 marker.with(Color::Green),
                 model
                     .with(Color::White)
@@ -529,7 +529,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
             )
         } else {
             format!(
-                "    {} {}",
+                "       {} {}",
                 marker.with(Color::Green),
                 model.with(Color::DarkGrey)
             )
