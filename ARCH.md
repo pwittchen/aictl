@@ -12,7 +12,8 @@ src/
  ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
  ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
  ├── llm_openai.rs       OpenAI chat completions client
- └── llm_anthropic.rs    Anthropic messages client
+ ├── llm_anthropic.rs    Anthropic messages client
+ └── llm_gemini.rs       Google Gemini generateContent client
 ```
 
 ## Startup Flow
@@ -26,7 +27,7 @@ src/
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
- │  5. resolve api_key          LLM_OPENAI_API_KEY or LLM_ANTHROPIC_API_KEY │
+ │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI}_API_KEY       │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
@@ -50,6 +51,7 @@ Both single-shot and REPL modes share the same loop:
  │  ┌──────────────────┐                                   │
  │  │  Call LLM API    │  openai::call_openai()            │
  │  │  (via provider)  │  anthropic::call_anthropic()      │
+ │  │                  │  gemini::call_gemini()            │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -116,33 +118,33 @@ Both single-shot and REPL modes share the same loop:
 ## LLM Provider Abstraction
 
 ```
-                  ┌──────────────┐
-                  │  &[Message]  │
-                  └──────┬───────┘
-                         │
-               ┌─────────┴─────────┐
-               ▼                   ▼
- ┌──────────────────┐   ┌───────────────────┐
- │  call_openai()   │   │ call_anthropic()  │
- │                  │   │                   │
- │  System msg      │   │  System msg ──>   │
- │  inline in       │   │  top-level        │
- │  messages[]      │   │  "system" field   │
- │                  │   │                   │
- │  POST /v1/chat/  │   │  POST /v1/        │
- │  completions     │   │  messages         │
- └────────┬─────────┘   └─────────┬─────────┘
-          │                       │
-          └───────────┬───────────┘
-                      ▼
-           ┌──────────────────┐
-           │ (String,         │
-           │  TokenUsage)     │
-           │                  │
-           │ response text +  │
-           │ input/output     │
-           │ token counts     │
-           └──────────────────┘
+                        ┌──────────────┐
+                        │  &[Message]  │
+                        └──────┬───────┘
+                               │
+               ┌───────────────┼──────────────┐
+               ▼               ▼               ▼
+ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐
+ │  call_openai()   │ │call_anthropic() │ │  call_gemini()   │
+ │                  │ │                 │ │                  │
+ │  System msg      │ │ System msg ──>  │ │ System msg ──>   │
+ │  inline in       │ │ top-level       │ │ systemInstruction│
+ │  messages[]      │ │ "system" field  │ │ field            │
+ │                  │ │                 │ │                  │
+ │  POST /v1/chat/  │ │ POST /v1/      │ │ POST /v1beta/    │
+ │  completions     │ │ messages        │ │ :generateContent │
+ └────────┬─────────┘ └────────┬────────┘ └────────┬─────────┘
+          │                    │                    │
+          └────────────────────┼────────────────────┘
+                               ▼
+                    ┌──────────────────┐
+                    │ (String,         │
+                    │  TokenUsage)     │
+                    │                  │
+                    │ response text +  │
+                    │ input/output     │
+                    │ token counts     │
+                    └──────────────────┘
 ```
 
 ## UI Layer
@@ -244,7 +246,7 @@ Both single-shot and REPL modes share the same loop:
       │          │             │          │
       │ openai   │             │ spinner  │
       │ anthropic│             │ confirm  │
-      │ tokens   │             │ render   │
+      │ gemini   │             │ render   │
       └──────────┘             └──────────┘
            │                          │
            ▼                          ▼
