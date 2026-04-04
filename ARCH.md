@@ -32,7 +32,7 @@ src/
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
- │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY             │
+ │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY               │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
