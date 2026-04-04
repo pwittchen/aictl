@@ -7,7 +7,7 @@ const DEFAULT_BASE_URL: &str = "http://localhost:11434";
 
 /// Return the Ollama base URL from config or the default.
 fn base_url() -> String {
-    crate::config::config_get("AICTL_OLLAMA_BASE_URL")
+    crate::config::config_get("LLM_OLLAMA_HOST")
         .unwrap_or_else(|| DEFAULT_BASE_URL.to_string())
 }
 

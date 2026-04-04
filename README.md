@@ -105,7 +105,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_MISTRAL_API_KEY` | API key for Mistral |
 | `LLM_DEEPSEEK_API_KEY` | API key for DeepSeek |
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
-| `AICTL_OLLAMA_BASE_URL` | Ollama server URL (default: `http://localhost:11434`) |
+| `LLM_OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
 #### Security configuration (optional)
@@ -235,7 +235,7 @@ AICTL_MODEL=llama3.2:latest
 
 Available models are detected automatically from your local Ollama instance via the REST API. The `/model` command shows only models you have pulled locally. If Ollama is not running, it will not appear in the model menu.
 
-By default, aictl connects to `http://localhost:11434`. To use a different address, set `AICTL_OLLAMA_BASE_URL` in `~/.aictl`.
+By default, aictl connects to `http://localhost:11434`. To use a different address, set `LLM_OLLAMA_HOST` in `~/.aictl`.
 
 All Ollama models are free (self-hosted), so cost estimation shows $0.00.
 
