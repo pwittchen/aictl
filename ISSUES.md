@@ -40,3 +40,4 @@
 ## Other
 
 - **Project website** `[marketing]` — Create a public-facing project website.
+- **Installation script**` [infra] - detect if there is already installed `aictl` in the system in the `install.sh` script and if yes, then instead of the `install aictl?` question, display `update aictl to the latest version?` question
