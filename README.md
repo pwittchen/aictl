@@ -56,6 +56,7 @@ The interactive REPL supports slash commands:
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, behavior, version, OS, binary size) |
+| `/issues` | Fetch and display known issues from the remote ISSUES.md |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
