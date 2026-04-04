@@ -10,6 +10,8 @@
 
 - **Agent prompt profiles** `[config]` — Add support for managing multiple agent prompts that users can switch between depending on the use case. Prompt definitions would live in `~/.aictl/agents/`. Consider allowing selection via a CLI parameter, a naming convention, or both. Add commands for managing agents: create, use, discard, and delete.
 
+- **Entry file per directory** `[config]` - Add entry file per directory - e.g `AICTL.md`, which will add additional prompt configured by the user while running agent from a specific dir. Similar concept to `CLAUDE.md` or `AGENTS.md`
+
 - **Session persistence and restoration** `[func]` — Allow users to persist and restore conversation sessions. Sessions would be stored in `~/.aictl/sessions/` with a name and timestamp (use a random name if none is provided). Persistence should be opt-in via a `--session` or `--memory` flag. On restoration, the session history should be read, compacted, and used for future conversation context. Consider tying sessions to agent profiles (related to the agent prompt profiles issue above).
 
 - **Update config file path** `[config]` — Move the config file from `~/.aictl` to `~/.aictl/config`. A dedicated project directory opens up more possibilities for structured storage (sessions, agent profiles, etc.).
