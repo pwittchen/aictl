@@ -190,6 +190,9 @@ pub async fn compact(
             ))
             .await
         }
+        Provider::Zai => {
+            crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &summary_msgs)).await
+        }
     };
 
     ui.stop_spinner();
@@ -452,6 +455,7 @@ fn print_tools() {
         ("exec_shell", "execute a shell command via sh -c"),
         ("read_file", "read the contents of a file"),
         ("write_file", "write content to a file"),
+        ("remove_file", "remove (delete) a file"),
         ("edit_file", "edit a file with find-and-replace"),
         (
             "create_directory",
@@ -495,6 +499,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
                 "gemini" => "Gemini:",
                 "grok" => "Grok:",
                 "mistral" => "Mistral:",
+                "zai" => "Z.ai:",
                 _ => prov,
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
@@ -649,6 +654,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "gemini" => Provider::Gemini,
         "grok" => Provider::Grok,
         "mistral" => Provider::Mistral,
+        "zai" => Provider::Zai,
         _ => unreachable!(),
     };
     Some((provider, model.to_string(), api_key_name.to_string()))

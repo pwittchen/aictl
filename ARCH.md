@@ -15,7 +15,8 @@ src/
  ├── llm_anthropic.rs    Anthropic messages client
  ├── llm_gemini.rs       Google Gemini generateContent client
  ├── llm_grok.rs         xAI Grok chat completions client
- └── llm_mistral.rs      Mistral chat completions client
+ ├── llm_mistral.rs      Mistral chat completions client
+ └── llm_zai.rs          Z.ai chat completions client
 ```
 
 ## Startup Flow
@@ -30,7 +31,7 @@ src/
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
- │                              MISTRAL}_API_KEY                           │
+ │                              MISTRAL,ZAI}_API_KEY                      │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
@@ -57,6 +58,7 @@ Both single-shot and REPL modes share the same loop:
  │  │                  │  gemini::call_gemini()            │
  │  │                  │  grok::call_grok()                │
  │  │                  │  mistral::call_mistral()          │
+ │  │                  │  zai::call_zai()                  │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -127,24 +129,25 @@ Both single-shot and REPL modes share the same loop:
                              │  &[Message]  │
                              └──────┬───────┘
                                     │
-               ┌────────────┬───────┼───────┬────────────┬────────────┐
-               ▼            ▼       │       ▼            ▼            ▼
- ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
- │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │
- │                  │ │                   │ │                  │ │                  │ │                  │
- │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │
- │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │
- │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │
- │                  │ │                   │ │                  │ │                  │ │                  │
- │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │
- │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │
- │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │
- └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
-          │                    │                     │                    │                    │
-          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┘
-                               ▼                     │                    │
-                    ┌──────────────────┐             │                    │
-                    │ (String,         │ <───────────┴────────────────────┘
+               ┌────────────┬───────┼───────┬────────────┬────────────┬────────────┐
+               ▼            ▼       │       ▼            ▼            ▼            ▼
+ ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+ │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │ │  call_zai()      │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │
+ │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │ │ System msg       │
+ │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │ │ inline in        │
+ │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │ │ messages[]       │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │
+ │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │ │ POST /api/paas/  │
+ │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │ │ v4/chat/         │
+ │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │ │ completions      │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │ (z.ai)           │
+ └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+          │                    │                     │                    │                    │                    │
+          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┼────────────────────┘
+                               ▼                     │                    │                    │
+                    ┌──────────────────┐             │                    │                    │
+                    │ (String,         │ <───────────┴────────────────────┴────────────────────┘
                     │  TokenUsage)     │
                     │                  │
                     │ response text +  │
@@ -255,6 +258,7 @@ Both single-shot and REPL modes share the same loop:
       │ gemini   │             │ confirm  │
       │ grok     │             │ render   │
       │ mistral  │             │          │
+      │ zai      │             │          │
       └──────────┘             └──────────┘
            │                          │
            ▼                          ▼
