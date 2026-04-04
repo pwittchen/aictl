@@ -568,8 +568,13 @@ impl AgentUI for InteractiveUI {
         } else {
             format!(" · {cwd}")
         };
+        let cache_str = if usage.cache_read_input_tokens > 0 {
+            format!(" ({}⚡)", usage.cache_read_input_tokens)
+        } else {
+            String::new()
+        };
         let text = format!(
-            "{display_model} · {}↑ · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
+            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,

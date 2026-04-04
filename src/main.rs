@@ -283,6 +283,8 @@ async fn run_agent_turn(
 
         total_usage.input_tokens += usage.input_tokens;
         total_usage.output_tokens += usage.output_tokens;
+        total_usage.cache_creation_input_tokens += usage.cache_creation_input_tokens;
+        total_usage.cache_read_input_tokens += usage.cache_read_input_tokens;
         last_input_tokens = usage.input_tokens;
 
         let token_pct = llm::pct(last_input_tokens, llm::context_limit(model));

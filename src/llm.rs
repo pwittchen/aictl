@@ -24,9 +24,14 @@ pub const MODELS: &[(&str, &str, &str)] = &[
 ];
 
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::struct_field_names)]
 pub struct TokenUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
+    /// Tokens written to the provider's prompt cache (Anthropic: 1.25× input price).
+    pub cache_creation_input_tokens: u64,
+    /// Tokens read from the provider's prompt cache (Anthropic: 0.1× input price).
+    pub cache_read_input_tokens: u64,
 }
 
 /// Returns (input, output) price per million tokens for known models.
@@ -116,8 +121,11 @@ impl TokenUsage {
     #[allow(clippy::cast_precision_loss)]
     pub fn estimate_cost(&self, model: &str) -> Option<f64> {
         let (input_ppm, output_ppm) = price_per_million(model)?;
-        let cost = (self.input_tokens as f64 * input_ppm + self.output_tokens as f64 * output_ppm)
-            / 1_000_000.0;
+        let base_input = self.input_tokens as f64 * input_ppm;
+        let cache_write = self.cache_creation_input_tokens as f64 * input_ppm * 1.25;
+        let cache_read = self.cache_read_input_tokens as f64 * input_ppm * 0.1;
+        let output = self.output_tokens as f64 * output_ppm;
+        let cost = (base_input + cache_write + cache_read + output) / 1_000_000.0;
         Some(cost)
     }
 }
@@ -229,6 +237,7 @@ mod tests {
         let usage = TokenUsage {
             input_tokens: 1_000_000,
             output_tokens: 1_000_000,
+            ..TokenUsage::default()
         };
         let cost = usage.estimate_cost("gpt-4.1").unwrap();
         // 1M * 2.00 / 1M + 1M * 8.00 / 1M = 10.00
@@ -240,6 +249,7 @@ mod tests {
         let usage = TokenUsage {
             input_tokens: 0,
             output_tokens: 0,
+            ..TokenUsage::default()
         };
         let cost = usage.estimate_cost("gpt-4.1").unwrap();
         assert!((cost - 0.0).abs() < 1e-9);
@@ -250,8 +260,25 @@ mod tests {
         let usage = TokenUsage {
             input_tokens: 100,
             output_tokens: 100,
+            ..TokenUsage::default()
         };
         assert!(usage.estimate_cost("unknown-model").is_none());
+    }
+
+    #[test]
+    fn estimate_cost_with_cache() {
+        // Sonnet: $3/M input, $15/M output
+        // Cache write: 1.25× input = $3.75/M
+        // Cache read: 0.1× input = $0.30/M
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_creation_input_tokens: 1_000_000,
+            cache_read_input_tokens: 1_000_000,
+        };
+        let cost = usage.estimate_cost("claude-sonnet-4-20250514").unwrap();
+        // 1M * 3.00 + 1M * 3.00 * 1.25 + 1M * 3.00 * 0.1 + 1M * 15.00 = 3 + 3.75 + 0.3 + 15 = 22.05
+        assert!((cost - 22.05).abs() < 1e-9);
     }
 
     // --- context_limit ---

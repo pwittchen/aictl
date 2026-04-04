@@ -81,6 +81,7 @@ pub async fn call_openai(
         .map(|u| TokenUsage {
             input_tokens: u.prompt_tokens,
             output_tokens: u.completion_tokens,
+            ..TokenUsage::default()
         })
         .unwrap_or_default();
     Ok((content, usage))

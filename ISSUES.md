@@ -32,7 +32,6 @@
 
 ## Optimization
 
-- **Prompt caching** `[optimization]` — Implement prompt caching to reduce redundant API calls.
 - **Selective conversation history** `[optimization]` — Implement a sliding window over recent messages with optional compaction. Allow the user to choose between thinking/reasoning modes (e.g., smart vs. fast) and memory modes (e.g., long vs. short).
 
 ## Bugs
