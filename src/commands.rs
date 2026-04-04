@@ -48,8 +48,8 @@ pub enum CommandResult {
     Security,
     /// Switch model interactively.
     Model,
-    /// Switch auto/human-in-the-loop mode.
-    Mode,
+    /// Switch auto/human-in-the-loop behavior.
+    Behavior,
     /// Switch thinking mode (smart/fast).
     Thinking,
     /// Update to the latest version.
@@ -79,7 +79,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             CommandResult::Security
         }
         "model" => CommandResult::Model,
-        "behavior" => CommandResult::Mode,
+        "behavior" => CommandResult::Behavior,
         "thinking" => CommandResult::Thinking,
         "update" => CommandResult::Update,
         "issues" => CommandResult::Issues,
@@ -352,7 +352,7 @@ mod tests {
     fn cmd_behavior() {
         assert!(matches!(
             handle("/behavior", "", &noop_error),
-            CommandResult::Mode
+            CommandResult::Behavior
         ));
     }
 
@@ -620,7 +620,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
     Some((provider, model.to_string(), api_key_name.to_string()))
 }
 
-const MODES: &[(&str, &str)] = &[
+const BEHAVIORS: &[(&str, &str)] = &[
     (
         "human-in-the-loop",
         "ask confirmation before each tool call",
@@ -628,9 +628,9 @@ const MODES: &[(&str, &str)] = &[
     ("auto", "run tools without confirmation"),
 ];
 
-fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
+fn build_behavior_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
     let mut lines = Vec::new();
-    for (i, (name, desc)) in MODES.iter().enumerate() {
+    for (i, (name, desc)) in BEHAVIORS.iter().enumerate() {
         let is_selected = i == selected;
         let is_current = (*name == "auto") == current_auto;
 
@@ -663,14 +663,14 @@ fn build_mode_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
     lines
 }
 
-/// Interactively select auto/human-in-the-loop mode with arrow keys.
+/// Interactively select auto/human-in-the-loop behavior with arrow keys.
 /// Returns `Some(auto_bool)` or `None` if cancelled (Esc).
-pub fn select_mode(current_auto: bool) -> Option<bool> {
+pub fn select_behavior(current_auto: bool) -> Option<bool> {
     let initial = usize::from(current_auto);
-    let selected = select_from_menu(MODES.len(), initial, |sel| {
-        build_mode_menu_lines(sel, current_auto)
+    let selected = select_from_menu(BEHAVIORS.len(), initial, |sel| {
+        build_behavior_menu_lines(sel, current_auto)
     })?;
-    Some(MODES[selected].0 == "auto")
+    Some(BEHAVIORS[selected].0 == "auto")
 }
 
 const THINKING_MODES: &[(&str, &str)] = &[
