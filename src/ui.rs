@@ -84,6 +84,7 @@ pub trait AgentUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
+        thinking: &str,
     );
     fn show_summary(
         &self,
@@ -152,6 +153,7 @@ impl AgentUI for PlainUI {
         _tool_calls: u32,
         _elapsed: Duration,
         _context_pct: u8,
+        _thinking: &str,
     ) {
     }
 
@@ -561,6 +563,7 @@ impl AgentUI for InteractiveUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
+        thinking: &str,
     ) {
         // Shorten claude model names by stripping the date suffix
         let display_model = if model.starts_with("claude-") {
@@ -572,22 +575,13 @@ impl AgentUI for InteractiveUI {
             Some(cost) => format!(" · ${cost:.4}"),
             None => String::new(),
         };
-        let cwd = std::env::current_dir()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-            .unwrap_or_default();
-        let cwd_str = if cwd.is_empty() {
-            String::new()
-        } else {
-            format!(" · {cwd}")
-        };
         let cache_str = if usage.cache_read_input_tokens > 0 {
             format!(" ({}⚡)", usage.cache_read_input_tokens)
         } else {
             String::new()
         };
         let text = format!(
-            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%{cwd_str}",
+            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}% · {thinking}",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,

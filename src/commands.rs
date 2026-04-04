@@ -135,6 +135,7 @@ pub async fn compact(
     model: &str,
     messages: &mut Vec<Message>,
     ui: &dyn AgentUI,
+    thinking: &str,
 ) {
     if messages.len() <= 1 {
         ui.show_error("Nothing to compact.");
@@ -198,7 +199,7 @@ pub async fn compact(
                     .to_string(),
             });
             println!();
-            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO, 0);
+            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO, 0, thinking);
             println!("  {} context compacted", "✓".with(Color::Green));
             println!();
         }

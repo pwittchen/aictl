@@ -323,6 +323,7 @@ async fn run_agent_turn(
             tool_calls,
             call_elapsed,
             context_pct,
+            &thinking.to_string(),
         );
 
         let Some(tool_call) = tool_call else {
@@ -498,7 +499,7 @@ async fn handle_repl_input(
         }
         commands::CommandResult::Compact => {
             let _ = rl.add_history_entry(input);
-            commands::compact(provider, api_key, model, messages, ui).await;
+            commands::compact(provider, api_key, model, messages, ui, &thinking.to_string()).await;
             *last_input_tokens = 0;
             return ReplAction::Continue;
         }
@@ -596,7 +597,7 @@ async fn handle_repl_input(
             "  {} context at {context_pct}%, auto-compacting...",
             "⚠".with(Color::Yellow)
         );
-        commands::compact(provider, api_key, model, messages, ui).await;
+        commands::compact(provider, api_key, model, messages, ui, &thinking.to_string()).await;
         *last_input_tokens = 0;
     }
 
