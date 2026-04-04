@@ -12,7 +12,7 @@
 
 - **Session persistence and restoration** `[func]` — Allow users to persist and restore conversation sessions. Sessions would be stored in `~/.aictl/sessions/` with a name and timestamp (use a random name if none is provided). Persistence should be opt-in via a `--session` or `--memory` flag. On restoration, the session history should be read, compacted, and used for future conversation context. Consider tying sessions to agent profiles (related to the agent prompt profiles issue above).
 
-- **Update config file path** `[config]` - Move config file from `~/.acictl` to `~/.aictl/config`. With dedicated project dir there is more possibilities for info storage.
+- **Update config file path** `[config]` — Move the config file from `~/.aictl` to `~/.aictl/config`. A dedicated project directory opens up more possibilities for structured storage (sessions, agent profiles, etc.).
 
 ## LLM Providers
 
@@ -42,6 +42,6 @@
 ## Other
 
 - **Project website** `[marketing]` — Create a public-facing project website.
-- **Installation script**` [infra] - detect if there is already installed `aictl` in the system in the `install.sh` script and if yes, then instead of the `install aictl?` question, display `update aictl to the latest version?` question
-- **Welcome banner hint** `[ui]` - in the welcome banner, add hint that user can type `/help` to see available commands
-- **Banner space** `[ui]` - when starting the CLI add additional empty line in the beginning to improve look & feel
+- **Installation script update detection** `[infra]` — Detect whether `aictl` is already installed in `install.sh`. If it is, display "Update aictl to the latest version?" instead of "Install aictl?".
+- **Welcome banner help hint** `[ui]` — Add a hint to the welcome banner telling users they can type `/help` to see available commands.
+- **Leading blank line in banner** `[ui]` — Add an extra empty line before the welcome banner to improve visual spacing when the CLI starts.
