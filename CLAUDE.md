@@ -18,7 +18,7 @@ cargo test               # run tests
 Single-binary async Rust CLI with eight modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), security init, agent loop, single-shot and interactive REPL modes
-- `src/commands.rs` — REPL slash command handling (`/behavior`, `/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/issues`, `/model`, `/security`, `/tools`, `/update`). Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
+- `src/commands.rs` — REPL slash command handling (`/behavior`, `/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/issues`, `/model`, `/security`, `/thinking`, `/tools`, `/update`). `ThinkingMode` enum (Smart/Fast) for conversation history optimization. Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
 - `src/config.rs` — config file loading (`~/.aictl`), constants (system prompt, spinner phrases, agent loop limits)
 - `src/security.rs` — `SecurityPolicy` with shell command validation, path validation (CWD jail, blocked paths, canonicalization), environment scrubbing, shell timeout, output sanitization. Loaded into `static OnceLock` at startup. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl`.
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch (security gate at entry, output sanitization at exit)
@@ -30,7 +30,7 @@ Single-binary async Rust CLI with eight modules:
 
 **Flow**: CLI args (clap) → `security::init()` → `run_agent_turn` loop → provider call → parse response for `<tool>` tags → security validation → execute tool or print final answer.
 
-**Modes**: Single-shot (`-m "message"`) uses `PlainUI`; omitting `-m` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output). `--quiet`/`-q` (requires `--auto`) suppresses reasoning and tool call output in single-shot mode, printing only the final answer.
+**Modes**: Single-shot (`-m "message"`) uses `PlainUI`; omitting `-m` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output). `--quiet`/`-q` (requires `--auto`) suppresses reasoning and tool call output in single-shot mode, printing only the final answer. **Thinking modes**: Smart (default, sends all messages to LLM) and Fast (sends system prompt + last 20 messages via a sliding window). Configurable via `/thinking` command or `AICTL_THINKING` in `~/.aictl`.
 
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 

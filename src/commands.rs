@@ -7,11 +7,29 @@ use crate::llm::MODELS;
 use crate::ui::AgentUI;
 use crate::{Message, Provider, Role};
 
+/// Thinking mode: controls conversation history optimization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThinkingMode {
+    /// All messages, no optimization.
+    Smart,
+    /// Sliding window with most recent messages and optional compaction.
+    Fast,
+}
+
+impl std::fmt::Display for ThinkingMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Smart => write!(f, "smart"),
+            Self::Fast => write!(f, "fast"),
+        }
+    }
+}
+
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
     "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "issues", "model",
-    "security", "tools", "update",
+    "security", "thinking", "tools", "update",
 ];
 
 /// Result of handling a slash command.
@@ -32,6 +50,8 @@ pub enum CommandResult {
     Model,
     /// Switch auto/human-in-the-loop mode.
     Mode,
+    /// Switch thinking mode (smart/fast).
+    Thinking,
     /// Update to the latest version.
     Update,
     /// Fetch and display known issues.
@@ -60,6 +80,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         }
         "model" => CommandResult::Model,
         "behavior" => CommandResult::Mode,
+        "thinking" => CommandResult::Thinking,
         "update" => CommandResult::Update,
         "issues" => CommandResult::Issues,
         "copy" => {
@@ -252,6 +273,10 @@ fn print_help() {
         "/model".with(Color::Cyan)
     );
     println!("  {} show security policy", "/security".with(Color::Cyan));
+    println!(
+        "  {} switch thinking mode (smart/fast)",
+        "/thinking".with(Color::Cyan)
+    );
     println!("  {}    show available tools", "/tools".with(Color::Cyan));
     println!(
         "  {}   update to the latest version",
@@ -328,6 +353,14 @@ mod tests {
         assert!(matches!(
             handle("/behavior", "", &noop_error),
             CommandResult::Mode
+        ));
+    }
+
+    #[test]
+    fn cmd_thinking() {
+        assert!(matches!(
+            handle("/thinking", "", &noop_error),
+            CommandResult::Thinking
         ));
     }
 
@@ -640,7 +673,70 @@ pub fn select_mode(current_auto: bool) -> Option<bool> {
     Some(MODES[selected].0 == "auto")
 }
 
-pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
+const THINKING_MODES: &[(&str, &str)] = &[
+    ("smart", "all messages, no optimization"),
+    ("fast", "sliding window with recent messages"),
+];
+
+fn build_thinking_menu_lines(selected: usize, current: ThinkingMode) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (i, (name, desc)) in THINKING_MODES.iter().enumerate() {
+        let is_selected = i == selected;
+        let is_current = (*name == "smart" && current == ThinkingMode::Smart)
+            || (*name == "fast" && current == ThinkingMode::Fast);
+
+        let marker = if is_current { "●" } else { " " };
+        let name_styled = if is_selected {
+            format!(
+                "{} {}",
+                marker.with(Color::Green),
+                name.with(Color::White)
+                    .attribute(crossterm::style::Attribute::Bold)
+            )
+        } else {
+            format!(
+                "{} {}",
+                marker.with(Color::Green),
+                name.with(Color::DarkGrey)
+            )
+        };
+
+        let desc_styled = format!("{}", desc.with(Color::DarkGrey));
+
+        let line = if is_selected {
+            format!("  {} {name_styled}  {desc_styled}", "›".with(Color::Cyan))
+        } else {
+            format!("    {name_styled}  {desc_styled}")
+        };
+
+        lines.push(line);
+    }
+    lines
+}
+
+/// Interactively select thinking mode with arrow keys.
+/// Returns `Some(ThinkingMode)` or `None` if cancelled (Esc).
+pub fn select_thinking(current: ThinkingMode) -> Option<ThinkingMode> {
+    let initial = match current {
+        ThinkingMode::Smart => 0,
+        ThinkingMode::Fast => 1,
+    };
+    let selected = select_from_menu(THINKING_MODES.len(), initial, |sel| {
+        build_thinking_menu_lines(sel, current)
+    })?;
+    Some(match THINKING_MODES[selected].0 {
+        "fast" => ThinkingMode::Fast,
+        _ => ThinkingMode::Smart,
+    })
+}
+
+pub fn print_info(
+    provider: &str,
+    model: &str,
+    auto: bool,
+    thinking: ThinkingMode,
+    version_info: &str,
+) {
     let version = crate::VERSION;
     let behavior = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
@@ -677,6 +773,7 @@ pub fn print_info(provider: &str, model: &str, auto: bool, version_info: &str) {
     println!("  {} {provider}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior:".with(Color::Cyan));
+    println!("  {} {thinking}", "thinking:".with(Color::Cyan));
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
     println!();
@@ -710,7 +807,9 @@ pub async fn run_issues(show_error: &dyn Fn(&str)) {
     };
 
     let skin = termimad::MadSkin::default();
-    let width = crossterm::terminal::size().map_or(80, |(w, _)| w as usize).min(100);
+    let width = crossterm::terminal::size()
+        .map_or(80, |(w, _)| w as usize)
+        .min(100);
     let rendered = format!(
         "{}",
         termimad::FmtText::from_text(&skin, body.as_str().into(), Some(width))

@@ -183,7 +183,12 @@ impl InteractiveUI {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn print_welcome(provider: &str, model: &str, version_info: &str) {
+    pub fn print_welcome(
+        provider: &str,
+        model: &str,
+        thinking: crate::commands::ThinkingMode,
+        version_info: &str,
+    ) {
         const BLANK: &str = "      ";
         const MASCOTS: [[&str; 2]; 6] = [
             ["[o_o] ", " |_|  "],
@@ -198,7 +203,7 @@ impl InteractiveUI {
             .map_or(0, |d| d.as_millis() as usize)
             % MASCOTS.len();
         let face = MASCOTS[pick];
-        let m = [face[0], face[1], BLANK, BLANK, BLANK];
+        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK];
 
         let dashes = "─".repeat(rule_width());
         eprintln!();
@@ -235,27 +240,35 @@ impl InteractiveUI {
             );
         }
 
-        // Line 1: provider · model · cwd
+        // Line 1: provider · model
+        eprintln!(
+            "{PAD}{} {}{} {} {}",
+            PIPE.with(Color::DarkGrey),
+            m[1].with(Color::Cyan),
+            provider.with(Color::Green),
+            "·".with(Color::DarkGrey),
+            model.with(Color::Yellow),
+        );
+
+        // Line 2: thinking · tools · dir
         let cwd = std::env::current_dir()
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
         let tools_count = crate::tools::TOOL_COUNT - crate::security::policy().disabled_tools.len();
         eprintln!(
-            "{PAD}{} {}{} {} {} {} {} {} {}",
+            "{PAD}{} {}{} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
-            m[1].with(Color::Cyan),
-            provider.with(Color::Green),
-            "·".with(Color::DarkGrey),
-            model.with(Color::Yellow),
+            m[2].with(Color::Cyan),
+            format!("{thinking} thinking").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
             format!("{tools_count} tools").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
             format!("dir: {cwd}/").as_str().with(Color::DarkGrey),
         );
 
-        // Line 2: security info
-        let mut next = 2;
+        // Line 3: security info
+        let mut next = 3;
         if crate::security::policy().enabled {
             let pol = crate::security::policy();
             let cwd_jail = if pol.paths.restrict_to_cwd {

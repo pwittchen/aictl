@@ -12,9 +12,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::{Parser, ValueEnum};
 
+use commands::ThinkingMode;
 use config::{
-    MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, config_get, config_set,
-    load_config,
+    FAST_MODE_WINDOW, MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, config_get,
+    config_set, load_config,
 };
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
@@ -235,8 +236,20 @@ async fn handle_tool_call(
     }
 }
 
+/// Build a windowed view of messages for fast thinking mode.
+/// Keeps the system prompt (first message) and the most recent `window` messages.
+fn windowed_messages(messages: &[Message], window: usize) -> Vec<Message> {
+    if messages.len() <= 1 + window {
+        return messages.to_vec();
+    }
+    let mut result = vec![messages[0].clone()];
+    result.extend_from_slice(&messages[messages.len() - window..]);
+    result
+}
+
 /// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
+#[allow(clippy::too_many_arguments)]
 async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
@@ -245,6 +258,7 @@ async fn run_agent_turn(
     user_message: &str,
     auto: &mut bool,
     ui: &dyn AgentUI,
+    thinking: ThinkingMode,
 ) -> Result<TurnResult, Box<dyn std::error::Error>> {
     messages.push(Message {
         role: Role::User,
@@ -265,13 +279,18 @@ async fn run_agent_turn(
         let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
         ui.start_spinner(phrase);
 
+        let llm_messages = match thinking {
+            ThinkingMode::Smart => messages.clone(),
+            ThinkingMode::Fast => windowed_messages(messages, FAST_MODE_WINDOW),
+        };
+
         let call_start = std::time::Instant::now();
         let result = match provider {
             Provider::Openai => {
-                with_esc_cancel(llm_openai::call_openai(api_key, model, messages)).await
+                with_esc_cancel(llm_openai::call_openai(api_key, model, &llm_messages)).await
             }
             Provider::Anthropic => {
-                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, messages)).await
+                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, &llm_messages)).await
             }
         };
         let call_elapsed = call_start.elapsed();
@@ -359,6 +378,7 @@ async fn run_agent_single(
         user_message,
         &mut auto,
         &ui,
+        ThinkingMode::Smart,
     )
     .await?;
     ui.show_answer(&turn.answer);
@@ -452,6 +472,7 @@ async fn handle_repl_input(
     api_key: &mut String,
     model: &mut String,
     auto: &mut bool,
+    thinking: &mut ThinkingMode,
     version_info: &str,
 ) -> ReplAction {
     use crossterm::style::{Color, Stylize};
@@ -489,7 +510,7 @@ async fn handle_repl_input(
         commands::CommandResult::Info => {
             let _ = rl.add_history_entry(input);
             let pname = format!("{provider:?}").to_lowercase();
-            commands::print_info(&pname, model, *auto, version_info);
+            commands::print_info(&pname, model, *auto, *thinking, version_info);
             return ReplAction::Continue;
         }
         commands::CommandResult::Security | commands::CommandResult::Continue => {
@@ -546,6 +567,20 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
+        commands::CommandResult::Thinking => {
+            let _ = rl.add_history_entry(input);
+            if let Some(new_thinking) = commands::select_thinking(*thinking) {
+                *thinking = new_thinking;
+                config_set("AICTL_THINKING", &format!("{new_thinking}"));
+                println!();
+                println!(
+                    "  {} switched to {new_thinking} thinking",
+                    "✓".with(Color::Green)
+                );
+                println!();
+            }
+            return ReplAction::Continue;
+        }
         commands::CommandResult::NotACommand => {}
     }
 
@@ -580,11 +615,16 @@ async fn run_and_display_turn(
     ui: &InteractiveUI,
     last_answer: &mut String,
     last_input_tokens: &mut u64,
+    thinking: ThinkingMode,
 ) {
     use crossterm::style::{Color, Stylize};
 
     let msg_len_before = messages.len();
-    match run_agent_turn(provider, api_key, model, messages, input, auto, ui).await {
+    match run_agent_turn(
+        provider, api_key, model, messages, input, auto, ui, thinking,
+    )
+    .await
+    {
         Ok(turn) => {
             ui.show_answer(&turn.answer);
             *last_answer = turn.answer;
@@ -615,6 +655,7 @@ async fn run_and_display_turn(
 }
 
 /// Interactive REPL mode: multi-turn conversation with persistent history.
+#[allow(clippy::too_many_lines)]
 async fn run_interactive(
     mut provider: Provider,
     mut api_key: String,
@@ -625,11 +666,16 @@ async fn run_interactive(
     use rustyline::error::ReadlineError;
 
     let mut auto = auto;
+    let mut thinking = match config_get("AICTL_THINKING").as_deref() {
+        Some("fast") => ThinkingMode::Fast,
+        _ => ThinkingMode::Smart,
+    };
     let ui = InteractiveUI::new();
     let version_info = version_info_string(fetch_remote_version().await.as_deref());
     InteractiveUI::print_welcome(
         &format!("{provider:?}").to_lowercase(),
         &model,
+        thinking,
         &version_info,
     );
 
@@ -691,6 +737,7 @@ async fn run_interactive(
                     &mut api_key,
                     &mut model,
                     &mut auto,
+                    &mut thinking,
                     &version_info,
                 )
                 .await
@@ -710,6 +757,7 @@ async fn run_interactive(
                     &ui,
                     &mut last_answer,
                     &mut last_input_tokens,
+                    thinking,
                 )
                 .await;
             }

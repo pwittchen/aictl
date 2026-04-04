@@ -5,7 +5,7 @@
 ```
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /tools, /update)
+ ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /thinking, /tools, /update)
  ├── config.rs           Config file loading (~/.aictl), constants (system prompt, spinner phrases, agent loop limits)
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
@@ -189,7 +189,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /behavior (Mode), /context (Context), /info (Info), /issues (Issues), /security (Security), /model (Model), /tools (Continue), /update (Update)
+ Also: /behavior (Mode), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -202,6 +202,7 @@ Both single-shot and REPL modes share the same loop:
    Update      → run update, restart if updated, continue
    Model       → select new model/provider, persist to ~/.aictl, continue
    Mode        → switch auto/human-in-the-loop mode, continue
+   Thinking    → switch thinking mode (smart/fast), persist to ~/.aictl, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
 ```

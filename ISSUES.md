@@ -30,10 +30,6 @@
 - **Document processing** `[tool]` — Add support for reading PDF and DOCX files.
 - **Spreadsheet processing** `[tool]` — Add support for reading XLSX files using the `calamine` crate.
 
-## Optimization
-
-- **Selective conversation history** `[optimization]` — Implement a sliding window over recent messages with optional compaction. Allow the user to choose between thinking/reasoning modes (e.g., smart vs. fast) and memory modes (e.g., long vs. short).
-
 ## Bugs
 
 - **Tool output sometimes printed instead of executed** `[bug]` — Occasionally the LLM generates a tool call (especially a shell command) but the agent prints it as a final response instead of executing it. This may be related to errors such as a nonexistent command. Update the agent loop so that tool output is never presented as a final result; instead, the agent should retry with a different approach.

@@ -55,9 +55,10 @@ The interactive REPL supports slash commands:
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
-| `/info` | Show setup info (provider, model, behavior, version, OS, binary size) |
+| `/info` | Show setup info (provider, model, behavior, thinking, version, OS, binary size) |
 | `/issues` | Fetch and display known issues from the remote ISSUES.md |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
+| `/thinking` | Switch thinking mode: smart (all messages) or fast (sliding window) |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
 | `/tools` | Show available tools |
@@ -97,6 +98,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 |-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai` or `anthropic`) |
 | `AICTL_MODEL` | Default model name |
+| `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
 | `LLM_ANTHROPIC_API_KEY` | API key for Anthropic |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
