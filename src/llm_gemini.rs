@@ -1,0 +1,130 @@
+use serde::{Deserialize, Serialize};
+
+use crate::llm::TokenUsage;
+use crate::{Message, Role};
+
+// --- Request types ---
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GeminiRequest {
+    contents: Vec<GeminiContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_instruction: Option<GeminiContent>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct GeminiContent {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<String>,
+    parts: Vec<GeminiPart>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct GeminiPart {
+    text: String,
+}
+
+// --- Response types ---
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeminiResponse {
+    candidates: Option<Vec<GeminiCandidate>>,
+    usage_metadata: Option<GeminiUsageMetadata>,
+}
+
+#[derive(Deserialize)]
+struct GeminiCandidate {
+    content: GeminiContent,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeminiUsageMetadata {
+    #[serde(default)]
+    prompt_token_count: u64,
+    #[serde(default)]
+    candidates_token_count: u64,
+}
+
+pub async fn call_gemini(
+    api_key: &str,
+    model: &str,
+    messages: &[Message],
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    let client = crate::config::http_client();
+
+    let mut system_text: Option<String> = None;
+    let mut contents: Vec<GeminiContent> = Vec::new();
+
+    for m in messages {
+        match m.role {
+            Role::System => {
+                system_text = Some(m.content.clone());
+            }
+            Role::User => {
+                contents.push(GeminiContent {
+                    role: Some("user".to_string()),
+                    parts: vec![GeminiPart {
+                        text: m.content.clone(),
+                    }],
+                });
+            }
+            Role::Assistant => {
+                contents.push(GeminiContent {
+                    role: Some("model".to_string()),
+                    parts: vec![GeminiPart {
+                        text: m.content.clone(),
+                    }],
+                });
+            }
+        }
+    }
+
+    let system_instruction = system_text.map(|text| GeminiContent {
+        role: None,
+        parts: vec![GeminiPart { text }],
+    });
+
+    let body = GeminiRequest {
+        contents,
+        system_instruction,
+    };
+
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    );
+
+    let resp = client
+        .post(&url)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+
+    let status = resp.status();
+    let text = resp.text().await?;
+
+    if !status.is_success() {
+        return Err(format!("Gemini API error ({status}): {text}").into());
+    }
+
+    let parsed: GeminiResponse = serde_json::from_str(&text)?;
+    let content = parsed
+        .candidates
+        .as_ref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.content.parts.first())
+        .map(|p| p.text.clone())
+        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Gemini".into() })?;
+    let usage = parsed
+        .usage_metadata
+        .map(|u| TokenUsage {
+            input_tokens: u.prompt_token_count,
+            output_tokens: u.candidates_token_count,
+            ..TokenUsage::default()
+        })
+        .unwrap_or_default();
+    Ok((content, usage))
+}

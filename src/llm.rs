@@ -21,6 +21,9 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-4o-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4o", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
+    ("gemini", "gemini-2.5-pro", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-2.5-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-2.0-flash", "LLM_GEMINI_API_KEY"),
 ];
 
 #[derive(Debug, Clone, Default)]
@@ -96,6 +99,17 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
+    // Google Gemini
+    if model.starts_with("gemini-2.5-pro") {
+        return Some((1.25, 10.00));
+    }
+    if model.starts_with("gemini-2.5-flash") {
+        return Some((0.15, 0.60));
+    }
+    if model.starts_with("gemini-2.0-flash") {
+        return Some((0.10, 0.40));
+    }
+
     None
 }
 
@@ -111,6 +125,9 @@ pub fn context_limit(model: &str) -> u64 {
         return 200_000;
     }
     if model.contains("claude-") || model.contains("claude") {
+        return 200_000;
+    }
+    if model.starts_with("gemini-") {
         return 200_000;
     }
     128_000

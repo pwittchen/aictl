@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod llm;
 mod llm_anthropic;
+mod llm_gemini;
 mod llm_openai;
 mod security;
 mod tools;
@@ -34,6 +35,7 @@ struct TurnResult {
 enum Provider {
     Openai,
     Anthropic,
+    Gemini,
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -292,6 +294,9 @@ async fn run_agent_turn(
             Provider::Anthropic => {
                 with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, &llm_messages)).await
             }
+            Provider::Gemini => {
+                with_esc_cancel(llm_gemini::call_gemini(api_key, model, &llm_messages)).await
+            }
         };
         let call_elapsed = call_start.elapsed();
 
@@ -499,7 +504,15 @@ async fn handle_repl_input(
         }
         commands::CommandResult::Compact => {
             let _ = rl.add_history_entry(input);
-            commands::compact(provider, api_key, model, messages, ui, &thinking.to_string()).await;
+            commands::compact(
+                provider,
+                api_key,
+                model,
+                messages,
+                ui,
+                &thinking.to_string(),
+            )
+            .await;
             *last_input_tokens = 0;
             return ReplAction::Continue;
         }
@@ -597,7 +610,15 @@ async fn handle_repl_input(
             "  {} context at {context_pct}%, auto-compacting...",
             "⚠".with(Color::Yellow)
         );
-        commands::compact(provider, api_key, model, messages, ui, &thinking.to_string()).await;
+        commands::compact(
+            provider,
+            api_key,
+            model,
+            messages,
+            ui,
+            &thinking.to_string(),
+        )
+        .await;
         *last_input_tokens = 0;
     }
 
@@ -814,8 +835,9 @@ async fn main() {
         match config_get("AICTL_PROVIDER").as_deref() {
             Some("openai") => Provider::Openai,
             Some("anthropic") => Provider::Anthropic,
+            Some("gemini") => Provider::Gemini,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai' or 'anthropic')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', or 'gemini')");
                 std::process::exit(1);
             }
             None => {
@@ -835,6 +857,7 @@ async fn main() {
     let key_name = match provider {
         Provider::Openai => "LLM_OPENAI_API_KEY",
         Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
+        Provider::Gemini => "LLM_GEMINI_API_KEY",
     };
 
     let api_key = config_get(key_name).unwrap_or_else(|| {

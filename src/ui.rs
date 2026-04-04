@@ -76,6 +76,7 @@ pub trait AgentUI {
     fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
+    #[allow(clippy::too_many_arguments)]
     fn show_token_usage(
         &self,
         usage: &TokenUsage,

@@ -171,6 +171,14 @@ pub async fn compact(
             ))
             .await
         }
+        Provider::Gemini => {
+            crate::with_esc_cancel(crate::llm_gemini::call_gemini(
+                api_key,
+                model,
+                &summary_msgs,
+            ))
+            .await
+        }
     };
 
     ui.stop_spinner();
@@ -199,7 +207,15 @@ pub async fn compact(
                     .to_string(),
             });
             println!();
-            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO, 0, thinking);
+            ui.show_token_usage(
+                &usage,
+                model,
+                false,
+                0,
+                std::time::Duration::ZERO,
+                0,
+                thinking,
+            );
             println!("  {} context compacted", "✓".with(Color::Green));
             println!();
         }
@@ -465,6 +481,7 @@ fn build_menu_lines(selected: usize, current_model: &str) -> (Vec<String>, Vec<u
             let label = match *prov {
                 "anthropic" => "Anthropic:",
                 "openai" => "OpenAI:",
+                "gemini" => "Gemini:",
                 _ => prov,
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
@@ -616,6 +633,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
     let provider = match prov_str {
         "openai" => Provider::Openai,
         "anthropic" => Provider::Anthropic,
+        "gemini" => Provider::Gemini,
         _ => unreachable!(),
     };
     Some((provider, model.to_string(), api_key_name.to_string()))
