@@ -42,6 +42,3 @@
 ## Other
 
 - **Project website** `[marketing]` — Create a public-facing project website.
-- **Installation script update detection** `[infra]` — Detect whether `aictl` is already installed in `install.sh`. If it is, display "Update aictl to the latest version?" instead of "Install aictl?".
-- **Welcome banner help hint** `[ui]` — Add a hint to the welcome banner telling users they can type `/help` to see available commands.
-- **Leading blank line in banner** `[ui]` — Add an extra empty line before the welcome banner to improve visual spacing when the CLI starts.

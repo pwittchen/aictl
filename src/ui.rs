@@ -21,7 +21,7 @@ pub enum ToolApproval {
 
 const PAD: &str = "  ";
 const PIPE: &str = "│";
-const WELCOME_TEXT: &str = "Type a message, \"exit\" or Ctrl+D to quit";
+const WELCOME_TEXT: &str = "Type a message or /help for commands. Exit with \"exit\" or Ctrl+D";
 const MAX_RESULT_LINES: usize = 15;
 const MAX_ANSWER_WIDTH: usize = 76;
 const FALLBACK_WIDTH: u16 = 80;
@@ -201,6 +201,7 @@ impl InteractiveUI {
         let m = [face[0], face[1], BLANK, BLANK, BLANK];
 
         let dashes = "─".repeat(rule_width());
+        eprintln!();
         eprintln!(
             "{PAD}{}{}",
             "╭".with(Color::DarkGrey),

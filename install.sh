@@ -65,10 +65,19 @@ else
   printf "${GREEN}>>>${RESET} Rust toolchain found: ${DIM}$(rustc --version)${RESET}\n\n"
 fi
 
-# Install aictl
-info "This will compile and install aictl to ~/.cargo/bin/"
-echo ""
-if confirm "Install aictl?"; then
+# Install or update aictl
+if command -v aictl >/dev/null 2>&1; then
+  CURRENT_VERSION=$(aictl --version 2>/dev/null || echo "unknown")
+  printf "${GREEN}>>>${RESET} aictl is already installed: ${DIM}${CURRENT_VERSION}${RESET}\n"
+  info "This will recompile and install the latest version to ~/.cargo/bin/"
+  echo ""
+  PROMPT="Update aictl to the latest version?"
+else
+  info "This will compile and install aictl to ~/.cargo/bin/"
+  echo ""
+  PROMPT="Install aictl?"
+fi
+if confirm "$PROMPT"; then
   echo ""
   step "Building and installing aictl..."
   info "This may take a minute on first install.\n"
