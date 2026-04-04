@@ -1,23 +1,43 @@
-# ISSUES
+# Issues
 
-features/ideas/bugs:
+## Security
 
-- [func] [config] research & implement more secure way of storing api keys instead of the plain text - consider using keyring, and use env in plain text as a fallback - add some note in the welcome banner and info that keys are secure or not
-- [func] [ui] [config] once secure keys storage will be implemented in the app, in the `/info` command we can show info that specified API key is set or not and if it's secured (saved in keyring) or not (saved in config file in plain text) - there can be additional command like `/lock-keys`, which will copy api keys to keyring and remove them from config file and `/unlock-keys` which will do opposite operation and `/clear-keys`, which will remove it everywhere; also keys storage info should be printed in `/security` command
-- [config] add possibility to manage multiple AGENT PROMPTS saved in the config, which user can use depending on the use case - it can be done, by providing prompt file while running the program - this will give the user flexibility in terms of managing prompts and storing them and we avoid complexity of managing this on the app level - think if we should provide prompt file by param or by convention or both - this can be done via keeping prompt definitions in `~/.aictl/agents/` dir, and there should be commands allowing user to manage assistants: create, use, discard, delete
-- [func] consider adding session persistence/restoration - maybe consider this per assistant (it's related to another issue in this backlog) - messages can be stored in `.aictl.session` file in the current dir and after session restoration it should be read, compacted saved and used for the future conversations - persistence should be invoked on purpose - e.g. with `--session`/`--memory` param - it can be done via `~/.aictl/sessions/` dir, where user can persist all the sessions with name and datetime, if there's no name defined, there should be random name; later user can restore session
-- [llm] add Gemini support
-- [llm] add Grok support
-- [llm] add Mistral support
-- [llm] add Z.ai support
-- [llm] add DeepSeek support
-- [llm] add Ollama support
-- [llm] add native models support from disk (e.g. with ONNX or other format like that)
-- [tool] [func] add image processing capability
-- [tool] [func] add document processing capability (pdf/docx)
-- [tool] [func] add xslx processing capability with calamine
-- [optimization] implement prompt caching
-- [optimization] implement selective history with last messages window and optional compact - allow user to choose thinking/reasoning mode: smart/fast or memory: long/short
-- [bug] sometimes it can happen, that LLM generate tool output to be executer - especially shell command, but agent is not executing it and just prints it. It may be related to some errors like inexistent command or something like this - update agent-loop, so it will never print tool output as a final result, but try different approach to achieve the result
-- [marketing] create project website
-- [func] add displaying issues/roadmap (this file)
+- **Secure API key storage** `[config]` — Research and implement a more secure way of storing API keys instead of plain text. Consider using the system keyring with a plain-text environment variable as a fallback. Add a note in the welcome banner and `/info` output indicating whether keys are stored securely.
+
+- **Key management commands** `[config] [ui]` — Once secure key storage is implemented, show the storage status of each API key in the `/info` and `/security` commands (whether the key is set and whether it is secured via keyring or stored in plain text). Add the following commands: `/lock-keys` (copy API keys to the keyring and remove them from the config file), `/unlock-keys` (copy keys back to the config file and remove them from the keyring), and `/clear-keys` (remove keys from both locations).
+
+## Configuration
+
+- **Agent prompt profiles** `[config]` — Add support for managing multiple agent prompts that users can switch between depending on the use case. Prompt definitions would live in `~/.aictl/agents/`. Consider allowing selection via a CLI parameter, a naming convention, or both. Add commands for managing agents: create, use, discard, and delete.
+
+- **Session persistence and restoration** `[func]` — Allow users to persist and restore conversation sessions. Sessions would be stored in `~/.aictl/sessions/` with a name and timestamp (use a random name if none is provided). Persistence should be opt-in via a `--session` or `--memory` flag. On restoration, the session history should be read, compacted, and used for future conversation context. Consider tying sessions to agent profiles (related to the agent prompt profiles issue above).
+
+## LLM Providers
+
+- **Add Gemini support** `[llm]`
+- **Add Grok support** `[llm]`
+- **Add Mistral support** `[llm]`
+- **Add Z.ai support** `[llm]`
+- **Add DeepSeek support** `[llm]`
+- **Add Ollama support** `[llm]`
+- **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
+
+## Tools
+
+- **Image processing** `[tool]` — Add the ability to process and analyze images.
+- **Document processing** `[tool]` — Add support for reading PDF and DOCX files.
+- **Spreadsheet processing** `[tool]` — Add support for reading XLSX files using the `calamine` crate.
+
+## Optimization
+
+- **Prompt caching** `[optimization]` — Implement prompt caching to reduce redundant API calls.
+- **Selective conversation history** `[optimization]` — Implement a sliding window over recent messages with optional compaction. Allow the user to choose between thinking/reasoning modes (e.g., smart vs. fast) and memory modes (e.g., long vs. short).
+
+## Bugs
+
+- **Tool output sometimes printed instead of executed** `[bug]` — Occasionally the LLM generates a tool call (especially a shell command) but the agent prints it as a final response instead of executing it. This may be related to errors such as a nonexistent command. Update the agent loop so that tool output is never presented as a final result; instead, the agent should retry with a different approach.
+
+## Other
+
+- **Project website** `[marketing]` — Create a public-facing project website.
+- **Display issues and roadmap in-app** `[func]` — Add a command to display the contents of this file within the application.
