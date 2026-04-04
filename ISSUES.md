@@ -12,6 +12,8 @@
 
 - **Session persistence and restoration** `[func]` — Allow users to persist and restore conversation sessions. Sessions would be stored in `~/.aictl/sessions/` with a name and timestamp (use a random name if none is provided). Persistence should be opt-in via a `--session` or `--memory` flag. On restoration, the session history should be read, compacted, and used for future conversation context. Consider tying sessions to agent profiles (related to the agent prompt profiles issue above).
 
+- **Update config file path** `[config]` - Move config file from `~/.acictl` to `~/.aictl/config`. With dedicated project dir there is more possibilities for info storage.
+
 ## LLM Providers
 
 - **Add Gemini support** `[llm]`
@@ -41,4 +43,4 @@
 
 - **Project website** `[marketing]` — Create a public-facing project website.
 - **Installation script**` [infra] - detect if there is already installed `aictl` in the system in the `install.sh` script and if yes, then instead of the `install aictl?` question, display `update aictl to the latest version?` question
-- **Welcome banner hint** [ui] - in the welcome banner, add hint that user can type `/help` to see available commands
+- **Welcome banner hint** `[ui]` - in the welcome banner, add hint that user can type `/help` to see available commands
