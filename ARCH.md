@@ -13,7 +13,8 @@ src/
  ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
  ├── llm_openai.rs       OpenAI chat completions client
  ├── llm_anthropic.rs    Anthropic messages client
- └── llm_gemini.rs       Google Gemini generateContent client
+ ├── llm_gemini.rs       Google Gemini generateContent client
+ └── llm_grok.rs         xAI Grok chat completions client
 ```
 
 ## Startup Flow
@@ -27,7 +28,7 @@ src/
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
- │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI}_API_KEY       │
+ │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK}_API_KEY  │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
@@ -52,6 +53,7 @@ Both single-shot and REPL modes share the same loop:
  │  │  Call LLM API    │  openai::call_openai()            │
  │  │  (via provider)  │  anthropic::call_anthropic()      │
  │  │                  │  gemini::call_gemini()            │
+ │  │                  │  grok::call_grok()                │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -118,27 +120,28 @@ Both single-shot and REPL modes share the same loop:
 ## LLM Provider Abstraction
 
 ```
-                        ┌──────────────┐
-                        │  &[Message]  │
-                        └──────┬───────┘
-                               │
-               ┌───────────────┼──────────────┐
-               ▼               ▼               ▼
- ┌──────────────────┐ ┌─────────────────┐ ┌──────────────────┐
- │  call_openai()   │ │call_anthropic() │ │  call_gemini()   │
- │                  │ │                 │ │                  │
- │  System msg      │ │ System msg ──>  │ │ System msg ──>   │
- │  inline in       │ │ top-level       │ │ systemInstruction│
- │  messages[]      │ │ "system" field  │ │ field            │
- │                  │ │                 │ │                  │
- │  POST /v1/chat/  │ │ POST /v1/      │ │ POST /v1beta/    │
- │  completions     │ │ messages        │ │ :generateContent │
- └────────┬─────────┘ └────────┬────────┘ └────────┬─────────┘
-          │                    │                    │
-          └────────────────────┼────────────────────┘
-                               ▼
-                    ┌──────────────────┐
-                    │ (String,         │
+                             ┌──────────────┐
+                             │  &[Message]  │
+                             └──────┬───────┘
+                                    │
+               ┌────────────┬───────┼───────┬────────────┐
+               ▼            ▼       │       ▼            ▼
+ ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+ │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │
+ │                  │ │                   │ │                  │ │                  │
+ │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │
+ │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │
+ │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │
+ │                  │ │                   │ │                  │ │                  │
+ │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │
+ │  completions     │ │ messages          │ │ :generateContent │ │ completions      │
+ │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │
+ └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘
+          │                    │                     │                    │
+          └────────────────────┼─────────────────────┼────────────────────┘
+                               ▼                     │
+                    ┌──────────────────┐             │
+                    │ (String,         │ <───────────┘
                     │  TokenUsage)     │
                     │                  │
                     │ response text +  │
@@ -244,7 +247,8 @@ Both single-shot and REPL modes share the same loop:
       ┌──────────┐             ┌──────────┐
       │ llm*.rs  │             │ ui.rs    │
       │          │             │          │
-      │ openai   │             │ spinner  │
+      │ openai   │             │          │
+      │ grok     │             │ spinner  │
       │ anthropic│             │ confirm  │
       │ gemini   │             │ render   │
       └──────────┘             └──────────┘

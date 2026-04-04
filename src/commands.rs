@@ -179,6 +179,9 @@ pub async fn compact(
             ))
             .await
         }
+        Provider::Grok => {
+            crate::with_esc_cancel(crate::llm_grok::call_grok(api_key, model, &summary_msgs)).await
+        }
     };
 
     ui.stop_spinner();
@@ -634,6 +637,7 @@ pub fn select_model(current_model: &str) -> Option<(Provider, String, String)> {
         "openai" => Provider::Openai,
         "anthropic" => Provider::Anthropic,
         "gemini" => Provider::Gemini,
+        "grok" => Provider::Grok,
         _ => unreachable!(),
     };
     Some((provider, model.to_string(), api_key_name.to_string()))

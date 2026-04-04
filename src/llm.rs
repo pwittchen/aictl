@@ -24,6 +24,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-2.5-pro", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-2.5-flash", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-2.0-flash", "LLM_GEMINI_API_KEY"),
+    ("grok", "grok-3", "LLM_GROK_API_KEY"),
+    ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
 ];
 
 #[derive(Debug, Clone, Default)]
@@ -110,6 +112,14 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.10, 0.40));
     }
 
+    // xAI Grok
+    if model.starts_with("grok-3-mini") {
+        return Some((0.30, 0.50));
+    }
+    if model.starts_with("grok-3") {
+        return Some((3.00, 15.00));
+    }
+
     None
 }
 
@@ -129,6 +139,9 @@ pub fn context_limit(model: &str) -> u64 {
     }
     if model.starts_with("gemini-") {
         return 200_000;
+    }
+    if model.starts_with("grok-") {
+        return 131_072;
     }
     128_000
 }

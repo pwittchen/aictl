@@ -117,10 +117,7 @@ pub async fn call_gemini(
                 .as_array()
                 .and_then(|details| {
                     details.iter().find_map(|d| {
-                        d["violations"]
-                            .as_array()?
-                            .first()?["quotaDimensions"]["model"]
-                            .as_str()
+                        d["violations"].as_array()?.first()?["quotaDimensions"]["model"].as_str()
                     })
                 })
                 .unwrap_or(model);
