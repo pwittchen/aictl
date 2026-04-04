@@ -16,7 +16,6 @@
 
 ## LLM Providers
 
-- **Add Grok support** `[llm]`
 - **Add Mistral support** `[llm]`
 - **Add Z.ai support** `[llm]`
 - **Add DeepSeek support** `[llm]`
