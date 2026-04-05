@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+See also: [README.md](README.md) for project overview and usage, [ARCH.md](ARCH.md) for detailed architecture documentation.
+
 ## Build & Run
 
 ```bash
