@@ -16,6 +16,8 @@
 
 - **Update config file path** `[config]` — Move the config file from `~/.aictl` to `~/.aictl/config`. A dedicated project directory opens up more possibilities for structured storage (sessions, agent profiles, etc.).
 
+- **Configuration command** `[config]` - Crate `/configure` command, which will allow to configure program and persist user choices. This command can be invoked anytime while using the app or automatically when the app detects that there is no configuration.
+
 ## LLM Providers
 
 - **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
