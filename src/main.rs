@@ -536,6 +536,7 @@ async fn handle_repl_input(
                 messages,
                 ui,
                 &thinking.to_string(),
+                false,
             )
             .await;
             *last_input_tokens = 0;
@@ -653,6 +654,7 @@ async fn handle_repl_input(
             messages,
             ui,
             &thinking.to_string(),
+            true,
         )
         .await;
         *last_input_tokens = 0;

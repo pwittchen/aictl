@@ -1,6 +1,17 @@
 use std::io::Write;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossterm::style::{Color, Stylize};
+
+static MANUAL_COMPACTIONS: AtomicU32 = AtomicU32::new(0);
+static AUTO_COMPACTIONS: AtomicU32 = AtomicU32::new(0);
+
+pub fn compaction_counts() -> (u32, u32) {
+    (
+        MANUAL_COMPACTIONS.load(Ordering::Relaxed),
+        AUTO_COMPACTIONS.load(Ordering::Relaxed),
+    )
+}
 
 use crate::llm;
 use crate::llm::MODELS;
@@ -137,6 +148,7 @@ pub async fn compact(
     messages: &mut Vec<Message>,
     ui: &dyn AgentUI,
     thinking: &str,
+    is_auto: bool,
 ) {
     if messages.len() <= 1 {
         ui.show_error("Nothing to compact.");
@@ -242,6 +254,11 @@ pub async fn compact(
                 0,
                 thinking,
             );
+            if is_auto {
+                AUTO_COMPACTIONS.fetch_add(1, Ordering::Relaxed);
+            } else {
+                MANUAL_COMPACTIONS.fetch_add(1, Ordering::Relaxed);
+            }
             println!("  {} context compacted", "✓".with(Color::Green));
             println!();
         }
@@ -285,6 +302,11 @@ pub fn print_context(
     println!(
         "  {} {messages_len} / {max_messages}",
         "messages:".with(Color::DarkGrey),
+    );
+    let (manual, auto) = compaction_counts();
+    println!(
+        "  {} manual: {manual}, auto: {auto}",
+        "compactions:".with(Color::DarkGrey),
     );
     println!();
 }

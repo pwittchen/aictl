@@ -33,4 +33,3 @@
 ## Other
 
 - **Project website** `[marketing]` — Create a public-facing project website.
-- **Stats/Info** - track context compression count and show it in the `/context` command
