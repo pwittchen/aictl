@@ -92,11 +92,11 @@ struct Cli {
     #[arg(short = 'u', long = "update")]
     update: bool,
 
-    /// LLM provider to use (default: `AICTL_PROVIDER` from ~/.aictl)
+    /// LLM provider to use (default: `AICTL_PROVIDER` from ~/.aictl/config)
     #[arg(short, long)]
     provider: Option<Provider>,
 
-    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: `AICTL_MODEL` from ~/.aictl)
+    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: `AICTL_MODEL` from ~/.aictl/config)
     #[arg(short = 'M', long)]
     model: Option<String>,
 
@@ -583,7 +583,7 @@ async fn handle_repl_input(
                 } else {
                     let Some(new_api_key) = config_get(&api_key_name) else {
                         ui.show_error(&format!(
-                            "API key not found. Set {api_key_name} in ~/.aictl"
+                            "API key not found. Set {api_key_name} in ~/.aictl/config"
                         ));
                         return ReplAction::Continue;
                     };
@@ -882,7 +882,7 @@ async fn main() {
                 std::process::exit(1);
             }
             None => {
-                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in ~/.aictl");
+                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in ~/.aictl/config");
                 std::process::exit(1);
             }
         }
@@ -890,7 +890,7 @@ async fn main() {
 
     let model = cli.model.unwrap_or_else(|| {
         config_get("AICTL_MODEL").unwrap_or_else(|| {
-            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in ~/.aictl");
+            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in ~/.aictl/config");
             std::process::exit(1);
         })
     });
@@ -909,7 +909,7 @@ async fn main() {
             Provider::Ollama => unreachable!(),
         };
         config_get(key_name).unwrap_or_else(|| {
-            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl");
+            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config");
             std::process::exit(1);
         })
     };

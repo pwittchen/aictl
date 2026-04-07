@@ -59,7 +59,7 @@ The interactive REPL supports slash commands:
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/thinking` | Switch thinking mode: smart (all messages) or fast (sliding window) |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
-| `/model` | Switch model and provider during the session (persists to `~/.aictl`) |
+| `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/tools` | Show available tools |
 | `/update` | Update to the latest version |
 | `/exit` | Exit the REPL |
@@ -72,8 +72,8 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl` |
-| `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl` |
+| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
+| `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
@@ -83,7 +83,7 @@ CLI flags take priority over config file values.
 
 ### Configuration
 
-Configuration is loaded from `~/.aictl`. This is a single global config file — the program works the same regardless of the current working directory.
+Configuration is loaded from `~/.aictl/config`. This is a single global config file — the program works the same regardless of the current working directory.
 
 #### Basic configuration
 
@@ -124,7 +124,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web`) |
 | `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
 
-Create `~/.aictl` (see `.aictl.example`):
+Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 
 ```
 AICTL_PROVIDER=anthropic
@@ -235,7 +235,7 @@ AICTL_MODEL=llama3.2:latest
 
 Available models are detected automatically from your local Ollama instance via the REST API. The `/model` command shows only models you have pulled locally. If Ollama is not running, it will not appear in the model menu.
 
-By default, aictl connects to `http://localhost:11434`. To use a different address, set `LLM_OLLAMA_HOST` in `~/.aictl`.
+By default, aictl connects to `http://localhost:11434`. To use a different address, set `LLM_OLLAMA_HOST` in `~/.aictl/config`.
 
 All Ollama models are free (self-hosted), so cost estimation shows $0.00.
 
@@ -288,12 +288,12 @@ All tool calls pass through a configurable security policy (`src/security.rs`) b
 - **Write size limit**: file writes are capped at 1 MB (configurable).
 - **Output sanitization**: tool results are sanitized to prevent prompt injection via `<tool>` tags.
 
-Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl`.
+Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`.
 
 ### Examples
 
 ```bash
-# With defaults configured in ~/.aictl, just run:
+# With defaults configured in ~/.aictl/config, just run:
 aictl
 
 # Or send a single message:

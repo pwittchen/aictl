@@ -1,5 +1,6 @@
-# ~/.aictl — aictl configuration file
-# Copy this file to ~/.aictl and uncomment/fill in the values.
+# ~/.aictl/config — aictl configuration file
+# Copy this file to ~/.aictl/config (create the ~/.aictl directory first)
+# and uncomment/fill in the values.
 
 
 ################################

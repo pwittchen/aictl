@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
  ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /thinking, /tools, /update)
- ├── config.rs           Config file loading (~/.aictl), constants (system prompt, spinner phrases, agent loop limits)
+ ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits)
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
  ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
@@ -27,7 +27,7 @@ src/
  ┌──────────────────────────────────────────────────────────────────────────┐
  │  main()                                                                  │
  │                                                                          │
- │  1. load_config()            read ~/.aictl into OnceLock HashMap         │
+ │  1. load_config()            read ~/.aictl/config into OnceLock HashMap         │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
@@ -216,9 +216,9 @@ Both single-shot and REPL modes share the same loop:
    Security    → show current security policy, continue
    Issues      → fetch and display known issues, continue
    Update      → run update, restart if updated, continue
-   Model       → select new model/provider, persist to ~/.aictl, continue
+   Model       → select new model/provider, persist to ~/.aictl/config, continue
    Behavior    → switch auto/human-in-the-loop behavior, continue
-   Thinking    → switch thinking mode (smart/fast), persist to ~/.aictl, continue
+   Thinking    → switch thinking mode (smart/fast), persist to ~/.aictl/config, continue
    Continue    → command handled, continue
    NotACommand → pass input to agent loop
 ```

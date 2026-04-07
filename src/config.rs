@@ -86,7 +86,7 @@ pub fn load_config() {
         eprintln!("Error: HOME environment variable not set");
         std::process::exit(1);
     });
-    let config_path = format!("{home}/.aictl");
+    let config_path = format!("{home}/.aictl/config");
     let Ok(contents) = std::fs::read_to_string(&config_path) else {
         CONFIG.set(HashMap::new()).ok();
         return;
@@ -128,12 +128,14 @@ pub fn config_get(key: &str) -> Option<String> {
     CONFIG.get().and_then(|m| m.get(key).cloned())
 }
 
-/// Write a key=value pair to ~/.aictl, replacing an existing key or appending.
+/// Write a key=value pair to ~/.aictl/config, replacing an existing key or appending.
 pub fn config_set(key: &str, value: &str) {
     let Ok(home) = std::env::var("HOME") else {
         return;
     };
-    let config_path = format!("{home}/.aictl");
+    let config_dir = format!("{home}/.aictl");
+    let config_path = format!("{config_dir}/config");
+    let _ = std::fs::create_dir_all(&config_dir);
     let contents = std::fs::read_to_string(&config_path).unwrap_or_default();
 
     let mut found = false;

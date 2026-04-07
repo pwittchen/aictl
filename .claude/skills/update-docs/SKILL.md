@@ -23,7 +23,7 @@ Read these files to build an accurate picture:
 - `src/llm.rs` — MODELS constant (provider, name, config key), pricing in `price_per_million`, TokenUsage struct
 - `src/llm_openai.rs` — API endpoint, request/response structs, max_tokens
 - `src/llm_anthropic.rs` — API endpoint, headers, anthropic-version, max_tokens
-- `.aictl.example` — config keys and descriptions
+- `.aictl/config` — config keys and descriptions
 
 ### 2. Build a checklist of facts
 
@@ -34,7 +34,7 @@ From the source code, extract these concrete values:
 - **REPL commands** — the COMMANDS array, with what each does
 - **Tools** — every match arm in `execute_tool`, with a one-line description
 - **Models** — every entry in the MODELS constant, with provider and pricing
-- **Config keys** — every key referenced by `config_get()` calls and in `.aictl.example`
+- **Config keys** — every key referenced by `config_get()` calls and in `.aictl/config`
 - **Dependencies** — name and version from `Cargo.toml`
 - **Module list** — every `.rs` file under `src/` with its responsibility
 - **Constants** — MAX_ITERATIONS, MAX_MESSAGES, max_tokens per provider, output truncation limits
@@ -50,7 +50,7 @@ For each file, compare the checklist against what the doc currently says. Fix an
 - REPL commands list — must match COMMANDS array exactly
 - Tools list — must match `execute_tool` arms exactly
 - Models/pricing table — must match MODELS and `price_per_million`
-- Config keys — must match `.aictl.example` and actual `config_get` calls
+- Config keys — must match `.aictl/config` and actual `config_get` calls
 - Installation instructions — verify they still work
 
 #### CLAUDE.md

@@ -272,7 +272,7 @@ async fn tool_edit_file(input: &str) -> String {
 
 async fn tool_search_web(input: &str) -> String {
     let Some(api_key) = crate::config::config_get("FIRECRAWL_API_KEY") else {
-        return "Error: FIRECRAWL_API_KEY not set in ~/.aictl".to_string();
+        return "Error: FIRECRAWL_API_KEY not set in ~/.aictl/config".to_string();
     };
     let query = input.trim();
     let client = crate::config::http_client();

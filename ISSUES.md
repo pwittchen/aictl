@@ -14,8 +14,6 @@
 
 - **Session persistence and restoration** `[func]` — Allow users to persist and restore conversation sessions. Sessions would be stored in `~/.aictl/sessions/` with a name and timestamp (use a random name if none is provided). Persistence should be opt-in via a `--session` or `--memory` flag. On restoration, the session history should be read, compacted, and used for future conversation context. Consider tying sessions to agent profiles (related to the agent prompt profiles issue above).
 
-- **Update config file path** `[config]` — Move the config file from `~/.aictl` to `~/.aictl/config`. A dedicated project directory opens up more possibilities for structured storage (sessions, agent profiles, etc.).
-
 - **Configuration command** `[config]` - Crate `/configure` command, which will allow to configure program and persist user choices. This command can be invoked anytime while using the app or automatically when the app detects that there is no configuration.
 
 ## LLM Providers

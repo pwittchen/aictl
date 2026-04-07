@@ -19,24 +19,24 @@ cargo test               # run tests
 
 Single-binary async Rust CLI with fifteen modules:
 
-- `src/main.rs` — CLI args (clap), config loading (`~/.aictl`), security init, agent loop, single-shot and interactive REPL modes
+- `src/main.rs` — CLI args (clap), config loading (`~/.aictl/config`), security init, agent loop, single-shot and interactive REPL modes
 - `src/commands.rs` — REPL slash command handling (`/behavior`, `/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/issues`, `/model`, `/security`, `/thinking`, `/tools`, `/update`). `ThinkingMode` enum (Smart/Fast) for conversation history optimization. Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
-- `src/config.rs` — config file loading (`~/.aictl`), constants (system prompt, spinner phrases, agent loop limits)
-- `src/security.rs` — `SecurityPolicy` with shell command validation, path validation (CWD jail, blocked paths, canonicalization), environment scrubbing, shell timeout, output sanitization. Loaded into `static OnceLock` at startup. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl`.
+- `src/config.rs` — config file loading (`~/.aictl/config`), constants (system prompt, spinner phrases, agent loop limits)
+- `src/security.rs` — `SecurityPolicy` with shell command validation, path validation (CWD jail, blocked paths, canonicalization), environment scrubbing, shell timeout, output sanitization. Loaded into `static OnceLock` at startup. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`.
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch (security gate at entry, output sanitization at exit)
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
 - `src/llm.rs` — shared `TokenUsage` type with cost estimation, model list, context limits
 - `src/llm_openai.rs`, `src/llm_anthropic.rs`, `src/llm_gemini.rs`, `src/llm_grok.rs`, `src/llm_mistral.rs`, `src/llm_deepseek.rs`, `src/llm_zai.rs`, `src/llm_ollama.rs` — provider-specific API call implementations
 
-**Config**: Loaded once at startup from `~/.aictl` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters.
+**Config**: Loaded once at startup from `~/.aictl/config` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters.
 
 **Flow**: CLI args (clap) → `security::init()` → `run_agent_turn` loop → provider call → parse response for `<tool>` tags → security validation → execute tool or print final answer.
 
-**Modes**: Single-shot (`-m "message"`) uses `PlainUI`; omitting `-m` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output). `--quiet`/`-q` (requires `--auto`) suppresses reasoning and tool call output in single-shot mode, printing only the final answer. **Thinking modes**: Smart (default, sends all messages to LLM) and Fast (sends system prompt + last 20 messages via a sliding window). Configurable via `/thinking` command or `AICTL_THINKING` in `~/.aictl`.
+**Modes**: Single-shot (`-m "message"`) uses `PlainUI`; omitting `-m` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output). `--quiet`/`-q` (requires `--auto`) suppresses reasoning and tool call output in single-shot mode, printing only the final answer. **Thinking modes**: Smart (default, sends all messages to LLM) and Fast (sends system prompt + last 20 messages via a sliding window). Configurable via `/thinking` command or `AICTL_THINKING` in `~/.aictl/config`.
 
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 
-**Security** (`src/security.rs`): All tool calls pass through `security::validate_tool()` before execution. Shell commands are validated against blocked/allowed lists with command substitution blocking. File tools are restricted to the working directory (CWD jail) with path canonicalization to defeat traversal attacks. Individual tools can be disabled via `AICTL_SECURITY_DISABLED_TOOLS`. Shell subprocesses get a scrubbed environment (strips `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`) and a configurable timeout (default 30s). Tool output is sanitized to prevent `<tool>` tag injection. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl`. Bypassed entirely with `--unrestricted`.
+**Security** (`src/security.rs`): All tool calls pass through `security::validate_tool()` before execution. Shell commands are validated against blocked/allowed lists with command substitution blocking. File tools are restricted to the working directory (CWD jail) with path canonicalization to defeat traversal attacks. Individual tools can be disabled via `AICTL_SECURITY_DISABLED_TOOLS`. Shell subprocesses get a scrubbed environment (strips `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`) and a configurable timeout (default 30s). Tool output is sanitized to prevent `<tool>` tag injection. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`. Bypassed entirely with `--unrestricted`.
 
 **Tools** (`execute_tool` dispatches by tool name):
 - `exec_shell` — runs commands via `tokio::process::Command` (`sh -c`) with env scrubbing and timeout
@@ -48,7 +48,7 @@ Single-binary async Rust CLI with fifteen modules:
 - `search_files` — content search via glob traversal and string matching
 - `edit_file` — targeted find-and-replace (requires unique match)
 - `find_files` — find files matching a glob pattern with optional base directory
-- `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl`)
+- `search_web` — web search via Firecrawl API (`FIRECRAWL_API_KEY` from `~/.aictl/config`)
 - `fetch_url` — fetch a URL and return readable text content (HTML stripped)
 - `extract_website` — fetch a URL and extract main readable content (strips scripts, styles, nav, boilerplate)
 - `fetch_datetime` — get current date, time, timezone, and day of week
