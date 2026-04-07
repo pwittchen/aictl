@@ -36,3 +36,4 @@
 
 - **Project website** `[marketing]` — Create a public-facing project website.
 - **Stats/Info** - track context compression count and show it in the `/context` command
+- **Context/Info** - for tokens and messages also add progressbar like for context, but leave inforation in numers (like right now) - not in %
