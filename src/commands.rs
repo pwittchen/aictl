@@ -291,63 +291,49 @@ pub fn print_context(
     println!();
     println!(
         "  {} {}{} {context_pct}%",
-        "context:".with(Color::Cyan),
+        format!("{:<12}", "context:").with(Color::Cyan),
         "█".repeat(filled).with(bar_color),
         "░".repeat(empty).with(Color::DarkGrey),
     );
     println!(
         "  {} {last_input_tokens} / {limit}",
-        "tokens: ".with(Color::DarkGrey),
+        format!("{:<12}", "tokens:").with(Color::DarkGrey),
     );
     println!(
         "  {} {messages_len} / {max_messages}",
-        "messages:".with(Color::DarkGrey),
+        format!("{:<12}", "messages:").with(Color::DarkGrey),
     );
     let (manual, auto) = compaction_counts();
     println!(
         "  {} manual: {manual}, auto: {auto}",
-        "compactions:".with(Color::DarkGrey),
+        format!("{:<12}", "compactions:").with(Color::DarkGrey),
     );
     println!();
 }
 
 fn print_help() {
+    let entries: &[(&str, &str)] = &[
+        ("/clear", "clear conversation context"),
+        ("/compact", "compact context into a summary"),
+        ("/context", "show context usage"),
+        ("/copy", "copy last response to clipboard"),
+        ("/help", "show this help message"),
+        ("/info", "show setup info"),
+        ("/issues", "show known issues"),
+        ("/behavior", "switch auto/human-in-the-loop behavior"),
+        ("/model", "switch model and provider"),
+        ("/security", "show security policy"),
+        ("/thinking", "switch thinking mode (smart/fast)"),
+        ("/tools", "show available tools"),
+        ("/update", "update to the latest version"),
+        ("/exit", "exit the REPL"),
+    ];
+    let max_len = entries.iter().map(|(c, _)| c.len()).max().unwrap_or(0);
     println!();
-    println!(
-        "  {}    clear conversation context",
-        "/clear".with(Color::Cyan)
-    );
-    println!(
-        "  {}  compact context into a summary",
-        "/compact".with(Color::Cyan)
-    );
-    println!("  {}  show context usage", "/context".with(Color::Cyan));
-    println!(
-        "  {}     copy last response to clipboard",
-        "/copy".with(Color::Cyan)
-    );
-    println!("  {}     show this help message", "/help".with(Color::Cyan));
-    println!("  {}     show setup info", "/info".with(Color::Cyan));
-    println!("  {}   show known issues", "/issues".with(Color::Cyan));
-    println!(
-        "  {} switch auto/human-in-the-loop behavior",
-        "/behavior".with(Color::Cyan)
-    );
-    println!(
-        "  {}    switch model and provider",
-        "/model".with(Color::Cyan)
-    );
-    println!("  {} show security policy", "/security".with(Color::Cyan));
-    println!(
-        "  {} switch thinking mode (smart/fast)",
-        "/thinking".with(Color::Cyan)
-    );
-    println!("  {}    show available tools", "/tools".with(Color::Cyan));
-    println!(
-        "  {}   update to the latest version",
-        "/update".with(Color::Cyan)
-    );
-    println!("  {}     exit the REPL", "/exit".with(Color::Cyan));
+    for (cmd, desc) in entries {
+        let pad = max_len - cmd.len() + 2;
+        println!("  {}{:pad$}{desc}", cmd.with(Color::Cyan), "");
+    }
     println!();
 }
 
@@ -747,23 +733,26 @@ const BEHAVIORS: &[(&str, &str)] = &[
 
 fn build_behavior_menu_lines(selected: usize, current_auto: bool) -> Vec<String> {
     let mut lines = Vec::new();
+    let max_name = BEHAVIORS.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
     for (i, (name, desc)) in BEHAVIORS.iter().enumerate() {
         let is_selected = i == selected;
         let is_current = (*name == "auto") == current_auto;
 
         let marker = if is_current { "●" } else { " " };
+        let padded = format!("{:<max_name$}", *name);
         let name_styled = if is_selected {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                name.with(Color::White)
+                padded
+                    .with(Color::White)
                     .attribute(crossterm::style::Attribute::Bold)
             )
         } else {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                name.with(Color::DarkGrey)
+                padded.with(Color::DarkGrey)
             )
         };
 
@@ -797,24 +786,31 @@ const THINKING_MODES: &[(&str, &str)] = &[
 
 fn build_thinking_menu_lines(selected: usize, current: ThinkingMode) -> Vec<String> {
     let mut lines = Vec::new();
+    let max_name = THINKING_MODES
+        .iter()
+        .map(|(n, _)| n.len())
+        .max()
+        .unwrap_or(0);
     for (i, (name, desc)) in THINKING_MODES.iter().enumerate() {
         let is_selected = i == selected;
         let is_current = (*name == "smart" && current == ThinkingMode::Smart)
             || (*name == "fast" && current == ThinkingMode::Fast);
 
         let marker = if is_current { "●" } else { " " };
+        let padded = format!("{:<max_name$}", *name);
         let name_styled = if is_selected {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                name.with(Color::White)
+                padded
+                    .with(Color::White)
                     .attribute(crossterm::style::Attribute::Bold)
             )
         } else {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                name.with(Color::DarkGrey)
+                padded.with(Color::DarkGrey)
             )
         };
 
