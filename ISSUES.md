@@ -1,5 +1,9 @@
 # Issues
 
+## Sessions
+
+- **Session Name Validation** - do not allow to give session name with spaces or special characters - allowed characters should be letters, numbers and underscore _ and when user provides capital letters, they should be changed to lower-case letters
+
 ## Security
 
 - **Secure API key storage** `[config]` — Research and implement a more secure way of storing API keys instead of plain text. Consider using the system keyring with a plain-text environment variable as a fallback. Add a note in the welcome banner and `/info` output indicating whether keys are stored securely.
