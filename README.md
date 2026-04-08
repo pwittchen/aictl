@@ -98,6 +98,17 @@ Configuration is loaded from `~/.aictl/config`. This is a single global config f
 
 #### Basic configuration
 
+You need to configure API key for the provider and model you want to use. `AICTL_THINKING` and `AICTL_INCOGNITO` params are optional.
+
+| Key | Description |
+|-----|-------------|
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`) |
+| `AICTL_MODEL` | Default model name |
+| `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
+| `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
+
+#### API keys
+
 `FIRECRAWL_API_KEY` is optional and is needed only if you want to use `search_web` tool.
 
 Not all API keys are required. You need to provide only those, for which you set `AICTL_PROVIDER` and `AICTL_MODEL`.
@@ -106,10 +117,6 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`) |
-| `AICTL_MODEL` | Default model name |
-| `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
-| `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
 | `LLM_ANTHROPIC_API_KEY` | API key for Anthropic |
 | `LLM_GEMINI_API_KEY` | API key for Google Gemini |
