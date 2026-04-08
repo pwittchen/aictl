@@ -10,7 +10,7 @@
 
 - **Agent prompt profiles** `[config]` — Add support for managing multiple agent prompts that users can switch between depending on the use case. Prompt definitions would live in `~/.aictl/agents/`. Consider allowing selection via a CLI parameter, a naming convention, or both. Add commands for managing agents: create, use, discard, and delete.
 
-- **Entry file per directory** `[config]` - Add entry file per directory - e.g `AICTL.md`, which will add additional prompt configured by the user while running agent from a specific dir. Similar concept to `CLAUDE.md` or `AGENTS.md`
+- **Entry file per directory** `[config]` - Add entry file per directory - e.g `AICTL.md`, which will add additional prompt configured by the user while running agent from a specific dir. Similar concept to `CLAUDE.md` or `AGENTS.md`. Add possibility to configure entry file name (e.g. when user use claude code or codex by default, he can configure convetion name from other tool and use it in this tool)
 
 - **Configuration command** `[config]` - Crate `/configure` command, which will allow to configure program and persist user choices. This command can be invoked anytime while using the app or automatically when the app detects that there is no configuration.
 
