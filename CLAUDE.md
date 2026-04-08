@@ -17,12 +17,13 @@ cargo test               # run tests
 
 ## Architecture
 
-Single-binary async Rust CLI with fifteen modules:
+Single-binary async Rust CLI with sixteen modules:
 
-- `src/main.rs` — CLI args (clap), config loading (`~/.aictl/config`), security init, agent loop, single-shot and interactive REPL modes
-- `src/commands.rs` — REPL slash command handling (`/behavior`, `/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/issues`, `/model`, `/security`, `/thinking`, `/tools`, `/update`). `ThinkingMode` enum (Smart/Fast) for conversation history optimization. Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`.
+- `src/main.rs` — CLI args (clap), config loading (`~/.aictl/config`), security init, session init, agent loop, single-shot and interactive REPL modes
+- `src/commands.rs` — REPL slash command handling (`/behavior`, `/clear`, `/compact`, `/context`, `/copy`, `/exit`, `/help`, `/info`, `/issues`, `/model`, `/security`, `/session`, `/thinking`, `/tools`, `/update`). `ThinkingMode` enum (Smart/Fast) for conversation history optimization. Returns a `CommandResult` enum consumed by the REPL loop in `main.rs`. Also hosts the `/session` interactive menu (current info, set name, view saved, clear all) and the non-interactive `print_sessions_cli` helper.
 - `src/config.rs` — config file loading (`~/.aictl/config`), constants (system prompt, spinner phrases, agent loop limits)
 - `src/security.rs` — `SecurityPolicy` with shell command validation, path validation (CWD jail, blocked paths, canonicalization), environment scrubbing, shell timeout, output sanitization. Loaded into `static OnceLock` at startup. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`.
+- `src/session.rs` — session persistence under `~/.aictl/sessions/`. Generates UUID v4 ids (from `/dev/urandom` with time-based fallback), stores conversation history as JSON per session, maintains a `.names` file mapping uuid → unique human-readable name. Exposes a global current-session handle and an incognito toggle (`set_incognito` / `is_incognito`) that short-circuits all saves.
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch (security gate at entry, output sanitization at exit)
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
 - `src/llm.rs` — shared `TokenUsage` type with cost estimation, model list, context limits
@@ -30,9 +31,11 @@ Single-binary async Rust CLI with fifteen modules:
 
 **Config**: Loaded once at startup from `~/.aictl/config` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters.
 
-**Flow**: CLI args (clap) → `security::init()` → `run_agent_turn` loop → provider call → parse response for `<tool>` tags → security validation → execute tool or print final answer.
+**Flow**: CLI args (clap) → `security::init()` → resolve incognito flag (`--incognito` or `AICTL_INCOGNITO`) → `run_agent_turn` loop → provider call → parse response for `<tool>` tags → security validation → execute tool or print final answer. In interactive mode, the REPL also initializes a session (new uuid or loaded from `--session <id|name>`) before printing the welcome banner.
 
 **Modes**: Single-shot (`-m "message"`) uses `PlainUI`; omitting `-m` starts an interactive REPL with `InteractiveUI` (history, spinner, markdown, colored output). `--quiet`/`-q` (requires `--auto`) suppresses reasoning and tool call output in single-shot mode, printing only the final answer. **Thinking modes**: Smart (default, sends all messages to LLM) and Fast (sends system prompt + last 20 messages via a sliding window). Configurable via `/thinking` command or `AICTL_THINKING` in `~/.aictl/config`.
+
+**Sessions**: In interactive mode, the REPL creates a new session (UUID v4) at startup and persists the full conversation to `~/.aictl/sessions/<uuid>` as JSON after every agent turn and after manual/auto compaction. Optional human-readable session names live in `~/.aictl/sessions/.names` (tab-separated, uuid → name; names must be unique). The welcome banner shows the active session uuid (and name, if set), and a notice is printed on exit. `--session <uuid|name>` resumes a saved session, `--list-sessions` and `--clear-sessions` are non-interactive helpers. **Incognito mode**: `--incognito` or `AICTL_INCOGNITO=true` (accepts `true`/`false` only, default `false`) disables all session creation and saves; the welcome banner shows a yellow notice, `/session` prints a disabled message, and no exit save line is printed.
 
 **Agent loop** (`run_agent_turn`): Maintains a conversation history (`Vec<Message>`) with system prompt, user message, and assistant/tool-result turns. Loops up to 20 iterations. Tool calls are parsed from custom XML tags in the LLM response text. Supports `--auto` mode (skip confirmation) or interactive y/N confirmation. Always displays token usage, estimated cost, and execution time after each LLM call and as a summary after each turn.
 

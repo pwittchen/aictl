@@ -10,6 +10,7 @@ mod llm_ollama;
 mod llm_openai;
 mod llm_zai;
 mod security;
+mod session;
 mod tools;
 mod ui;
 
@@ -115,6 +116,22 @@ struct Cli {
     /// Disable security restrictions (use with caution)
     #[arg(long, short = 'U')]
     unrestricted: bool,
+
+    /// Load a saved session by uuid or name (interactive mode only)
+    #[arg(short = 's', long = "session")]
+    session: Option<String>,
+
+    /// List all saved sessions and exit
+    #[arg(short = 'l', long = "list-sessions")]
+    list_sessions: bool,
+
+    /// Clear all saved sessions and exit
+    #[arg(short = 'c', long = "clear-sessions")]
+    clear_sessions: bool,
+
+    /// Start in incognito mode: interactive REPL without saving sessions
+    #[arg(short = 'i', long)]
+    incognito: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -540,6 +557,24 @@ async fn handle_repl_input(
             )
             .await;
             *last_input_tokens = 0;
+            session::save_current(messages);
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Session => {
+            let _ = rl.add_history_entry(input);
+            if session::is_incognito() {
+                println!();
+                println!(
+                    "  {} incognito mode: session functionality is disabled",
+                    "⚠".with(Color::Yellow)
+                );
+                println!();
+            } else {
+                if commands::run_session_menu(messages, &|msg| ui.show_error(msg)) {
+                    *last_input_tokens = 0;
+                }
+                session::save_current(messages);
+            }
             return ReplAction::Continue;
         }
         commands::CommandResult::Context => {
@@ -658,6 +693,7 @@ async fn handle_repl_input(
         )
         .await;
         *last_input_tokens = 0;
+        session::save_current(messages);
     }
 
     ReplAction::RunAgentTurn
@@ -721,6 +757,7 @@ async fn run_interactive(
     mut api_key: String,
     mut model: String,
     auto: bool,
+    session_key: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
@@ -732,17 +769,53 @@ async fn run_interactive(
     };
     let ui = InteractiveUI::new();
     let version_info = version_info_string(fetch_remote_version().await.as_deref());
+
+    let mut messages = vec![Message {
+        role: Role::System,
+        content: SYSTEM_PROMPT.to_string(),
+    }];
+
+    // Initialize session: load if requested, otherwise create a new one.
+    // Skipped entirely in incognito mode.
+    let mut loaded_ok = false;
+    if session::is_incognito() {
+        if session_key.is_some() {
+            ui.show_error("--session is ignored in incognito mode");
+        }
+    } else if let Some(key) = session_key.as_ref() {
+        if let Some(id) = session::resolve(key) {
+            match session::load_messages(&id) {
+                Ok(loaded) => {
+                    let name = session::name_for(&id);
+                    messages = loaded;
+                    let label = name.as_deref().map_or_else(
+                        || id.clone(),
+                        |n| format!("{id} ({n})"),
+                    );
+                    session::set_current(id, name);
+                    println!("  {} loaded session: {label}", "✓".with(Color::Green));
+                    loaded_ok = true;
+                }
+                Err(e) => {
+                    ui.show_error(&format!("Failed to load session '{key}': {e}"));
+                }
+            }
+        } else {
+            ui.show_error(&format!("Session '{key}' not found. Starting a new session."));
+        }
+    }
+    if !loaded_ok && !session::is_incognito() {
+        let id = session::generate_uuid();
+        session::set_current(id, None);
+    }
+    session::save_current(&messages);
+
     InteractiveUI::print_welcome(
         &format!("{provider:?}").to_lowercase(),
         &model,
         thinking,
         &version_info,
     );
-
-    let mut messages = vec![Message {
-        role: Role::System,
-        content: SYSTEM_PROMPT.to_string(),
-    }];
 
     let mut rl = rustyline::Editor::new()?;
     rl.set_helper(Some(SlashCommandHelper));
@@ -820,6 +893,7 @@ async fn run_interactive(
                     thinking,
                 )
                 .await;
+                session::save_current(&messages);
             }
             Err(ReadlineError::Interrupted) => {
                 // Ctrl+C: cancel current line
@@ -838,6 +912,17 @@ async fn run_interactive(
     // Save history
     if !history_path.is_empty() {
         let _ = rl.save_history(&history_path);
+    }
+
+    // Final save and exit notification.
+    session::save_current(&messages);
+    if let Some((id, name)) = session::current_info() {
+        let label = name
+            .as_deref()
+            .map_or_else(|| id.clone(), |n| format!("{id} ({n})"));
+        println!();
+        println!("  {} session saved: {label}", "✓".with(Color::Green));
+        println!();
     }
 
     Ok(())
@@ -866,6 +951,17 @@ async fn main() {
 
     if cli.update {
         commands::run_update_cli().await;
+        return;
+    }
+
+    if cli.list_sessions {
+        commands::print_sessions_cli();
+        return;
+    }
+
+    if cli.clear_sessions {
+        session::clear_all();
+        println!("All saved sessions cleared.");
         return;
     }
 
@@ -916,11 +1012,24 @@ async fn main() {
         })
     };
 
+    let incognito = cli.incognito
+        || match config_get("AICTL_INCOGNITO").as_deref() {
+            Some("true") => true,
+            Some("false") | None => false,
+            Some(other) => {
+                eprintln!(
+                    "Error: invalid AICTL_INCOGNITO value '{other}' (expected 'true' or 'false')"
+                );
+                std::process::exit(1);
+            }
+        };
+    session::set_incognito(incognito);
+
     let result = match cli.message {
         Some(ref msg) => {
             run_agent_single(&provider, &api_key, &model, msg, cli.auto, cli.quiet).await
         }
-        None => run_interactive(provider, api_key, model, cli.auto).await,
+        None => run_interactive(provider, api_key, model, cli.auto, cli.session.clone()).await,
     };
 
     if let Err(e) = result {

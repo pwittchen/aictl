@@ -17,6 +17,10 @@
 # Thinking mode: smart (all messages) or fast (sliding window with recent messages)
 # AICTL_THINKING=smart
 
+# Incognito mode: when enabled, interactive REPL runs without saving sessions
+# and /session is disabled (default: false). Accepted values: true, false.
+# AICTL_INCOGNITO=false
+
 # API keys
 # LLM_OPENAI_API_KEY=sk-...
 # LLM_ANTHROPIC_API_KEY=sk-ant-...

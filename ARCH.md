@@ -4,10 +4,11 @@
 
 ```
 src/
- ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes
- ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /thinking, /tools, /update)
+ ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
+ ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /session, /thinking, /tools, /update)
  ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits)
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
+ ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
  ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
  ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
@@ -30,14 +31,20 @@ src/
  │  1. load_config()            read ~/.aictl/config into OnceLock HashMap         │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
+ │  2c. --list-sessions /       non-interactive session helpers, exit       │
+ │      --clear-sessions                                                    │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
  │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY               │
  │                              (Ollama: no key needed)                     │
+ │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
+ │                   ├─ load --session <id|name> or generate new uuid      │
+ │                   │  (skipped when incognito)                           │
+ │                   └─ print welcome banner (shows session or incognito)  │
  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -205,22 +212,24 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /behavior (Behavior), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /model (Model), /tools (Continue), /update (Update)
+ Also: /behavior (Behavior), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
    Clear       → reset messages & last_answer, continue
-   Compact     → summarize conversation via LLM, continue
+   Compact     → summarize conversation via LLM, save session, continue
    Context     → show token/message usage, continue
    Info        → show provider/model/version info, continue
    Security    → show current security policy, continue
+   Session     → open session menu (current info / set name / view saved / clear all);
+                 disabled in incognito mode; continue
    Issues      → fetch and display known issues, continue
    Update      → run update, restart if updated, continue
    Model       → select new model/provider, persist to ~/.aictl/config, continue
    Behavior    → switch auto/human-in-the-loop behavior, continue
    Thinking    → switch thinking mode (smart/fast), persist to ~/.aictl/config, continue
    Continue    → command handled, continue
-   NotACommand → pass input to agent loop
+   NotACommand → pass input to agent loop (session saved after turn)
 ```
 
 ## Data Flow (end to end)
@@ -251,6 +260,12 @@ Both single-shot and REPL modes share the same loop:
       │          │───>│  config.rs   │
       │          │    │ SYSTEM_PROMPT│
       │          │    │ load_config  │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
+      │          │───>│ session.rs   │
+      │          │    │ save_current │
+      │          │    │ load/list/   │
+      │          │    │ delete/names │
       └────┬─────┘    └──────────────┘
            │
            ├──────────────────────────┐

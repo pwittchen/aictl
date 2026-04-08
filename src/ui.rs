@@ -206,7 +206,7 @@ impl InteractiveUI {
             .map_or(0, |d| d.as_millis() as usize)
             % MASCOTS.len();
         let face = MASCOTS[pick];
-        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK];
+        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK, BLANK];
 
         let dashes = "─".repeat(rule_width());
         eprintln!();
@@ -304,6 +304,27 @@ impl InteractiveUI {
                 PIPE.with(Color::DarkGrey),
                 m[next].with(Color::Cyan),
                 "security restrictions disabled (--unrestricted)".with(Color::Red),
+            );
+        }
+        next += 1;
+
+        // Line 4: session / incognito info
+        if crate::session::is_incognito() {
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                m[next].with(Color::Cyan),
+                "incognito mode: sessions are not saved".with(Color::Yellow),
+            );
+        } else if let Some((id, name)) = crate::session::current_info() {
+            let label = name
+                .as_deref()
+                .map_or_else(|| id.clone(), |n| format!("{id} ({n})"));
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                m[next].with(Color::Cyan),
+                format!("session: {label}").with(Color::DarkGrey),
             );
         }
         next += 1;

@@ -38,7 +38,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted]
+aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -57,6 +57,7 @@ The interactive REPL supports slash commands:
 | `/info` | Show setup info (provider, model, behavior, thinking, version, OS, binary size) |
 | `/issues` | Fetch and display known issues from the remote ISSUES.md |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
+| `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
 | `/thinking` | Switch thinking mode: smart (all messages) or fast (sliding window) |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
@@ -78,8 +79,18 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--unrestricted` | `-U` | Disable all security restrictions (use with caution) |
+| `--incognito` | `-i` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
+| `--session` | `-s` | Load a saved session by uuid or name on startup (interactive mode only) |
+| `--list-sessions` | `-l` | Print saved sessions from `~/.aictl/sessions/` and exit |
+| `--clear-sessions` | `-c` | Remove all saved sessions and exit |
 
 CLI flags take priority over config file values.
+
+### Sessions
+
+In interactive mode, each REPL run is a session. A new uuid is generated at startup and the conversation is persisted to `~/.aictl/sessions/<uuid>` as JSON after every agent turn and compaction. Session names (optional, unique) are stored in `~/.aictl/sessions/.names`. On exit, the session uuid (and name, if set) is printed.
+
+Use `/session` to show current session info, assign a readable name, browse saved sessions (load or delete with confirmation), or clear all sessions. Pass `--session <uuid|name>` to resume an existing session on startup. Incognito mode (`--incognito` or `AICTL_INCOGNITO=true`) runs the REPL without creating or saving any session file; `/session` is disabled and displays a notice.
 
 ### Configuration
 
@@ -98,6 +109,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
+| `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
 | `LLM_OPENAI_API_KEY` | API key for OpenAI |
 | `LLM_ANTHROPIC_API_KEY` | API key for Anthropic |
 | `LLM_GEMINI_API_KEY` | API key for Google Gemini |
@@ -318,7 +330,7 @@ aictl --auto -q -m "What OS am I running?"
 cargo test
 ```
 
-Unit tests cover core logic across six modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), `llm` (cost estimation and model matching), and `security` (shell validation, path validation, output sanitization).
+Unit tests cover core logic across six modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), `llm` (cost estimation and model matching), and `security` (shell validation, path validation, output sanitization). The `session` module handles persistence of REPL conversations under `~/.aictl/sessions/`.
 
 ## Architecture
 
