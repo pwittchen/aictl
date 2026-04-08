@@ -1117,8 +1117,14 @@ fn set_session_name_interactive(show_error: &dyn Fn(&str)) {
     }
     match crate::session::set_name(&id, name) {
         Ok(()) => {
+            let stored = crate::session::current_info()
+                .and_then(|(_, n)| n)
+                .unwrap_or_else(|| name.to_string());
             println!();
-            println!("  {} session name set to \"{name}\"", "✓".with(Color::Green));
+            println!(
+                "  {} session name set to \"{stored}\"",
+                "✓".with(Color::Green)
+            );
             println!();
         }
         Err(e) => show_error(&format!("Error: {e}")),

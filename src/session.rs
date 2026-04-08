@@ -83,21 +83,40 @@ pub fn id_for_name(name: &str) -> Option<String> {
         .map(|(i, _)| i)
 }
 
-/// Err if name already used by a different id.
+/// Err if name is invalid or already used by a different id.
+/// Names are normalized to lowercase; only `[a-z0-9_]` are allowed.
 pub fn set_name(id: &str, name: &str) -> Result<(), String> {
+    let name = normalize_name(name)?;
     let mut entries = read_names();
-    if let Some((other_id, _)) = entries.iter().find(|(i, n)| n == name && i != id) {
+    if let Some((other_id, _)) = entries.iter().find(|(i, n)| *n == name && i != id) {
         return Err(format!("name already used by session {other_id}"));
     }
     entries.retain(|(i, _)| i != id);
-    entries.push((id.to_string(), name.to_string()));
+    entries.push((id.to_string(), name.clone()));
     write_names(&entries);
     if let Some(c) = CURRENT.lock().unwrap().as_mut()
         && c.id == id
     {
-        c.name = Some(name.to_string());
+        c.name = Some(name);
     }
     Ok(())
+}
+
+fn normalize_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("name cannot be empty".to_string());
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(
+            "name may only contain letters, numbers, and underscores (no spaces or special characters)"
+                .to_string(),
+        );
+    }
+    Ok(name.to_ascii_lowercase())
 }
 
 pub fn remove_name(id: &str) {
