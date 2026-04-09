@@ -6,6 +6,8 @@
 
 - **Key management commands** `[config] [ui]` — Once secure key storage is implemented, show the storage status of each API key in the `/info` and `/security` commands (whether the key is set and whether it is secured via keyring or stored in plain text). Add the following commands: `/lock-keys` (copy API keys to the keyring and remove them from the config file), `/unlock-keys` (copy keys back to the config file and remove them from the keyring), and `/clear-keys` (remove keys from both locations).
 
+- **All tools switch** `[config]` `[tools]` - Add possibility tu turn off all tools via single param in the config `AICTL_TOOLS_ENABLED`. When this parameter is not set, it falls back to `true` by default.
+
 ## Configuration
 
 - **Agent prompt profiles** `[config]` — Add support for managing multiple agent prompts that users can switch between depending on the use case. Prompt definitions would live in `~/.aictl/agents/`. Consider allowing selection via a CLI parameter, a naming convention, or both. Add commands for managing agents: create, use, discard, and delete.
