@@ -802,10 +802,9 @@ async fn run_interactive(
                 Ok(loaded) => {
                     let name = session::name_for(&id);
                     messages = loaded;
-                    let label = name.as_deref().map_or_else(
-                        || id.clone(),
-                        |n| format!("{id} ({n})"),
-                    );
+                    let label = name
+                        .as_deref()
+                        .map_or_else(|| id.clone(), |n| format!("{id} ({n})"));
                     session::set_current(id, name);
                     println!("  {} loaded session: {label}", "✓".with(Color::Green));
                     loaded_ok = true;
@@ -815,7 +814,9 @@ async fn run_interactive(
                 }
             }
         } else {
-            ui.show_error(&format!("Session '{key}' not found. Starting a new session."));
+            ui.show_error(&format!(
+                "Session '{key}' not found. Starting a new session."
+            ));
         }
     }
     if !loaded_ok && !session::is_incognito() {

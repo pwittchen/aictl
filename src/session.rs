@@ -107,10 +107,7 @@ fn normalize_name(name: &str) -> Result<String, String> {
     if name.is_empty() {
         return Err("name cannot be empty".to_string());
     }
-    if !name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(
             "name may only contain letters, numbers, and underscores (no spaces or special characters)"
                 .to_string(),

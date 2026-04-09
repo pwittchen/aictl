@@ -900,8 +900,8 @@ pub fn print_info(
     println!("  {} {behavior}", "behavior:".with(Color::Cyan));
     println!("  {} {thinking}", "thinking:".with(Color::Cyan));
     let prompt_file = crate::config::load_prompt_file();
-    let prompt_file_name = crate::config::config_get("AICTL_PROMPT_FILE")
-        .unwrap_or_else(|| "AICTL.md".to_string());
+    let prompt_file_name =
+        crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
     let prompt_info = if prompt_file.is_some() {
         format!("{prompt_file_name} (loaded)")
     } else {
@@ -1031,7 +1031,11 @@ const SESSION_ITEMS: &[(&str, &str)] = &[
 
 fn build_session_menu_lines(selected: usize) -> Vec<String> {
     let mut lines = Vec::new();
-    let max_name = SESSION_ITEMS.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+    let max_name = SESSION_ITEMS
+        .iter()
+        .map(|(n, _)| n.len())
+        .max()
+        .unwrap_or(0);
     for (i, (name, desc)) in SESSION_ITEMS.iter().enumerate() {
         let is_selected = i == selected;
         let padded = format!("{:<max_name$}", *name);
@@ -1071,7 +1075,11 @@ fn format_size(bytes: u64) -> String {
 fn confirm_yn(prompt: &str) -> bool {
     use crossterm::event::{self, Event, KeyCode, KeyEventKind};
     use crossterm::terminal;
-    print!("  {} {} ", prompt.with(Color::Yellow), "(y/N):".with(Color::DarkGrey));
+    print!(
+        "  {} {} ",
+        prompt.with(Color::Yellow),
+        "(y/N):".with(Color::DarkGrey)
+    );
     let _ = std::io::stdout().flush();
     let _ = terminal::enable_raw_mode();
     let mut answer = false;
@@ -1196,7 +1204,11 @@ fn build_saved_sessions_lines(
                     .attribute(crossterm::style::Attribute::Bold)
             )
         } else {
-            format!("{} {}", marker.with(Color::Green), body.with(Color::DarkGrey))
+            format!(
+                "{} {}",
+                marker.with(Color::Green),
+                body.with(Color::DarkGrey)
+            )
         };
         let line = if is_selected {
             format!("  {} {styled}", "›".with(Color::Cyan))
@@ -1304,10 +1316,10 @@ fn view_saved_sessions(messages: &mut Vec<Message>, show_error: &dyn Fn(&str)) -
             SavedAction::Cancel => return false,
             SavedAction::Load(i) => {
                 let entry = &entries[i];
-                let label = entry.name.as_deref().map_or_else(
-                    || entry.id.clone(),
-                    |n| format!("{} ({n})", entry.id),
-                );
+                let label = entry
+                    .name
+                    .as_deref()
+                    .map_or_else(|| entry.id.clone(), |n| format!("{} ({n})", entry.id));
                 if !confirm_yn(&format!("load session {label}?")) {
                     continue;
                 }
@@ -1328,10 +1340,10 @@ fn view_saved_sessions(messages: &mut Vec<Message>, show_error: &dyn Fn(&str)) -
             }
             SavedAction::Delete(i) => {
                 let entry = &entries[i];
-                let label = entry.name.as_deref().map_or_else(
-                    || entry.id.clone(),
-                    |n| format!("{} ({n})", entry.id),
-                );
+                let label = entry
+                    .name
+                    .as_deref()
+                    .map_or_else(|| entry.id.clone(), |n| format!("{} ({n})", entry.id));
                 if !confirm_yn(&format!("delete session {label}?")) {
                     continue;
                 }
@@ -1514,7 +1526,9 @@ pub fn run_config_wizard() {
     println!();
     println!(
         "  {}",
-        "aictl configuration wizard".with(Color::Cyan).attribute(crossterm::style::Attribute::Bold)
+        "aictl configuration wizard"
+            .with(Color::Cyan)
+            .attribute(crossterm::style::Attribute::Bold)
     );
     println!(
         "  {}",
@@ -1524,9 +1538,9 @@ pub fn run_config_wizard() {
 
     // Step 1: Select provider
     println!("  {}", "Select provider:".with(Color::White));
-    let Some(provider_idx) = select_from_menu(PROVIDERS.len(), 0, |sel| {
-        build_provider_menu_lines(sel)
-    }) else {
+    let Some(provider_idx) =
+        select_from_menu(PROVIDERS.len(), 0, |sel| build_provider_menu_lines(sel))
+    else {
         println!();
         println!("  {} configuration cancelled", "✗".with(Color::Yellow));
         println!();
@@ -1562,17 +1576,17 @@ pub fn run_config_wizard() {
         let m = m.trim().to_string();
         if m.is_empty() {
             println!();
-            println!(
-                "  {} no model specified, skipping",
-                "⚠".with(Color::Yellow)
-            );
+            println!("  {} no model specified, skipping", "⚠".with(Color::Yellow));
             println!();
             return;
         }
         m
     } else if models_for_provider.is_empty() {
         println!();
-        println!("  {} no models available for {provider_name}", "✗".with(Color::Red));
+        println!(
+            "  {} no models available for {provider_name}",
+            "✗".with(Color::Red)
+        );
         println!();
         return;
     } else {
@@ -1622,7 +1636,8 @@ pub fn run_config_wizard() {
     println!();
     println!(
         "  {}",
-        "You can also set API keys for other providers (optional, press Enter to skip):".with(Color::DarkGrey)
+        "You can also set API keys for other providers (optional, press Enter to skip):"
+            .with(Color::DarkGrey)
     );
     for &(prov, key_name) in PROVIDERS {
         if prov == provider_name || prov == "ollama" || key_name.is_empty() {
@@ -1655,7 +1670,8 @@ pub fn run_config_wizard() {
         println!();
         println!(
             "  {}",
-            "Enter Ollama host (press Enter for default http://localhost:11434):".with(Color::DarkGrey)
+            "Enter Ollama host (press Enter for default http://localhost:11434):"
+                .with(Color::DarkGrey)
         );
         if let Some(host) = read_input_line("LLM_OLLAMA_HOST:", false) {
             let host = host.trim().to_string();
@@ -1697,8 +1713,12 @@ pub fn run_config_wizard() {
     println!(
         "  {} run {} to start a conversation, or {} for a single query",
         "→".with(Color::Cyan),
-        "aictl".with(Color::White).attribute(crossterm::style::Attribute::Bold),
-        "aictl -m \"your message\"".with(Color::White).attribute(crossterm::style::Attribute::Bold),
+        "aictl"
+            .with(Color::White)
+            .attribute(crossterm::style::Attribute::Bold),
+        "aictl -m \"your message\""
+            .with(Color::White)
+            .attribute(crossterm::style::Attribute::Bold),
     );
     println!();
 }
