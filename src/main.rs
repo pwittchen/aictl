@@ -139,7 +139,7 @@ struct Cli {
     agent: Option<String>,
 
     /// Interactive configuration wizard for provider, model, and API keys
-    #[arg(long = "config")]
+    #[arg(short = 'C', long = "config")]
     config: bool,
 }
 

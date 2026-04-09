@@ -74,7 +74,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
-| `--config` | | Interactive configuration wizard — set provider, model, and API keys step by step |
+| `--config` | `-C` | Interactive configuration wizard — set provider, model, and API keys step by step |
 | `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
