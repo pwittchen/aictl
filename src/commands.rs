@@ -218,8 +218,7 @@ pub async fn compact(
             .await
         }
         Provider::Kimi => {
-            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &summary_msgs))
-                .await
+            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &summary_msgs)).await
         }
         Provider::Zai => {
             crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &summary_msgs)).await
@@ -719,10 +718,7 @@ where
         let _ = stdout.flush();
 
         // Return number of rendered lines for cleanup
-        viewport
-            + usize::from(has_above)
-            + usize::from(has_below)
-            + 2 // blank + help text
+        viewport + usize::from(has_above) + usize::from(has_below) + 2 // blank + help text
     };
 
     // Initial render
@@ -773,8 +769,12 @@ where
         }
 
         let lines = build_lines(selected);
-        total_rendered_lines =
-            render(&mut stdout, &lines, &mut scroll_offset, total_rendered_lines);
+        total_rendered_lines = render(
+            &mut stdout,
+            &lines,
+            &mut scroll_offset,
+            total_rendered_lines,
+        );
     }
 
     let _ = execute!(stdout, cursor::Show);
@@ -2121,8 +2121,7 @@ async fn create_agent_with_ai(
             .await
         }
         Provider::Kimi => {
-            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &gen_messages))
-                .await
+            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &gen_messages)).await
         }
         Provider::Zai => {
             crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &gen_messages)).await
