@@ -128,6 +128,15 @@ pub fn config_get(key: &str) -> Option<String> {
     CONFIG.get().and_then(|m| m.get(key).cloned())
 }
 
+/// Load the project prompt file from the current working directory.
+/// The filename defaults to `AICTL.md` but can be overridden via `AICTL_PROMPT_FILE` in config.
+/// Returns `None` if the file does not exist or cannot be read.
+pub fn load_prompt_file() -> Option<String> {
+    let filename = config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
+    let path = std::path::Path::new(&filename);
+    std::fs::read_to_string(path).ok()
+}
+
 /// Write a key=value pair to ~/.aictl/config, replacing an existing key or appending.
 pub fn config_set(key: &str, value: &str) {
     let Ok(home) = std::env::var("HOME") else {

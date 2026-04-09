@@ -22,7 +22,7 @@ use clap::{Parser, ValueEnum};
 use commands::ThinkingMode;
 use config::{
     FAST_MODE_WINDOW, MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, config_get,
-    config_set, load_config,
+    config_set, load_config, load_prompt_file,
 };
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
@@ -213,6 +213,16 @@ pub enum Role {
 pub struct Message {
     pub role: Role,
     pub content: String,
+}
+
+/// Build the full system prompt, appending the project prompt file if present.
+fn build_system_prompt() -> String {
+    let mut prompt = SYSTEM_PROMPT.to_string();
+    if let Some(content) = load_prompt_file() {
+        prompt.push_str("\n\n# Project prompt file\n\n");
+        prompt.push_str(&content);
+    }
+    prompt
 }
 
 // --- Agent loop ---
@@ -417,7 +427,7 @@ async fn run_agent_single(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut messages = vec![Message {
         role: Role::System,
-        content: SYSTEM_PROMPT.to_string(),
+        content: build_system_prompt(),
     }];
 
     let mut auto = auto;
@@ -776,7 +786,7 @@ async fn run_interactive(
 
     let mut messages = vec![Message {
         role: Role::System,
-        content: SYSTEM_PROMPT.to_string(),
+        content: build_system_prompt(),
     }];
 
     // Initialize session: load if requested, otherwise create a new one.
