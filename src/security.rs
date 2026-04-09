@@ -819,7 +819,9 @@ pub fn policy_summary() -> Vec<(String, String)> {
 
     lines.push((
         "disabled tools".to_string(),
-        if pol.disabled_tools.is_empty() {
+        if !crate::tools::tools_enabled() {
+            "all".to_string()
+        } else if pol.disabled_tools.is_empty() {
             "none".to_string()
         } else {
             pol.disabled_tools.join(", ")

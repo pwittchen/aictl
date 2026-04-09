@@ -299,7 +299,11 @@ impl InteractiveUI {
             } else {
                 format!("{}s", pol.resources.shell_timeout_secs)
             };
-            let disabled = pol.disabled_tools.len().to_string();
+            let disabled = if !crate::tools::tools_enabled() {
+                "all".to_string()
+            } else {
+                pol.disabled_tools.len().to_string()
+            };
             eprintln!(
                 "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
