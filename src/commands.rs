@@ -899,8 +899,18 @@ pub fn print_info(
     println!("  {} {model}", "model:   ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior:".with(Color::Cyan));
     println!("  {} {thinking}", "thinking:".with(Color::Cyan));
+    let prompt_file = crate::config::load_prompt_file();
+    let prompt_file_name = crate::config::config_get("AICTL_PROMPT_FILE")
+        .unwrap_or_else(|| "AICTL.md".to_string());
+    let prompt_info = if prompt_file.is_some() {
+        format!("{prompt_file_name} (loaded)")
+    } else {
+        format!("{prompt_file_name} (not found)")
+    };
+
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
+    println!("  {} {prompt_info}", "prompt:  ".with(Color::Cyan));
     println!();
 }
 
