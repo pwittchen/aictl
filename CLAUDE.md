@@ -17,7 +17,7 @@ cargo test               # run tests
 
 ## Architecture
 
-Single-binary async Rust CLI with seventeen modules:
+Single-binary async Rust CLI with eighteen modules:
 
 - `src/main.rs` — CLI args (clap), config loading (`~/.aictl/config`), security init, session init, agent loop, single-shot and interactive REPL modes
 - `src/agents.rs` — agent prompt management under `~/.aictl/agents/`. Global loaded-agent state (`Mutex<Option<(name, prompt)>>`), CRUD operations (`save_agent`, `read_agent`, `delete_agent`, `list_agents`), name validation (alphanumeric + underscore/dash only)
@@ -28,7 +28,7 @@ Single-binary async Rust CLI with seventeen modules:
 - `src/tools.rs` — tool-call XML parsing, tool execution dispatch (security gate at entry, output sanitization at exit)
 - `src/ui.rs` — `AgentUI` trait with `PlainUI` (single-shot) and `InteractiveUI` (REPL with spinner, colors, markdown rendering) implementations
 - `src/llm.rs` — shared `TokenUsage` type with cost estimation, model list, context limits
-- `src/llm_openai.rs`, `src/llm_anthropic.rs`, `src/llm_gemini.rs`, `src/llm_grok.rs`, `src/llm_mistral.rs`, `src/llm_deepseek.rs`, `src/llm_zai.rs`, `src/llm_ollama.rs` — provider-specific API call implementations
+- `src/llm_openai.rs`, `src/llm_anthropic.rs`, `src/llm_gemini.rs`, `src/llm_grok.rs`, `src/llm_mistral.rs`, `src/llm_deepseek.rs`, `src/llm_kimi.rs`, `src/llm_zai.rs`, `src/llm_ollama.rs` — provider-specific API call implementations
 
 **Config**: Loaded once at startup from `~/.aictl/config` into a `static OnceLock<HashMap<String, String>>`. CLI args override config values. The `config_get(key)` helper is used throughout the codebase to read config values. No `.env` files or system environment variables are used for program parameters. A project prompt file (default `AICTL.md`, configurable via `AICTL_PROMPT_FILE`) is loaded from the current directory and appended to the system prompt via `build_system_prompt()` in `main.rs`.
 
@@ -60,7 +60,7 @@ Single-binary async Rust CLI with seventeen modules:
 - `fetch_datetime` — get current date, time, timezone, and day of week
 - `fetch_geolocation` — get geolocation data for an IP address via ip-api.com
 
-**Providers**: OpenAI (`call_openai`), Anthropic (`call_anthropic`), Gemini (`call_gemini`), Grok (`call_grok`), Mistral (`call_mistral`), DeepSeek (`call_deepseek`), Z.ai (`call_zai`), and Ollama (`call_ollama`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI, Grok, Mistral, DeepSeek, and Z.ai include system messages inline; Gemini uses a `systemInstruction` field and maps assistant role to `model`; Ollama uses its native `/api/chat` endpoint with `stream: false`. All return `TokenUsage` for cost tracking and timing display. Ollama requires no API key; its models are discovered dynamically via `/api/tags`.
+**Providers**: OpenAI (`call_openai`), Anthropic (`call_anthropic`), Gemini (`call_gemini`), Grok (`call_grok`), Mistral (`call_mistral`), DeepSeek (`call_deepseek`), Kimi (`call_kimi`), Z.ai (`call_zai`), and Ollama (`call_ollama`) each convert `&[Message]` to provider-specific formats. Anthropic uses a top-level `system` field; OpenAI, Grok, Mistral, DeepSeek, Kimi, and Z.ai include system messages inline; Gemini uses a `systemInstruction` field and maps assistant role to `model`; Ollama uses its native `/api/chat` endpoint with `stream: false`. All return `TokenUsage` for cost tracking and timing display. Ollama requires no API key; its models are discovered dynamically via `/api/tags`.
 
 **Key dependencies**: `clap` (CLI parsing), `reqwest` (async HTTP with JSON), `serde`/`serde_json` (serialization), `tokio` (async runtime, process, fs), `crossterm` (terminal styling), `indicatif` (spinner), `rustyline` (REPL input/history), `termimad` (markdown rendering), `scraper` (HTML DOM parsing with CSS selectors), `glob` (file glob pattern matching).
 

@@ -19,6 +19,7 @@ src/
  ├── llm_grok.rs         xAI Grok chat completions client
  ├── llm_mistral.rs      Mistral chat completions client
  ├── llm_deepseek.rs     DeepSeek chat completions client
+ ├── llm_kimi.rs         Kimi (Moonshot AI) chat completions client
  ├── llm_zai.rs          Z.ai chat completions client
  └── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
 ```
@@ -38,7 +39,7 @@ src/
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
- │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY               │
+ │                              MISTRAL,DEEPSEEK,KIMI,ZAI}_API_KEY          │
  │                              (Ollama: no key needed)                     │
  │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
  │  5c. load --agent <name>    agents::read_agent + agents::load_agent     │
@@ -72,6 +73,7 @@ Both single-shot and REPL modes share the same loop:
  │  │                  │  grok::call_grok()                │
  │  │                  │  mistral::call_mistral()          │
  │  │                  │  deepseek::call_deepseek()        │
+ │  │                  │  kimi::call_kimi()                │
  │  │                  │  zai::call_zai()                  │
  │  │                  │  ollama::call_ollama()            │
  │  └────────┬─────────┘                                   │
@@ -144,25 +146,25 @@ Both single-shot and REPL modes share the same loop:
                              │  &[Message]  │
                              └──────┬───────┘
                                     │
-               ┌────────────┬───────┼───────┬────────────┬────────────┬────────────┬────────────┬────────────┐
-               ▼            ▼       │       ▼            ▼            ▼            ▼            ▼            ▼
- ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
- │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │ │ call_deepseek()  │ │  call_zai()      │ │  call_ollama()   │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
- │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │
- │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │
- │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
- │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │ │ POST /chat/      │ │ POST /api/paas/  │ │ POST /api/chat   │
- │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │ │ completions      │ │ v4/chat/         │ │ (localhost:11434)│
- │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │ │ (deepseek.com)   │ │ completions      │ │ no auth needed   │
- │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │ (z.ai)           │ │                  │
- └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
-          │                    │                     │                    │                    │                    │                    │                    │
-          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┘
-                               ▼                     │                    │                    │                    │                    │
-                    ┌──────────────────┐             │                    │                    │                    │                    │
-                    │ (String,         │ <───────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┘
+               ┌────────────┬───────┼───────┬────────────┬────────────┬────────────┬────────────┬────────────┬────────────┐
+               ▼            ▼       │       ▼            ▼            ▼            ▼            ▼            ▼            ▼
+ ┌──────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+ │  call_openai()   │ │ call_anthropic()  │ │  call_gemini()   │ │  call_grok()     │ │ call_mistral()   │ │ call_deepseek()  │ │  call_kimi()     │ │  call_zai()      │ │  call_ollama()   │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
+ │  System msg      │ │ System msg ──>    │ │ System msg ──>   │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │ │ System msg       │
+ │  inline in       │ │ top-level         │ │ systemInstruction│ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │ │ inline in        │
+ │  messages[]      │ │ "system" field    │ │ field            │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │ │ messages[]       │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │ │                  │
+ │  POST /v1/chat/  │ │ POST /v1/         │ │ POST /v1beta/    │ │ POST /v1/chat/   │ │ POST /v1/chat/   │ │ POST /chat/      │ │ POST /v1/chat/   │ │ POST /api/paas/  │ │ POST /api/chat   │
+ │  completions     │ │ messages          │ │ :generateContent │ │ completions      │ │ completions      │ │ completions      │ │ completions      │ │ v4/chat/         │ │ (localhost:11434)│
+ │  (openai.com)    │ │                   │ │                  │ │ (x.ai)           │ │ (mistral.ai)     │ │ (deepseek.com)   │ │ (moonshot.cn)    │ │ completions      │ │ no auth needed   │
+ │                  │ │                   │ │                  │ │                  │ │                  │ │                  │ │                  │ │ (z.ai)           │ │                  │
+ └────────┬─────────┘ └────────┬──────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+          │                    │                     │                    │                    │                    │                    │                    │                    │
+          └────────────────────┼─────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┘
+                               ▼                     │                    │                    │                    │                    │                    │
+                    ┌──────────────────┐             │                    │                    │                    │                    │                    │
+                    │ (String,         │ <───────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┘
                     │  TokenUsage)     │
                     │                  │
                     │ response text +  │
@@ -290,6 +292,7 @@ Both single-shot and REPL modes share the same loop:
       │ grok     │             │ render   │
       │ mistral  │             │          │
       │ deepseek │             │          │
+      │ kimi     │             │          │
       │ zai      │             │          │
       │ ollama   │             │          │
       └──────────┘             └──────────┘

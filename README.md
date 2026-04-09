@@ -75,7 +75,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
 | `--config` | `-C` | Interactive configuration wizard — set provider, model, and API keys step by step |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
+| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--agent` | `-A` | Load a saved agent by name (works in both single-shot and interactive modes) |
@@ -130,7 +130,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, or `ollama`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
@@ -153,6 +153,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_GROK_API_KEY` | API key for xAI Grok |
 | `LLM_MISTRAL_API_KEY` | API key for Mistral |
 | `LLM_DEEPSEEK_API_KEY` | API key for DeepSeek |
+| `LLM_KIMI_API_KEY` | API key for Kimi (Moonshot AI) |
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
 | `LLM_OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
@@ -186,7 +187,7 @@ The file format supports comments (`#`), quoted values, and optional `export` pr
 
 ### Providers
 
-aictl supports eight LLM providers:
+aictl supports nine LLM providers:
 
 #### OpenAI
 
@@ -255,6 +256,14 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 |-------|-------|--------|
 | `deepseek-chat` | $0.27 | $1.10 |
 | `deepseek-reasoner` | $0.55 | $2.19 |
+
+#### Kimi
+
+Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output per 1M tokens):
+
+| Model | Input | Output |
+|-------|-------|--------|
+| `kimi-k2` | $0.60 | $2.00 |
 
 #### Z.ai
 

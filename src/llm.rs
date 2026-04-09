@@ -32,6 +32,15 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
+    ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2-0905-preview", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2-0711-preview", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2-turbo-preview", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2-thinking", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2-thinking-turbo", "LLM_KIMI_API_KEY"),
+    ("kimi", "moonshot-v1-128k", "LLM_KIMI_API_KEY"),
+    ("kimi", "moonshot-v1-32k", "LLM_KIMI_API_KEY"),
+    ("kimi", "moonshot-v1-8k", "LLM_KIMI_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flash", "LLM_ZAI_API_KEY"),
@@ -151,6 +160,14 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.27, 1.10));
     }
 
+    // Kimi
+    if model.starts_with("kimi-k2") || model.starts_with("kimi-k2.5") {
+        return Some((0.60, 2.00));
+    }
+    if model.starts_with("moonshot-v1") {
+        return Some((0.60, 2.00));
+    }
+
     // Z.ai
     if model.starts_with("glm-5") {
         return Some((0.72, 2.30));
@@ -189,6 +206,21 @@ pub fn context_limit(model: &str) -> u64 {
         return 128_000;
     }
     if model.starts_with("deepseek-") {
+        return 128_000;
+    }
+    if model == "kimi-k2-0711-preview" {
+        return 128_000;
+    }
+    if model.starts_with("kimi-") {
+        return 256_000;
+    }
+    if model == "moonshot-v1-8k" || model == "moonshot-v1-8k-vision-preview" {
+        return 8_000;
+    }
+    if model == "moonshot-v1-32k" || model == "moonshot-v1-32k-vision-preview" {
+        return 32_000;
+    }
+    if model.starts_with("moonshot-v1-128k") {
         return 128_000;
     }
     if model.starts_with("glm-") {

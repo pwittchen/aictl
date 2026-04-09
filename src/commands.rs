@@ -217,6 +217,10 @@ pub async fn compact(
             ))
             .await
         }
+        Provider::Kimi => {
+            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &summary_msgs))
+                .await
+        }
         Provider::Zai => {
             crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &summary_msgs)).await
         }
@@ -576,6 +580,7 @@ fn build_menu_lines(
                 "grok" => "Grok:",
                 "mistral" => "Mistral:",
                 "deepseek" => "DeepSeek:",
+                "kimi" => "Kimi:",
                 "zai" => "Z.ai:",
                 "ollama" => "Ollama:",
                 _ => entry.provider.as_str(),
@@ -740,6 +745,7 @@ pub fn select_model(
         "grok" => Provider::Grok,
         "mistral" => Provider::Mistral,
         "deepseek" => Provider::Deepseek,
+        "kimi" => Provider::Kimi,
         "zai" => Provider::Zai,
         "ollama" => Provider::Ollama,
         _ => unreachable!(),
@@ -1435,6 +1441,7 @@ const PROVIDERS: &[(&str, &str)] = &[
     ("grok", "LLM_GROK_API_KEY"),
     ("mistral", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "LLM_DEEPSEEK_API_KEY"),
+    ("kimi", "LLM_KIMI_API_KEY"),
     ("zai", "LLM_ZAI_API_KEY"),
     ("ollama", ""),
 ];
@@ -1452,6 +1459,7 @@ fn build_provider_menu_lines(selected: usize) -> Vec<String> {
                 "grok" => "Grok",
                 "mistral" => "Mistral",
                 "deepseek" => "DeepSeek",
+                "kimi" => "Kimi",
                 "zai" => "Z.ai",
                 "ollama" => "Ollama (local, no API key)",
                 _ => name,
@@ -1663,6 +1671,7 @@ pub fn run_config_wizard() {
             "grok" => "Grok",
             "mistral" => "Mistral",
             "deepseek" => "DeepSeek",
+            "kimi" => "Kimi",
             "zai" => "Z.ai",
             _ => prov,
         };
@@ -2038,6 +2047,10 @@ async fn create_agent_with_ai(
                 &gen_messages,
             ))
             .await
+        }
+        Provider::Kimi => {
+            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &gen_messages))
+                .await
         }
         Provider::Zai => {
             crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &gen_messages)).await

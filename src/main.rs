@@ -5,6 +5,7 @@ mod llm;
 mod llm_anthropic;
 mod llm_deepseek;
 mod llm_gemini;
+mod llm_kimi;
 mod llm_grok;
 mod llm_mistral;
 mod llm_ollama;
@@ -46,6 +47,7 @@ enum Provider {
     Grok,
     Mistral,
     Deepseek,
+    Kimi,
     Zai,
     Ollama,
 }
@@ -303,7 +305,7 @@ fn windowed_messages(messages: &[Message], window: usize) -> Vec<Message> {
 
 /// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn run_agent_turn(
     provider: &Provider,
     api_key: &str,
@@ -357,6 +359,9 @@ async fn run_agent_turn(
             }
             Provider::Deepseek => {
                 with_esc_cancel(llm_deepseek::call_deepseek(api_key, model, &llm_messages)).await
+            }
+            Provider::Kimi => {
+                with_esc_cancel(llm_kimi::call_kimi(api_key, model, &llm_messages)).await
             }
             Provider::Zai => {
                 with_esc_cancel(llm_zai::call_zai(api_key, model, &llm_messages)).await
@@ -1023,10 +1028,11 @@ async fn main() {
             Some("grok") => Provider::Grok,
             Some("mistral") => Provider::Mistral,
             Some("deepseek") => Provider::Deepseek,
+            Some("kimi") => Provider::Kimi,
             Some("zai") => Provider::Zai,
             Some("ollama") => Provider::Ollama,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'zai', or 'ollama')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', or 'ollama')");
                 std::process::exit(1);
             }
             None => {
@@ -1053,6 +1059,7 @@ async fn main() {
             Provider::Grok => "LLM_GROK_API_KEY",
             Provider::Mistral => "LLM_MISTRAL_API_KEY",
             Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
+            Provider::Kimi => "LLM_KIMI_API_KEY",
             Provider::Zai => "LLM_ZAI_API_KEY",
             Provider::Ollama => unreachable!(),
         };
