@@ -38,7 +38,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
+aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -78,6 +78,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
+| `--agent` | `-A` | Load a saved agent by name (works in both single-shot and interactive modes) |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--unrestricted` | `-U` | Disable all security restrictions (use with caution) |
@@ -104,6 +105,8 @@ Use `/agent` to open the agent menu:
 - **Create agent with AI** — provide a name and brief description; the LLM generates the full agent prompt
 - **View all agents** — browse saved agents, view their prompt, load an agent, or delete it
 - **Unload agent** — remove the currently loaded agent (only shown when one is loaded)
+
+Agents can also be loaded from the command line with `--agent <name>` (or `-A <name>`), which works in both single-shot and interactive modes.
 
 Agent names may contain only letters, numbers, underscores, and dashes. When an agent is loaded, its prompt is appended to the system prompt and the agent name appears in magenta brackets before the input prompt (e.g. `[my-agent] ❯`).
 

@@ -134,6 +134,10 @@ struct Cli {
     #[arg(short = 'i', long)]
     incognito: bool,
 
+    /// Load a saved agent by name
+    #[arg(short = 'A', long = "agent")]
+    agent: Option<String>,
+
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(long = "config")]
     config: bool,
@@ -969,6 +973,7 @@ async fn run_interactive(
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() {
     load_config();
 
@@ -1069,6 +1074,15 @@ async fn main() {
             }
         };
     session::set_incognito(incognito);
+
+    if let Some(ref name) = cli.agent {
+        if let Ok(prompt) = agents::read_agent(name) {
+            agents::load_agent(name, &prompt);
+        } else {
+            eprintln!("Error: agent '{name}' not found");
+            std::process::exit(1);
+        }
+    }
 
     let result = match cli.message {
         Some(ref msg) => {

@@ -41,6 +41,7 @@ src/
  │                              MISTRAL,DEEPSEEK,ZAI}_API_KEY               │
  │                              (Ollama: no key needed)                     │
  │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
+ │  5c. load --agent <name>    agents::read_agent + agents::load_agent     │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
