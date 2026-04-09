@@ -299,10 +299,10 @@ impl InteractiveUI {
             } else {
                 format!("{}s", pol.resources.shell_timeout_secs)
             };
-            let disabled = if !crate::tools::tools_enabled() {
-                "all".to_string()
-            } else {
+            let disabled = if crate::tools::tools_enabled() {
                 pol.disabled_tools.len().to_string()
+            } else {
+                "all".to_string()
             };
             eprintln!(
                 "{PAD}{} {}{}",
