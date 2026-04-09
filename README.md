@@ -263,7 +263,15 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `kimi-k2` | $0.60 | $2.00 |
+| `kimi-k2.5` | $0.60 | $2.00 |
+| `kimi-k2-0905-preview` | $0.60 | $2.00 |
+| `kimi-k2-0711-preview` | $0.60 | $2.00 |
+| `kimi-k2-turbo-preview` | $0.60 | $2.00 |
+| `kimi-k2-thinking` | $0.60 | $2.00 |
+| `kimi-k2-thinking-turbo` | $0.60 | $2.00 |
+| `moonshot-v1-128k` | $0.60 | $2.00 |
+| `moonshot-v1-32k` | $0.60 | $2.00 |
+| `moonshot-v1-8k` | $0.60 | $2.00 |
 
 #### Z.ai
 
