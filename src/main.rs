@@ -82,7 +82,7 @@ pub(crate) fn version_info_string(remote: Option<&str>) -> String {
 }
 
 #[derive(Parser)]
-#[command(name = "aictl", version = VERSION, disable_version_flag = true, about = "AI agent for the terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
+#[command(name = "aictl", version = VERSION, disable_version_flag = true, about = "AI agent in your terminal", after_help = "Omit --message to start an interactive REPL with persistent conversation history.")]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Print version information
