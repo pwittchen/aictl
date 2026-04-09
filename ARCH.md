@@ -5,7 +5,8 @@
 ```
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
- ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /session, /thinking, /tools, /update)
+ ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /session, /thinking, /tools, /update)
  ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
@@ -213,14 +214,16 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /behavior (Behavior), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /update (Update)
+ Also: /agent (Agent), /behavior (Behavior), /thinking (Thinking), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
    Clear       → reset messages & last_answer, continue
    Compact     → summarize conversation via LLM, save session, continue
+   Agent       → open agent menu (create manually / create with AI / view all / unload);
+                 loading/unloading rebuilds system prompt; continue
    Context     → show token/message usage, continue
-   Info        → show provider/model/version info, continue
+   Info        → show provider/model/version/agent info, continue
    Security    → show current security policy, continue
    Session     → open session menu (current info / set name / view saved / clear all);
                  disabled in incognito mode; continue
@@ -261,6 +264,12 @@ Both single-shot and REPL modes share the same loop:
       │          │───>│  config.rs   │
       │          │    │ SYSTEM_PROMPT│
       │          │    │ load_config  │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
+      │          │───>│ agents.rs    │
+      │          │    │ loaded_agent │
+      │          │    │ save/load/   │
+      │          │    │ delete/list  │
       │          │    └──────────────┘
       │          │    ┌──────────────┐
       │          │───>│ session.rs   │

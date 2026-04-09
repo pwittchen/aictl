@@ -1,3 +1,4 @@
+mod agents;
 mod commands;
 mod config;
 mod llm;
@@ -215,12 +216,18 @@ pub struct Message {
     pub content: String,
 }
 
-/// Build the full system prompt, appending the project prompt file if present.
+/// Build the full system prompt, appending the project prompt file and loaded agent if present.
 fn build_system_prompt() -> String {
     let mut prompt = SYSTEM_PROMPT.to_string();
     if let Some(content) = load_prompt_file() {
         prompt.push_str("\n\n# Project prompt file\n\n");
         prompt.push_str(&content);
+    }
+    if let Some((name, agent_prompt)) = agents::loaded_agent() {
+        prompt.push_str("\n\n# Agent: ");
+        prompt.push_str(&name);
+        prompt.push_str("\n\n");
+        prompt.push_str(&agent_prompt);
     }
     prompt
 }
@@ -591,6 +598,14 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
+        commands::CommandResult::Agent => {
+            let _ = rl.add_history_entry(input);
+            commands::run_agent_menu(provider, api_key, model, messages, ui, &|msg| {
+                ui.show_error(msg);
+            })
+            .await;
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Context => {
             let _ = rl.add_history_entry(input);
             commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
@@ -848,25 +863,28 @@ async fn run_interactive(
 
     loop {
         let unrestricted = !crate::security::policy().enabled;
+        let agent_prefix = agents::loaded_agent_name()
+            .map(|name| format!("{} ", format!("[{name}]").with(Color::Magenta)));
+        let ap = agent_prefix.as_deref().unwrap_or("");
         let prompt = match (auto, unrestricted) {
             (true, true) => format!(
-                "{} {} {} ",
+                "{ap}{} {} {} ",
                 "[auto]".with(Color::Yellow),
                 "[unrestricted]".with(Color::Red),
                 "❯".with(Color::Cyan).attribute(Attribute::Bold),
             ),
             (true, false) => format!(
-                "{} {} ",
+                "{ap}{} {} ",
                 "[auto]".with(Color::Yellow),
                 "❯".with(Color::Cyan).attribute(Attribute::Bold),
             ),
             (false, true) => format!(
-                "{} {} ",
+                "{ap}{} {} ",
                 "[unrestricted]".with(Color::Red),
                 "❯".with(Color::Cyan).attribute(Attribute::Bold),
             ),
             (false, false) => {
-                format!("{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
+                format!("{ap}{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
             }
         };
         let line = rl.readline(&prompt);

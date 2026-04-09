@@ -49,12 +49,13 @@ The interactive REPL supports slash commands:
 
 | Command | Description |
 |---------|-------------|
+| `/agent` | Manage agents (create manually, create with AI, view/load/delete, unload) |
 | `/clear` | Clear conversation context |
 | `/compact` | Summarize conversation into a compact context |
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
-| `/info` | Show setup info (provider, model, behavior, thinking, version, OS, binary size) |
+| `/info` | Show setup info (provider, model, behavior, thinking, agent, version, OS, binary size) |
 | `/issues` | Fetch and display known issues from the remote ISSUES.md |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
@@ -92,6 +93,19 @@ CLI flags take priority over config file values.
 In interactive mode, each REPL run is a session. A new uuid is generated at startup and the conversation is persisted to `~/.aictl/sessions/<uuid>` as JSON after every agent turn and compaction. Session names (optional, unique) are stored in `~/.aictl/sessions/.names`. On exit, the session uuid (and name, if set) is printed.
 
 Use `/session` to show current session info, assign a readable name, browse saved sessions (load or delete with confirmation), or clear all sessions. Pass `--session <uuid|name>` to resume an existing session on startup. Incognito mode (`--incognito` or `AICTL_INCOGNITO=true`) runs the REPL without creating or saving any session file; `/session` is disabled and displays a notice.
+
+### Agents
+
+Agents are reusable system prompt extensions that specialize the LLM for dedicated tasks or behaviors. Agent prompts are stored as plain text files in `~/.aictl/agents/`.
+
+Use `/agent` to open the agent menu:
+
+- **Create agent manually** — enter a name and type or paste the agent prompt text directly
+- **Create agent with AI** — provide a name and brief description; the LLM generates the full agent prompt
+- **View all agents** — browse saved agents, view their prompt, load an agent, or delete it
+- **Unload agent** — remove the currently loaded agent (only shown when one is loaded)
+
+Agent names may contain only letters, numbers, underscores, and dashes. When an agent is loaded, its prompt is appended to the system prompt and the agent name appears in magenta brackets before the input prompt (e.g. `[my-agent] ❯`).
 
 ### Configuration
 
