@@ -1,4 +1,4 @@
-# aictl — Project Instructions
+# aictl — project Instructions
 
 This is the aictl repository, an AI agent CLI tool written in Rust.
 
