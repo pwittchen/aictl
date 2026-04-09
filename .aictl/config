@@ -21,6 +21,9 @@
 # and /session is disabled (default: false). Accepted values: true, false.
 # AICTL_INCOGNITO=false
 
+# Project prompt file loaded from the current directory (default: AICTL.md)
+# AICTL_PROMPT_FILE=AICTL.md
+
 # Tools switch: when set to false, all tool calls are disabled and the LLM
 # can only respond with plain text (default: true). Accepted values: true, false.
 # AICTL_TOOLS_ENABLED=true
@@ -32,6 +35,7 @@
 # LLM_GROK_API_KEY=xai-...
 # LLM_MISTRAL_API_KEY=...
 # LLM_DEEPSEEK_API_KEY=sk-...
+# LLM_KIMI_API_KEY=...
 # LLM_ZAI_API_KEY=...
 
 # Ollama (local models, no API key needed, optional - when it's not defined it falls back to the default host)
@@ -79,8 +83,8 @@
 # AICTL_SECURITY_MAX_WRITE=1048576
 
 # Comma-separated tool names to disable (e.g. exec_shell,search_web)
-# Available tools: exec_shell, read_file, write_file, remove_file, edit_file,
-# list_directory, search_files, find_files, search_web, fetch_url,
+# Available tools: exec_shell, read_file, write_file, remove_file, create_directory,
+# edit_file, list_directory, search_files, find_files, search_web, fetch_url,
 # extract_website, fetch_datetime, fetch_geolocation
 # AICTL_SECURITY_DISABLED_TOOLS=
 
