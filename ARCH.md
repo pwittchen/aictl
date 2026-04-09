@@ -35,6 +35,7 @@ src/
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
+ │  2c'. --list-agents          non-interactive agent listing, exit         │
  │  2d. --config                run_config_wizard() and exit                │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │

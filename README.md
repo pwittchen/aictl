@@ -38,7 +38,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
+aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -79,6 +79,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
 | `--agent` | `-A` | Load a saved agent by name (works in both single-shot and interactive modes) |
+| `--list-agents` | `-L` | Print saved agents from `~/.aictl/agents/` and exit |
 | `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--unrestricted` | `-U` | Disable all security restrictions (use with caution) |
