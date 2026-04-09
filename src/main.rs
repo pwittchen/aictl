@@ -852,7 +852,7 @@ async fn run_interactive(
 
     // Load history
     let history_path = std::env::var("HOME")
-        .map(|h| format!("{h}/.aictl_history"))
+        .map(|h| format!("{h}/.aictl/history"))
         .unwrap_or_default();
     if !history_path.is_empty() {
         let _ = rl.load_history(&history_path);
