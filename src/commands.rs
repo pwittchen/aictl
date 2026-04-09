@@ -623,11 +623,11 @@ fn build_menu_lines(
     (lines, model_indices)
 }
 
-/// Generic arrow-key menu selector.
+/// Generic arrow-key menu selector with viewport scrolling.
 /// `item_count` is the number of selectable items, `initial_selected` is the
 /// starting index, and `build_lines` returns the display lines for a given
 /// selected index.  Returns `Some(selected_index)` or `None` if cancelled.
-#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_possible_truncation, clippy::too_many_lines)]
 fn select_from_menu<F>(item_count: usize, initial_selected: usize, build_lines: F) -> Option<usize>
 where
     F: Fn(usize) -> Vec<String>,
@@ -640,24 +640,96 @@ where
     };
 
     let mut selected = initial_selected;
+    let mut scroll_offset: usize = 0;
 
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
+    // Determine how many menu lines fit in the terminal.
+    // Reserve 4 lines: 1 top blank, 1 bottom blank, 1 help text, 1 safety margin.
+    let term_height = terminal::size().map_or(24, |(_, h)| h as usize);
+    let max_visible = term_height.saturating_sub(4);
+
+    let render = |stdout: &mut std::io::Stdout,
+                  lines: &[String],
+                  scroll_offset: &mut usize,
+                  prev_rendered: usize| {
+        // Find the selected line (marked with ›) and keep it in view.
+        let selected_line = lines.iter().position(|l| l.contains('›')).unwrap_or(0);
+        let total = lines.len();
+        let viewport = max_visible.min(total);
+
+        if viewport < total {
+            if selected_line < *scroll_offset {
+                *scroll_offset = selected_line;
+            } else if selected_line >= *scroll_offset + viewport {
+                *scroll_offset = selected_line + 1 - viewport;
+            }
+            // Clamp
+            if *scroll_offset + viewport > total {
+                *scroll_offset = total - viewport;
+            }
+        } else {
+            *scroll_offset = 0;
+        }
+
+        let has_above = *scroll_offset > 0;
+        let has_below = *scroll_offset + viewport < total;
+
+        // Clear previous render
+        if prev_rendered > 0 {
+            let _ = execute!(
+                stdout,
+                cursor::MoveUp(prev_rendered as u16),
+                terminal::Clear(ClearType::FromCursorDown),
+            );
+        }
+
+        // Scroll indicator above
+        if has_above {
+            let _ = write!(
+                stdout,
+                "  {}\r\n",
+                format!("↑ {} more", *scroll_offset).with(Color::DarkGrey)
+            );
+        }
+
+        // Visible lines
+        for line in &lines[*scroll_offset..*scroll_offset + viewport] {
+            let _ = write!(stdout, "{line}\r\n");
+        }
+
+        // Scroll indicator below
+        if has_below {
+            let remaining = total - (*scroll_offset + viewport);
+            let _ = write!(
+                stdout,
+                "  {}\r\n",
+                format!("↓ {remaining} more").with(Color::DarkGrey)
+            );
+        }
+
+        // Help text
+        let _ = write!(
+            stdout,
+            "\r\n  {}\r\n",
+            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
+        );
+        let _ = stdout.flush();
+
+        // Return number of rendered lines for cleanup
+        viewport
+            + usize::from(has_above)
+            + usize::from(has_below)
+            + 2 // blank + help text
+    };
+
+    // Initial render
     let lines = build_lines(selected);
     let _ = execute!(stdout, cursor::MoveToColumn(0));
     let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
-    let _ = write!(
-        stdout,
-        "\r\n  {}\r\n",
-        "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
-    );
-    let _ = stdout.flush();
-    let total_rendered_lines = lines.len() + 2;
+    let mut total_rendered_lines = render(&mut stdout, &lines, &mut scroll_offset, 0);
 
     loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -701,20 +773,8 @@ where
         }
 
         let lines = build_lines(selected);
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(total_rendered_lines as u16),
-            terminal::Clear(ClearType::FromCursorDown),
-        );
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(
-            stdout,
-            "\r\n  {}\r\n",
-            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
-        );
-        let _ = stdout.flush();
+        total_rendered_lines =
+            render(&mut stdout, &lines, &mut scroll_offset, total_rendered_lines);
     }
 
     let _ = execute!(stdout, cursor::Show);
