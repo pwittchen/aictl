@@ -258,14 +258,24 @@ impl InteractiveUI {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
-        let tools_count = crate::tools::TOOL_COUNT - crate::security::policy().disabled_tools.len();
+        let tools_info = if crate::tools::tools_enabled() {
+            let tools_count =
+                crate::tools::TOOL_COUNT - crate::security::policy().disabled_tools.len();
+            format!("{tools_count} tools")
+        } else {
+            "tools disabled".to_string()
+        };
         eprintln!(
             "{PAD}{} {}{} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
             m[2].with(Color::Cyan),
             format!("{thinking} thinking").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
-            format!("{tools_count} tools").with(Color::DarkGrey),
+            tools_info.as_str().with(if crate::tools::tools_enabled() {
+                Color::DarkGrey
+            } else {
+                Color::Yellow
+            }),
             "·".with(Color::DarkGrey),
             format!("dir: {cwd}/").as_str().with(Color::DarkGrey),
         );

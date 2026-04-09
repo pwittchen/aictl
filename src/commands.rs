@@ -497,8 +497,16 @@ fn print_tools() {
             "get geolocation data for an IP address",
         ),
     ];
+    let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
     println!();
+    if !enabled {
+        println!(
+            "  {}",
+            "all tools disabled (AICTL_TOOLS_ENABLED=false)".with(Color::Yellow)
+        );
+        println!();
+    }
     for (name, desc) in tools {
         let pad = max_len - name.len() + 2;
         println!("  {}{:pad$}{desc}", name.with(Color::Cyan), "");

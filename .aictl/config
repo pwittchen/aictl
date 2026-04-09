@@ -21,6 +21,10 @@
 # and /session is disabled (default: false). Accepted values: true, false.
 # AICTL_INCOGNITO=false
 
+# Tools switch: when set to false, all tool calls are disabled and the LLM
+# can only respond with plain text (default: true). Accepted values: true, false.
+# AICTL_TOOLS_ENABLED=true
+
 # API keys
 # LLM_OPENAI_API_KEY=sk-...
 # LLM_ANTHROPIC_API_KEY=sk-ant-...

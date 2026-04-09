@@ -27,7 +27,18 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     Some(ToolCall { name, input })
 }
 
+/// Check whether tools are globally enabled via `AICTL_TOOLS_ENABLED` config.
+/// Returns `true` when the key is absent or set to anything other than `false`/`0`.
+pub fn tools_enabled() -> bool {
+    crate::config::config_get("AICTL_TOOLS_ENABLED").is_none_or(|v| v != "false" && v != "0")
+}
+
 pub async fn execute_tool(tool_call: &ToolCall) -> String {
+    // Global tools switch
+    if !tools_enabled() {
+        return "All tools are disabled (AICTL_TOOLS_ENABLED=false in config)".to_string();
+    }
+
     // Security gate
     if let Err(reason) = crate::security::validate_tool(tool_call) {
         return format!("Security policy denied: {reason}");

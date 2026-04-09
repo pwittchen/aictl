@@ -41,7 +41,7 @@ Single-binary async Rust CLI with sixteen modules:
 
 **Security** (`src/security.rs`): All tool calls pass through `security::validate_tool()` before execution. Shell commands are validated against blocked/allowed lists with command substitution blocking. File tools are restricted to the working directory (CWD jail) with path canonicalization to defeat traversal attacks. Individual tools can be disabled via `AICTL_SECURITY_DISABLED_TOOLS`. Shell subprocesses get a scrubbed environment (strips `*_KEY`, `*_SECRET`, `*_TOKEN`, `*_PASSWORD`) and a configurable timeout (default 30s). Tool output is sanitized to prevent `<tool>` tag injection. Configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`. Bypassed entirely with `--unrestricted`.
 
-**Tools** (`execute_tool` dispatches by tool name):
+**Tools** (`execute_tool` dispatches by tool name; all tools can be globally disabled via `AICTL_TOOLS_ENABLED=false` in config, default `true`):
 - `exec_shell` — runs commands via `tokio::process::Command` (`sh -c`) with env scrubbing and timeout
 - `read_file` — reads file contents via `tokio::fs::read_to_string`
 - `write_file` — writes files via `tokio::fs::write` (first line = path, rest = content)

@@ -106,6 +106,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
+| `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |
 
 #### API keys
 
