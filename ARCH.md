@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── commands.rs         REPL slash commands (/behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /model, /security, /session, /thinking, /tools, /update)
- ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits)
+ ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)

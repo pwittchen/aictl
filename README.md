@@ -95,7 +95,9 @@ Use `/session` to show current session info, assign a readable name, browse save
 
 ### Configuration
 
-Configuration is loaded from `~/.aictl/config`. This is a single global config file — the program works the same regardless of the current working directory.
+Configuration is loaded from `~/.aictl/config`. This is a single global config file.
+
+Additionally, aictl loads a project prompt file from the current working directory (default: `AICTL.md`). If present, its contents are appended to the system prompt, allowing per-project instructions for the agent. The filename can be customized via `AICTL_PROMPT_FILE` in `~/.aictl/config`.
 
 The quickest way to get started is the interactive wizard:
 
@@ -115,6 +117,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_MODEL` | Default model name |
 | `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
+| `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
 | `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |
 
 #### API keys
