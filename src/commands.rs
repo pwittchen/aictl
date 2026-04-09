@@ -1672,6 +1672,7 @@ pub fn run_config_wizard() {
         "  {} configuration saved to ~/.aictl/config",
         "✓".with(Color::Green)
     );
+    println!();
     println!("  {} {provider_name}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
     if !keys_to_save.is_empty() {
@@ -1682,6 +1683,13 @@ pub fn run_config_wizard() {
             saved_keys.join(", ")
         );
     }
+    println!();
+    println!(
+        "  {} run {} to start a conversation, or {} for a single query",
+        "→".with(Color::Cyan),
+        "aictl".with(Color::White).attribute(crossterm::style::Attribute::Bold),
+        "aictl -m \"your message\"".with(Color::White).attribute(crossterm::style::Attribute::Bold),
+    );
     println!();
 }
 

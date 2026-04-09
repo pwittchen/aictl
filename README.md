@@ -38,7 +38,7 @@ The binary will be at `target/release/aictl`.
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
+aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -73,6 +73,7 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 |------|-------|-------------|
 | `--version` | `-V` | Print version information |
 | `--update` | `-u` | Update to the latest version |
+| `--config` | | Interactive configuration wizard — set provider, model, and API keys step by step |
 | `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `zai`, or `ollama`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | `-m` | Message to send (omit for interactive mode) |
@@ -95,6 +96,14 @@ Use `/session` to show current session info, assign a readable name, browse save
 ### Configuration
 
 Configuration is loaded from `~/.aictl/config`. This is a single global config file — the program works the same regardless of the current working directory.
+
+The quickest way to get started is the interactive wizard:
+
+```bash
+aictl --config
+```
+
+It walks you through selecting a provider, model, and entering API keys. You can also edit `~/.aictl/config` manually at any time.
 
 #### Basic configuration
 
