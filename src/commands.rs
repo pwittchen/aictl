@@ -1491,6 +1491,18 @@ pub fn print_sessions_cli() {
     }
 }
 
+/// Print saved agents in non-interactive mode.
+pub fn print_agents_cli() {
+    let entries = crate::agents::list_agents();
+    if entries.is_empty() {
+        println!("(no saved agents)");
+        return;
+    }
+    for e in &entries {
+        println!("{}", e.name);
+    }
+}
+
 // --- Config wizard ---
 
 /// All providers and their API key config key names.

@@ -140,6 +140,10 @@ struct Cli {
     #[arg(short = 'A', long = "agent")]
     agent: Option<String>,
 
+    /// List all saved agents and exit
+    #[arg(short = 'L', long = "list-agents")]
+    list_agents: bool,
+
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(short = 'C', long = "config")]
     config: bool,
@@ -1012,6 +1016,11 @@ async fn main() {
     if cli.clear_sessions {
         session::clear_all();
         println!("All saved sessions cleared.");
+        return;
+    }
+
+    if cli.list_agents {
+        commands::print_agents_cli();
         return;
     }
 
