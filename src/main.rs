@@ -132,6 +132,10 @@ struct Cli {
     /// Start in incognito mode: interactive REPL without saving sessions
     #[arg(short = 'i', long)]
     incognito: bool,
+
+    /// Interactive configuration wizard for provider, model, and API keys
+    #[arg(long = "config")]
+    config: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -972,6 +976,11 @@ async fn main() {
         return;
     }
 
+    if cli.config {
+        commands::run_config_wizard();
+        return;
+    }
+
     let provider = cli.provider.unwrap_or_else(|| {
         match config_get("AICTL_PROVIDER").as_deref() {
             Some("openai") => Provider::Openai,
@@ -987,7 +996,7 @@ async fn main() {
                 std::process::exit(1);
             }
             None => {
-                eprintln!("Error: no provider specified. Use --provider or set AICTL_PROVIDER in ~/.aictl/config");
+                eprintln!("Error: no provider specified. Use --provider, set AICTL_PROVIDER in ~/.aictl/config, or run aictl --config");
                 std::process::exit(1);
             }
         }
@@ -995,7 +1004,7 @@ async fn main() {
 
     let model = cli.model.unwrap_or_else(|| {
         config_get("AICTL_MODEL").unwrap_or_else(|| {
-            eprintln!("Error: no model specified. Use --model or set AICTL_MODEL in ~/.aictl/config");
+            eprintln!("Error: no model specified. Use --model, set AICTL_MODEL in ~/.aictl/config, or run aictl --config");
             std::process::exit(1);
         })
     });
@@ -1014,7 +1023,7 @@ async fn main() {
             Provider::Ollama => unreachable!(),
         };
         config_get(key_name).unwrap_or_else(|| {
-            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config");
+            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config or run aictl --config");
             std::process::exit(1);
         })
     };
