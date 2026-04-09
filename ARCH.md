@@ -30,7 +30,7 @@ src/
  ┌──────────────────────────────────────────────────────────────────────────┐
  │  main()                                                                  │
  │                                                                          │
- │  1. load_config()            read ~/.aictl/config into OnceLock HashMap         │
+ │  1. load_config()            read ~/.aictl/config into OnceLock HashMap  │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
@@ -43,13 +43,13 @@ src/
  │                              MISTRAL,DEEPSEEK,KIMI,ZAI}_API_KEY          │
  │                              (Ollama: no key needed)                     │
  │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
- │  5c. load --agent <name>    agents::read_agent + agents::load_agent     │
+ │  5c. load --agent <name>    agents::read_agent + agents::load_agent      │
  │  6. dispatch:                                                            │
  │     ├─ -m given ──> run_agent_single()  (PlainUI)                        │
  │     └─ no -m ───> run_interactive()     (InteractiveUI + REPL)           │
- │                   ├─ load --session <id|name> or generate new uuid      │
- │                   │  (skipped when incognito)                           │
- │                   └─ print welcome banner (shows session or incognito)  │
+ │                   ├─ load --session <id|name> or generate new uuid       │
+ │                   │  (skipped when incognito)                            │
+ │                   └─ print welcome banner (shows session or incognito)   │
  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
