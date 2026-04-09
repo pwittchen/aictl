@@ -920,8 +920,15 @@ async fn run_interactive(
         let label = name
             .as_deref()
             .map_or_else(|| id.clone(), |n| format!("{id} ({n})"));
+        let resume_arg = name.as_deref().unwrap_or(&id);
         println!();
         println!("  {} session saved: {label}", "✓".with(Color::Green));
+        println!(
+            "  {} resume with: {} {}",
+            "→".with(Color::Cyan),
+            "aictl -s".with(Color::Cyan),
+            resume_arg.with(Color::Cyan)
+        );
         println!();
     }
 
