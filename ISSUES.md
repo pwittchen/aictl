@@ -6,6 +6,10 @@
 
 ## Security
 
+- **Auto-compact Configuration** - allow to configure auto-compact feature
+
+## Security
+
 - **Secure API key storage** `[config]` — API keys are stored as plain text in `~/.aictl/config`. Integrate system keyring (e.g. `keyring` crate) with plain-text fallback. Show storage backend in the welcome banner and `/info`.
 
 - **Key management commands** `[config] [ui]` — Depends on secure key storage. Add `/lock-keys` (migrate to keyring, remove from config), `/unlock-keys` (migrate back), `/clear-keys` (remove from both). Show per-key storage status in `/info` and `/security`.
