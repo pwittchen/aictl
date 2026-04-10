@@ -1,12 +1,11 @@
+# This is exemplary config file
+
 # ~/.aictl/config — aictl configuration file
 # Copy this file to ~/.aictl/config (create the ~/.aictl directory first)
 # and uncomment/fill in the values.
 
-
 ################################
-#                              #
 #         BASIC CONFIG         #
-#                              #
 ################################
 
 
@@ -28,7 +27,10 @@
 # can only respond with plain text (default: true). Accepted values: true, false.
 # AICTL_TOOLS_ENABLED=true
 
-# API keys
+################################
+#    API KEYS + OLLAMA HOST    #
+################################
+
 # LLM_OPENAI_API_KEY=sk-...
 # LLM_ANTHROPIC_API_KEY=sk-ant-...
 # LLM_GEMINI_API_KEY=...
@@ -38,19 +40,15 @@
 # LLM_KIMI_API_KEY=...
 # LLM_ZAI_API_KEY=...
 
-# Ollama (local models, no API key needed, optional - when it's not defined it falls back to the default host)
-# LLM_OLLAMA_HOST=http://localhost:11434
-
 # Web search (optional, used by web_search tool)
 # FIRECRAWL_API_KEY=fc-...
 
+# Ollama (local models, no API key needed, optional - when it's not defined it falls back to the default host)
+# LLM_OLLAMA_HOST=http://localhost:11434
 
 ################################
-#                              #
 #  SECURITY CONFIG (OPTIONAL)  #
-#                              #
 ################################
-
 
 # Security settings (all optional, sensible defaults apply)
 # Master switch (default: true)
