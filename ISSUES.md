@@ -39,6 +39,6 @@
 
 - **Server** - create separate module, which allows to expose program functionality on the server with REST API protected behind the local API key
 
-### Desktop app
+### Desktop
 
 - **Desktop app** - create desktop app, which provides the same functionality as CLI (preferable for all popular OSes, but for macOS it's required)
