@@ -12,7 +12,8 @@
 
 ## Tools
 
-- **Image processing** `[tool]` — Add the ability to process and analyze images.
+- **Image processing - Analysis** `[tool]` — Add the ability to process and analyze images (preferably with base64 and existing APIs).
+- **Image processing - Generation** `[tool]` — Add the ability to generate images.
 - **Document processing** `[tool]` — Add support for reading PDF and DOCX files.
 - **Spreadsheet processing** `[tool]` — Add support for reading XLSX files using the `calamine` crate.
 
