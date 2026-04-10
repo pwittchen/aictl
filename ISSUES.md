@@ -22,7 +22,7 @@
 
 ## LLM Providers
 
-- **Native local model support** `[llm]` — Load and run models directly from disk (e.g. GGUF via `llama.cpp` bindings or ONNX runtime) without requiring a separate server like Ollama.
+- **Native local model support** `[llm]` — Load and run models directly from disk (e.g. GGUF via `llama.cpp` bindings or ONNX runtime) without requiring a separate server like Ollama. Provide requirements for the specific models, because some of them may require different path (e.g. necessary HF key) - especially Gemma or Llama. Rest of the models probably can be downloaded as GGUF without HF key.
 
 ## Other
 
