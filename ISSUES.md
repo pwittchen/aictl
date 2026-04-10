@@ -28,3 +28,17 @@
 
 - **Project domain** — Configure a project domain and connect it to the VPS.
 - **Project website** `[marketing]` — Create a public-facing project website.
+
+## Roadmap
+
+### Refactoring
+
+- **Modules** - split program code into modules: core (shared code), cli, server (currently empty), desktop (currently empty) for the purpose of the future development of the server and desktop apps
+
+### Server
+
+- **Server** - create separate module, which allows to expose program functionality on the server with REST API protected behind the local API key
+
+### Desktop app
+
+- **Desktop app** - create desktop app, which provides the same functionality as CLI (preferable for all popular OSes, but for macOS it's required)
