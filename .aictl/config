@@ -8,7 +8,6 @@
 #         BASIC CONFIG         #
 ################################
 
-
 # Default provider and model (used when --provider / --model are not passed)
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
