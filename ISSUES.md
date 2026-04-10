@@ -1,27 +1,30 @@
 # Issues
 
+## Bugs
+
+- **Tool output printed instead of executed** `[agent-loop]` — When `parse_tool_call()` returns `None`, the response is treated as a final answer even if it contains a failed tool call. The agent loop should detect malformed or failed tool calls and retry with a different approach rather than surfacing raw tool output to the user.
+
 ## Security
 
-- **Secure API key storage** `[config]` — Research and implement a more secure way of storing API keys instead of plain text. Consider using the system keyring with a plain-text environment variable as a fallback. Add a note in the welcome banner and `/info` output indicating whether keys are stored securely.
+- **Secure API key storage** `[config]` — API keys are currently stored as plain text in `~/.aictl/config`. Implement system keyring integration (e.g. `keyring` crate) with plain-text fallback. Show storage status in the welcome banner and `/info` output.
 
-- **Key management commands** `[config] [ui]` — Once secure key storage is implemented, show the storage status of each API key in the `/info` and `/security` commands (whether the key is set and whether it is secured via keyring or stored in plain text). Add the following commands: `/lock-keys` (copy API keys to the keyring and remove them from the config file), `/unlock-keys` (copy keys back to the config file and remove them from the keyring), and `/clear-keys` (remove keys from both locations).
-
-## LLM Providers
-
-- **Add native local model support** `[llm]` — Load models directly from disk using ONNX or a similar format.
+- **Key management commands** `[config] [ui]` — Depends on secure key storage. Show per-key storage status (keyring vs plain text) in `/info` and `/security`. Add commands: `/lock-keys` (migrate keys to keyring, remove from config), `/unlock-keys` (migrate back to config), `/clear-keys` (remove from both).
 
 ## Tools
 
-- **Image processing - Analysis** `[tool]` — Add the ability to process and analyze images (preferably with base64 and existing APIs).
-- **Image processing - Generation** `[tool]` — Add the ability to generate images.
-- **Document processing** `[tool]` — Add support for reading PDF and DOCX files.
-- **Spreadsheet processing** `[tool]` — Add support for reading XLSX files using the `calamine` crate.
+- **Image analysis** `[tool] [llm]` — Send images to vision-capable LLMs for analysis. Accept file paths or URLs, encode as base64, and pass via the provider's vision API.
 
-## Bugs
+- **Image generation** `[tool]` — Generate images via an external API (e.g. DALL-E, Stable Diffusion). Save output to disk and display the file path.
 
-- **Tool output sometimes printed instead of executed** `[bug]` — Occasionally the LLM generates a tool call (especially a shell command) but the agent prints it as a final response instead of executing it. This may be related to errors such as a nonexistent command. Update the agent loop so that tool output is never presented as a final result; instead, the agent should retry with a different approach.
+- **PDF and DOCX reading** `[tool]` — Extract text content from PDF and DOCX files so the agent can reason over documents.
+
+- **XLSX reading** `[tool]` — Read spreadsheet data using the `calamine` crate. Return cell contents in a structured format the agent can process.
+
+## LLM Providers
+
+- **Native local model support** `[llm]` — Load and run models directly from disk (e.g. GGUF via `llama.cpp` bindings or ONNX runtime) without requiring a separate server like Ollama.
 
 ## Other
 
-- **Project domain** - configure project domain and connect it with VPS
+- **Project domain** — Configure a project domain and connect it to the VPS.
 - **Project website** `[marketing]` — Create a public-facing project website.
