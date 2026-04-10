@@ -12,9 +12,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  version-bump:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v5
         with:
@@ -38,8 +37,72 @@ jobs:
             git push origin HEAD:master
           fi
 
+  build:
+    needs: version-bump
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: aictl-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: aictl-linux-aarch64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: aictl-darwin-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact: aictl-darwin-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact: aictl-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+
+      - name: Install Rust toolchain
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary (unix)
+        if: runner.os != 'Windows'
+        run: cp target/${{ matrix.target }}/release/aictl ${{ matrix.artifact }}
+
+      - name: Rename binary (windows)
+        if: runner.os == 'Windows'
+        run: cp target/${{ matrix.target }}/release/aictl.exe ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
 
       - name: Generate changelog
         id: changelog
@@ -62,3 +125,4 @@ jobs:
           name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.body }}
           generate_release_notes: false
+          files: artifacts/*
