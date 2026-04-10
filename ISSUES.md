@@ -23,4 +23,5 @@
 
 ## Other
 
+- **Project domain** - configure project domain and connect it with VPS
 - **Project website** `[marketing]` — Create a public-facing project website.
