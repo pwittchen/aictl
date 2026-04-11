@@ -380,12 +380,12 @@ Any model string can be passed via `--model`; cost estimation uses pattern match
 
 The per-token tables above tell you what each model charges; they don't tell you what a realistic workday actually costs. For that, see [LLM_PRICING.md](LLM_PRICING.md) — it models two usage patterns (chat assistant and coding agent) and reports daily and monthly totals for every model in the catalog.
 
-The headline numbers for intensive use (150 chat turns/day or 50 coding tasks/day, 22 working days/month):
+The headline numbers for intensive use (150 chat turns/day or 50 coding tasks/day, 22 working days/month, cached pricing):
 
-| Usage pattern | Cheapest cached | Flagship cluster cached | Opus 4.6 uncached |
+| Usage pattern | Cheapest | Flagship cluster | Opus 4.6 |
 |---|---|---|---|
-| Chat | **$2.64/mo** (grok-4-fast) | ~$35–$48/mo | $132/mo |
-| Coding agent | **$34.76/mo** (grok-4-fast) | ~$460–$525/mo | $2,062.50/mo |
+| Chat | **$2.64/mo** (grok-4-fast) | ~$35–$48/mo | $69.74/mo |
+| Coding agent | **$34.76/mo** (grok-4-fast) | ~$460–$525/mo | $874.50/mo |
 
 A few things worth knowing before you budget:
 

@@ -134,12 +134,19 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 
 If you're picking a mental model for what aictl costs per month:
 
-| | Cheapest cached | Flagship cached | Absolute max |
+| | Cheapest cached | Flagship cluster cached | Opus 4.6 cached |
 |---|---|---|---|
-| **Chat** | $2.64 (grok-4-fast) | ~$35–$48 | $132 (Opus uncached) |
-| **Coding** | $34.76 (grok-4-fast) | ~$460–$525 | $2,062.50 (Opus uncached) |
+| **Chat** | $2.64 (grok-4-fast) | ~$35–$48 | $69.74 |
+| **Coding** | $34.76 (grok-4-fast) | ~$460–$525 | $874.50 |
 
 The spread is: **chat = essentially free on value models, ~$50 on
-flagships, $130 on Opus**. **Coding = $35 on value models, ~$500 on
-flagships, $2,000+ on Opus**. The ~60× jump from chat to coding for
+flagships, ~$70 on Opus**. **Coding = $35 on value models, ~$500 on
+flagships, ~$875 on Opus**. The ~60× jump from chat to coding for
 any given model is the real headline.
+
+These are the cached figures because aictl explicitly drives
+Anthropic's prompt cache, and the other providers cache automatically
+during sustained sessions. The uncached numbers in the detailed
+tables above represent the worst case if caching silently breaks —
+for Anthropic specifically, that worst case is roughly 2.4× the
+cached figure.
