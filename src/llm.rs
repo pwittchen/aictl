@@ -10,6 +10,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "claude-sonnet-4-20250514",
         "LLM_ANTHROPIC_API_KEY",
     ),
+    ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
     (
         "anthropic",
         "claude-opus-4-20250514",
@@ -21,12 +22,32 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4o-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4o", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5-mini", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.2", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.2-pro", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.4-nano", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.4-mini", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.4", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.4-pro", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
+    ("openai", "o3", "LLM_OPENAI_API_KEY"),
+    ("openai", "o1", "LLM_OPENAI_API_KEY"),
     ("gemini", "gemini-2.5-pro", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-2.5-flash", "LLM_GEMINI_API_KEY"),
-    ("gemini", "gemini-2.0-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
+    (
+        "gemini",
+        "gemini-3.1-flash-lite-preview",
+        "LLM_GEMINI_API_KEY",
+    ),
     ("grok", "grok-3", "LLM_GROK_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4-fast-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4-fast-non-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4-1-fast-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4-1-fast-non-reasoning", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
@@ -42,6 +63,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("kimi", "moonshot-v1-128k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-32k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-8k", "LLM_KIMI_API_KEY"),
+    ("zai", "glm-5.1", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flash", "LLM_ZAI_API_KEY"),
@@ -124,7 +147,31 @@ fn cache_read_multiplier(model: &str) -> f64 {
 }
 
 /// Returns (input, output) price per million tokens for known models.
+#[allow(clippy::too_many_lines)]
 fn price_per_million(model: &str) -> Option<(f64, f64)> {
+    // OpenAI — GPT-5.4 (current flagship; dual-tier pricing above 272K
+    // context — these are the short-context rates)
+    if model.starts_with("gpt-5.4-nano") {
+        return Some((0.20, 1.25));
+    }
+    if model.starts_with("gpt-5.4-mini") {
+        return Some((0.75, 4.50));
+    }
+    if model.starts_with("gpt-5.4-pro") {
+        return Some((60.00, 270.00));
+    }
+    if model.starts_with("gpt-5.4") {
+        return Some((2.50, 15.00));
+    }
+
+    // OpenAI — GPT-5.2
+    if model.starts_with("gpt-5.2-pro") {
+        return Some((30.00, 180.00));
+    }
+    if model.starts_with("gpt-5.2") {
+        return Some((1.75, 14.00));
+    }
+
     // OpenAI — GPT-5
     if model.starts_with("gpt-5-mini") {
         return Some((0.25, 2.00));
@@ -185,18 +232,30 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
-    // Google Gemini
+    // Google Gemini — 3.1 (dual-tier pricing above 200K context;
+    // these are the short-context rates)
+    if model.starts_with("gemini-3.1-flash-lite") {
+        return Some((0.25, 1.50));
+    }
+    if model.starts_with("gemini-3.1-pro") {
+        return Some((2.00, 12.00));
+    }
+    // Google Gemini — 2.5
     if model.starts_with("gemini-2.5-pro") {
         return Some((1.25, 10.00));
     }
     if model.starts_with("gemini-2.5-flash") {
         return Some((0.15, 0.60));
     }
-    if model.starts_with("gemini-2.0-flash") {
-        return Some((0.10, 0.40));
-    }
 
-    // xAI Grok
+    // xAI Grok — 4 family (4.x Fast variants share pricing)
+    if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
+        return Some((0.20, 0.50));
+    }
+    if model.starts_with("grok-4") {
+        return Some((3.00, 15.00));
+    }
+    // xAI Grok — 3
     if model.starts_with("grok-3-mini") {
         return Some((0.30, 0.50));
     }
@@ -234,7 +293,13 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.60, 2.00));
     }
 
-    // Z.ai
+    // Z.ai — order matters: more specific prefixes first
+    if model.starts_with("glm-5.1") {
+        return Some((1.40, 4.40));
+    }
+    if model.starts_with("glm-5-turbo") {
+        return Some((1.20, 4.00));
+    }
     if model.starts_with("glm-5") {
         return Some((0.72, 2.30));
     }
@@ -253,6 +318,9 @@ pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("gpt-4.1") {
         return 200_000;
     }
+    if model.starts_with("gpt-5.4") {
+        return 1_000_000;
+    }
     if model.starts_with("gpt-4o") || model.starts_with("gpt-5") {
         return 128_000;
     }
@@ -262,8 +330,17 @@ pub fn context_limit(model: &str) -> u64 {
     if model.contains("claude-") || model.contains("claude") {
         return 200_000;
     }
+    if model.starts_with("gemini-3.1-pro") || model.starts_with("gemini-3.1-flash-lite") {
+        return 1_000_000;
+    }
     if model.starts_with("gemini-") {
         return 200_000;
+    }
+    if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
+        return 2_000_000;
+    }
+    if model.starts_with("grok-4") {
+        return 256_000;
     }
     if model.starts_with("grok-") {
         return 131_072;
@@ -410,6 +487,57 @@ mod tests {
         let (i, o) = price_per_million("claude-haiku-4-5-20251001").unwrap();
         assert_eq!(i, 1.00);
         assert_eq!(o, 5.00);
+    }
+
+    #[test]
+    fn price_gpt5_2() {
+        let (i, o) = price_per_million("gpt-5.2").unwrap();
+        assert_eq!(i, 1.75);
+        assert_eq!(o, 14.00);
+    }
+
+    #[test]
+    fn price_gpt5_4_family() {
+        let (i, o) = price_per_million("gpt-5.4").unwrap();
+        assert_eq!(i, 2.50);
+        assert_eq!(o, 15.00);
+        let (i, o) = price_per_million("gpt-5.4-mini").unwrap();
+        assert_eq!(i, 0.75);
+        assert_eq!(o, 4.50);
+        let (i, o) = price_per_million("gpt-5.4-nano").unwrap();
+        assert_eq!(i, 0.20);
+        assert_eq!(o, 1.25);
+    }
+
+    #[test]
+    fn price_gemini_3_1_pro() {
+        let (i, o) = price_per_million("gemini-3.1-pro-preview").unwrap();
+        assert_eq!(i, 2.00);
+        assert_eq!(o, 12.00);
+    }
+
+    #[test]
+    fn price_grok_4() {
+        let (i, o) = price_per_million("grok-4").unwrap();
+        assert_eq!(i, 3.00);
+        assert_eq!(o, 15.00);
+        let (i, o) = price_per_million("grok-4-fast-reasoning").unwrap();
+        assert_eq!(i, 0.20);
+        assert_eq!(o, 0.50);
+    }
+
+    #[test]
+    fn price_glm_5_1_and_turbo() {
+        let (i, o) = price_per_million("glm-5.1").unwrap();
+        assert_eq!(i, 1.40);
+        assert_eq!(o, 4.40);
+        let (i, o) = price_per_million("glm-5-turbo").unwrap();
+        assert_eq!(i, 1.20);
+        assert_eq!(o, 4.00);
+        // existing glm-5 bucket must still match plain "glm-5"
+        let (i, o) = price_per_million("glm-5").unwrap();
+        assert_eq!(i, 0.72);
+        assert_eq!(o, 2.30);
     }
 
     #[test]
@@ -563,6 +691,30 @@ mod tests {
     fn context_limit_claude() {
         assert_eq!(context_limit("claude-sonnet-4-20250514"), 200_000);
         assert_eq!(context_limit("claude-opus-4-20250514"), 200_000);
+    }
+
+    #[test]
+    fn context_limit_gpt5_4_is_1m() {
+        assert_eq!(context_limit("gpt-5.4"), 1_000_000);
+        assert_eq!(context_limit("gpt-5.4-mini"), 1_000_000);
+        // gpt-5 stays at 128K
+        assert_eq!(context_limit("gpt-5"), 128_000);
+    }
+
+    #[test]
+    fn context_limit_gemini_3_1_pro_is_1m() {
+        assert_eq!(context_limit("gemini-3.1-pro-preview"), 1_000_000);
+        assert_eq!(context_limit("gemini-3.1-flash-lite-preview"), 1_000_000);
+        // older gemini stays at 200K
+        assert_eq!(context_limit("gemini-2.5-pro"), 200_000);
+    }
+
+    #[test]
+    fn context_limit_grok_4() {
+        assert_eq!(context_limit("grok-4"), 256_000);
+        assert_eq!(context_limit("grok-4-fast-reasoning"), 2_000_000);
+        assert_eq!(context_limit("grok-4-1-fast-reasoning"), 2_000_000);
+        assert_eq!(context_limit("grok-3"), 131_072);
     }
 
     #[test]

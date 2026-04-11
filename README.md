@@ -253,9 +253,17 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-4o` | $2.50 | $10.00 |
 | `gpt-5-mini` | $0.25 | $2.00 |
 | `gpt-5` | $1.25 | $10.00 |
+| `gpt-5.2` | $1.75 | $14.00 |
+| `gpt-5.2-pro` | $30.00 | $180.00 |
+| `gpt-5.4-nano` | $0.20 | $1.25 |
+| `gpt-5.4-mini` | $0.75 | $4.50 |
+| `gpt-5.4` | $2.50 | $15.00 |
+| `gpt-5.4-pro` | $60.00 | $270.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
+
+GPT-5.2 and GPT-5.4 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price.
 
 #### Anthropic
 
@@ -275,9 +283,12 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `gemini-3.1-pro-preview` | $2.00 | $12.00 |
+| `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
 | `gemini-2.5-flash` | $0.15 | $0.60 |
-| `gemini-2.0-flash` | $0.10 | $0.40 |
+
+Gemini 3.1 Pro uses dual-tier pricing that doubles above a 200K context threshold; the table shows the short-context rates. `gemini-2.0-flash` has been removed from the model list because Google is shutting it down on June 1, 2026.
 
 #### xAI Grok
 
@@ -285,8 +296,13 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `grok-4` | $3.00 | $15.00 |
+| `grok-4-fast-reasoning` / `grok-4-fast-non-reasoning` | $0.20 | $0.50 |
+| `grok-4-1-fast-reasoning` / `grok-4-1-fast-non-reasoning` | $0.20 | $0.50 |
 | `grok-3` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
+
+Grok 4 Fast variants ship with a 2M-token context window, the largest available across frontier models.
 
 #### Mistral
 
@@ -330,6 +346,8 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `glm-5.1` | $1.40 | $4.40 |
+| `glm-5-turbo` | $1.20 | $4.00 |
 | `glm-5` | $0.72 | $2.30 |
 | `glm-4.7` | $0.39 | $1.75 |
 | `glm-4.7-flash` | $0.06 | $0.40 |
