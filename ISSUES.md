@@ -40,3 +40,7 @@ Expose program functionality via a REST API protected by a local API key.
 ### Desktop
 
 Provide a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal.
+
+## Coding Agent
+
+Provide configurable mode, which will transofrm the general purpose agent into the coding agent. There should be additional skills/tools and prompts available for such mode, which won't be available in the "default" general purpose mode.
