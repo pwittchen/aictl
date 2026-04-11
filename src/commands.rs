@@ -300,22 +300,36 @@ pub fn print_context(
     println!();
     println!(
         "  {} {}{} {context_pct}%",
-        format!("{:<12}", "context:").with(Color::Cyan),
+        format!("{:<13}", "context:").with(Color::Cyan),
         "█".repeat(filled).with(bar_color),
         "░".repeat(empty).with(Color::DarkGrey),
     );
     println!(
         "  {} {last_input_tokens} / {limit}",
-        format!("{:<12}", "tokens:").with(Color::DarkGrey),
+        format!("{:<13}", "tokens:").with(Color::DarkGrey),
     );
     println!(
         "  {} {messages_len} / {max_messages}",
-        format!("{:<12}", "messages:").with(Color::DarkGrey),
+        format!("{:<13}", "messages:").with(Color::DarkGrey),
     );
     let (manual, auto) = compaction_counts();
     println!(
         "  {} manual: {manual}, auto: {auto}",
-        format!("{:<12}", "compactions:").with(Color::DarkGrey),
+        format!("{:<13}", "compactions:").with(Color::DarkGrey),
+    );
+    let threshold = crate::config::auto_compact_threshold();
+    let source = if crate::config::config_get("AICTL_AUTO_COMPACT_THRESHOLD")
+        .and_then(|v| v.parse::<u8>().ok())
+        .filter(|v| (1..=100).contains(v))
+        .is_some()
+    {
+        "config"
+    } else {
+        "default"
+    };
+    println!(
+        "  {} {threshold}% ({source})",
+        format!("{:<13}", "auto-compact:").with(Color::DarkGrey),
     );
     println!();
 }
