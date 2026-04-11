@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
-static CONFIG: OnceLock<HashMap<String, String>> = OnceLock::new();
+static CONFIG: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 /// Return a shared `reqwest::Client`, creating it on first access.
@@ -100,12 +100,12 @@ pub fn load_config() {
     });
     let config_path = format!("{home}/.aictl/config");
     let Ok(contents) = std::fs::read_to_string(&config_path) else {
-        CONFIG.set(HashMap::new()).ok();
+        CONFIG.set(RwLock::new(HashMap::new())).ok();
         return;
     };
 
     let map = parse_config(&contents);
-    CONFIG.set(map).ok();
+    CONFIG.set(RwLock::new(map)).ok();
 }
 
 fn parse_config(contents: &str) -> HashMap<String, String> {
@@ -137,7 +137,10 @@ fn parse_config(contents: &str) -> HashMap<String, String> {
 }
 
 pub fn config_get(key: &str) -> Option<String> {
-    CONFIG.get().and_then(|m| m.get(key).cloned())
+    CONFIG
+        .get()
+        .and_then(|lock| lock.read().ok())
+        .and_then(|m| m.get(key).cloned())
 }
 
 /// Load the project prompt file from the current working directory.
@@ -149,7 +152,17 @@ pub fn load_prompt_file() -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
+/// Check whether a config line declares the given key.
+fn line_matches_key(line: &str, key: &str) -> bool {
+    let trimmed = line.trim();
+    let stripped = trimmed.strip_prefix("export ").unwrap_or(trimmed);
+    stripped
+        .strip_prefix(key)
+        .is_some_and(|rest| rest.starts_with('='))
+}
+
 /// Write a key=value pair to ~/.aictl/config, replacing an existing key or appending.
+/// Also updates the in-memory config cache so subsequent `config_get` calls see the new value.
 pub fn config_set(key: &str, value: &str) {
     let Ok(home) = std::env::var("HOME") else {
         return;
@@ -163,9 +176,7 @@ pub fn config_set(key: &str, value: &str) {
     let mut lines: Vec<String> = contents
         .lines()
         .map(|line| {
-            let trimmed = line.trim();
-            let stripped = trimmed.strip_prefix("export ").unwrap_or(trimmed);
-            if stripped.starts_with(key) && stripped[key.len()..].starts_with('=') {
+            if line_matches_key(line, key) {
                 found = true;
                 format!("{key}={value}")
             } else {
@@ -179,6 +190,48 @@ pub fn config_set(key: &str, value: &str) {
     }
 
     let _ = std::fs::write(&config_path, lines.join("\n") + "\n");
+
+    if let Some(lock) = CONFIG.get()
+        && let Ok(mut m) = lock.write()
+    {
+        m.insert(key.to_string(), value.to_string());
+    }
+}
+
+/// Remove a key from ~/.aictl/config and the in-memory cache.
+/// Returns true if the key existed in either location.
+pub fn config_unset(key: &str) -> bool {
+    let Ok(home) = std::env::var("HOME") else {
+        return false;
+    };
+    let config_path = format!("{home}/.aictl/config");
+
+    let mut removed_from_file = false;
+    if let Ok(contents) = std::fs::read_to_string(&config_path) {
+        let kept: Vec<&str> = contents
+            .lines()
+            .filter(|line| {
+                if line_matches_key(line, key) {
+                    removed_from_file = true;
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+        if removed_from_file {
+            let _ = std::fs::write(&config_path, kept.join("\n") + "\n");
+        }
+    }
+
+    let mut removed_from_cache = false;
+    if let Some(lock) = CONFIG.get()
+        && let Ok(mut m) = lock.write()
+    {
+        removed_from_cache = m.remove(key).is_some();
+    }
+
+    removed_from_file || removed_from_cache
 }
 
 #[cfg(test)]

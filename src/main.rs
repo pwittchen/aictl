@@ -1,6 +1,7 @@
 mod agents;
 mod commands;
 mod config;
+mod keys;
 mod llm;
 mod llm_anthropic;
 mod llm_deepseek;
@@ -652,13 +653,33 @@ async fn handle_repl_input(
             commands::print_info(&pname, model, *auto, *memory, version_info);
             return ReplAction::Continue;
         }
-        commands::CommandResult::Security | commands::CommandResult::Continue => {
+        commands::CommandResult::Security => {
+            let _ = rl.add_history_entry(input);
+            commands::print_security();
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::Continue => {
             let _ = rl.add_history_entry(input);
             return ReplAction::Continue;
         }
         commands::CommandResult::Issues => {
             let _ = rl.add_history_entry(input);
             commands::run_issues(&|msg| ui.show_error(msg)).await;
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::LockKeys => {
+            let _ = rl.add_history_entry(input);
+            commands::run_lock_keys(&|msg| ui.show_error(msg));
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::UnlockKeys => {
+            let _ = rl.add_history_entry(input);
+            commands::run_unlock_keys(&|msg| ui.show_error(msg));
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::ClearKeys => {
+            let _ = rl.add_history_entry(input);
+            commands::run_clear_keys(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
         }
         commands::CommandResult::Update => {
@@ -681,9 +702,9 @@ async fn handle_repl_input(
                     *model = new_model;
                     *api_key = String::new();
                 } else {
-                    let Some(new_api_key) = config_get(&api_key_name) else {
+                    let Some(new_api_key) = keys::get_secret(&api_key_name) else {
                         ui.show_error(&format!(
-                            "API key not found. Set {api_key_name} in ~/.aictl/config"
+                            "API key not found. Set {api_key_name} in ~/.aictl/config or run /lock-keys to migrate from another provider"
                         ));
                         return ReplAction::Continue;
                     };
@@ -1090,8 +1111,8 @@ async fn main() {
             Provider::Zai => "LLM_ZAI_API_KEY",
             Provider::Ollama => unreachable!(),
         };
-        config_get(key_name).unwrap_or_else(|| {
-            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config or run aictl --config");
+        keys::get_secret(key_name).unwrap_or_else(|| {
+            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config");
             std::process::exit(1);
         })
     };

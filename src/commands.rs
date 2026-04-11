@@ -39,8 +39,25 @@ impl std::fmt::Display for MemoryMode {
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "agent", "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "issues",
-    "memory", "model", "security", "session", "tools", "update",
+    "agent",
+    "behavior",
+    "clear",
+    "clear-keys",
+    "compact",
+    "context",
+    "copy",
+    "exit",
+    "help",
+    "info",
+    "issues",
+    "lock-keys",
+    "memory",
+    "model",
+    "security",
+    "session",
+    "tools",
+    "unlock-keys",
+    "update",
 ];
 
 /// Result of handling a slash command.
@@ -71,6 +88,12 @@ pub enum CommandResult {
     Session,
     /// Fetch and display known issues.
     Issues,
+    /// Migrate API keys from config to the system keyring.
+    LockKeys,
+    /// Migrate API keys from the system keyring to config.
+    UnlockKeys,
+    /// Remove API keys from both config and keyring.
+    ClearKeys,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -90,10 +113,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "context" => CommandResult::Context,
         "info" => CommandResult::Info,
         "agent" => CommandResult::Agent,
-        "security" => {
-            print_security();
-            CommandResult::Security
-        }
+        "security" => CommandResult::Security,
         "model" => CommandResult::Model,
         "behavior" => CommandResult::Behavior,
         "memory" => CommandResult::Memory,
@@ -112,6 +132,9 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             print_tools();
             CommandResult::Continue
         }
+        "lock-keys" => CommandResult::LockKeys,
+        "unlock-keys" => CommandResult::UnlockKeys,
+        "clear-keys" => CommandResult::ClearKeys,
         _ => {
             show_error("Unknown command. Type /help for available commands.");
             CommandResult::Continue
@@ -350,6 +373,18 @@ fn print_help() {
         ("/session", "manage sessions"),
         ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
+        (
+            "/lock-keys",
+            "migrate API keys from config to system keyring",
+        ),
+        (
+            "/unlock-keys",
+            "migrate API keys from system keyring to config",
+        ),
+        (
+            "/clear-keys",
+            "remove API keys from both config and keyring",
+        ),
         ("/update", "update to the latest version"),
         ("/exit", "exit the REPL"),
     ];
@@ -492,13 +527,194 @@ mod tests {
     }
 }
 
-fn print_security() {
+pub fn print_security() {
     let summary = crate::security::policy_summary();
     let max_key = summary.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
     println!();
     for (key, value) in &summary {
         let pad = max_key - key.len() + 2;
         println!("  {}:{:pad$}{}", key.as_str().with(Color::Cyan), "", value);
+    }
+    println!();
+    print_key_storage();
+}
+
+/// Print the current API key storage backend and per-key status.
+fn print_key_storage() {
+    use crate::keys::{self, KeyLocation};
+
+    let backend = keys::backend_name();
+    let (locked, plain, both, _unset) = keys::counts();
+    println!(
+        "  {} {} {}",
+        "key storage:".with(Color::Cyan),
+        backend.with(Color::Green),
+        format!("({locked} locked · {plain} plain · {both} both)").with(Color::DarkGrey),
+    );
+    let max_key = keys::KEY_NAMES.iter().map(|n| n.len()).max().unwrap_or(0);
+    for (name, loc) in keys::all_locations() {
+        let pad = max_key - name.len() + 2;
+        let label = loc.label();
+        let color = match loc {
+            KeyLocation::Keyring => Color::Green,
+            KeyLocation::Config => Color::Yellow,
+            KeyLocation::Both => Color::Red,
+            KeyLocation::None => Color::DarkGrey,
+        };
+        println!(
+            "  {}{:pad$}{}",
+            name.with(Color::DarkGrey),
+            "",
+            label.with(color),
+        );
+    }
+    println!();
+}
+
+/// Migrate all plain-text keys from the config file to the system keyring.
+pub fn run_lock_keys(show_error: &dyn Fn(&str)) {
+    use crate::keys::{self, LockOutcome};
+
+    if !keys::backend_available() {
+        show_error(&format!(
+            "System keyring is not available on this platform. Keys remain in ~/.aictl/config. (backend: {})",
+            keys::backend_name()
+        ));
+        return;
+    }
+
+    println!();
+    println!(
+        "  {} migrating keys to {}...",
+        "→".with(Color::Cyan),
+        keys::backend_name().with(Color::Green),
+    );
+    println!();
+
+    let mut any = false;
+    for name in keys::KEY_NAMES {
+        match keys::lock_key(name) {
+            LockOutcome::Locked => {
+                any = true;
+                println!(
+                    "  {} {} → keyring",
+                    "✓".with(Color::Green),
+                    name.with(Color::White),
+                );
+            }
+            LockOutcome::AlreadyLocked => {
+                any = true;
+                println!(
+                    "  {} {} already in keyring",
+                    "·".with(Color::DarkGrey),
+                    name.with(Color::DarkGrey),
+                );
+            }
+            LockOutcome::NotInConfig => {}
+            LockOutcome::Error(e) => {
+                println!(
+                    "  {} {} ({})",
+                    "✗".with(Color::Red),
+                    name.with(Color::White),
+                    e.with(Color::Red),
+                );
+            }
+        }
+    }
+    if !any {
+        println!("  {}", "no API keys found to lock".with(Color::DarkGrey));
+    }
+    println!();
+}
+
+/// Migrate all keys currently in the system keyring back to the plain-text config.
+pub fn run_unlock_keys(show_error: &dyn Fn(&str)) {
+    use crate::keys::{self, UnlockOutcome};
+
+    if !keys::backend_available() {
+        show_error(&format!(
+            "System keyring is not available on this platform. (backend: {})",
+            keys::backend_name()
+        ));
+        return;
+    }
+
+    println!();
+    println!(
+        "  {} migrating keys from keyring to config...",
+        "→".with(Color::Cyan),
+    );
+    println!();
+
+    let mut any = false;
+    for name in keys::KEY_NAMES {
+        match keys::unlock_key(name) {
+            UnlockOutcome::Unlocked => {
+                any = true;
+                println!(
+                    "  {} {} → config",
+                    "✓".with(Color::Green),
+                    name.with(Color::White),
+                );
+            }
+            UnlockOutcome::AlreadyUnlocked => {
+                any = true;
+                println!(
+                    "  {} {} already in config",
+                    "·".with(Color::DarkGrey),
+                    name.with(Color::DarkGrey),
+                );
+            }
+            UnlockOutcome::NotInKeyring => {}
+            UnlockOutcome::Error(e) => {
+                println!(
+                    "  {} {} ({})",
+                    "✗".with(Color::Red),
+                    name.with(Color::White),
+                    e.with(Color::Red),
+                );
+            }
+        }
+    }
+    if !any {
+        println!("  {}", "no API keys found to unlock".with(Color::DarkGrey));
+    }
+    println!();
+}
+
+/// Remove all known API keys from both config and keyring. Asks for confirmation.
+pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
+    use crate::keys::{self, ClearOutcome};
+
+    println!();
+    if !confirm_yn("remove ALL API keys from config AND keyring?") {
+        return;
+    }
+
+    let mut any = false;
+    for name in keys::KEY_NAMES {
+        match keys::clear_key(name) {
+            ClearOutcome::Cleared => {
+                any = true;
+                println!(
+                    "  {} {} cleared",
+                    "✓".with(Color::Green),
+                    name.with(Color::White),
+                );
+            }
+            ClearOutcome::NotPresent => {}
+            ClearOutcome::Error(e) => {
+                println!(
+                    "  {} {} ({})",
+                    "✗".with(Color::Red),
+                    name.with(Color::White),
+                    e.with(Color::Red),
+                );
+            }
+        }
+    }
+    if !any {
+        println!("  {}", "no API keys found to clear".with(Color::DarkGrey));
     }
     println!();
 }

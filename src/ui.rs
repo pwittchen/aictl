@@ -206,7 +206,7 @@ impl InteractiveUI {
             .map_or(0, |d| d.as_millis() as usize)
             % MASCOTS.len();
         let face = MASCOTS[pick];
-        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK, BLANK];
+        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK, BLANK, BLANK];
 
         let dashes = "─".repeat(rule_width());
         eprintln!();
@@ -320,6 +320,23 @@ impl InteractiveUI {
                 "security restrictions disabled (--unrestricted)".with(Color::Red),
             );
         }
+        next += 1;
+
+        // Key storage backend line
+        let backend = crate::keys::backend_name();
+        let (locked, plain, both, _unset) = crate::keys::counts();
+        let backend_color = if backend == "plain text" {
+            Color::Yellow
+        } else {
+            Color::Green
+        };
+        eprintln!(
+            "{PAD}{} {}{} {}",
+            PIPE.with(Color::DarkGrey),
+            m[next].with(Color::Cyan),
+            format!("keys: {backend}").with(backend_color),
+            format!("({locked} locked · {plain} plain · {both} both)").with(Color::DarkGrey),
+        );
         next += 1;
 
         // Line 4: session / incognito info
