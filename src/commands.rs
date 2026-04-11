@@ -2029,6 +2029,48 @@ pub fn run_config_wizard() {
         );
     }
     println!();
+
+    // Step 6: Offer to migrate API keys into the system keyring (filter out
+    // non-secret entries like LLM_OLLAMA_HOST by intersecting with KEY_NAMES).
+    let lockable: Vec<String> = keys_to_save
+        .iter()
+        .filter(|(k, _)| crate::keys::KEY_NAMES.contains(&k.as_str()))
+        .map(|(k, _)| k.clone())
+        .collect();
+    if !lockable.is_empty() && crate::keys::backend_available() {
+        println!(
+            "  {} {} {}",
+            "→".with(Color::Cyan),
+            format!("Lock {} API key(s) into the system keyring", lockable.len())
+                .with(Color::White),
+            format!("({})", crate::keys::backend_name()).with(Color::Green),
+        );
+        println!(
+            "  {}",
+            "Removes plain-text copies from ~/.aictl/config.".with(Color::DarkGrey),
+        );
+        if confirm_yn("lock keys now?") {
+            for key in &lockable {
+                match crate::keys::lock_key(key) {
+                    crate::keys::LockOutcome::Locked => println!(
+                        "  {} {} → keyring",
+                        "✓".with(Color::Green),
+                        key.as_str().with(Color::White),
+                    ),
+                    crate::keys::LockOutcome::AlreadyLocked
+                    | crate::keys::LockOutcome::NotInConfig => {}
+                    crate::keys::LockOutcome::Error(e) => println!(
+                        "  {} {} ({})",
+                        "✗".with(Color::Red),
+                        key.as_str().with(Color::White),
+                        e.with(Color::Red),
+                    ),
+                }
+            }
+            println!();
+        }
+    }
+
     println!(
         "  {} run {} to start a conversation, or {} for a single query",
         "→".with(Color::Cyan),
