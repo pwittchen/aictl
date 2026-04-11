@@ -359,40 +359,44 @@ async fn run_agent_turn(
         let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
         ui.start_spinner(phrase);
 
-        let llm_messages = match memory {
-            MemoryMode::LongTerm => messages.clone(),
-            MemoryMode::ShortTerm => windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW),
+        // In LongTerm mode we pass the history directly as a slice, avoiding a
+        // full clone of every message on every loop iteration. ShortTerm mode
+        // still materializes a windowed Vec, but `short_term_buf` owns it only
+        // when that branch runs.
+        let short_term_buf;
+        let llm_messages: &[Message] = match memory {
+            MemoryMode::LongTerm => messages.as_slice(),
+            MemoryMode::ShortTerm => {
+                short_term_buf = windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW);
+                &short_term_buf
+            }
         };
 
         let call_start = std::time::Instant::now();
         let result = match provider {
             Provider::Openai => {
-                with_esc_cancel(llm_openai::call_openai(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_openai::call_openai(api_key, model, llm_messages)).await
             }
             Provider::Anthropic => {
-                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, llm_messages)).await
             }
             Provider::Gemini => {
-                with_esc_cancel(llm_gemini::call_gemini(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_gemini::call_gemini(api_key, model, llm_messages)).await
             }
             Provider::Grok => {
-                with_esc_cancel(llm_grok::call_grok(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_grok::call_grok(api_key, model, llm_messages)).await
             }
             Provider::Mistral => {
-                with_esc_cancel(llm_mistral::call_mistral(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_mistral::call_mistral(api_key, model, llm_messages)).await
             }
             Provider::Deepseek => {
-                with_esc_cancel(llm_deepseek::call_deepseek(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_deepseek::call_deepseek(api_key, model, llm_messages)).await
             }
             Provider::Kimi => {
-                with_esc_cancel(llm_kimi::call_kimi(api_key, model, &llm_messages)).await
+                with_esc_cancel(llm_kimi::call_kimi(api_key, model, llm_messages)).await
             }
-            Provider::Zai => {
-                with_esc_cancel(llm_zai::call_zai(api_key, model, &llm_messages)).await
-            }
-            Provider::Ollama => {
-                with_esc_cancel(llm_ollama::call_ollama(model, &llm_messages)).await
-            }
+            Provider::Zai => with_esc_cancel(llm_zai::call_zai(api_key, model, llm_messages)).await,
+            Provider::Ollama => with_esc_cancel(llm_ollama::call_ollama(model, llm_messages)).await,
         };
         let call_elapsed = call_start.elapsed();
 
@@ -905,13 +909,19 @@ async fn run_interactive(
     use crossterm::style::{Attribute, Color, Stylize};
     use rustyline::error::ReadlineError;
 
+    // Kick off the remote version check before anything else so it runs on
+    // another worker while the rest of startup (config, session init, file I/O)
+    // proceeds. At banner time we only consume the result if it's already
+    // ready — we never block the banner on the network call. This replaces a
+    // previous pattern that stalled the REPL for up to 3s on every launch.
+    let version_fetch = tokio::spawn(fetch_remote_version());
+
     let mut auto = auto;
     let mut memory = match config_get("AICTL_MEMORY").as_deref() {
         Some("short-term") => MemoryMode::ShortTerm,
         _ => MemoryMode::LongTerm,
     };
     let ui = InteractiveUI::new();
-    let version_info = version_info_string(fetch_remote_version().await.as_deref());
 
     let mut messages = vec![Message {
         role: Role::System,
@@ -953,6 +963,18 @@ async fn run_interactive(
         session::set_current(id, None);
     }
     session::save_current(&messages);
+
+    // Only display the remote-version notice if the background fetch has
+    // already completed. Otherwise drop the handle and show an empty string
+    // so the banner prints immediately.
+    let version_info = if version_fetch.is_finished() {
+        match version_fetch.await {
+            Ok(remote) => version_info_string(remote.as_deref()),
+            Err(_) => String::new(),
+        }
+    } else {
+        String::new()
+    };
 
     InteractiveUI::print_welcome(
         &format!("{provider:?}").to_lowercase(),
