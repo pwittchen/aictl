@@ -25,15 +25,16 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Update Cargo.toml version if needed
+      - name: Update Cargo.toml and Cargo.lock version if needed
         run: |
           current=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
           tag_version="${{ steps.version.outputs.version }}"
           if [ "$current" != "$tag_version" ]; then
             sed -i "s/^version = \"$current\"/version = \"$tag_version\"/" Cargo.toml
+            sed -i '/^name = "aictl"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add Cargo.toml
+            git add Cargo.toml Cargo.lock
             git commit -m "Bump version to $tag_version"
             git push origin HEAD:master
           fi
