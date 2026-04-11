@@ -958,8 +958,12 @@ pub fn print_info(
     let behavior = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
-    let binary_size = std::env::current_exe()
-        .ok()
+    let current_exe = std::env::current_exe().ok();
+    let binary_path = current_exe
+        .as_ref()
+        .map_or_else(|| "unknown".to_string(), |p| p.display().to_string());
+    let binary_size = current_exe
+        .as_ref()
         .and_then(|p| std::fs::metadata(p).ok())
         .map_or_else(
             || "unknown".to_string(),
@@ -1002,6 +1006,7 @@ pub fn print_info(
 
     println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
     println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
+    println!("  {} {binary_path}", "path:    ".with(Color::Cyan));
     println!("  {} {prompt_info}", "prompt:  ".with(Color::Cyan));
     let agent_info = agents::loaded_agent_name()
         .map_or_else(|| "(none)".to_string(), |n| format!("{n} (loaded)"));
