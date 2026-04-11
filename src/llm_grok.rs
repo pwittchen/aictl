@@ -30,6 +30,14 @@ struct GrokChoice {
 struct GrokUsage {
     prompt_tokens: u64,
     completion_tokens: u64,
+    #[serde(default)]
+    prompt_tokens_details: Option<GrokPromptTokensDetails>,
+}
+
+#[derive(Deserialize, Default)]
+struct GrokPromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: u64,
 }
 
 pub async fn call_grok(
@@ -78,10 +86,14 @@ pub async fn call_grok(
         .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Grok".into() })?;
     let usage = parsed
         .usage
-        .map(|u| TokenUsage {
-            input_tokens: u.prompt_tokens,
-            output_tokens: u.completion_tokens,
-            ..TokenUsage::default()
+        .map(|u| {
+            let cached = u.prompt_tokens_details.unwrap_or_default().cached_tokens;
+            TokenUsage {
+                input_tokens: u.prompt_tokens.saturating_sub(cached),
+                output_tokens: u.completion_tokens,
+                cache_read_input_tokens: cached,
+                ..TokenUsage::default()
+            }
         })
         .unwrap_or_default();
     Ok((content, usage))

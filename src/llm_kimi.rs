@@ -30,6 +30,16 @@ struct KimiChoice {
 struct KimiUsage {
     prompt_tokens: u64,
     completion_tokens: u64,
+    #[serde(default)]
+    prompt_tokens_details: Option<KimiPromptTokensDetails>,
+    #[serde(default)]
+    cached_tokens: u64,
+}
+
+#[derive(Deserialize, Default)]
+struct KimiPromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: u64,
 }
 
 pub async fn call_kimi(
@@ -78,10 +88,21 @@ pub async fn call_kimi(
         .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Kimi".into() })?;
     let usage = parsed
         .usage
-        .map(|u| TokenUsage {
-            input_tokens: u.prompt_tokens,
-            output_tokens: u.completion_tokens,
-            ..TokenUsage::default()
+        .map(|u| {
+            // Moonshot has reported cached_tokens both nested under
+            // prompt_tokens_details (newer OpenAI-compat schema) and at the
+            // top level of usage (older schema). Take whichever is populated.
+            let nested = u
+                .prompt_tokens_details
+                .as_ref()
+                .map_or(0, |d| d.cached_tokens);
+            let cached = nested.max(u.cached_tokens);
+            TokenUsage {
+                input_tokens: u.prompt_tokens.saturating_sub(cached),
+                output_tokens: u.completion_tokens,
+                cache_read_input_tokens: cached,
+                ..TokenUsage::default()
+            }
         })
         .unwrap_or_default();
     Ok((content, usage))

@@ -109,17 +109,37 @@ pub async fn call_anthropic(
         }
     }
 
-    // Place a cache breakpoint on the second-to-last message so the
-    // conversation prefix is cached between consecutive calls within a turn.
-    if api_messages.len() >= 2 {
-        let idx = api_messages.len() - 2;
-        let text = match &api_messages[idx].content {
+    // Cache breakpoints. Anthropic caches the longest matching prefix and
+    // allows up to 4 `cache_control` markers total (we use 1 for the system
+    // prompt, leaving 3 for messages). We place two:
+    //
+    //   1. A stable breakpoint on the first user message. Re-marking it on
+    //      every call refreshes the 5-minute TTL, so the conversation's early
+    //      prefix stays cached across long-running sessions.
+    //   2. A rolling breakpoint on the second-to-last message. This captures
+    //      the growing conversation prefix between consecutive iterations of
+    //      the agent loop within a single turn.
+    //
+    // For very short conversations (len < 3) the rolling breakpoint already
+    // lands on the first message, so we only set one.
+    let mark_cached = |msg: &mut AnthropicMessage| {
+        let text = match &msg.content {
             MessageContent::Text(t) => t.clone(),
             MessageContent::Blocks(blocks) => {
                 blocks.first().map_or(String::new(), |b| b.text.clone())
             }
         };
-        api_messages[idx].content = cached_block(text);
+        msg.content = cached_block(text);
+    };
+
+    if api_messages.len() >= 2 {
+        let rolling_idx = api_messages.len() - 2;
+        mark_cached(&mut api_messages[rolling_idx]);
+        // Add the stable breakpoint only if it's a distinct earlier message;
+        // otherwise the rolling marker already covers message 0.
+        if rolling_idx > 0 {
+            mark_cached(&mut api_messages[0]);
+        }
     }
 
     // System prompt: always cached

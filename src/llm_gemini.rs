@@ -41,11 +41,16 @@ struct GeminiCandidate {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(clippy::struct_field_names)]
 struct GeminiUsageMetadata {
     #[serde(default)]
     prompt_token_count: u64,
     #[serde(default)]
     candidates_token_count: u64,
+    // Implicit and explicit caching populate this field on a cache hit.
+    // prompt_token_count includes these tokens.
+    #[serde(default)]
+    cached_content_token_count: u64,
 }
 
 pub async fn call_gemini(
@@ -137,8 +142,11 @@ pub async fn call_gemini(
     let usage = parsed
         .usage_metadata
         .map(|u| TokenUsage {
-            input_tokens: u.prompt_token_count,
+            input_tokens: u
+                .prompt_token_count
+                .saturating_sub(u.cached_content_token_count),
             output_tokens: u.candidates_token_count,
+            cache_read_input_tokens: u.cached_content_token_count,
             ..TokenUsage::default()
         })
         .unwrap_or_default();

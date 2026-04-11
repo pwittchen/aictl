@@ -27,9 +27,14 @@ struct DeepSeekChoice {
 }
 
 #[derive(Deserialize)]
+#[allow(clippy::struct_field_names)]
 struct DeepSeekUsage {
     prompt_tokens: u64,
     completion_tokens: u64,
+    // DeepSeek splits prompt tokens into cache-hit / cache-miss counts.
+    // prompt_tokens = hit + miss.
+    #[serde(default)]
+    prompt_cache_hit_tokens: u64,
 }
 
 pub async fn call_deepseek(
@@ -79,8 +84,9 @@ pub async fn call_deepseek(
     let usage = parsed
         .usage
         .map(|u| TokenUsage {
-            input_tokens: u.prompt_tokens,
+            input_tokens: u.prompt_tokens.saturating_sub(u.prompt_cache_hit_tokens),
             output_tokens: u.completion_tokens,
+            cache_read_input_tokens: u.prompt_cache_hit_tokens,
             ..TokenUsage::default()
         })
         .unwrap_or_default();

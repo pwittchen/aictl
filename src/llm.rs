@@ -49,12 +49,77 @@ pub const MODELS: &[(&str, &str, &str)] = &[
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::struct_field_names)]
 pub struct TokenUsage {
+    /// Fresh (non-cached) input tokens billed at the full input price.
+    /// For providers where the raw usage field (e.g. `OpenAI`'s `prompt_tokens`)
+    /// *includes* cached tokens, callers must subtract the cached count before
+    /// populating this field so that `cache_read` tokens are not double-billed.
     pub input_tokens: u64,
     pub output_tokens: u64,
     /// Tokens written to the provider's prompt cache (Anthropic: 1.25× input price).
+    /// Only populated by Anthropic; other providers lack an explicit
+    /// cache-write accounting.
     pub cache_creation_input_tokens: u64,
-    /// Tokens read from the provider's prompt cache (Anthropic: 0.1× input price).
+    /// Tokens read from the provider's prompt cache. Billed at
+    /// `cache_read_multiplier(model) × input price`.
     pub cache_read_input_tokens: u64,
+}
+
+/// Returns the cache-read price multiplier for a model, applied on top of
+/// the base input price. Covers provider-specific discounts so the cost meter
+/// reflects what the wallet actually pays when cached tokens are reported.
+///
+/// Defaults to 1.0 (no discount) for unknown models — conservative, but keeps
+/// the meter from silently under-billing. Rates are approximate public list
+/// prices as of early 2026 and may drift; adjust as providers change pricing.
+fn cache_read_multiplier(model: &str) -> f64 {
+    // Anthropic — 10% of input (ephemeral cache hit)
+    if model.contains("claude")
+        || model.contains("opus")
+        || model.contains("sonnet")
+        || model.contains("haiku")
+    {
+        return 0.1;
+    }
+
+    // OpenAI GPT-5: 10% of input
+    if model.starts_with("gpt-5") {
+        return 0.1;
+    }
+    // OpenAI GPT-4.1 and o-series reasoning: 25% of input
+    if model.starts_with("gpt-4.1")
+        || model.starts_with("o4")
+        || model.starts_with("o3")
+        || model.starts_with("o1")
+    {
+        return 0.25;
+    }
+    // OpenAI GPT-4o: 50% of input
+    if model.starts_with("gpt-4o") {
+        return 0.5;
+    }
+
+    // Google Gemini implicit caching: 25% of input
+    if model.starts_with("gemini-") {
+        return 0.25;
+    }
+
+    // xAI Grok: 25% of input
+    if model.starts_with("grok-") {
+        return 0.25;
+    }
+
+    // DeepSeek cache hit: ~26% of input (treat as 25%)
+    if model.starts_with("deepseek-") {
+        return 0.25;
+    }
+
+    // Moonshot Kimi: approximate at 25%
+    if model.starts_with("kimi-") || model.starts_with("moonshot-") {
+        return 0.25;
+    }
+
+    // Unknown — charge cache reads at full input price
+    1.0
 }
 
 /// Returns (input, output) price per million tokens for known models.
@@ -234,9 +299,10 @@ impl TokenUsage {
     #[allow(clippy::cast_precision_loss)]
     pub fn estimate_cost(&self, model: &str) -> Option<f64> {
         let (input_ppm, output_ppm) = price_per_million(model)?;
+        let read_mult = cache_read_multiplier(model);
         let base_input = self.input_tokens as f64 * input_ppm;
         let cache_write = self.cache_creation_input_tokens as f64 * input_ppm * 1.25;
-        let cache_read = self.cache_read_input_tokens as f64 * input_ppm * 0.1;
+        let cache_read = self.cache_read_input_tokens as f64 * input_ppm * read_mult;
         let output = self.output_tokens as f64 * output_ppm;
         let cost = (base_input + cache_write + cache_read + output) / 1_000_000.0;
         Some(cost)
@@ -392,6 +458,78 @@ mod tests {
         let cost = usage.estimate_cost("claude-sonnet-4-20250514").unwrap();
         // 1M * 3.00 + 1M * 3.00 * 1.25 + 1M * 3.00 * 0.1 + 1M * 15.00 = 3 + 3.75 + 0.3 + 15 = 22.05
         assert!((cost - 22.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn estimate_cost_openai_cache_read() {
+        // gpt-4.1-mini: $0.40/M input, $1.60/M output, cache read = 25%
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_read_input_tokens: 1_000_000,
+            ..TokenUsage::default()
+        };
+        let cost = usage.estimate_cost("gpt-4.1-mini").unwrap();
+        // 1M * 0.40 + 1M * 0.40 * 0.25 + 1M * 1.60 = 0.40 + 0.10 + 1.60 = 2.10
+        assert!((cost - 2.10).abs() < 1e-9);
+    }
+
+    #[test]
+    fn estimate_cost_deepseek_cache_read() {
+        // deepseek-chat: $0.27/M input, $1.10/M output, cache read = 25%
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_read_input_tokens: 1_000_000,
+            ..TokenUsage::default()
+        };
+        let cost = usage.estimate_cost("deepseek-chat").unwrap();
+        // 1M * 0.27 + 1M * 0.27 * 0.25 + 1M * 1.10 = 0.27 + 0.0675 + 1.10 = 1.4375
+        assert!((cost - 1.4375).abs() < 1e-9);
+    }
+
+    #[test]
+    fn estimate_cost_gemini_cache_read() {
+        // gemini-2.5-flash: $0.15/M input, $0.60/M output, cache read = 25%
+        let usage = TokenUsage {
+            input_tokens: 1_000_000,
+            output_tokens: 1_000_000,
+            cache_read_input_tokens: 1_000_000,
+            ..TokenUsage::default()
+        };
+        let cost = usage.estimate_cost("gemini-2.5-flash").unwrap();
+        // 1M * 0.15 + 1M * 0.15 * 0.25 + 1M * 0.60 = 0.15 + 0.0375 + 0.60 = 0.7875
+        assert!((cost - 0.7875).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cache_read_multiplier_anthropic() {
+        assert!((cache_read_multiplier("claude-sonnet-4-20250514") - 0.1).abs() < 1e-9);
+        assert!((cache_read_multiplier("claude-opus-4-20250514") - 0.1).abs() < 1e-9);
+        assert!((cache_read_multiplier("claude-haiku-4-5-20251001") - 0.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cache_read_multiplier_openai_family() {
+        assert!((cache_read_multiplier("gpt-5") - 0.1).abs() < 1e-9);
+        assert!((cache_read_multiplier("gpt-4.1") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("gpt-4.1-mini") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("o4-mini") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("gpt-4o") - 0.5).abs() < 1e-9);
+        assert!((cache_read_multiplier("gpt-4o-mini") - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cache_read_multiplier_other_providers() {
+        assert!((cache_read_multiplier("gemini-2.5-flash") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("grok-3") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("deepseek-chat") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("kimi-k2-0905-preview") - 0.25).abs() < 1e-9);
+    }
+
+    #[test]
+    fn cache_read_multiplier_unknown_is_full_price() {
+        assert!((cache_read_multiplier("unknown-model") - 1.0).abs() < 1e-9);
     }
 
     // --- context_limit ---
