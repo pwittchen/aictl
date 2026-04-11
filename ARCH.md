@@ -6,12 +6,13 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /context, /copy, /exit, /help, /info, /issues, /memory, /model, /security, /session, /tools, /update)
- ├── config.rs           Config file loading (~/.aictl/config), constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /compact, /context, /copy, /exit, /help, /info, /issues, /lock-keys, /memory, /model, /security, /session, /tools, /unlock-keys, /update)
+ ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
+ ├── keys.rs             Secure API key storage. System keyring (Keychain / Credential Manager / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
- ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations
+ ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
  ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
  ├── llm_openai.rs       OpenAI chat completions client
  ├── llm_anthropic.rs    Anthropic messages client
@@ -30,7 +31,7 @@ src/
  ┌──────────────────────────────────────────────────────────────────────────┐
  │  main()                                                                  │
  │                                                                          │
- │  1. load_config()            read ~/.aictl/config into OnceLock HashMap  │
+ │  1. load_config()            read ~/.aictl/config into RwLock<HashMap>   │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
@@ -39,8 +40,8 @@ src/
  │  2d. --config                run_config_wizard() and exit                │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
- │  5. resolve api_key          LLM_{OPENAI,ANTHROPIC,GEMINI,GROK,          │
- │                              MISTRAL,DEEPSEEK,KIMI,ZAI}_API_KEY          │
+ │  5. resolve api_key          keys::get_secret(LLM_*_API_KEY)             │
+ │                              keyring first, plain-text config fallback   │
  │                              (Ollama: no key needed)                     │
  │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
  │  5c. load --agent <name>    agents::read_agent + agents::load_agent      │
@@ -221,7 +222,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /update (Update)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /update (Update)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -231,10 +232,13 @@ Both single-shot and REPL modes share the same loop:
                  loading/unloading rebuilds system prompt; continue
    Context     → show token/message usage, continue
    Info        → show provider/model/version/agent info, continue
-   Security    → show current security policy, continue
+   Security    → show security policy + per-key storage location, continue
    Session     → open session menu (current info / set name / view saved / clear all);
                  disabled in incognito mode; continue
    Issues      → fetch and display known issues, continue
+   LockKeys    → migrate plain-text API keys from config into the system keyring, continue
+   UnlockKeys  → migrate API keys from the system keyring back into config, continue
+   ClearKeys   → remove API keys from both config and keyring (with confirmation), continue
    Update      → run update, restart if updated, continue
    Model       → select new model/provider, persist to ~/.aictl/config, continue
    Behavior    → switch auto/human-in-the-loop behavior, continue
@@ -271,6 +275,13 @@ Both single-shot and REPL modes share the same loop:
       │          │───>│  config.rs   │
       │          │    │ SYSTEM_PROMPT│
       │          │    │ load_config  │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
+      │          │───>│  keys.rs     │
+      │          │    │ get_secret   │
+      │          │    │ keyring +    │
+      │          │    │ plain-text   │
+      │          │    │ fallback     │
       │          │    └──────────────┘
       │          │    ┌──────────────┐
       │          │───>│ agents.rs    │
@@ -324,13 +335,44 @@ All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and n
 
 ### `~/.aictl/config`
 
-Plain text, one `key=value` per line. Comments start with `#`; blank lines are ignored; a leading `export ` is stripped so the same file can be sourced by a shell if desired; values may be single- or double-quoted. Loaded once at startup into a `static OnceLock<HashMap<String, String>>` by `config::load_config()` and read via `config::config_get(key)`. Writes go through `config::config_set(key, value)`, which replaces an existing key in place or appends a new line, creating the directory if missing. CLI flags always override config values.
+Plain text, one `key=value` per line. Comments start with `#`; blank lines are ignored; a leading `export ` is stripped so the same file can be sourced by a shell if desired; values may be single- or double-quoted. Loaded at startup into a `static OnceLock<RwLock<HashMap<String, String>>>` by `config::load_config()` and read via `config::config_get(key)`. Writes go through `config::config_set(key, value)` (replaces in place or appends, creates the directory if missing) and deletions through `config::config_unset(key)`; both update the in-memory cache so subsequent reads see the change without restarting. API key reads are routed through `keys::get_secret` instead of `config_get`, which checks the system keyring first and only falls back to this file. CLI flags always override config values.
 
 Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
-- **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`)
+- **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_TOOLS_ENABLED` (default `true`)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), etc. (see `security.rs`)
+
+### API key storage (`src/keys.rs`)
+
+API keys can live in two places: the plain-text `~/.aictl/config` file (the legacy default) or the OS-native keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service). Lookups via `keys::get_secret(name)` check the keyring first and fall back to the config file, so users can mix the two during migration.
+
+```
+ ┌──────────────────────────────────────────────────────────────────┐
+ │  keys::get_secret("LLM_OPENAI_API_KEY")                          │
+ │       │                                                          │
+ │       ▼                                                          │
+ │  keyring::Entry::new("aictl", "LLM_OPENAI_API_KEY")              │
+ │       │                                                          │
+ │   ┌───┴────┐                                                     │
+ │   ▼        ▼                                                     │
+ │  Ok(v)    Err / NoEntry                                          │
+ │   │        │                                                     │
+ │   │        ▼                                                     │
+ │   │   config_get("LLM_OPENAI_API_KEY")                           │
+ │   │        │                                                     │
+ │   ▼        ▼                                                     │
+ │  return  Some(v) | None                                          │
+ └──────────────────────────────────────────────────────────────────┘
+```
+
+`location(name)` returns a `KeyLocation::{None, Config, Keyring, Both}` for `/security` and the welcome banner counts. Migration commands operate on the canonical `KEY_NAMES` list (the eight LLM provider keys plus `FIRECRAWL_API_KEY`):
+
+- `lock_key(name)` reads the value from the config file, writes it to the keyring, then calls `config_unset` to remove the plain-text copy.
+- `unlock_key(name)` reads the value from the keyring, writes it to the config file via `config_set`, then deletes the keyring entry.
+- `clear_key(name)` removes the entry from both stores; the slash command wraps this with a y/N confirmation.
+
+The keyring backend is selected at compile time via Cargo features: `apple-native` on macOS, `windows-native` on Windows, `sync-secret-service` on Linux. **Without explicit features the `keyring` v3 crate silently uses an in-memory mock store** that pretends writes succeed but never persists — `Cargo.toml` enables all three platform backends to avoid this trap. `backend_available()` probes the active backend at runtime so headless Linux systems with no Secret Service daemon transparently fall back to plain-text storage and the welcome banner shows `keys: plain text` in yellow.
 
 ### `~/.aictl/history`
 

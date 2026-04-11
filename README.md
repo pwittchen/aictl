@@ -112,6 +112,9 @@ The interactive REPL supports slash commands:
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/tools` | Show available tools |
+| `/lock-keys` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring |
+| `/unlock-keys` | Migrate API keys from the system keyring back into `~/.aictl/config` |
+| `/clear-keys` | Remove API keys from both `~/.aictl/config` and the system keyring (with confirmation) |
 | `/update` | Update to the latest version |
 | `/exit` | Exit the REPL |
 
@@ -208,6 +211,20 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
 | `LLM_OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
+
+#### Secure key storage (system keyring)
+
+By default, API keys live as plain text in `~/.aictl/config`. aictl can also store them in the OS-native keyring — macOS Keychain, Windows Credential Manager, or Linux Secret Service (gnome-keyring / KWallet via D-Bus) — and reads them transparently from whichever store has them.
+
+The active backend appears in the welcome banner (`keys: Keychain (2 locked · 1 plain · 0 both)`) and `/security` shows the per-key location.
+
+Migration is done from inside the REPL:
+
+- `/lock-keys` — copies every plain-text key found in `~/.aictl/config` into the system keyring and removes the plain-text copy
+- `/unlock-keys` — copies every keyring entry back into `~/.aictl/config` and deletes it from the keyring
+- `/clear-keys` — removes the keys from both stores (asks for confirmation)
+
+When the keyring backend is unavailable (e.g. headless Linux without a Secret Service daemon), aictl falls back to plain-text storage automatically and the banner shows `keys: plain text` in yellow.
 
 #### Security configuration (optional)
 
