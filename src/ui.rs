@@ -213,7 +213,7 @@ impl InteractiveUI {
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .and_then(|s| s.trim().parse::<u32>().ok());
-        let sleepy = matches!(local_hour, Some(h) if h >= 22);
+        let sleepy = matches!(local_hour, Some(h) if h >= 22 || h < 6);
         let face = if sleepy {
             SLEEPY
         } else {
