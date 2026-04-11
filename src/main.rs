@@ -148,6 +148,18 @@ struct Cli {
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(short = 'C', long = "config")]
     config: bool,
+
+    /// Migrate API keys from ~/.aictl/config into the system keyring and exit
+    #[arg(short = 'k', long = "lock-keys")]
+    lock_keys: bool,
+
+    /// Migrate API keys from the system keyring back into ~/.aictl/config and exit
+    #[arg(short = 'K', long = "unlock-keys")]
+    unlock_keys: bool,
+
+    /// Remove API keys from both ~/.aictl/config and the system keyring and exit
+    #[arg(short = 'X', long = "clear-keys")]
+    clear_keys: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -682,6 +694,56 @@ async fn handle_repl_input(
             commands::run_clear_keys(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
         }
+        commands::CommandResult::Config => {
+            let _ = rl.add_history_entry(input);
+            commands::run_config_wizard(true);
+            // Re-read provider/model/api_key from config so the change takes
+            // effect mid-session. The wizard may have been cancelled, in which
+            // case the config values are unchanged and these reads are no-ops.
+            if let Some(new_prov) = config_get("AICTL_PROVIDER") {
+                let resolved = match new_prov.as_str() {
+                    "openai" => Some(Provider::Openai),
+                    "anthropic" => Some(Provider::Anthropic),
+                    "gemini" => Some(Provider::Gemini),
+                    "grok" => Some(Provider::Grok),
+                    "mistral" => Some(Provider::Mistral),
+                    "deepseek" => Some(Provider::Deepseek),
+                    "kimi" => Some(Provider::Kimi),
+                    "zai" => Some(Provider::Zai),
+                    "ollama" => Some(Provider::Ollama),
+                    _ => None,
+                };
+                if let Some(p) = resolved {
+                    *provider = p;
+                }
+            }
+            if let Some(new_model) = config_get("AICTL_MODEL") {
+                *model = new_model;
+            }
+            if matches!(provider, Provider::Ollama) {
+                *api_key = String::new();
+            } else {
+                let key_name = match provider {
+                    Provider::Openai => "LLM_OPENAI_API_KEY",
+                    Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
+                    Provider::Gemini => "LLM_GEMINI_API_KEY",
+                    Provider::Grok => "LLM_GROK_API_KEY",
+                    Provider::Mistral => "LLM_MISTRAL_API_KEY",
+                    Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
+                    Provider::Kimi => "LLM_KIMI_API_KEY",
+                    Provider::Zai => "LLM_ZAI_API_KEY",
+                    Provider::Ollama => unreachable!(),
+                };
+                if let Some(k) = keys::get_secret(key_name) {
+                    *api_key = k;
+                } else {
+                    ui.show_error(&format!(
+                        "API key for {key_name} is not set — current session may fail until you run /config or /lock-keys"
+                    ));
+                }
+            }
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Update => {
             let _ = rl.add_history_entry(input);
             if commands::run_update(&|msg| ui.show_error(msg)).await {
@@ -1064,7 +1126,22 @@ async fn main() {
     }
 
     if cli.config {
-        commands::run_config_wizard();
+        commands::run_config_wizard(false);
+        return;
+    }
+
+    if cli.lock_keys {
+        commands::run_lock_keys(&|msg| eprintln!("Error: {msg}"));
+        return;
+    }
+
+    if cli.unlock_keys {
+        commands::run_unlock_keys(&|msg| eprintln!("Error: {msg}"));
+        return;
+    }
+
+    if cli.clear_keys {
+        commands::run_clear_keys_unconfirmed();
         return;
     }
 

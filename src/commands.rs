@@ -44,6 +44,7 @@ pub const COMMANDS: &[&str] = &[
     "clear",
     "clear-keys",
     "compact",
+    "config",
     "context",
     "copy",
     "exit",
@@ -94,6 +95,8 @@ pub enum CommandResult {
     UnlockKeys,
     /// Remove API keys from both config and keyring.
     ClearKeys,
+    /// Re-run the interactive configuration wizard.
+    Config,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -135,6 +138,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "lock-keys" => CommandResult::LockKeys,
         "unlock-keys" => CommandResult::UnlockKeys,
         "clear-keys" => CommandResult::ClearKeys,
+        "config" => CommandResult::Config,
         _ => {
             show_error("Unknown command. Type /help for available commands.");
             CommandResult::Continue
@@ -385,6 +389,7 @@ fn print_help() {
             "/clear-keys",
             "remove API keys from both config and keyring",
         ),
+        ("/config", "re-run the configuration wizard"),
         ("/update", "update to the latest version"),
         ("/exit", "exit the REPL"),
     ];
@@ -682,14 +687,10 @@ pub fn run_unlock_keys(show_error: &dyn Fn(&str)) {
     println!();
 }
 
-/// Remove all known API keys from both config and keyring. Asks for confirmation.
-pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
+/// Inner loop for `clear_key`: walks `KEY_NAMES`, prints per-key results.
+/// Caller is responsible for any confirmation prompt.
+fn clear_keys_inner() {
     use crate::keys::{self, ClearOutcome};
-
-    println!();
-    if !confirm_yn("remove ALL API keys from config AND keyring?") {
-        return;
-    }
 
     let mut any = false;
     for name in keys::KEY_NAMES {
@@ -717,6 +718,24 @@ pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
         println!("  {}", "no API keys found to clear".with(Color::DarkGrey));
     }
     println!();
+}
+
+/// Remove all known API keys from both config and keyring. Asks for confirmation.
+/// Used by the REPL `/clear-keys` slash command.
+pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
+    println!();
+    if !confirm_yn("remove ALL API keys from config AND keyring?") {
+        return;
+    }
+    clear_keys_inner();
+}
+
+/// Remove all known API keys from both config and keyring without prompting.
+/// Used by the `--clear-keys` CLI flag, where the explicit flag is treated as
+/// the user's confirmation (matching `--clear-sessions`).
+pub fn run_clear_keys_unconfirmed() {
+    println!();
+    clear_keys_inner();
 }
 
 fn print_tools() {
@@ -1840,9 +1859,25 @@ fn read_input_line(prompt: &str, masked: bool) -> Option<String> {
     result
 }
 
+/// Short status hint for an API key based on its current storage location.
+/// Returns `None` when the key is not set anywhere.
+fn key_status_hint(key_name: &str) -> Option<&'static str> {
+    match crate::keys::location(key_name) {
+        crate::keys::KeyLocation::None => None,
+        crate::keys::KeyLocation::Config => Some("set in plain-text config"),
+        crate::keys::KeyLocation::Keyring => Some("set in system keyring"),
+        crate::keys::KeyLocation::Both => Some("set in both config and keyring"),
+    }
+}
+
 /// Interactive configuration wizard for setting provider, model, and API keys.
+///
+/// When `from_repl` is true the wizard suppresses the trailing "run aictl..."
+/// hint (which doesn't make sense from inside an active REPL session) and lets
+/// the caller refresh its in-memory `provider`/`model`/`api_key` after the wizard
+/// returns.
 #[allow(clippy::too_many_lines)]
-pub fn run_config_wizard() {
+pub fn run_config_wizard(from_repl: bool) {
     println!();
     println!(
         "  {}",
@@ -1922,15 +1957,26 @@ pub fn run_config_wizard() {
         models_for_provider[model_idx].to_string()
     };
 
-    // Step 3: API key for the selected provider (required for non-Ollama)
+    // Step 3: API key for the selected provider (required for non-Ollama).
+    // If a value is already stored (config or keyring), let the user keep it
+    // by pressing Enter without typing anything.
     let mut keys_to_save: Vec<(String, String)> = Vec::new();
 
     if !is_ollama {
         println!();
-        println!(
-            "  {} (required)",
-            format!("Enter API key for {provider_name}:").with(Color::White)
-        );
+        if let Some(hint) = key_status_hint(api_key_name) {
+            println!(
+                "  {} {}",
+                format!("Enter API key for {provider_name}:").with(Color::White),
+                format!("({hint} — press Enter to keep)").with(Color::DarkGrey),
+            );
+        } else {
+            println!(
+                "  {} {}",
+                format!("Enter API key for {provider_name}:").with(Color::White),
+                "(required)".with(Color::DarkGrey),
+            );
+        }
         let Some(key) = read_input_line(&format!("{api_key_name}:"), true) else {
             println!();
             println!("  {} configuration cancelled", "✗".with(Color::Yellow));
@@ -1939,18 +1985,23 @@ pub fn run_config_wizard() {
         };
         let key = key.trim().to_string();
         if key.is_empty() {
-            println!();
-            println!(
-                "  {} API key for {provider_name} is required, aborting",
-                "✗".with(Color::Red)
-            );
-            println!();
-            return;
+            if key_status_hint(api_key_name).is_none() {
+                println!();
+                println!(
+                    "  {} API key for {provider_name} is required, aborting",
+                    "✗".with(Color::Red)
+                );
+                println!();
+                return;
+            }
+            // else: keep existing value, don't queue for save
+        } else {
+            keys_to_save.push((api_key_name.to_string(), key));
         }
-        keys_to_save.push((api_key_name.to_string(), key));
     }
 
-    // Step 4: Ask about other API keys (optional)
+    // Step 4: Ask about other API keys (optional). When a key is already set
+    // (either in config or keyring), the prompt shows that and Enter keeps it.
     println!();
     println!(
         "  {}",
@@ -1972,7 +2023,12 @@ pub fn run_config_wizard() {
             "zai" => "Z.ai",
             _ => prov,
         };
-        let Some(key) = read_input_line(&format!("{label} ({key_name}):"), true) else {
+        let prompt_label = if let Some(hint) = key_status_hint(key_name) {
+            format!("{label} ({key_name}, {hint}):")
+        } else {
+            format!("{label} ({key_name}):")
+        };
+        let Some(key) = read_input_line(&prompt_label, true) else {
             println!();
             println!("  {} configuration cancelled", "✗".with(Color::Yellow));
             println!();
@@ -2071,16 +2127,23 @@ pub fn run_config_wizard() {
         }
     }
 
-    println!(
-        "  {} run {} to start a conversation, or {} for a single query",
-        "→".with(Color::Cyan),
-        "aictl"
-            .with(Color::White)
-            .attribute(crossterm::style::Attribute::Bold),
-        "aictl -m \"your message\""
-            .with(Color::White)
-            .attribute(crossterm::style::Attribute::Bold),
-    );
+    if from_repl {
+        println!(
+            "  {} configuration applied — continuing your session",
+            "→".with(Color::Cyan),
+        );
+    } else {
+        println!(
+            "  {} run {} to start a conversation, or {} for a single query",
+            "→".with(Color::Cyan),
+            "aictl"
+                .with(Color::White)
+                .attribute(crossterm::style::Attribute::Bold),
+            "aictl -m \"your message\""
+                .with(Color::White)
+                .attribute(crossterm::style::Attribute::Bold),
+        );
+    }
     println!();
 }
 
