@@ -1,11 +1,5 @@
 # Issues
 
-## Security
-
-- **Secure API key storage** `[config]` — API keys are stored as plain text in `~/.aictl/config`. Integrate system keyring (e.g. `keyring` crate) with plain-text fallback. Show storage backend in the welcome banner and `/info`.
-
-- **Key management commands** `[config] [ui]` — Depends on secure key storage. Add `/lock-keys` (migrate to keyring, remove from config), `/unlock-keys` (migrate back), `/clear-keys` (remove from both). Show per-key storage status in `/info` and `/security`.
-
 ## Tools
 
 - **Image analysis** `[tool] [llm]` — Send images to vision-capable models. Accept file paths or URLs, encode as base64, pass via the provider's vision API.
