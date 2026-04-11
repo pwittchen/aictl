@@ -12,7 +12,19 @@ DIM='\033[2m'
 RESET='\033[0m'
 
 REPO="pwittchen/aictl"
-INSTALL_DIR="${AICTL_INSTALL_DIR:-$HOME/.local/bin}"
+
+# Resolve install directory:
+# 1. explicit AICTL_INSTALL_DIR override
+# 2. existing install at ~/.cargo/bin/aictl
+# 3. existing install at ~/.local/bin/aictl
+# 4. default to ~/.local/bin
+if [ -n "${AICTL_INSTALL_DIR:-}" ]; then
+  INSTALL_DIR="$AICTL_INSTALL_DIR"
+elif [ -x "$HOME/.cargo/bin/aictl" ]; then
+  INSTALL_DIR="$HOME/.cargo/bin"
+else
+  INSTALL_DIR="$HOME/.local/bin"
+fi
 
 banner() {
   printf "${CYAN}"
