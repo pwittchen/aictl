@@ -1,5 +1,9 @@
 # Issues
 
+## UI / random
+
+- **Mascot** - make mascot "sleepy" if the current system datetime is after 22:00
+
 ## Tools
 
 - **Image analysis** `[tool] [llm]` — Send images to vision-capable models. Accept file paths or URLs, encode as base64, pass via the provider's vision API.
