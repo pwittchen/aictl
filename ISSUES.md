@@ -6,6 +6,8 @@
 
 - **Key management commands** `[config] [ui]` — Depends on secure key storage. Add `/lock-keys` (migrate to keyring, remove from config), `/unlock-keys` (migrate back), `/clear-keys` (remove from both). Show per-key storage status in `/info` and `/security`.
 
+- **Prompt Injection Prevention** - Add basic functionality, which will detect possible prompt injection, which will try to escape program security policy and then block such prompt with appropriate message. Add tests to verify this functionality.
+
 ## Tools
 
 - **Image analysis** `[tool] [llm]` — Send images to vision-capable models. Accept file paths or URLs, encode as base64, pass via the provider's vision API.
