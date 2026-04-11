@@ -320,6 +320,13 @@ async fn run_agent_turn(
     ui: &dyn AgentUI,
     thinking: ThinkingMode,
 ) -> Result<TurnResult, Box<dyn std::error::Error>> {
+    if security::policy().enabled
+        && security::policy().injection_guard
+        && let Err(reason) = security::detect_prompt_injection(user_message)
+    {
+        return Err(format!("blocked: possible prompt injection ({reason})").into());
+    }
+
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),

@@ -57,6 +57,11 @@
 # Master switch (default: true)
 # AICTL_SECURITY=true
 
+# Prompt injection guard: scans user input for patterns that try to override
+# the system prompt, forge tool calls, or disable the security policy, and
+# blocks the prompt when any match (default: true). Accepted values: true, false.
+# AICTL_SECURITY_INJECTION_GUARD=true
+
 # Restrict file/directory tools to the current working directory (default: true)
 # AICTL_SECURITY_CWD_RESTRICT=true
 

@@ -62,6 +62,9 @@ Both single-shot and REPL modes share the same loop:
       │
       ▼
  ┌─────────────────────────────────────────────────────────┐
+ │  security::detect_prompt_injection() ── block on match  │
+ │  (guard; gated by AICTL_SECURITY_INJECTION_GUARD)       │
+ │                                                         │
  │  Append user message to Vec<Message>                    │
  │                                                         │
  │  for _ in 0..MAX_ITERATIONS (20) {                      │
@@ -327,7 +330,7 @@ Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`)
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_THINKING` (`smart`/`fast`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_TOOLS_ENABLED` (default `true`)
-- **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, etc. (see `security.rs`)
+- **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), etc. (see `security.rs`)
 
 ### `~/.aictl/history`
 

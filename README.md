@@ -214,6 +214,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | Key | Description |
 |-----|-------------|
 | `AICTL_SECURITY` | Master security switch (default: `true`) |
+| `AICTL_SECURITY_INJECTION_GUARD` | Block user prompts that look like prompt-injection attempts (default: `true`) |
 | `AICTL_SECURITY_CWD_RESTRICT` | Restrict file tools to working directory (default: `true`) |
 | `AICTL_SECURITY_SHELL_ALLOWED` | Comma-separated whitelist of allowed shell commands (empty = all except blocked) |
 | `AICTL_SECURITY_SHELL_BLOCKED` | Additional blocked shell commands (added to built-in defaults) |
@@ -439,6 +440,7 @@ All tool calls pass through a configurable security policy (`src/security.rs`) b
 - **Shell timeout**: commands are killed after 30 seconds (configurable).
 - **Write size limit**: file writes are capped at 1 MB (configurable).
 - **Output sanitization**: tool results are sanitized to prevent prompt injection via `<tool>` tags.
+- **Injection guard**: user prompts are scanned before being sent to the LLM. Inputs containing instruction-override phrases ("ignore previous instructions", "disable security", etc.) or forged role/tool tags (`<tool …>`, `<|system|>`, `### System:`, etc.) are blocked with a clear error. Disable with `AICTL_SECURITY_INJECTION_GUARD=false`.
 
 Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`.
 
