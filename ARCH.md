@@ -301,3 +301,64 @@ Both single-shot and REPL modes share the same loop:
            ▼                          ▼
       LLM APIs               Terminal output
 ```
+
+## On-Disk State (`~/.aictl/`)
+
+All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and no system environment variables or `.env` files are consulted for program parameters. The directory is created lazily — subdirectories are only materialized when first needed (e.g. `sessions/` on REPL startup, `agents/` on first agent save). The entire `~/.aictl/` tree is on the default blocked-paths list in `security.rs`, so tools cannot read or write inside it.
+
+```
+ ~/.aictl/
+  ├── config              key=value settings file (provider, model, API keys, security & tool toggles)
+  ├── history             rustyline REPL input history (one entry per line)
+  ├── agents/             saved agent prompts — one plain-text file per agent
+  │   ├── <name>          full system-prompt extension text; filename == agent name
+  │   └── ...             (names validated: ASCII alphanumerics, `_`, `-`)
+  └── sessions/           persisted conversation histories
+      ├── .names          tab-separated `uuid\tname` map (one entry per line, names unique, lowercase `[a-z0-9_]`)
+      ├── <uuid-v4>       pretty-printed JSON: `{"id": "...", "messages": [{"role": ..., "content": ...}, ...]}`
+      └── ...             (filename == session uuid; dotfiles are skipped by `list_sessions`)
+```
+
+### `~/.aictl/config`
+
+Plain text, one `key=value` per line. Comments start with `#`; blank lines are ignored; a leading `export ` is stripped so the same file can be sourced by a shell if desired; values may be single- or double-quoted. Loaded once at startup into a `static OnceLock<HashMap<String, String>>` by `config::load_config()` and read via `config::config_get(key)`. Writes go through `config::config_set(key, value)`, which replaces an existing key in place or appends a new line, creating the directory if missing. CLI flags always override config values.
+
+Recognized keys include:
+- **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
+- **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`)
+- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_THINKING` (`smart`/`fast`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_TOOLS_ENABLED` (default `true`)
+- **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, etc. (see `security.rs`)
+
+### `~/.aictl/history`
+
+Plain text REPL input history managed by `rustyline`. Written on REPL exit; loaded at REPL startup. Not used by single-shot (`-m`) mode.
+
+### `~/.aictl/agents/<name>`
+
+Each file is a plain-text agent prompt — the body that gets appended to the base system prompt under `# Agent: <name>` when the agent is loaded. Filenames are the agent names themselves (no extension), validated by `agents::is_valid_name` to contain only ASCII letters, digits, `_`, or `-`. Managed entirely through `src/agents.rs`:
+- `save_agent(name, prompt)` — creates `~/.aictl/agents/` if needed and writes the file
+- `read_agent(name)` / `delete_agent(name)` — load/remove a single agent
+- `list_agents()` — enumerates regular files whose names pass validation, sorted alphabetically (invalid filenames are silently skipped)
+
+A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` / `-A <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+
+### `~/.aictl/sessions/`
+
+Holds one JSON file per saved conversation plus a single `.names` index file. Managed entirely through `src/session.rs`.
+
+**Session files** — filename is a UUID v4 generated from `/dev/urandom` (with a time-based fallback), produced by `session::generate_uuid()`. Content is pretty-printed JSON written by `save_messages`:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "messages": [
+    {"role": "system",    "content": "..."},
+    {"role": "user",      "content": "..."},
+    {"role": "assistant", "content": "..."}
+  ]
+}
+```
+
+The full `Vec<Message>` (including system prompt and any `<tool_result>` turns carried in `user` messages) is rewritten after every agent turn and after manual/auto compaction, so the file on disk always reflects the complete current conversation. In **incognito mode** (`--incognito` or `AICTL_INCOGNITO=true`), `save_current` short-circuits and no session file is ever created or updated. `list_sessions()` enumerates regular files in the directory (skipping dotfiles, so `.names` is excluded), sorted by mtime descending. `delete_session(id)` removes the file and its name mapping; `clear_all()` wipes every entry including `.names`.
+
+**`.names` file** — a tab-separated index mapping `uuid\tname`, one entry per line, rewritten whole on every change by `write_names`. Names are normalized to lowercase and must match `[a-z0-9_]+`; they must be unique across sessions (enforced by `set_name`). Functions `name_for(id)` and `id_for_name(name)` perform lookups in either direction, and `resolve(key)` (used by `--session <id|name>`) first tries `key` as a uuid filename, then falls back to the name index.
