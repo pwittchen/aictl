@@ -13,9 +13,24 @@ AI agent in your terminal
 curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh
 ```
 
+The installer downloads a prebuilt binary for your platform from the latest GitHub release and places it in `~/.local/bin/aictl`. Set `AICTL_INSTALL_DIR` to pick a different location. If no prebuilt binary exists for your platform, the installer falls back to building from source with `cargo install`.
+
+### Supported platforms
+
+Prebuilt binaries are published for:
+
+| OS | Architectures |
+|---|---|
+| Linux | `x86_64`, `aarch64` |
+| macOS | `x86_64`, `aarch64` (Apple Silicon) |
+
+Native Windows is not supported — aictl depends on a POSIX shell (`sh`) and Unix tools (`date`, `pbcopy`, etc.) for its built-in tool calls. Windows users can run aictl inside [WSL](https://learn.microsoft.com/windows/wsl/) using the Linux binary, which works normally.
+
+Other platforms (FreeBSD, other BSDs, uncommon Linux architectures) can still build from source via the `cargo install` fallback path, provided a Rust toolchain is available.
+
 ### Prerequisites
 
-- [Rust](https://www.rust-lang.org/tools/install) (edition 2024)
+Installing a prebuilt binary has no prerequisites beyond `curl`. Building from source (either via the installer fallback or manually) requires [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 
 ### From source
 
