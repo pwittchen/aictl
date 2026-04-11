@@ -397,15 +397,30 @@ async fn run_agent_turn(
         });
 
         let tool_call = tools::parse_tool_call(&response);
+        let malformed_tool_call =
+            tool_call.is_none() && tools::looks_like_malformed_tool_call(&response);
         ui.show_token_usage(
             &usage,
             model,
-            tool_call.is_none(),
+            tool_call.is_none() && !malformed_tool_call,
             tool_calls,
             call_elapsed,
             context_pct,
             &thinking.to_string(),
         );
+
+        if malformed_tool_call {
+            // The model tried to emit a tool call but produced invalid XML.
+            // Ask it to retry instead of surfacing raw markup as a final answer.
+            ui.show_reasoning(
+                "(detected a malformed <tool> tag — asking the model to retry with valid syntax)",
+            );
+            messages.push(Message {
+                role: Role::User,
+                content: "Your previous response contained a `<tool>` tag that could not be parsed. Retry using exactly this syntax: `<tool name=\"<tool_name>\">input</tool>`. If you did not intend to call a tool, reply with your final answer without any `<tool>` tags.".to_string(),
+            });
+            continue;
+        }
 
         let Some(tool_call) = tool_call else {
             // No tool call — this is the final answer

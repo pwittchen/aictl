@@ -27,6 +27,28 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     Some(ToolCall { name, input })
 }
 
+/// Returns `true` when the response clearly *attempted* a tool call but
+/// [`parse_tool_call`] couldn't extract one — i.e. the `<tool>` XML is
+/// malformed (missing close tag, wrong quote style, broken attribute, ...).
+///
+/// The agent loop uses this to ask the model to retry instead of surfacing
+/// raw tool markup to the user as a "final answer".
+pub fn looks_like_malformed_tool_call(response: &str) -> bool {
+    if parse_tool_call(response).is_some() {
+        return false;
+    }
+    // Strong signal: the exact prefix we parse is present but something
+    // after it is broken (e.g. missing `"`, `>`, or `</tool>`).
+    if response.contains("<tool name=") {
+        return true;
+    }
+    // Also catch cases where both a tag-opener and a closer appear but the
+    // name attribute uses the wrong quoting style or other variants.
+    let has_open = response.contains("<tool>") || response.contains("<tool ");
+    let has_close = response.contains("</tool>");
+    has_open && has_close
+}
+
 /// Check whether tools are globally enabled via `AICTL_TOOLS_ENABLED` config.
 /// Returns `true` when the key is absent or set to anything other than `false`/`0`.
 pub fn tools_enabled() -> bool {
@@ -620,6 +642,82 @@ mod tests {
     fn parse_incomplete_opening_tag() {
         let resp = r#"<tool name="exec_shell"#;
         assert!(parse_tool_call(resp).is_none());
+    }
+
+    // --- Malformed tool call detection ---
+
+    #[test]
+    fn malformed_detects_missing_closing_tag() {
+        // LLM wrote a tool call but forgot `</tool>` — regression test for bug
+        // where this was surfaced to the user as a raw-XML "final answer".
+        let resp = r#"I'll read that file.
+<tool name="read_file">src/main.rs"#;
+        assert!(parse_tool_call(resp).is_none());
+        assert!(looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_detects_unterminated_name_attribute() {
+        let resp = r#"<tool name="exec_shell>ls -la</tool>"#;
+        assert!(parse_tool_call(resp).is_none());
+        assert!(looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_detects_single_quoted_name() {
+        // Wrong quote style — parser expects double quotes.
+        let resp = "<tool name='read_file'>foo.txt</tool>";
+        assert!(parse_tool_call(resp).is_none());
+        assert!(looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_detects_truncated_opening_tag() {
+        let resp = r#"<tool name="exec_shell"#;
+        assert!(parse_tool_call(resp).is_none());
+        assert!(looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_detects_bare_tool_tags_without_name_attr() {
+        let resp = "<tool>read_file src/main.rs</tool>";
+        assert!(parse_tool_call(resp).is_none());
+        assert!(looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_rejects_valid_tool_call() {
+        let resp = r#"<tool name="read_file">src/main.rs</tool>"#;
+        assert!(parse_tool_call(resp).is_some());
+        assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_rejects_plain_text_answer() {
+        let resp = "Here is the answer to your question. It is 42.";
+        assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_rejects_answer_mentioning_tool_word() {
+        // The word "toolchain" must not trip the heuristic.
+        let resp = "You can install it via the standard Rust toolchain.";
+        assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_rejects_answer_with_only_closing_tag_mention() {
+        // A final answer that happens to mention the closing tag textually
+        // (no `<tool` open anywhere) must not trigger retry.
+        let resp = "The closing XML marker is </tool> — that's how it ends.";
+        assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    #[test]
+    fn malformed_rejects_valid_call_with_leading_text() {
+        let resp = "Sure, let me check.\n<tool name=\"read_file\">a.txt</tool>\nDone.";
+        assert!(parse_tool_call(resp).is_some());
+        assert!(!looks_like_malformed_tool_call(resp));
     }
 
     // --- Tool execution tests ---
