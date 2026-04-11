@@ -65,6 +65,10 @@ jobs:
       - name: Install Rust toolchain
         run: rustup target add ${{ matrix.target }}
 
+      - name: Install Linux dependencies
+        if: contains(matrix.target, 'linux')
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
