@@ -35,6 +35,40 @@ cargo build --release
 
 The binary will be at `target/release/aictl`.
 
+## Uninstall
+
+### Binary release (installed via `install.sh`)
+
+The install script places the binary at `~/.local/bin/aictl` (or `$AICTL_INSTALL_DIR` if you set it). Remove it with:
+
+```bash
+rm ~/.local/bin/aictl
+```
+
+### From source (installed via `cargo install`)
+
+Cargo tracks its own installs, so the clean way is:
+
+```bash
+cargo uninstall aictl
+```
+
+This removes `~/.cargo/bin/aictl`. If `cargo uninstall` doesn't find it (e.g. installed under a different crate name), delete the binary directly:
+
+```bash
+rm ~/.cargo/bin/aictl
+```
+
+### Remove configuration and data (optional)
+
+aictl stores all state under `~/.aictl/` — config file, saved agents, saved sessions. To wipe it completely:
+
+```bash
+rm -rf ~/.aictl
+```
+
+Skip this step if you plan to reinstall and want to keep your API keys, agents, and session history.
+
 ## Usage
 
 ```bash
