@@ -201,12 +201,42 @@ impl InteractiveUI {
             ["[o_O] ", " |_|  "],
             ["[._.) ", " |_|  "],
         ];
-        let pick = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis() as usize)
-            % MASCOTS.len();
-        let face = MASCOTS[pick];
-        let m = [face[0], face[1], BLANK, BLANK, BLANK, BLANK, BLANK, BLANK];
+        const SLEEPY: [&str; 2] = ["[u_u] ", " |_|  "];
+        // Small spiral drawn from z letters, rendered in the mascot column
+        // below the sleepy face (exactly 3 z letters, one per row, forming
+        // a tiny S-curl). Each row is 6 chars wide so the rest of the banner
+        // content stays aligned.
+        const SLEEPY_SPIRAL: [&str; 3] = [" z    ", "z     ", " z    "];
+        let local_hour = std::process::Command::new("date")
+            .arg("+%H")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|s| s.trim().parse::<u32>().ok());
+        let sleepy = matches!(local_hour, Some(h) if h >= 22);
+        let face = if sleepy {
+            SLEEPY
+        } else {
+            let pick = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis() as usize)
+                % MASCOTS.len();
+            MASCOTS[pick]
+        };
+        let m = if sleepy {
+            [
+                face[0],
+                face[1],
+                BLANK,
+                SLEEPY_SPIRAL[0],
+                SLEEPY_SPIRAL[1],
+                SLEEPY_SPIRAL[2],
+                BLANK,
+                BLANK,
+            ]
+        } else {
+            [face[0], face[1], BLANK, BLANK, BLANK, BLANK, BLANK, BLANK]
+        };
 
         let dashes = "─".repeat(rule_width());
         eprintln!();
