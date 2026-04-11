@@ -18,20 +18,20 @@ use crate::llm::MODELS;
 use crate::ui::AgentUI;
 use crate::{Message, Provider, Role};
 
-/// Thinking mode: controls conversation history optimization.
+/// Memory mode: controls conversation history optimization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThinkingMode {
+pub enum MemoryMode {
     /// All messages, no optimization.
-    Smart,
+    LongTerm,
     /// Sliding window with most recent messages and optional compaction.
-    Fast,
+    ShortTerm,
 }
 
-impl std::fmt::Display for ThinkingMode {
+impl std::fmt::Display for MemoryMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Smart => write!(f, "smart"),
-            Self::Fast => write!(f, "fast"),
+            Self::LongTerm => write!(f, "long-term"),
+            Self::ShortTerm => write!(f, "short-term"),
         }
     }
 }
@@ -40,7 +40,7 @@ impl std::fmt::Display for ThinkingMode {
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
     "agent", "behavior", "clear", "compact", "context", "copy", "exit", "help", "info", "issues",
-    "model", "security", "session", "thinking", "tools", "update",
+    "memory", "model", "security", "session", "tools", "update",
 ];
 
 /// Result of handling a slash command.
@@ -61,8 +61,8 @@ pub enum CommandResult {
     Model,
     /// Switch auto/human-in-the-loop behavior.
     Behavior,
-    /// Switch thinking mode (smart/fast).
-    Thinking,
+    /// Switch memory mode (long-term/short-term).
+    Memory,
     /// Update to the latest version.
     Update,
     /// Open the agent management menu.
@@ -96,7 +96,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         }
         "model" => CommandResult::Model,
         "behavior" => CommandResult::Behavior,
-        "thinking" => CommandResult::Thinking,
+        "memory" => CommandResult::Memory,
         "update" => CommandResult::Update,
         "session" => CommandResult::Session,
         "issues" => CommandResult::Issues,
@@ -153,7 +153,7 @@ pub async fn compact(
     model: &str,
     messages: &mut Vec<Message>,
     ui: &dyn AgentUI,
-    thinking: &str,
+    memory: &str,
     is_auto: bool,
 ) {
     if messages.len() <= 1 {
@@ -261,7 +261,7 @@ pub async fn compact(
                 0,
                 std::time::Duration::ZERO,
                 0,
-                thinking,
+                memory,
             );
             if is_auto {
                 AUTO_COMPACTIONS.fetch_add(1, Ordering::Relaxed);
@@ -348,7 +348,7 @@ fn print_help() {
         ("/model", "switch model and provider"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
-        ("/thinking", "switch thinking mode (smart/fast)"),
+        ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
         ("/update", "update to the latest version"),
         ("/exit", "exit the REPL"),
@@ -441,10 +441,10 @@ mod tests {
     }
 
     #[test]
-    fn cmd_thinking() {
+    fn cmd_memory() {
         assert!(matches!(
-            handle("/thinking", "", &noop_error),
-            CommandResult::Thinking
+            handle("/memory", "", &noop_error),
+            CommandResult::Memory
         ));
     }
 
@@ -883,22 +883,18 @@ pub fn select_behavior(current_auto: bool) -> Option<bool> {
     Some(BEHAVIORS[selected].0 == "auto")
 }
 
-const THINKING_MODES: &[(&str, &str)] = &[
-    ("smart", "all messages, no optimization"),
-    ("fast", "sliding window with recent messages"),
+const MEMORY_MODES: &[(&str, &str)] = &[
+    ("long-term", "all messages, no optimization"),
+    ("short-term", "sliding window with recent messages"),
 ];
 
-fn build_thinking_menu_lines(selected: usize, current: ThinkingMode) -> Vec<String> {
+fn build_memory_menu_lines(selected: usize, current: MemoryMode) -> Vec<String> {
     let mut lines = Vec::new();
-    let max_name = THINKING_MODES
-        .iter()
-        .map(|(n, _)| n.len())
-        .max()
-        .unwrap_or(0);
-    for (i, (name, desc)) in THINKING_MODES.iter().enumerate() {
+    let max_name = MEMORY_MODES.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+    for (i, (name, desc)) in MEMORY_MODES.iter().enumerate() {
         let is_selected = i == selected;
-        let is_current = (*name == "smart" && current == ThinkingMode::Smart)
-            || (*name == "fast" && current == ThinkingMode::Fast);
+        let is_current = (*name == "long-term" && current == MemoryMode::LongTerm)
+            || (*name == "short-term" && current == MemoryMode::ShortTerm);
 
         let marker = if is_current { "●" } else { " " };
         let padded = format!("{:<max_name$}", *name);
@@ -931,29 +927,23 @@ fn build_thinking_menu_lines(selected: usize, current: ThinkingMode) -> Vec<Stri
     lines
 }
 
-/// Interactively select thinking mode with arrow keys.
-/// Returns `Some(ThinkingMode)` or `None` if cancelled (Esc).
-pub fn select_thinking(current: ThinkingMode) -> Option<ThinkingMode> {
+/// Interactively select memory mode with arrow keys.
+/// Returns `Some(MemoryMode)` or `None` if cancelled (Esc).
+pub fn select_memory(current: MemoryMode) -> Option<MemoryMode> {
     let initial = match current {
-        ThinkingMode::Smart => 0,
-        ThinkingMode::Fast => 1,
+        MemoryMode::LongTerm => 0,
+        MemoryMode::ShortTerm => 1,
     };
-    let selected = select_from_menu(THINKING_MODES.len(), initial, |sel| {
-        build_thinking_menu_lines(sel, current)
+    let selected = select_from_menu(MEMORY_MODES.len(), initial, |sel| {
+        build_memory_menu_lines(sel, current)
     })?;
-    Some(match THINKING_MODES[selected].0 {
-        "fast" => ThinkingMode::Fast,
-        _ => ThinkingMode::Smart,
+    Some(match MEMORY_MODES[selected].0 {
+        "short-term" => MemoryMode::ShortTerm,
+        _ => MemoryMode::LongTerm,
     })
 }
 
-pub fn print_info(
-    provider: &str,
-    model: &str,
-    auto: bool,
-    thinking: ThinkingMode,
-    version_info: &str,
-) {
+pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, version_info: &str) {
     let version = crate::VERSION;
     let behavior = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
@@ -994,7 +984,7 @@ pub fn print_info(
     println!("  {} {provider}", "provider:".with(Color::Cyan));
     println!("  {} {model}", "model:   ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior:".with(Color::Cyan));
-    println!("  {} {thinking}", "thinking:".with(Color::Cyan));
+    println!("  {} {memory}", "memory:  ".with(Color::Cyan));
     let prompt_file = crate::config::load_prompt_file();
     let prompt_file_name =
         crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());

@@ -104,11 +104,11 @@ The interactive REPL supports slash commands:
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
-| `/info` | Show setup info (provider, model, behavior, thinking, agent, version, OS, binary size) |
+| `/info` | Show setup info (provider, model, behavior, memory, agent, version, OS, binary size) |
 | `/issues` | Fetch and display known issues from the remote ISSUES.md |
+| `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
-| `/thinking` | Switch thinking mode: smart (all messages) or fast (sliding window) |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/tools` | Show available tools |
@@ -176,13 +176,13 @@ It walks you through selecting a provider, model, and entering API keys. You can
 
 #### Basic configuration
 
-You need to configure API key for the provider and model you want to use. `AICTL_THINKING` and `AICTL_INCOGNITO` params are optional.
+You need to configure API key for the provider and model you want to use. `AICTL_MEMORY` and `AICTL_INCOGNITO` params are optional.
 
 | Key | Description |
 |-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, or `ollama`) |
 | `AICTL_MODEL` | Default model name |
-| `AICTL_THINKING` | Thinking mode: `smart` (all messages, default) or `fast` (sliding window) |
+| `AICTL_MEMORY` | Memory mode: `long-term` (all messages, default) or `short-term` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
 | `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
 | `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |

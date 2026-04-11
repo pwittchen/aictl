@@ -12,8 +12,8 @@
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
 
-# Thinking mode: smart (all messages) or fast (sliding window with recent messages)
-# AICTL_THINKING=smart
+# Memory mode: long-term (all messages) or short-term (sliding window with recent messages)
+# AICTL_MEMORY=long-term
 
 # Incognito mode: when enabled, interactive REPL runs without saving sessions
 # and /session is disabled (default: false). Accepted values: true, false.

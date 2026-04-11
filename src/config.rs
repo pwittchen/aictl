@@ -15,7 +15,7 @@ pub const MAX_ITERATIONS: usize = 20;
 pub const MAX_MESSAGES: usize = 200;
 pub const MAX_TOOL_OUTPUT_LEN: usize = 10_000;
 pub const MAX_RESPONSE_TOKENS: u32 = 4096;
-pub const FAST_MODE_WINDOW: usize = 20;
+pub const SHORT_TERM_MEMORY_WINDOW: usize = 20;
 pub const DEFAULT_AUTO_COMPACT_THRESHOLD: u8 = 80;
 
 /// Return the auto-compact threshold as a percentage (1..=100).

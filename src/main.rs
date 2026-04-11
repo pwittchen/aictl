@@ -21,9 +21,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::{Parser, ValueEnum};
 
-use commands::ThinkingMode;
+use commands::MemoryMode;
 use config::{
-    FAST_MODE_WINDOW, MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT,
+    MAX_ITERATIONS, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT,
     auto_compact_threshold, config_get, config_set, load_config, load_prompt_file,
 };
 use llm::TokenUsage;
@@ -296,7 +296,7 @@ async fn handle_tool_call(
     }
 }
 
-/// Build a windowed view of messages for fast thinking mode.
+/// Build a windowed view of messages for short-term memory mode.
 /// Keeps the system prompt (first message) and the most recent `window` messages.
 fn windowed_messages(messages: &[Message], window: usize) -> Vec<Message> {
     if messages.len() <= 1 + window {
@@ -318,7 +318,7 @@ async fn run_agent_turn(
     user_message: &str,
     auto: &mut bool,
     ui: &dyn AgentUI,
-    thinking: ThinkingMode,
+    memory: MemoryMode,
 ) -> Result<TurnResult, Box<dyn std::error::Error>> {
     if security::policy().enabled
         && security::policy().injection_guard
@@ -346,9 +346,9 @@ async fn run_agent_turn(
         let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
         ui.start_spinner(phrase);
 
-        let llm_messages = match thinking {
-            ThinkingMode::Smart => messages.clone(),
-            ThinkingMode::Fast => windowed_messages(messages, FAST_MODE_WINDOW),
+        let llm_messages = match memory {
+            MemoryMode::LongTerm => messages.clone(),
+            MemoryMode::ShortTerm => windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW),
         };
 
         let call_start = std::time::Instant::now();
@@ -413,7 +413,7 @@ async fn run_agent_turn(
             tool_calls,
             call_elapsed,
             context_pct,
-            &thinking.to_string(),
+            &memory.to_string(),
         );
 
         if malformed_tool_call {
@@ -482,7 +482,7 @@ async fn run_agent_single(
         user_message,
         &mut auto,
         &ui,
-        ThinkingMode::Smart,
+        MemoryMode::LongTerm,
     )
     .await?;
     ui.show_answer(&turn.answer);
@@ -576,7 +576,7 @@ async fn handle_repl_input(
     api_key: &mut String,
     model: &mut String,
     auto: &mut bool,
-    thinking: &mut ThinkingMode,
+    memory: &mut MemoryMode,
     version_info: &str,
 ) -> ReplAction {
     use crossterm::style::{Color, Stylize};
@@ -608,7 +608,7 @@ async fn handle_repl_input(
                 model,
                 messages,
                 ui,
-                &thinking.to_string(),
+                &memory.to_string(),
                 false,
             )
             .await;
@@ -649,7 +649,7 @@ async fn handle_repl_input(
         commands::CommandResult::Info => {
             let _ = rl.add_history_entry(input);
             let pname = format!("{provider:?}").to_lowercase();
-            commands::print_info(&pname, model, *auto, *thinking, version_info);
+            commands::print_info(&pname, model, *auto, *memory, version_info);
             return ReplAction::Continue;
         }
         commands::CommandResult::Security | commands::CommandResult::Continue => {
@@ -717,14 +717,14 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
-        commands::CommandResult::Thinking => {
+        commands::CommandResult::Memory => {
             let _ = rl.add_history_entry(input);
-            if let Some(new_thinking) = commands::select_thinking(*thinking) {
-                *thinking = new_thinking;
-                config_set("AICTL_THINKING", &format!("{new_thinking}"));
+            if let Some(new_memory) = commands::select_memory(*memory) {
+                *memory = new_memory;
+                config_set("AICTL_MEMORY", &format!("{new_memory}"));
                 println!();
                 println!(
-                    "  {} switched to {new_thinking} thinking",
+                    "  {} switched to {new_memory} memory",
                     "✓".with(Color::Green)
                 );
                 println!();
@@ -752,7 +752,7 @@ async fn handle_repl_input(
             model,
             messages,
             ui,
-            &thinking.to_string(),
+            &memory.to_string(),
             true,
         )
         .await;
@@ -775,16 +775,12 @@ async fn run_and_display_turn(
     ui: &InteractiveUI,
     last_answer: &mut String,
     last_input_tokens: &mut u64,
-    thinking: ThinkingMode,
+    memory: MemoryMode,
 ) {
     use crossterm::style::{Color, Stylize};
 
     let msg_len_before = messages.len();
-    match run_agent_turn(
-        provider, api_key, model, messages, input, auto, ui, thinking,
-    )
-    .await
-    {
+    match run_agent_turn(provider, api_key, model, messages, input, auto, ui, memory).await {
         Ok(turn) => {
             ui.show_answer(&turn.answer);
             *last_answer = turn.answer;
@@ -827,9 +823,9 @@ async fn run_interactive(
     use rustyline::error::ReadlineError;
 
     let mut auto = auto;
-    let mut thinking = match config_get("AICTL_THINKING").as_deref() {
-        Some("fast") => ThinkingMode::Fast,
-        _ => ThinkingMode::Smart,
+    let mut memory = match config_get("AICTL_MEMORY").as_deref() {
+        Some("short-term") => MemoryMode::ShortTerm,
+        _ => MemoryMode::LongTerm,
     };
     let ui = InteractiveUI::new();
     let version_info = version_info_string(fetch_remote_version().await.as_deref());
@@ -878,7 +874,7 @@ async fn run_interactive(
     InteractiveUI::print_welcome(
         &format!("{provider:?}").to_lowercase(),
         &model,
-        thinking,
+        memory,
         &version_info,
     );
 
@@ -938,7 +934,7 @@ async fn run_interactive(
                     &mut api_key,
                     &mut model,
                     &mut auto,
-                    &mut thinking,
+                    &mut memory,
                     &version_info,
                 )
                 .await
@@ -958,7 +954,7 @@ async fn run_interactive(
                     &ui,
                     &mut last_answer,
                     &mut last_input_tokens,
-                    thinking,
+                    memory,
                 )
                 .await;
                 session::save_current(&messages);

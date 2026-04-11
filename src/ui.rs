@@ -85,7 +85,7 @@ pub trait AgentUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
-        thinking: &str,
+        memory: &str,
     );
     fn show_summary(
         &self,
@@ -154,7 +154,7 @@ impl AgentUI for PlainUI {
         _tool_calls: u32,
         _elapsed: Duration,
         _context_pct: u8,
-        _thinking: &str,
+        _memory: &str,
     ) {
     }
 
@@ -189,7 +189,7 @@ impl InteractiveUI {
     pub fn print_welcome(
         provider: &str,
         model: &str,
-        thinking: crate::commands::ThinkingMode,
+        memory: crate::commands::MemoryMode,
         version_info: &str,
     ) {
         const BLANK: &str = "      ";
@@ -253,7 +253,7 @@ impl InteractiveUI {
             model.with(Color::Yellow),
         );
 
-        // Line 2: thinking · tools · dir
+        // Line 2: memory · tools · dir
         let cwd = std::env::current_dir()
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
@@ -269,7 +269,7 @@ impl InteractiveUI {
             "{PAD}{} {}{} {} {} {} {}",
             PIPE.with(Color::DarkGrey),
             m[2].with(Color::Cyan),
-            format!("{thinking} thinking").with(Color::DarkGrey),
+            format!("{memory} memory").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
             tools_info.as_str().with(if crate::tools::tools_enabled() {
                 Color::DarkGrey
@@ -599,7 +599,7 @@ impl AgentUI for InteractiveUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
-        thinking: &str,
+        memory: &str,
     ) {
         // Shorten claude model names by stripping the date suffix
         let display_model = if model.starts_with("claude-") {
@@ -616,8 +616,9 @@ impl AgentUI for InteractiveUI {
         } else {
             String::new()
         };
+        let short_mem = memory.strip_suffix("-term").unwrap_or(memory);
         let text = format!(
-            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}% · {thinking}",
+            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}% · ⛁ {short_mem}",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,
