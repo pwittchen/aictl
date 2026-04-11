@@ -376,6 +376,23 @@ All Ollama models are free (self-hosted), so cost estimation shows $0.00.
 
 Any model string can be passed via `--model`; cost estimation uses pattern matching on the model name and falls back to zero if unrecognized.
 
+### Cost estimates
+
+The per-token tables above tell you what each model charges; they don't tell you what a realistic workday actually costs. For that, see [LLM_PRICING.md](LLM_PRICING.md) — it models two usage patterns (chat assistant and coding agent) and reports daily and monthly totals for every model in the catalog.
+
+The headline numbers for intensive use (150 chat turns/day or 50 coding tasks/day, 22 working days/month):
+
+| Usage pattern | Cheapest cached | Flagship cluster cached | Opus 4.6 uncached |
+|---|---|---|---|
+| Chat | **$2.64/mo** (grok-4-fast) | ~$35–$48/mo | $132/mo |
+| Coding agent | **$34.76/mo** (grok-4-fast) | ~$460–$525/mo | $2,062.50/mo |
+
+A few things worth knowing before you budget:
+
+- **Intensive coding agent use is roughly 60× more expensive than chat use** on any given model, because the agent loop re-sends the growing conversation history each iteration and produces long, code-heavy outputs. Tool call count is not the dominant factor.
+- **Prompt caching cuts costs roughly in half**, but the "cached" column is only reliable for Anthropic — aictl explicitly writes to Anthropic's prompt cache via `cache_control` markers. OpenAI, Gemini, Grok, DeepSeek, and Kimi cache automatically server-side, so you'll hit cached rates during sustained sessions but not after idle gaps longer than the provider's TTL (typically 5–10 minutes). Z.ai GLM and Mistral have no cache handling in aictl, so they always bill at the full rate.
+- **The cost meter that aictl prints after every turn** reflects actual cached vs. fresh tokens from each provider's response, so it's more accurate than any estimate. If you want to know what your specific workload really costs, run a few typical sessions and watch the per-turn summary.
+
 ### Agent Loop & Tool Calling
 
 aictl runs an agent loop: the LLM can invoke tools, see their results, and continue reasoning until it produces a final answer.
