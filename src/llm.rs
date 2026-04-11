@@ -15,6 +15,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "claude-opus-4-20250514",
         "LLM_ANTHROPIC_API_KEY",
     ),
+    ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
@@ -395,6 +396,13 @@ mod tests {
         let (i, o) = price_per_million("claude-opus-4-20250514").unwrap();
         assert_eq!(i, 15.00);
         assert_eq!(o, 75.00);
+    }
+
+    #[test]
+    fn price_claude_opus_4_6() {
+        let (i, o) = price_per_million("claude-opus-4-6").unwrap();
+        assert_eq!(i, 5.00);
+        assert_eq!(o, 25.00);
     }
 
     #[test]
