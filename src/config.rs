@@ -16,6 +16,18 @@ pub const MAX_MESSAGES: usize = 200;
 pub const MAX_TOOL_OUTPUT_LEN: usize = 10_000;
 pub const MAX_RESPONSE_TOKENS: u32 = 4096;
 pub const FAST_MODE_WINDOW: usize = 20;
+pub const DEFAULT_AUTO_COMPACT_THRESHOLD: u8 = 80;
+
+/// Return the auto-compact threshold as a percentage (1..=100).
+///
+/// Read from `AICTL_AUTO_COMPACT_THRESHOLD` in `~/.aictl/config`. Values outside
+/// the 1..=100 range (or unparseable values) fall back to `DEFAULT_AUTO_COMPACT_THRESHOLD`.
+pub fn auto_compact_threshold() -> u8 {
+    config_get("AICTL_AUTO_COMPACT_THRESHOLD")
+        .and_then(|v| v.parse::<u8>().ok())
+        .filter(|v| (1..=100).contains(v))
+        .unwrap_or(DEFAULT_AUTO_COMPACT_THRESHOLD)
+}
 
 // --- Spinner phrases ---
 

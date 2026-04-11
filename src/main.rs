@@ -23,8 +23,8 @@ use clap::{Parser, ValueEnum};
 
 use commands::ThinkingMode;
 use config::{
-    FAST_MODE_WINDOW, MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, config_get,
-    config_set, load_config, load_prompt_file,
+    FAST_MODE_WINDOW, MAX_ITERATIONS, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT,
+    auto_compact_threshold, config_get, config_set, load_config, load_prompt_file,
 };
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
@@ -714,11 +714,11 @@ async fn handle_repl_input(
 
     let _ = rl.add_history_entry(input);
 
-    // Auto-compact if context is >= 80%
+    // Auto-compact if context is >= configured threshold (default 80%)
     let token_pct = llm::pct(*last_input_tokens, llm::context_limit(model));
     let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
     let context_pct = token_pct.max(message_pct);
-    if context_pct >= 80 {
+    if context_pct >= auto_compact_threshold() {
         println!();
         println!(
             "  {} context at {context_pct}%, auto-compacting...",

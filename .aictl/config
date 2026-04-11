@@ -26,6 +26,10 @@
 # can only respond with plain text (default: true). Accepted values: true, false.
 # AICTL_TOOLS_ENABLED=true
 
+# Auto-compact threshold: context usage percentage at which the REPL
+# automatically compacts the conversation (default: 80). Accepts 1..=100.
+# AICTL_AUTO_COMPACT_THRESHOLD=80
+
 ################################
 #    API KEYS + OLLAMA HOST    #
 ################################

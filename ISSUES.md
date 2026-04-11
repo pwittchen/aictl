@@ -4,10 +4,6 @@
 
 - **Malformed tool calls treated as final answer** `[agent-loop]` — When `parse_tool_call()` returns `None`, the response is surfaced to the user as a final answer even if it contains a malformed tool call. The agent loop should detect this and retry rather than printing raw tool XML.
 
-## Config
-
-- **Auto-compact Configuration** - allow to configure auto-compact feature
-
 ## Security
 
 - **Secure API key storage** `[config]` — API keys are stored as plain text in `~/.aictl/config`. Integrate system keyring (e.g. `keyring` crate) with plain-text fallback. Show storage backend in the welcome banner and `/info`.
