@@ -1306,10 +1306,7 @@ pub async fn run_issues(show_error: &dyn Fn(&str)) {
 /// Check the current version against the latest available (REPL `/version`).
 pub async fn run_version(show_error: &dyn Fn(&str)) {
     println!();
-    println!(
-        "  {} checking latest version...",
-        "↓".with(Color::Cyan),
-    );
+    println!("  {} checking latest version...", "↓".with(Color::Cyan),);
 
     let remote = crate::fetch_remote_version().await;
     match &remote {
@@ -1326,10 +1323,7 @@ pub async fn run_version(show_error: &dyn Fn(&str)) {
                 "!".with(Color::Yellow),
                 crate::VERSION,
             );
-            println!(
-                "  run {} to update",
-                "/update".with(Color::Cyan),
-            );
+            println!("  run {} to update", "/update".with(Color::Cyan),);
         }
         None => {
             show_error("Could not check remote version. Please try again later.");
@@ -2331,8 +2325,7 @@ fn create_agent_manually(show_error: &dyn Fn(&str)) -> bool {
     println!();
     println!(
         "  {}",
-        "Enter agent prompt (multi-line: press Enter twice to finish, Esc to cancel):"
-            .with(Color::DarkGrey)
+        "Enter agent prompt (multi-line: Ctrl+D to finish, Esc to cancel):".with(Color::DarkGrey)
     );
     let Some(prompt) = read_multiline_input() else {
         return false;
@@ -2357,55 +2350,70 @@ fn create_agent_manually(show_error: &dyn Fn(&str)) -> bool {
     false
 }
 
-/// Read multi-line input. Two consecutive newlines (empty line) finishes input. Esc cancels.
+/// Read multi-line input. Ctrl+D finishes input, Esc cancels.
+/// Supports bracketed paste mode so pasted text is received as a single event.
 fn read_multiline_input() -> Option<String> {
-    use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+    use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
     use crossterm::terminal;
 
     print!("  ");
     let _ = std::io::stdout().flush();
 
     let _ = terminal::enable_raw_mode();
+    let _ = crossterm::execute!(std::io::stdout(), event::EnableBracketedPaste);
     let mut buf = String::new();
-    let mut last_was_newline = false;
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(200)).unwrap_or(false) {
             continue;
         }
-        if let Ok(Event::Key(key)) = event::read()
-            && key.kind == KeyEventKind::Press
-        {
-            match key.code {
-                KeyCode::Esc => break None,
-                KeyCode::Enter => {
-                    if last_was_newline {
-                        break Some(buf.clone());
+        match event::read() {
+            Ok(Event::Paste(text)) => {
+                let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+                buf.push_str(&normalized);
+                for ch in normalized.chars() {
+                    if ch == '\n' {
+                        print!("\r\n  ");
+                    } else if ch == '\t' {
+                        print!("    ");
+                    } else {
+                        print!("{ch}");
                     }
-                    last_was_newline = true;
+                }
+                let _ = std::io::stdout().flush();
+            }
+            Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => match key.code {
+                KeyCode::Esc => break None,
+                KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    break Some(buf.clone());
+                }
+                KeyCode::Enter => {
                     buf.push('\n');
                     print!("\r\n  ");
                     let _ = std::io::stdout().flush();
                 }
                 KeyCode::Backspace => {
-                    if buf.ends_with('\n') {
-                        last_was_newline = false;
-                    }
                     if buf.pop().is_some() {
                         print!("\x08 \x08");
                         let _ = std::io::stdout().flush();
                     }
                 }
+                KeyCode::Tab => {
+                    buf.push('\t');
+                    print!("    ");
+                    let _ = std::io::stdout().flush();
+                }
                 KeyCode::Char(c) => {
-                    last_was_newline = false;
                     buf.push(c);
                     print!("{c}");
                     let _ = std::io::stdout().flush();
                 }
                 _ => {}
-            }
+            },
+            _ => {}
         }
     };
+    let _ = crossterm::execute!(std::io::stdout(), event::DisableBracketedPaste);
     let _ = terminal::disable_raw_mode();
     println!();
     result
