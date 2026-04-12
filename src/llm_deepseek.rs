@@ -9,9 +9,41 @@ struct DeepSeekRequest {
     messages: Vec<DeepSeekMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct DeepSeekMessage {
     role: String,
+    content: DeepSeekContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum DeepSeekContent {
+    Text(String),
+    Parts(Vec<DeepSeekContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum DeepSeekContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: DeepSeekImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct DeepSeekImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct DeepSeekResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct DeepSeekResponse {
 
 #[derive(Deserialize)]
 struct DeepSeekChoice {
-    message: DeepSeekMessage,
+    message: DeepSeekResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -46,13 +78,30 @@ pub async fn call_deepseek(
 
     let deepseek_messages: Vec<DeepSeekMessage> = messages
         .iter()
-        .map(|m| DeepSeekMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                DeepSeekContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![DeepSeekContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(DeepSeekContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: DeepSeekImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                DeepSeekContent::Parts(parts)
+            };
+            DeepSeekMessage { role, content }
         })
         .collect();
 

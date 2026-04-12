@@ -9,9 +9,41 @@ struct MistralRequest {
     messages: Vec<MistralMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct MistralMessage {
     role: String,
+    content: MistralContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum MistralContent {
+    Text(String),
+    Parts(Vec<MistralContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum MistralContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: MistralImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct MistralImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct MistralResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct MistralResponse {
 
 #[derive(Deserialize)]
 struct MistralChoice {
-    message: MistralMessage,
+    message: MistralResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -41,13 +73,30 @@ pub async fn call_mistral(
 
     let mistral_messages: Vec<MistralMessage> = messages
         .iter()
-        .map(|m| MistralMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                MistralContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![MistralContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(MistralContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: MistralImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                MistralContent::Parts(parts)
+            };
+            MistralMessage { role, content }
         })
         .collect();
 

@@ -2,8 +2,6 @@
 
 ## Tools
 
-- **Image analysis** `[tool] [llm]` — Send images to vision-capable models. Accept file paths or URLs, encode as base64, pass via the provider's vision API.
-
 - **Image generation** `[tool]` — Generate images via an external API (e.g. DALL-E, Stable Diffusion). Save to disk and return the file path.
 
 - **PDF and DOCX reading** `[tool]` — Extract text from PDF and DOCX files so the agent can reason over documents.

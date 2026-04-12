@@ -9,9 +9,41 @@ struct ZaiRequest {
     messages: Vec<ZaiMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct ZaiMessage {
     role: String,
+    content: ZaiContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ZaiContent {
+    Text(String),
+    Parts(Vec<ZaiContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ZaiContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: ZaiImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct ZaiImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct ZaiResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct ZaiResponse {
 
 #[derive(Deserialize)]
 struct ZaiChoice {
-    message: ZaiMessage,
+    message: ZaiResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -41,13 +73,30 @@ pub async fn call_zai(
 
     let zai_messages: Vec<ZaiMessage> = messages
         .iter()
-        .map(|m| ZaiMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                ZaiContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![ZaiContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(ZaiContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: ZaiImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                ZaiContent::Parts(parts)
+            };
+            ZaiMessage { role, content }
         })
         .collect();
 

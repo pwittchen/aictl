@@ -28,16 +28,27 @@ enum MessageContent {
     Blocks(Vec<ContentBlock>),
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ContentBlock {
     #[serde(rename = "type")]
     block_type: String,
-    text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<ImageSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache_control: Option<CacheControl>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
+struct ImageSource {
+    #[serde(rename = "type")]
+    source_type: String,
+    media_type: String,
+    data: String,
+}
+
+#[derive(Serialize, Clone)]
 struct CacheControl {
     #[serde(rename = "type")]
     control_type: String,
@@ -72,13 +83,15 @@ struct AnthropicUsage {
 fn cached_block(text: String) -> MessageContent {
     MessageContent::Blocks(vec![ContentBlock {
         block_type: "text".to_string(),
-        text,
+        text: Some(text),
+        source: None,
         cache_control: Some(CacheControl {
             control_type: "ephemeral".to_string(),
         }),
     }])
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn call_anthropic(
     api_key: &str,
     model: &str,
@@ -95,9 +108,33 @@ pub async fn call_anthropic(
                 system_text = Some(m.content.clone());
             }
             Role::User => {
+                let content = if m.images.is_empty() {
+                    MessageContent::Text(m.content.clone())
+                } else {
+                    let mut blocks = Vec::new();
+                    for img in &m.images {
+                        blocks.push(ContentBlock {
+                            block_type: "image".to_string(),
+                            text: None,
+                            source: Some(ImageSource {
+                                source_type: "base64".to_string(),
+                                media_type: img.media_type.clone(),
+                                data: img.base64_data.clone(),
+                            }),
+                            cache_control: None,
+                        });
+                    }
+                    blocks.push(ContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some(m.content.clone()),
+                        source: None,
+                        cache_control: None,
+                    });
+                    MessageContent::Blocks(blocks)
+                };
                 api_messages.push(AnthropicMessage {
                     role: "user".to_string(),
-                    content: MessageContent::Text(m.content.clone()),
+                    content,
                 });
             }
             Role::Assistant => {
@@ -123,13 +160,21 @@ pub async fn call_anthropic(
     // For very short conversations (len < 3) the rolling breakpoint already
     // lands on the first message, so we only set one.
     let mark_cached = |msg: &mut AnthropicMessage| {
-        let text = match &msg.content {
-            MessageContent::Text(t) => t.clone(),
-            MessageContent::Blocks(blocks) => {
-                blocks.first().map_or(String::new(), |b| b.text.clone())
+        match &msg.content {
+            MessageContent::Text(t) => {
+                msg.content = cached_block(t.clone());
             }
-        };
-        msg.content = cached_block(text);
+            MessageContent::Blocks(_) => {
+                // Add cache_control to the last block, preserving image blocks
+                if let MessageContent::Blocks(ref mut blocks) = msg.content
+                    && let Some(last) = blocks.last_mut()
+                {
+                    last.cache_control = Some(CacheControl {
+                        control_type: "ephemeral".to_string(),
+                    });
+                }
+            }
+        }
     };
 
     if api_messages.len() >= 2 {
@@ -146,7 +191,8 @@ pub async fn call_anthropic(
     let system = system_text.map(|text| {
         vec![ContentBlock {
             block_type: "text".to_string(),
-            text,
+            text: Some(text),
+            source: None,
             cache_control: Some(CacheControl {
                 control_type: "ephemeral".to_string(),
             }),

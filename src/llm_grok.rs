@@ -9,9 +9,41 @@ struct GrokRequest {
     messages: Vec<GrokMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct GrokMessage {
     role: String,
+    content: GrokContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum GrokContent {
+    Text(String),
+    Parts(Vec<GrokContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum GrokContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: GrokImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct GrokImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct GrokResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct GrokResponse {
 
 #[derive(Deserialize)]
 struct GrokChoice {
-    message: GrokMessage,
+    message: GrokResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -49,13 +81,30 @@ pub async fn call_grok(
 
     let grok_messages: Vec<GrokMessage> = messages
         .iter()
-        .map(|m| GrokMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                GrokContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![GrokContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(GrokContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: GrokImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                GrokContent::Parts(parts)
+            };
+            GrokMessage { role, content }
         })
         .collect();
 

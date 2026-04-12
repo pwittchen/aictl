@@ -21,8 +21,16 @@ struct GeminiContent {
 }
 
 #[derive(Serialize, Deserialize)]
-struct GeminiPart {
-    text: String,
+#[serde(untagged)]
+enum GeminiPart {
+    Text { text: String },
+    InlineData { inline_data: GeminiInlineData },
+}
+
+#[derive(Serialize, Deserialize)]
+struct GeminiInlineData {
+    mime_type: String,
+    data: String,
 }
 
 // --- Response types ---
@@ -69,17 +77,26 @@ pub async fn call_gemini(
                 system_text = Some(m.content.clone());
             }
             Role::User => {
+                let mut parts = vec![GeminiPart::Text {
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(GeminiPart::InlineData {
+                        inline_data: GeminiInlineData {
+                            mime_type: img.media_type.clone(),
+                            data: img.base64_data.clone(),
+                        },
+                    });
+                }
                 contents.push(GeminiContent {
                     role: Some("user".to_string()),
-                    parts: vec![GeminiPart {
-                        text: m.content.clone(),
-                    }],
+                    parts,
                 });
             }
             Role::Assistant => {
                 contents.push(GeminiContent {
                     role: Some("model".to_string()),
-                    parts: vec![GeminiPart {
+                    parts: vec![GeminiPart::Text {
                         text: m.content.clone(),
                     }],
                 });
@@ -89,7 +106,7 @@ pub async fn call_gemini(
 
     let system_instruction = system_text.map(|text| GeminiContent {
         role: None,
-        parts: vec![GeminiPart { text }],
+        parts: vec![GeminiPart::Text { text }],
     });
 
     let body = GeminiRequest {
@@ -137,7 +154,10 @@ pub async fn call_gemini(
         .as_ref()
         .and_then(|c| c.first())
         .and_then(|c| c.content.parts.first())
-        .map(|p| p.text.clone())
+        .and_then(|p| match p {
+            GeminiPart::Text { text } => Some(text.clone()),
+            GeminiPart::InlineData { .. } => None,
+        })
         .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Gemini".into() })?;
     let usage = parsed
         .usage_metadata

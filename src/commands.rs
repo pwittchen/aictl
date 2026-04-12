@@ -198,6 +198,7 @@ pub async fn compact(
             and open tasks so we can continue without losing context. \
             Be concise but thorough."
             .to_string(),
+        images: vec![],
     });
 
     let result = match provider {
@@ -273,12 +274,14 @@ pub async fn compact(
             messages.push(Message {
                 role: Role::User,
                 content: format!("Here is a summary of our conversation so far:\n\n{summary}"),
+                images: vec![],
             });
             messages.push(Message {
                 role: Role::Assistant,
                 content: "Understood. I have the context from our previous \
                     conversation. How can I help you next?"
                     .to_string(),
+                images: vec![],
             });
             println!();
             ui.show_token_usage(
@@ -769,6 +772,7 @@ fn print_tools() {
             "fetch_geolocation",
             "get geolocation data for an IP address",
         ),
+        ("read_image", "read an image from file or URL for analysis"),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
@@ -2406,12 +2410,14 @@ async fn create_agent_with_ai(
                 description. The prompt should define the agent's role, capabilities, behavior, \
                 and constraints. Output ONLY the prompt text, nothing else."
                 .to_string(),
+            images: vec![],
         },
         Message {
             role: Role::User,
             content: format!(
                 "Create a system prompt for an AI agent named \"{name}\" that does the following: {description}"
             ),
+            images: vec![],
         },
     ];
 

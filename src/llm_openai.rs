@@ -9,9 +9,41 @@ struct OpenAiRequest {
     messages: Vec<OpenAiMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct OpenAiMessage {
     role: String,
+    content: OpenAiContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum OpenAiContent {
+    Text(String),
+    Parts(Vec<OpenAiContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum OpenAiContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: OpenAiImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct OpenAiImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct OpenAiResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct OpenAiResponse {
 
 #[derive(Deserialize)]
 struct OpenAiChoice {
-    message: OpenAiMessage,
+    message: OpenAiResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -49,13 +81,30 @@ pub async fn call_openai(
 
     let oai_messages: Vec<OpenAiMessage> = messages
         .iter()
-        .map(|m| OpenAiMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                OpenAiContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![OpenAiContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(OpenAiContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: OpenAiImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                OpenAiContent::Parts(parts)
+            };
+            OpenAiMessage { role, content }
         })
         .collect();
 
@@ -83,7 +132,10 @@ pub async fn call_openai(
         .choices
         .first()
         .map(|c| c.message.content.clone())
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from OpenAI".into() })?;
+        .unwrap_or_default();
+    if content.is_empty() {
+        return Err("No response from OpenAI".into());
+    }
     let usage = parsed
         .usage
         .map(|u| {

@@ -17,15 +17,22 @@ struct OllamaRequest {
     stream: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct OllamaMessage {
     role: String,
+    content: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    images: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct OllamaResponseMessage {
     content: String,
 }
 
 #[derive(Deserialize)]
 struct OllamaResponse {
-    message: Option<OllamaMessage>,
+    message: Option<OllamaResponseMessage>,
     prompt_eval_count: Option<u64>,
     eval_count: Option<u64>,
 }
@@ -87,6 +94,7 @@ pub async fn call_ollama(
                 Role::Assistant => "assistant".to_string(),
             },
             content: m.content.clone(),
+            images: m.images.iter().map(|img| img.base64_data.clone()).collect(),
         })
         .collect();
 

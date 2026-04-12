@@ -136,6 +136,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ extract_website     │ HTTP GET + scraper (DOM)  │      │
  │  │ fetch_datetime      │ date command (subprocess) │      │
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
+ │  │ read_image          │ fs::read / HTTP GET+base64│      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │

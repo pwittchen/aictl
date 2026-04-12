@@ -9,9 +9,41 @@ struct KimiRequest {
     messages: Vec<KimiMessage>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 struct KimiMessage {
     role: String,
+    content: KimiContent,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum KimiContent {
+    Text(String),
+    Parts(Vec<KimiContentPart>),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum KimiContentPart {
+    Text {
+        #[serde(rename = "type")]
+        part_type: String,
+        text: String,
+    },
+    ImageUrl {
+        #[serde(rename = "type")]
+        part_type: String,
+        image_url: KimiImageUrl,
+    },
+}
+
+#[derive(Serialize)]
+struct KimiImageUrl {
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct KimiResponseMessage {
     content: String,
 }
 
@@ -23,7 +55,7 @@ struct KimiResponse {
 
 #[derive(Deserialize)]
 struct KimiChoice {
-    message: KimiMessage,
+    message: KimiResponseMessage,
 }
 
 #[derive(Deserialize)]
@@ -51,13 +83,30 @@ pub async fn call_kimi(
 
     let kimi_messages: Vec<KimiMessage> = messages
         .iter()
-        .map(|m| KimiMessage {
-            role: match m.role {
+        .map(|m| {
+            let role = match m.role {
                 Role::System => "system".to_string(),
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
-            },
-            content: m.content.clone(),
+            };
+            let content = if m.images.is_empty() {
+                KimiContent::Text(m.content.clone())
+            } else {
+                let mut parts = vec![KimiContentPart::Text {
+                    part_type: "text".to_string(),
+                    text: m.content.clone(),
+                }];
+                for img in &m.images {
+                    parts.push(KimiContentPart::ImageUrl {
+                        part_type: "image_url".to_string(),
+                        image_url: KimiImageUrl {
+                            url: format!("data:{};base64,{}", img.media_type, img.base64_data),
+                        },
+                    });
+                }
+                KimiContent::Parts(parts)
+            };
+            KimiMessage { role, content }
         })
         .collect();
 

@@ -202,6 +202,7 @@ pub fn load_messages(id: &str) -> Result<Vec<Message>, String> {
             Some(Message {
                 role: role_from(role),
                 content: content.to_string(),
+                images: vec![],
             })
         })
         .collect())

@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
+use crate::ImageData;
 use crate::config::MAX_TOOL_OUTPUT_LEN;
 
 #[derive(Debug)]
@@ -9,7 +10,22 @@ pub struct ToolCall {
     pub input: String,
 }
 
-pub const TOOL_COUNT: usize = 14;
+/// Result of executing a tool: text output plus optional image data.
+pub struct ToolOutput {
+    pub text: String,
+    pub images: Vec<ImageData>,
+}
+
+impl ToolOutput {
+    fn text(s: String) -> Self {
+        Self {
+            text: s,
+            images: vec![],
+        }
+    }
+}
+
+pub const TOOL_COUNT: usize = 15;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -55,18 +71,28 @@ pub fn tools_enabled() -> bool {
     crate::config::config_get("AICTL_TOOLS_ENABLED").is_none_or(|v| v != "false" && v != "0")
 }
 
-pub async fn execute_tool(tool_call: &ToolCall) -> String {
+pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     // Global tools switch
     if !tools_enabled() {
-        return "All tools are disabled (AICTL_TOOLS_ENABLED=false in config)".to_string();
+        return ToolOutput::text(
+            "All tools are disabled (AICTL_TOOLS_ENABLED=false in config)".to_string(),
+        );
     }
 
     // Security gate
     if let Err(reason) = crate::security::validate_tool(tool_call) {
-        return format!("Security policy denied: {reason}");
+        return ToolOutput::text(format!("Security policy denied: {reason}"));
     }
 
     let input = &tool_call.input;
+
+    // read_image returns ToolOutput with image data
+    if tool_call.name == "read_image" {
+        let mut output = tool_read_image(input).await;
+        output.text = crate::security::sanitize_output(&output.text);
+        return output;
+    }
+
     let result = match tool_call.name.as_str() {
         "exec_shell" => tool_exec_shell(input).await,
         "read_file" => tool_read_file(input).await,
@@ -84,7 +110,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> String {
         "fetch_geolocation" => tool_fetch_geolocation(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
-    crate::security::sanitize_output(&result)
+    ToolOutput::text(crate::security::sanitize_output(&result))
 }
 
 /// Truncate a result string to the output size limit.
@@ -570,6 +596,78 @@ async fn tool_fetch_geolocation(input: &str) -> String {
     }
 }
 
+fn media_type_from_extension(path: &str) -> Option<&'static str> {
+    let ext = path.rsplit('.').next()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "bmp" => Some("image/bmp"),
+        "svg" => Some("image/svg+xml"),
+        "ico" => Some("image/x-icon"),
+        "tiff" | "tif" => Some("image/tiff"),
+        _ => None,
+    }
+}
+
+async fn tool_read_image(input: &str) -> ToolOutput {
+    use base64::Engine;
+
+    let input = input.trim();
+    if input.is_empty() {
+        return ToolOutput::text("Error: no file path or URL provided".to_string());
+    }
+
+    let is_url = input.starts_with("http://") || input.starts_with("https://");
+
+    let (bytes, media_type) = if is_url {
+        let client = crate::config::http_client();
+        let resp = match client.get(input).send().await {
+            Ok(r) => r,
+            Err(e) => return ToolOutput::text(format!("Error fetching image URL: {e}")),
+        };
+        if !resp.status().is_success() {
+            return ToolOutput::text(format!("Error: HTTP status {}", resp.status()));
+        }
+        let content_type = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|ct| ct.split(';').next())
+            .map(|s| s.trim().to_string());
+        let media = content_type
+            .filter(|ct| ct.starts_with("image/"))
+            .or_else(|| media_type_from_extension(input).map(String::from))
+            .unwrap_or_else(|| "image/png".to_string());
+        match resp.bytes().await {
+            Ok(b) => (b.to_vec(), media),
+            Err(e) => return ToolOutput::text(format!("Error reading image response: {e}")),
+        }
+    } else {
+        let media = media_type_from_extension(input)
+            .unwrap_or("image/png")
+            .to_string();
+        match tokio::fs::read(input).await {
+            Ok(b) => (b, media),
+            Err(e) => return ToolOutput::text(format!("Error reading image file: {e}")),
+        }
+    };
+
+    let size_kb = bytes.len() / 1024;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+    let description = format!("[Image loaded: {media_type}, {size_kb}KB, from {input}]");
+
+    ToolOutput {
+        text: description,
+        images: vec![ImageData {
+            base64_data: encoded,
+            media_type,
+        }],
+    }
+}
+
 pub fn confirm_tool_call(tool_call: &ToolCall) -> bool {
     eprint!(
         "Tool call [{}]: {}\nAllow? [y/N] ",
@@ -744,7 +842,7 @@ mod tests {
             input: path.to_string_lossy().into(),
         })
         .await;
-        assert_eq!(result, "hello world");
+        assert_eq!(result.text, "hello world");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -758,7 +856,7 @@ mod tests {
             input: path.to_string_lossy().into(),
         })
         .await;
-        assert_eq!(result, "(empty file)");
+        assert_eq!(result.text, "(empty file)");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -769,7 +867,7 @@ mod tests {
             input: "/tmp/aictl_nonexistent_file_xyz".into(),
         })
         .await;
-        assert!(result.starts_with("Error reading file:"));
+        assert!(result.text.starts_with("Error reading file:"));
     }
 
     #[tokio::test]
@@ -782,7 +880,7 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.starts_with("Wrote"));
+        assert!(result.text.starts_with("Wrote"));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "file content here");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -794,7 +892,7 @@ mod tests {
             input: "single_line_no_newline".into(),
         })
         .await;
-        assert!(result.contains("Invalid input"));
+        assert!(result.text.contains("Invalid input"));
     }
 
     #[tokio::test]
@@ -808,7 +906,7 @@ mod tests {
             input: path.to_string_lossy().into(),
         })
         .await;
-        assert!(result.starts_with("Removed"));
+        assert!(result.text.starts_with("Removed"));
         assert!(!path.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -820,7 +918,7 @@ mod tests {
             input: "/tmp/aictl_nonexistent_file_xyz".into(),
         })
         .await;
-        assert!(result.starts_with("Error removing file:"));
+        assert!(result.text.starts_with("Error removing file:"));
     }
 
     #[tokio::test]
@@ -833,7 +931,7 @@ mod tests {
             input: new_dir.to_string_lossy().into(),
         })
         .await;
-        assert!(result.starts_with("Created directory"));
+        assert!(result.text.starts_with("Created directory"));
         assert!(new_dir.exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -848,10 +946,10 @@ mod tests {
             input: dir.to_string_lossy().into(),
         })
         .await;
-        assert!(result.contains("[FILE]"));
-        assert!(result.contains("[DIR]"));
-        assert!(result.contains("a.txt"));
-        assert!(result.contains("subdir"));
+        assert!(result.text.contains("[FILE]"));
+        assert!(result.text.contains("[DIR]"));
+        assert!(result.text.contains("a.txt"));
+        assert!(result.text.contains("subdir"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -863,7 +961,7 @@ mod tests {
             input: dir.to_string_lossy().into(),
         })
         .await;
-        assert_eq!(result, "(empty directory)");
+        assert_eq!(result.text, "(empty directory)");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -878,7 +976,7 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.contains("replaced 1 occurrence"));
+        assert!(result.text.contains("replaced 1 occurrence"));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "goodbye world");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -897,7 +995,7 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.contains("old text not found"));
+        assert!(result.text.contains("old text not found"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -912,7 +1010,7 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.contains("found 2 times"));
+        assert!(result.text.contains("found 2 times"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -927,8 +1025,8 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.contains("a.rs"));
-        assert!(!result.contains("b.txt"));
+        assert!(result.text.contains("a.rs"));
+        assert!(!result.text.contains("b.txt"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -941,7 +1039,7 @@ mod tests {
             input,
         })
         .await;
-        assert_eq!(result, "No matches found.");
+        assert_eq!(result.text, "No matches found.");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -956,8 +1054,8 @@ mod tests {
             input,
         })
         .await;
-        assert!(result.contains("match.txt"));
-        assert!(result.contains("needle in haystack"));
+        assert!(result.text.contains("match.txt"));
+        assert!(result.text.contains("needle in haystack"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -971,7 +1069,7 @@ mod tests {
             input,
         })
         .await;
-        assert_eq!(result, "No matches found.");
+        assert_eq!(result.text, "No matches found.");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -982,7 +1080,7 @@ mod tests {
             input: "echo hello".into(),
         })
         .await;
-        assert_eq!(result.trim(), "hello");
+        assert_eq!(result.text.trim(), "hello");
     }
 
     #[tokio::test]
@@ -992,8 +1090,8 @@ mod tests {
             input: "echo oops >&2".into(),
         })
         .await;
-        assert!(result.contains("[stderr]"));
-        assert!(result.contains("oops"));
+        assert!(result.text.contains("[stderr]"));
+        assert!(result.text.contains("oops"));
     }
 
     #[tokio::test]
@@ -1003,7 +1101,7 @@ mod tests {
             input: "true".into(),
         })
         .await;
-        assert_eq!(result, "(no output)");
+        assert_eq!(result.text, "(no output)");
     }
 
     #[tokio::test]
@@ -1013,8 +1111,8 @@ mod tests {
             input: String::new(),
         })
         .await;
-        assert!(!result.is_empty());
-        assert!(result.starts_with("20"));
+        assert!(!result.text.is_empty());
+        assert!(result.text.starts_with("20"));
     }
 
     #[test]
@@ -1055,6 +1153,53 @@ mod tests {
             input: String::new(),
         })
         .await;
-        assert_eq!(result, "Unknown tool: nonexistent");
+        assert_eq!(result.text, "Unknown tool: nonexistent");
+    }
+
+    #[tokio::test]
+    async fn exec_read_image_file() {
+        let dir = tmp_dir("read_img");
+        let path = dir.join("test.png");
+        // Write a minimal valid PNG (1x1 pixel, white)
+        let png_bytes: &[u8] = &[
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+            0x77, 0x53, 0xDE,
+        ];
+        std::fs::write(&path, png_bytes).unwrap();
+        let result = execute_tool(&ToolCall {
+            name: "read_image".into(),
+            input: path.to_string_lossy().into(),
+        })
+        .await;
+        assert!(result.text.contains("Image loaded"));
+        assert!(result.text.contains("image/png"));
+        assert_eq!(result.images.len(), 1);
+        assert_eq!(result.images[0].media_type, "image/png");
+        assert!(!result.images[0].base64_data.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn exec_read_image_not_found() {
+        let result = execute_tool(&ToolCall {
+            name: "read_image".into(),
+            input: "/tmp/aictl_nonexistent_image.png".into(),
+        })
+        .await;
+        assert!(result.text.starts_with("Error reading image file:"));
+        assert!(result.images.is_empty());
+    }
+
+    #[tokio::test]
+    async fn exec_read_image_empty_input() {
+        let result = execute_tool(&ToolCall {
+            name: "read_image".into(),
+            input: String::new(),
+        })
+        .await;
+        assert!(result.text.contains("no file path or URL"));
+        assert!(result.images.is_empty());
     }
 }

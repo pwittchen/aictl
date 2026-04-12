@@ -366,7 +366,11 @@ impl InteractiveUI {
             m[next].with(Color::Cyan),
             format!(
                 "{backend} {}",
-                if plain == 0 && both == 0 { "●" } else { "○" }
+                if plain == 0 && both == 0 {
+                    "●"
+                } else {
+                    "○"
+                }
             )
             .with(backend_color),
             format!("({locked} locked · {plain} plain · {both} both)").with(Color::DarkGrey),

@@ -84,6 +84,7 @@ Available tools:
 - extract_website: Fetch a URL and extract only the main readable content. Pass the URL as input. Strips scripts, styles, navigation, headers, footers, and other boilerplate. Use this instead of fetch_url when you need clean article or page text.
 - fetch_datetime: Get the current date and time. No input required. Returns the current date, time, timezone, and day of week. Always call this tool first when the user's message involves relative time references like "today", "now", "tonight", "this week", "yesterday", "tomorrow", "currently", etc. so your answer is grounded in the actual current date and time.
 - fetch_geolocation: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info. Always call this tool first (with empty input) when the user's message involves location references like "here", "near me", "nearby", "in this area", "in my city", "local", "around me", etc. so your answer is grounded in the user's actual location.
+- read_image: Read an image from a file path or URL for visual analysis. Pass a file path or URL as input. Supports PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, and ICO formats. The image is loaded and sent to the model for vision analysis. Always use this tool when the user asks about an image, asks you to describe/analyze a picture, or references an image file or image URL.
 
 Rules:
 - Use at most one tool call per response.

@@ -435,6 +435,7 @@ Available tools:
 | `extract_website` | Fetch a URL and extract only the main readable content (strips scripts, styles, nav, boilerplate) |
 | `fetch_datetime` | Get the current date, time, timezone, and day of week |
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
+| `read_image` | Read an image from a file path or URL for vision analysis (PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, ICO) |
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 

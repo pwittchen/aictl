@@ -15,6 +15,7 @@ dependencies = [
 name = "aictl"
 version = "0.15.4"
 dependencies = [
+ "base64",
  "clap",
  "crossterm",
  "glob",

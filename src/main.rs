@@ -234,9 +234,16 @@ pub enum Role {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImageData {
+    pub base64_data: String,
+    pub media_type: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct Message {
     pub role: Role,
     pub content: String,
+    pub images: Vec<ImageData>,
 }
 
 /// Build the full system prompt, appending the project prompt file and loaded agent if present.
@@ -291,12 +298,13 @@ async fn handle_tool_call(
 
     if approval == ui::ToolApproval::Allow || approval == ui::ToolApproval::AutoAccept {
         ui.start_spinner("running tool...");
-        let result = with_esc_cancel(tools::execute_tool(tool_call)).await?;
+        let output = with_esc_cancel(tools::execute_tool(tool_call)).await?;
         ui.stop_spinner();
-        ui.show_tool_result(&result);
+        ui.show_tool_result(&output.text);
         messages.push(Message {
             role: Role::User,
-            content: format!("<tool_result>\n{result}\n</tool_result>"),
+            content: format!("<tool_result>\n{}\n</tool_result>", output.text),
+            images: output.images,
         });
         Ok(ToolAction::Executed)
     } else {
@@ -304,6 +312,7 @@ async fn handle_tool_call(
             role: Role::User,
             content: "Tool call denied by user. Try a different approach or answer without tools."
                 .to_string(),
+            images: vec![],
         });
         Ok(ToolAction::Denied)
     }
@@ -343,6 +352,7 @@ async fn run_agent_turn(
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),
+        images: vec![],
     });
 
     let mut total_usage = TokenUsage::default();
@@ -418,6 +428,7 @@ async fn run_agent_turn(
         messages.push(Message {
             role: Role::Assistant,
             content: response.clone(),
+            images: vec![],
         });
 
         let tool_call = tools::parse_tool_call(&response);
@@ -442,6 +453,7 @@ async fn run_agent_turn(
             messages.push(Message {
                 role: Role::User,
                 content: "Your previous response contained a `<tool>` tag that could not be parsed. Retry using exactly this syntax: `<tool name=\"<tool_name>\">input</tool>`. If you did not intend to call a tool, reply with your final answer without any `<tool>` tags.".to_string(),
+                images: vec![],
             });
             continue;
         }
@@ -487,6 +499,7 @@ async fn run_agent_single(
     let mut messages = vec![Message {
         role: Role::System,
         content: build_system_prompt(),
+        images: vec![],
     }];
 
     let mut auto = auto;
@@ -926,6 +939,7 @@ async fn run_interactive(
     let mut messages = vec![Message {
         role: Role::System,
         content: build_system_prompt(),
+        images: vec![],
     }];
 
     // Initialize session: load if requested, otherwise create a new one.
