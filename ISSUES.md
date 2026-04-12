@@ -2,8 +2,6 @@
 
 ## Tools
 
-- **Image generation** `[tool]` — Generate images via an external API (e.g. DALL-E, Stable Diffusion). Save to disk and return the file path.
-
 - **PDF and DOCX reading** `[tool]` — Extract text from PDF and DOCX files so the agent can reason over documents.
 
 - **XLSX reading** `[tool]` — Read spreadsheets via the `calamine` crate. Return cell contents in a structured format.

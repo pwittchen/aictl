@@ -773,6 +773,10 @@ fn print_tools() {
             "get geolocation data for an IP address",
         ),
         ("read_image", "read an image from file or URL for analysis"),
+        (
+            "generate_image",
+            "generate an image from text (DALL-E/Imagen/Grok)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

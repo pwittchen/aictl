@@ -436,6 +436,25 @@ Available tools:
 | `fetch_datetime` | Get the current date, time, timezone, and day of week |
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 | `read_image` | Read an image from a file path or URL for vision analysis (PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, ICO) |
+| `generate_image` | Generate an image from a text description via DALL-E, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
+
+#### Image capabilities by provider
+
+The `read_image` (vision/analysis) and `generate_image` tools depend on provider support:
+
+| Provider | Image analysis (`read_image`) | Image generation (`generate_image`) |
+|----------|-------------------------------|-------------------------------------|
+| OpenAI | All models | DALL-E 3 |
+| Anthropic | All models | -- |
+| Gemini | All models | Imagen 4.0 |
+| Grok | All models | Grok 2 Image |
+| Mistral | All models | -- |
+| DeepSeek | -- | -- |
+| Kimi | kimi-k2.5 and moonshot-v1 variants | -- |
+| Z.ai | -- (requires GLM vision models not in catalog) | -- |
+| Ollama | Model-dependent (e.g. llava, llama3.2-vision) | -- |
+
+**Image generation fallback**: `generate_image` auto-selects a provider based on available API keys. The active provider is tried first (if it supports generation), then falls back through OpenAI, Gemini, and Grok in order. This means you can generate images even when your active chat provider (e.g. Anthropic or Mistral) doesn't offer a generation API — as long as you have at least one of `LLM_OPENAI_API_KEY`, `LLM_GEMINI_API_KEY`, or `LLM_GROK_API_KEY` configured.
 
 The tool-calling mechanism uses a custom XML format in the LLM response text (not provider-native tool APIs):
 

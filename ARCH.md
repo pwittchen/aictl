@@ -137,11 +137,18 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_datetime      │ date command (subprocess) │      │
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  │ read_image          │ fs::read / HTTP GET+base64│      │
+ │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
  │  3. sanitize_output() ── escape <tool> tags in results    │
  │  All outputs truncated at 10,000 chars                    │
+ │                                                           │
+ │  Notes:                                                   │
+ │  - read_image attaches ImageData to Message; providers    │
+ │    encode it in their native vision format                │
+ │  - generate_image auto-selects provider by available key: │
+ │    active provider first, then OpenAI > Gemini > Grok     │
  └───────────────────────────────────────────────────────────┘
 ```
 
