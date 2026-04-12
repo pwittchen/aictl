@@ -17,6 +17,10 @@
 - **Project domain** — Register a domain and point it to the VPS.
 - **Project website** `[marketing]` — Build a public-facing project website.
 
+## Other
+
+- **Stats** - add some stats to the app like number of requests, tool calls, model usage, costs - keep overall stats, per month and per day
+
 ## Roadmap
 
 ### Modular architecture
