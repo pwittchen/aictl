@@ -1,5 +1,9 @@
 # Issues
 
+## Agents
+
+- **Manual Prompt Bug** - pasting copied prompt while creating new agent causes incorrect work. Prompt is copied partially and agent is being created too fast. It may be related to empty lines in prompt, but I'm not sure.
+
 ## Tools
 
 - **PDF and DOCX reading** `[tool]` — Extract text from PDF and DOCX files so the agent can reason over documents.
