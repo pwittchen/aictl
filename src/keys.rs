@@ -75,11 +75,11 @@ pub fn backend_name() -> &'static str {
         return "plain text";
     }
     if cfg!(target_os = "macos") {
-        "Keychain"
+        "keychain"
     } else if cfg!(target_os = "windows") {
-        "Credential Manager"
+        "credential manager"
     } else if cfg!(target_os = "linux") {
-        "Secret Service"
+        "secret service"
     } else {
         "system keyring"
     }

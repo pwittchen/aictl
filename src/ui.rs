@@ -364,7 +364,11 @@ impl InteractiveUI {
             "{PAD}{} {}{} {}",
             PIPE.with(Color::DarkGrey),
             m[next].with(Color::Cyan),
-            format!("keys: {backend}").with(backend_color),
+            format!(
+                "{backend} {}",
+                if plain == 0 && both == 0 { "●" } else { "○" }
+            )
+            .with(backend_color),
             format!("({locked} locked · {plain} plain · {both} both)").with(Color::DarkGrey),
         );
         next += 1;
