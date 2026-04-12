@@ -768,6 +768,11 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
+        commands::CommandResult::Version => {
+            let _ = rl.add_history_entry(input);
+            commands::run_version(&|msg| ui.show_error(msg)).await;
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Model => {
             let _ = rl.add_history_entry(input);
             let ollama_models = llm_ollama::list_models().await;

@@ -59,6 +59,7 @@ pub const COMMANDS: &[&str] = &[
     "tools",
     "unlock-keys",
     "update",
+    "version",
 ];
 
 /// Result of handling a slash command.
@@ -83,6 +84,8 @@ pub enum CommandResult {
     Memory,
     /// Update to the latest version.
     Update,
+    /// Check current version against the latest available.
+    Version,
     /// Open the agent management menu.
     Agent,
     /// Open the session management menu.
@@ -121,6 +124,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "behavior" => CommandResult::Behavior,
         "memory" => CommandResult::Memory,
         "update" => CommandResult::Update,
+        "version" => CommandResult::Version,
         "session" => CommandResult::Session,
         "issues" => CommandResult::Issues,
         "copy" => {
@@ -394,6 +398,7 @@ fn print_help() {
         ),
         ("/config", "re-run the configuration wizard"),
         ("/update", "update to the latest version"),
+        ("/version", "check current version against the latest"),
         ("/exit", "exit the REPL"),
     ];
     let max_len = entries.iter().map(|(c, _)| c.len()).max().unwrap_or(0);
@@ -1294,6 +1299,41 @@ pub async fn run_issues(show_error: &dyn Fn(&str)) {
     println!();
     for line in rendered.lines() {
         println!("  {line}");
+    }
+    println!();
+}
+
+/// Check the current version against the latest available (REPL `/version`).
+pub async fn run_version(show_error: &dyn Fn(&str)) {
+    println!();
+    println!(
+        "  {} checking latest version...",
+        "↓".with(Color::Cyan),
+    );
+
+    let remote = crate::fetch_remote_version().await;
+    match &remote {
+        Some(v) if v == crate::VERSION => {
+            println!(
+                "  {} aictl {} (latest)",
+                "✓".with(Color::Green),
+                crate::VERSION,
+            );
+        }
+        Some(v) => {
+            println!(
+                "  {} aictl {} → {v} available",
+                "!".with(Color::Yellow),
+                crate::VERSION,
+            );
+            println!(
+                "  run {} to update",
+                "/update".with(Color::Cyan),
+            );
+        }
+        None => {
+            show_error("Could not check remote version. Please try again later.");
+        }
     }
     println!();
 }
