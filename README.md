@@ -3,7 +3,7 @@
 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 
-AI agent in your terminal
+AI agent in your terminal — 51 built-in models across 9 providers, plus any model available through Ollama
 
 ![aictl screenshot](screenshot.png)
 
