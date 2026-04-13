@@ -3,7 +3,6 @@
 ## Tools
 
 - **PDF and DOCX reading** `[tool]` — Extract text from PDF and DOCX files so the agent can reason over documents.
-
 - **XLSX reading** `[tool]` — Read spreadsheets via the `calamine` crate. Return cell contents in a structured format.
 
 ## LLM Providers
