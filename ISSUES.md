@@ -16,7 +16,7 @@
 
 ## Infrastructure
 
-- **Project domain** — Register a domain and point it to the VPS.
+- **Project domain configuration** — configure domain, so it'll point to the VPS via Cloudflare (with `cloudflared`)
 - **Project website** `[marketing]` — Build a public-facing project website.
 
 ## Other
