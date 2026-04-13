@@ -6,9 +6,9 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /compact, /context, /copy, /exit, /help, /info, /issues, /lock-keys, /memory, /model, /security, /session, /tools, /unlock-keys, /update)
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /compact, /config, /context, /copy, /exit, /help, /info, /issues, /lock-keys, /memory, /model, /security, /session, /tools, /unlock-keys, /update, /version)
  ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
- ├── keys.rs             Secure API key storage. System keyring (Keychain / Credential Manager / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
+ ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
@@ -138,6 +138,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  │ read_image          │ fs::read / HTTP GET+base64│      │
  │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
+ │  │ read_document       │ pdf-extract / zip+XML     │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -149,6 +150,8 @@ Both single-shot and REPL modes share the same loop:
  │    encode it in their native vision format                │
  │  - generate_image auto-selects provider by available key: │
  │    active provider first, then OpenAI > Gemini > Grok     │
+ │  - read_document dispatches by extension: .pdf via        │
+ │    pdf-extract, .docx via zip + XML-to-markdown parser    │
  └───────────────────────────────────────────────────────────┘
 ```
 
@@ -230,7 +233,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /update (Update)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /config (Config), /update (Update), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -248,6 +251,8 @@ Both single-shot and REPL modes share the same loop:
    UnlockKeys  → migrate API keys from the system keyring back into config, continue
    ClearKeys   → remove API keys from both config and keyring (with confirmation), continue
    Update      → run update, restart if updated, continue
+   Version     → check current version against latest available, continue
+   Config      → re-run interactive configuration wizard, continue
    Model       → select new model/provider, persist to ~/.aictl/config, continue
    Behavior    → switch auto/human-in-the-loop behavior, continue
    Memory      → switch memory mode (long-term/short-term), persist to ~/.aictl/config, continue
@@ -353,7 +358,7 @@ Recognized keys include:
 
 ### API key storage (`src/keys.rs`)
 
-API keys can live in two places: the plain-text `~/.aictl/config` file (the legacy default) or the OS-native keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service). Lookups via `keys::get_secret(name)` check the keyring first and fall back to the config file, so users can mix the two during migration.
+API keys can live in two places: the plain-text `~/.aictl/config` file (the legacy default) or the OS-native keyring (macOS Keychain, Linux Secret Service). Lookups via `keys::get_secret(name)` check the keyring first and fall back to the config file, so users can mix the two during migration.
 
 ```
  ┌──────────────────────────────────────────────────────────────────┐
@@ -380,7 +385,7 @@ API keys can live in two places: the plain-text `~/.aictl/config` file (the lega
 - `unlock_key(name)` reads the value from the keyring, writes it to the config file via `config_set`, then deletes the keyring entry.
 - `clear_key(name)` removes the entry from both stores; the slash command wraps this with a y/N confirmation.
 
-The keyring backend is selected at compile time via Cargo features: `apple-native` on macOS, `windows-native` on Windows, `sync-secret-service` on Linux. **Without explicit features the `keyring` v3 crate silently uses an in-memory mock store** that pretends writes succeed but never persists — `Cargo.toml` enables all three platform backends to avoid this trap. `backend_available()` probes the active backend at runtime so headless Linux systems with no Secret Service daemon transparently fall back to plain-text storage and the welcome banner shows `keys: plain text` in yellow.
+The keyring backend is selected at compile time via Cargo features: `apple-native` on macOS, `sync-secret-service` on Linux. **Without explicit features the `keyring` v3 crate silently uses an in-memory mock store** that pretends writes succeed but never persists — `Cargo.toml` enables both platform backends to avoid this trap. `backend_available()` probes the active backend at runtime so headless Linux systems with no Secret Service daemon transparently fall back to plain-text storage and the welcome banner shows `keys: plain text` in yellow.
 
 ### `~/.aictl/history`
 

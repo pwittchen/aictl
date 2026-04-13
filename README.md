@@ -115,7 +115,9 @@ The interactive REPL supports slash commands:
 | `/lock-keys` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring |
 | `/unlock-keys` | Migrate API keys from the system keyring back into `~/.aictl/config` |
 | `/clear-keys` | Remove API keys from both `~/.aictl/config` and the system keyring (with confirmation) |
+| `/config` | Re-run the interactive configuration wizard |
 | `/update` | Update to the latest version |
+| `/version` | Check current version against the latest available |
 | `/exit` | Exit the REPL |
 
 Press **Esc** during any LLM call or tool execution to interrupt the operation and return to the prompt. Conversation history is rolled back so the interrupted turn has no effect.
@@ -214,7 +216,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 
 #### Secure key storage (system keyring)
 
-By default, API keys live as plain text in `~/.aictl/config`. aictl can also store them in the OS-native keyring — macOS Keychain, Windows Credential Manager, or Linux Secret Service (gnome-keyring / KWallet via D-Bus) — and reads them transparently from whichever store has them.
+By default, API keys live as plain text in `~/.aictl/config`. aictl can also store them in the OS-native keyring — macOS Keychain or Linux Secret Service (gnome-keyring / KWallet via D-Bus) — and reads them transparently from whichever store has them.
 
 The active backend appears in the welcome banner (`keys: Keychain (2 locked · 1 plain · 0 both)`) and `/security` shows the per-key location.
 
@@ -437,6 +439,7 @@ Available tools:
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 | `read_image` | Read an image from a file path or URL for vision analysis (PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, ICO) |
 | `generate_image` | Generate an image from a text description via DALL-E, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
+| `read_document` | Read a PDF or DOCX file and extract its content as markdown text (PDF via `pdf-extract`; DOCX parsed from ZIP archive XML with heading, list, table, and formatting conversion) |
 
 #### Image capabilities by provider
 

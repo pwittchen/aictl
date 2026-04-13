@@ -782,6 +782,10 @@ fn print_tools() {
             "generate_image",
             "generate an image from text (DALL-E/Imagen/Grok)",
         ),
+        (
+            "read_document",
+            "read a PDF or DOCX file as markdown text",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
@@ -1286,6 +1290,14 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
         "  {} {model_count} cataloged + ollama local models",
         "models:   ".with(Color::Cyan)
     );
+    let tool_count = crate::tools::TOOL_COUNT;
+    let disabled = crate::security::policy().disabled_tools.len();
+    let tools_info = if disabled > 0 {
+        format!("{tool_count} ({disabled} disabled)")
+    } else {
+        format!("{tool_count}")
+    };
+    println!("  {} {tools_info}", "tools:    ".with(Color::Cyan));
     println!();
 }
 

@@ -1,7 +1,7 @@
 //! Secure API key storage.
 //!
-//! This module wraps the system keyring (macOS Keychain, Windows Credential
-//! Manager, Linux Secret Service) with a transparent plain-text fallback to
+//! This module wraps the system keyring (macOS Keychain, Linux Secret Service)
+//! with a transparent plain-text fallback to
 //! `~/.aictl/config`.
 //!
 //! The rest of the program retrieves API keys via [`get_secret`], which tries
@@ -76,8 +76,6 @@ pub fn backend_name() -> &'static str {
     }
     if cfg!(target_os = "macos") {
         "keychain"
-    } else if cfg!(target_os = "windows") {
-        "credential manager"
     } else if cfg!(target_os = "linux") {
         "secret service"
     } else {
