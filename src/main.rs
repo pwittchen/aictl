@@ -14,6 +14,7 @@ mod llm_openai;
 mod llm_zai;
 mod security;
 mod session;
+mod stats;
 mod tools;
 mod ui;
 
@@ -515,6 +516,7 @@ async fn run_agent_single(
         MemoryMode::LongTerm,
     )
     .await?;
+    stats::record(model, turn.llm_calls, turn.tool_calls, &turn.usage);
     ui.show_answer(&turn.answer);
     if turn.llm_calls > 1 {
         ui.show_summary(
@@ -711,6 +713,16 @@ async fn handle_repl_input(
             commands::run_clear_keys(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
         }
+        commands::CommandResult::Stats => {
+            let _ = rl.add_history_entry(input);
+            commands::print_stats();
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::ClearStats => {
+            let _ = rl.add_history_entry(input);
+            commands::run_clear_stats(&|msg| ui.show_error(msg));
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Config => {
             let _ = rl.add_history_entry(input);
             commands::run_config_wizard(true);
@@ -887,6 +899,7 @@ async fn run_and_display_turn(
     let msg_len_before = messages.len();
     match run_agent_turn(provider, api_key, model, messages, input, auto, ui, memory).await {
         Ok(turn) => {
+            stats::record(model, turn.llm_calls, turn.tool_calls, &turn.usage);
             ui.show_answer(&turn.answer);
             *last_answer = turn.answer;
             *last_input_tokens = turn.last_input_tokens;

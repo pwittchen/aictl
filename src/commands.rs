@@ -43,6 +43,7 @@ pub const COMMANDS: &[&str] = &[
     "behavior",
     "clear",
     "clear-keys",
+    "clear-stats",
     "compact",
     "config",
     "context",
@@ -56,6 +57,7 @@ pub const COMMANDS: &[&str] = &[
     "model",
     "security",
     "session",
+    "stats",
     "tools",
     "unlock-keys",
     "update",
@@ -100,6 +102,10 @@ pub enum CommandResult {
     ClearKeys,
     /// Re-run the interactive configuration wizard.
     Config,
+    /// Show usage statistics.
+    Stats,
+    /// Clear all usage statistics.
+    ClearStats,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -143,6 +149,8 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "unlock-keys" => CommandResult::UnlockKeys,
         "clear-keys" => CommandResult::ClearKeys,
         "config" => CommandResult::Config,
+        "stats" => CommandResult::Stats,
+        "clear-stats" => CommandResult::ClearStats,
         _ => {
             show_error("Unknown command. Type /help for available commands.");
             CommandResult::Continue
@@ -382,6 +390,8 @@ fn print_help() {
         ("/model", "switch model and provider"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
+        ("/stats", "show usage statistics (today/month/overall)"),
+        ("/clear-stats", "clear all usage statistics"),
         ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
         (
@@ -590,6 +600,102 @@ fn print_key_storage(max_label: usize) {
             label.with(color),
         );
     }
+    println!();
+}
+
+/// Print a single stats section (today / this month / overall).
+fn print_stats_section(label: &str, stats: &crate::stats::DayStats) {
+    println!(
+        "  {}",
+        label
+            .with(Color::Cyan)
+            .attribute(crossterm::style::Attribute::Bold),
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "requests:").with(Color::DarkGrey),
+        stats.requests,
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "llm calls:").with(Color::DarkGrey),
+        stats.llm_calls,
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "tool calls:").with(Color::DarkGrey),
+        stats.tool_calls,
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "input tokens:").with(Color::DarkGrey),
+        format_token_count(stats.input_tokens),
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "output tokens:").with(Color::DarkGrey),
+        format_token_count(stats.output_tokens),
+    );
+    println!(
+        "    {} {}",
+        format!("{:<15}", "cost:").with(Color::DarkGrey),
+        format_cost(stats.cost_usd),
+    );
+    if !stats.models.is_empty() {
+        let mut models: Vec<_> = stats.models.iter().collect();
+        models.sort_by(|a, b| b.1.cmp(a.1));
+        let model_str: Vec<String> = models.iter().map(|(m, c)| format!("{m} ({c})")).collect();
+        println!(
+            "    {} {}",
+            format!("{:<15}", "models:").with(Color::DarkGrey),
+            model_str.join(", "),
+        );
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn format_token_count(tokens: u64) -> String {
+    if tokens >= 1_000_000 {
+        format!("{:.1}M", tokens as f64 / 1_000_000.0)
+    } else if tokens >= 1_000 {
+        format!("{:.1}K", tokens as f64 / 1_000.0)
+    } else {
+        format!("{tokens}")
+    }
+}
+
+fn format_cost(cost: f64) -> String {
+    if cost < 0.01 {
+        format!("${cost:.4}")
+    } else {
+        format!("${cost:.2}")
+    }
+}
+
+/// Display usage statistics: today, this month, overall.
+pub fn print_stats() {
+    let today = crate::stats::today();
+    let month = crate::stats::this_month();
+    let overall = crate::stats::overall();
+    let days = crate::stats::day_count();
+
+    println!();
+    print_stats_section("Today", &today);
+    println!();
+    print_stats_section("This month", &month);
+    println!();
+    print_stats_section(&format!("Overall ({days} days)"), &overall);
+    println!();
+}
+
+/// Clear all stats after user confirmation.
+pub fn run_clear_stats(_show_error: &dyn Fn(&str)) {
+    println!();
+    if !confirm_yn("clear ALL usage statistics?") {
+        return;
+    }
+    crate::stats::clear_all();
+    println!("  {} statistics cleared", "✓".with(Color::Green));
     println!();
 }
 
@@ -2831,9 +2937,7 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
             AgentListAction::Edit(i) => {
                 let entry = &entries[i];
                 let is_loaded = agents::loaded_agent_name().as_deref() == Some(entry.name.as_str());
-                if edit_agent_prompt(&entry.name, is_loaded, messages, show_error)
-                    == Some(true)
-                {
+                if edit_agent_prompt(&entry.name, is_loaded, messages, show_error) == Some(true) {
                     return true;
                 }
                 // Return to the list

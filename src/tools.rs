@@ -903,11 +903,7 @@ async fn tool_read_document(input: &str) -> String {
         return "Error: no file path provided".to_string();
     }
 
-    let ext = path
-        .rsplit('.')
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase();
+    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
 
     match ext.as_str() {
         "pdf" => {
@@ -1084,7 +1080,8 @@ fn docx_xml_to_markdown(xml: &str) -> String {
     while pos < bytes.len() {
         if let Some(p_start) = find_tag(xml, pos, "<w:tbl") {
             // Check if there's a paragraph before this table
-            if let Some(para_start) = find_tag(xml, pos, "<w:p ").or_else(|| find_tag(xml, pos, "<w:p>"))
+            if let Some(para_start) =
+                find_tag(xml, pos, "<w:p ").or_else(|| find_tag(xml, pos, "<w:p>"))
                 && para_start < p_start
             {
                 let para_end = find_closing(xml, para_start, "w:p").unwrap_or(p_start);
@@ -1134,7 +1131,9 @@ fn convert_paragraph(para: &str) -> String {
     // Extract text runs
     let mut text = String::new();
     let mut rpos = 0;
-    while let Some(r_start) = find_tag(para, rpos, "<w:r>").or_else(|| find_tag(para, rpos, "<w:r ")) {
+    while let Some(r_start) =
+        find_tag(para, rpos, "<w:r>").or_else(|| find_tag(para, rpos, "<w:r "))
+    {
         let r_end = find_closing(para, r_start, "w:r").unwrap_or(para.len());
         let run = &para[r_start..r_end];
 
@@ -1143,9 +1142,15 @@ fn convert_paragraph(para: &str) -> String {
 
         // Extract text from <w:t> tags
         let mut tpos = 0;
-        while let Some(t_start) = find_tag(run, tpos, "<w:t>").or_else(|| find_tag(run, tpos, "<w:t ")) {
-            let content_start = run[t_start..].find('>').map_or(t_start, |i| t_start + i + 1);
-            let content_end = run[content_start..].find("</w:t>").map_or(run.len(), |i| content_start + i);
+        while let Some(t_start) =
+            find_tag(run, tpos, "<w:t>").or_else(|| find_tag(run, tpos, "<w:t "))
+        {
+            let content_start = run[t_start..]
+                .find('>')
+                .map_or(t_start, |i| t_start + i + 1);
+            let content_end = run[content_start..]
+                .find("</w:t>")
+                .map_or(run.len(), |i| content_start + i);
             let t = &run[content_start..content_end];
             if is_bold && is_italic {
                 let _ = write!(text, "***{t}***");
@@ -1189,9 +1194,15 @@ fn convert_table(tbl: &str) -> String {
             // Extract all text from the cell
             let mut cell_text = String::new();
             let mut tpos = 0;
-            while let Some(t_start) = find_tag(cell_xml, tpos, "<w:t>").or_else(|| find_tag(cell_xml, tpos, "<w:t ")) {
-                let cs = cell_xml[t_start..].find('>').map_or(t_start, |i| t_start + i + 1);
-                let ce = cell_xml[cs..].find("</w:t>").map_or(cell_xml.len(), |i| cs + i);
+            while let Some(t_start) =
+                find_tag(cell_xml, tpos, "<w:t>").or_else(|| find_tag(cell_xml, tpos, "<w:t "))
+            {
+                let cs = cell_xml[t_start..]
+                    .find('>')
+                    .map_or(t_start, |i| t_start + i + 1);
+                let ce = cell_xml[cs..]
+                    .find("</w:t>")
+                    .map_or(cell_xml.len(), |i| cs + i);
                 if !cell_text.is_empty() {
                     cell_text.push(' ');
                 }
@@ -1845,7 +1856,8 @@ mod tests {
 
     #[test]
     fn docx_xml_heading() {
-        let xml = r#"<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>"#;
+        let xml =
+            r#"<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>"#;
         let md = docx_xml_to_markdown(xml);
         assert!(md.contains("# Title"));
     }
