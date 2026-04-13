@@ -19,8 +19,6 @@
 
 - **Stats** - add some stats to the app like number of requests, tool calls, model usage, costs - keep overall stats, per month and per day
 
-- **Info** - in the info command, provide an information how many LLM providers and LLM models program supports now
-
 ## Roadmap
 
 ### Modular architecture

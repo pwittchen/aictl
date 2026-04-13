@@ -1237,11 +1237,11 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
     };
 
     println!();
-    println!("  {} {version_display}", "version: ".with(Color::Cyan));
-    println!("  {} {provider}", "provider:".with(Color::Cyan));
-    println!("  {} {model}", "model:   ".with(Color::Cyan));
-    println!("  {} {behavior}", "behavior:".with(Color::Cyan));
-    println!("  {} {memory}", "memory:  ".with(Color::Cyan));
+    println!("  {} {version_display}", "version:  ".with(Color::Cyan));
+    println!("  {} {provider}", "provider: ".with(Color::Cyan));
+    println!("  {} {model}", "model:    ".with(Color::Cyan));
+    println!("  {} {behavior}", "behavior: ".with(Color::Cyan));
+    println!("  {} {memory}", "memory:   ".with(Color::Cyan));
     let prompt_file = crate::config::load_prompt_file();
     let prompt_file_name =
         crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
@@ -1251,13 +1251,41 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
         format!("{prompt_file_name} (not found)")
     };
 
-    println!("  {} {os}/{arch}", "os:      ".with(Color::Cyan));
-    println!("  {} {binary_size}", "binary:  ".with(Color::Cyan));
-    println!("  {} {binary_path}", "path:    ".with(Color::Cyan));
-    println!("  {} {prompt_info}", "prompt:  ".with(Color::Cyan));
+    println!("  {} {os}/{arch}", "os:       ".with(Color::Cyan));
+    println!("  {} {binary_size}", "binary:   ".with(Color::Cyan));
+    println!("  {} {binary_path}", "path:     ".with(Color::Cyan));
+    println!("  {} {prompt_info}", "prompt:   ".with(Color::Cyan));
     let agent_info = agents::loaded_agent_name()
         .map_or_else(|| "(none)".to_string(), |n| format!("{n} (loaded)"));
-    println!("  {} {agent_info}", "agent:   ".with(Color::Cyan));
+    println!("  {} {agent_info}", "agent:    ".with(Color::Cyan));
+
+    // Collect unique providers and total model count from the static catalog
+    let mut providers: Vec<&str> = Vec::new();
+    for &(prov, _, _) in crate::llm::MODELS {
+        if !providers.contains(&prov) {
+            providers.push(prov);
+        }
+    }
+    // Ollama is a supported provider but has dynamic models, so include it
+    if !providers.contains(&"ollama") {
+        providers.push("ollama");
+    }
+    let provider_count = providers.len();
+    let model_count = crate::llm::MODELS.len();
+    println!(
+        "  {} {provider_count} ({}) + ollama (dynamic)",
+        "providers:".with(Color::Cyan),
+        providers
+            .iter()
+            .filter(|&&p| p != "ollama")
+            .copied()
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    println!(
+        "  {} {model_count} cataloged + ollama local models",
+        "models:   ".with(Color::Cyan)
+    );
     println!();
 }
 
