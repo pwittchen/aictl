@@ -3,7 +3,7 @@
 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 
-AI agent in your terminal — 51 built-in models across 9 providers, plus any model available through Ollama
+AI agent in your terminal — 52 built-in models across 9 providers, plus any model available through Ollama
 
 ![aictl screenshot](screenshot.png)
 
@@ -87,7 +87,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions]
+aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -141,6 +141,9 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 | `--session` | `-s` | Load a saved session by uuid or name on startup (interactive mode only) |
 | `--list-sessions` | `-l` | Print saved sessions from `~/.aictl/sessions/` and exit |
 | `--clear-sessions` | `-c` | Remove all saved sessions and exit |
+| `--lock-keys` | `-k` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring and exit |
+| `--unlock-keys` | `-K` | Migrate API keys from the system keyring back into `~/.aictl/config` and exit |
+| `--clear-keys` | `-X` | Remove API keys from both `~/.aictl/config` and the system keyring and exit |
 
 CLI flags take priority over config file values.
 
