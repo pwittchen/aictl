@@ -922,7 +922,15 @@ async fn tool_read_document(input: &str) -> String {
                 .await
                 .unwrap_or_else(|e| format!("Error reading DOCX: {e}"))
         }
-        _ => format!("Error: unsupported document format '.{ext}'. Supported: .pdf, .docx"),
+        "xlsx" | "xls" | "ods" => {
+            let path = path.to_string();
+            tokio::task::spawn_blocking(move || read_spreadsheet(&path))
+                .await
+                .unwrap_or_else(|e| format!("Error reading spreadsheet: {e}"))
+        }
+        _ => format!(
+            "Error: unsupported document format '.{ext}'. Supported: .pdf, .docx, .xlsx, .xls, .ods"
+        ),
     }
 }
 
@@ -969,6 +977,99 @@ fn read_docx(path: &str) -> String {
     let mut result = trimmed.to_string();
     truncate_output(&mut result);
     result
+}
+
+fn read_spreadsheet(path: &str) -> String {
+    use calamine::{Data, Reader, open_workbook_auto};
+
+    let mut workbook = match open_workbook_auto(path) {
+        Ok(wb) => wb,
+        Err(e) => return format!("Error opening spreadsheet: {e}"),
+    };
+
+    let sheet_names: Vec<String> = workbook.sheet_names().clone();
+    if sheet_names.is_empty() {
+        return "(spreadsheet contains no sheets)".to_string();
+    }
+
+    let mut result = String::new();
+    for name in &sheet_names {
+        let range = match workbook.worksheet_range(name) {
+            Ok(r) => r,
+            Err(e) => {
+                let _ = writeln!(result, "## {name}\n\nError reading sheet: {e}\n");
+                continue;
+            }
+        };
+
+        let rows: Vec<_> = range.rows().collect();
+        if rows.is_empty() {
+            let _ = writeln!(result, "## {name}\n\n(empty sheet)\n");
+            continue;
+        }
+
+        let _ = writeln!(result, "## {name}\n");
+
+        // First row as header
+        let header = &rows[0];
+        result.push('|');
+        for cell in *header {
+            let _ = write!(result, " {} |", format_cell(cell));
+        }
+        result.push('\n');
+
+        // Separator
+        result.push('|');
+        for _ in *header {
+            result.push_str(" --- |");
+        }
+        result.push('\n');
+
+        // Data rows
+        for row in &rows[1..] {
+            result.push('|');
+            let col_count = header.len();
+            for i in 0..col_count {
+                let cell = row.get(i).unwrap_or(&Data::Empty);
+                let _ = write!(result, " {} |", format_cell(cell));
+            }
+            result.push('\n');
+        }
+        result.push('\n');
+
+        if result.len() > MAX_TOOL_OUTPUT_LEN {
+            truncate_output(&mut result);
+            return result;
+        }
+    }
+
+    let trimmed = result.trim();
+    if trimmed.is_empty() {
+        return "(spreadsheet contains no data)".to_string();
+    }
+    let mut result = trimmed.to_string();
+    truncate_output(&mut result);
+    result
+}
+
+fn format_cell(cell: &calamine::Data) -> String {
+    use calamine::Data;
+    match cell {
+        Data::Empty => String::new(),
+        Data::String(s) | Data::DateTimeIso(s) | Data::DurationIso(s) => s.clone(),
+        Data::Int(i) => i.to_string(),
+        #[allow(clippy::cast_possible_truncation)]
+        Data::Float(f) => {
+            if (*f - f.round()).abs() < f64::EPSILON {
+                format!("{}", *f as i64)
+            } else {
+                format!("{f}")
+            }
+        }
+        Data::Bool(b) => b.to_string(),
+        Data::Error(e) => format!("#{e:?}"),
+        Data::DateTime(dt) => format!("{dt}"),
+    }
 }
 
 /// Convert DOCX `word/document.xml` content to markdown.
@@ -1777,5 +1878,53 @@ mod tests {
         let xml = "<w:body></w:body>";
         let md = docx_xml_to_markdown(xml);
         assert!(md.trim().is_empty());
+    }
+
+    // --- spreadsheet (read_document with .xlsx/.xls/.ods) tests ---
+
+    #[tokio::test]
+    async fn exec_read_document_unsupported_zzz() {
+        let result = execute_tool(&ToolCall {
+            name: "read_document".into(),
+            input: "file.zzz".into(),
+        })
+        .await;
+        assert!(result.text.contains("unsupported document format"));
+        assert!(result.text.contains(".xlsx"));
+    }
+
+    #[tokio::test]
+    async fn exec_read_document_xlsx_not_found() {
+        let result = execute_tool(&ToolCall {
+            name: "read_document".into(),
+            input: "/tmp/aictl_nonexistent.xlsx".into(),
+        })
+        .await;
+        assert!(result.text.contains("Error opening spreadsheet"));
+    }
+
+    #[tokio::test]
+    async fn exec_read_document_invalid_xlsx() {
+        let dir = tmp_dir("bad_xlsx");
+        let path = dir.join("bad.xlsx");
+        std::fs::write(&path, "not a valid xlsx").unwrap();
+        let result = execute_tool(&ToolCall {
+            name: "read_document".into(),
+            input: path.to_string_lossy().into(),
+        })
+        .await;
+        assert!(result.text.contains("Error opening spreadsheet"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn format_cell_types() {
+        use calamine::Data;
+        assert_eq!(format_cell(&Data::Empty), "");
+        assert_eq!(format_cell(&Data::String("hello".into())), "hello");
+        assert_eq!(format_cell(&Data::Int(42)), "42");
+        assert_eq!(format_cell(&Data::Float(3.0)), "3");
+        assert_eq!(format_cell(&Data::Float(3.14)), "3.14");
+        assert_eq!(format_cell(&Data::Bool(true)), "true");
     }
 }

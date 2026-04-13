@@ -784,7 +784,7 @@ fn print_tools() {
         ),
         (
             "read_document",
-            "read a PDF or DOCX file as markdown text",
+            "read a PDF, DOCX, or spreadsheet as markdown",
         ),
     ];
     let enabled = crate::tools::tools_enabled();

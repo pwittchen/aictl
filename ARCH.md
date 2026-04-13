@@ -138,7 +138,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  │ read_image          │ fs::read / HTTP GET+base64│      │
  │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
- │  │ read_document       │ pdf-extract / zip+XML     │      │
+ │  │ read_document       │ pdf-extract/zip/calamine  │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -151,7 +151,8 @@ Both single-shot and REPL modes share the same loop:
  │  - generate_image auto-selects provider by available key: │
  │    active provider first, then OpenAI > Gemini > Grok     │
  │  - read_document dispatches by extension: .pdf via        │
- │    pdf-extract, .docx via zip + XML-to-markdown parser    │
+ │    pdf-extract, .docx via zip + XML-to-markdown parser,   │
+ │    .xlsx/.xls/.ods via calamine → markdown tables         │
  └───────────────────────────────────────────────────────────┘
 ```
 

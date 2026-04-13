@@ -439,7 +439,7 @@ Available tools:
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 | `read_image` | Read an image from a file path or URL for vision analysis (PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, ICO) |
 | `generate_image` | Generate an image from a text description via DALL-E, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
-| `read_document` | Read a PDF or DOCX file and extract its content as markdown text (PDF via `pdf-extract`; DOCX parsed from ZIP archive XML with heading, list, table, and formatting conversion) |
+| `read_document` | Read a PDF, DOCX, or spreadsheet and extract content as markdown text. Supports `.pdf`, `.docx`, `.xlsx`, `.xls`, `.ods`. PDF text extracted directly; DOCX converted to markdown; spreadsheets converted to markdown tables (one per sheet) |
 
 #### Image capabilities by provider
 
