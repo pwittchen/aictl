@@ -1,9 +1,5 @@
 # Issues
 
-## Agents
-
-- **Edit** - add possibility to edit agents prompt
-
 ## Tools
 
 - **PDF and DOCX reading** `[tool]` — Extract text from PDF and DOCX files so the agent can reason over documents.
