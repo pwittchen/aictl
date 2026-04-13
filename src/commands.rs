@@ -2278,6 +2278,7 @@ fn agent_menu_items(has_loaded: bool) -> Vec<(&'static str, &'static str)> {
         ("view all agents", "browse, load, or delete agents"),
     ];
     if has_loaded {
+        items.push(("edit agent", "edit currently loaded agent prompt"));
         items.push(("unload agent", "remove currently loaded agent"));
     }
     items
@@ -2304,6 +2305,10 @@ pub async fn run_agent_menu(
             create_agent_with_ai(provider, api_key, model, ui, show_error).await
         }
         "view all agents" => view_all_agents(messages, show_error),
+        "edit agent" => {
+            let name = agents::loaded_agent_name().unwrap_or_default();
+            edit_agent_prompt(&name, true, messages, show_error).unwrap_or(false)
+        }
         "unload agent" => unload_agent_action(messages),
         _ => false,
     }
@@ -2353,6 +2358,12 @@ fn create_agent_manually(show_error: &dyn Fn(&str)) -> bool {
 /// Read multi-line input. Ctrl+D finishes input, Esc cancels.
 /// Supports bracketed paste mode so pasted text is received as a single event.
 fn read_multiline_input() -> Option<String> {
+    read_multiline_input_prefilled("")
+}
+
+/// Read multi-line input with optional pre-filled content.
+/// The initial text is displayed and editable. Ctrl+D finishes, Esc cancels.
+fn read_multiline_input_prefilled(initial: &str) -> Option<String> {
     use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
     use crossterm::terminal;
 
@@ -2362,6 +2373,21 @@ fn read_multiline_input() -> Option<String> {
     let _ = terminal::enable_raw_mode();
     let _ = crossterm::execute!(std::io::stdout(), event::EnableBracketedPaste);
     let mut buf = String::new();
+
+    // Pre-fill buffer and display initial content
+    if !initial.is_empty() {
+        buf.push_str(initial);
+        for ch in initial.chars() {
+            if ch == '\n' {
+                print!("\r\n  ");
+            } else if ch == '\t' {
+                print!("    ");
+            } else {
+                print!("{ch}");
+            }
+        }
+        let _ = std::io::stdout().flush();
+    }
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(200)).unwrap_or(false) {
@@ -2614,6 +2640,7 @@ fn build_agents_list_lines(
 enum AgentListAction {
     Load(usize),
     View(usize),
+    Edit(usize),
     Delete(usize),
     Cancel,
 }
@@ -2638,7 +2665,7 @@ fn select_agent_from_list(entries: &[agents::AgentEntry]) -> AgentListAction {
     for line in &lines {
         let _ = write!(stdout, "{line}\r\n");
     }
-    let hint = "↑/↓ navigate · l/enter load · v view · d delete · esc cancel";
+    let hint = "↑/↓ navigate · l/enter load · v view · e edit · d delete · esc cancel";
     let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
     let _ = stdout.flush();
     let mut rendered = lines.len() + 2;
@@ -2668,6 +2695,11 @@ fn select_agent_from_list(entries: &[agents::AgentEntry]) -> AgentListAction {
                 KeyCode::Char('v' | 'V') => {
                     if !entries.is_empty() {
                         break AgentListAction::View(selected);
+                    }
+                }
+                KeyCode::Char('e' | 'E') => {
+                    if !entries.is_empty() {
+                        break AgentListAction::Edit(selected);
                     }
                 }
                 KeyCode::Char('d' | 'D') => {
@@ -2756,6 +2788,16 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
                 println!();
                 // After viewing, return to the list
             }
+            AgentListAction::Edit(i) => {
+                let entry = &entries[i];
+                let is_loaded = agents::loaded_agent_name().as_deref() == Some(entry.name.as_str());
+                if edit_agent_prompt(&entry.name, is_loaded, messages, show_error)
+                    == Some(true)
+                {
+                    return true;
+                }
+                // Return to the list
+            }
             AgentListAction::Delete(i) => {
                 let entry = &entries[i];
                 if !confirm_yn(&format!("delete agent \"{}\"?", entry.name)) {
@@ -2776,6 +2818,60 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
             }
         }
     }
+}
+
+/// Edit an agent's prompt. Returns `Some(true)` if the system prompt was rebuilt,
+/// `Some(false)` if saved but agent not loaded, `None` if cancelled.
+fn edit_agent_prompt(
+    name: &str,
+    is_loaded: bool,
+    messages: &mut [Message],
+    show_error: &dyn Fn(&str),
+) -> Option<bool> {
+    let Ok(current_prompt) = agents::read_agent(name) else {
+        show_error("Failed to read agent file.");
+        return None;
+    };
+
+    println!();
+    println!(
+        "  {} {}",
+        "editing agent:".with(Color::Cyan),
+        name.with(Color::Magenta)
+    );
+    println!();
+    println!(
+        "  {}",
+        "Edit prompt below (Ctrl+D to finish, Esc to cancel):".with(Color::DarkGrey)
+    );
+    let new_prompt = read_multiline_input_prefilled(&current_prompt)?;
+    let new_prompt = new_prompt.trim().to_string();
+    if new_prompt.is_empty() {
+        show_error("Empty prompt, agent not updated.");
+        return None;
+    }
+
+    if let Err(e) = agents::save_agent(name, &new_prompt) {
+        show_error(&format!("Failed to save agent: {e}"));
+        return None;
+    }
+
+    let rebuilt = if is_loaded {
+        agents::load_agent(name, &new_prompt);
+        rebuild_system_prompt(messages);
+        true
+    } else {
+        false
+    };
+
+    println!();
+    println!(
+        "  {} agent \"{}\" updated",
+        "✓".with(Color::Green),
+        name.with(Color::Magenta)
+    );
+    println!();
+    Some(rebuilt)
 }
 
 fn unload_agent_action(messages: &mut [Message]) -> bool {
