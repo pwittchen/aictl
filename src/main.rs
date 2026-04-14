@@ -742,29 +742,14 @@ async fn handle_repl_input(
             commands::run_issues(&|msg| ui.show_error(msg)).await;
             return ReplAction::Continue;
         }
-        commands::CommandResult::LockKeys => {
+        commands::CommandResult::Keys => {
             let _ = rl.add_history_entry(input);
-            commands::run_lock_keys(&|msg| ui.show_error(msg));
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::UnlockKeys => {
-            let _ = rl.add_history_entry(input);
-            commands::run_unlock_keys(&|msg| ui.show_error(msg));
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::ClearKeys => {
-            let _ = rl.add_history_entry(input);
-            commands::run_clear_keys(&|msg| ui.show_error(msg));
+            commands::run_keys_menu(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
         }
         commands::CommandResult::Stats => {
             let _ = rl.add_history_entry(input);
-            commands::print_stats();
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::ClearStats => {
-            let _ = rl.add_history_entry(input);
-            commands::run_clear_stats(&|msg| ui.show_error(msg));
+            commands::run_stats_menu(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
         }
         commands::CommandResult::Config => {
@@ -812,7 +797,7 @@ async fn handle_repl_input(
                     *api_key = k;
                 } else {
                     ui.show_error(&format!(
-                        "API key for {key_name} is not set — current session may fail until you run /config or /lock-keys"
+                        "API key for {key_name} is not set — current session may fail until you run /config or /keys"
                     ));
                 }
             }
@@ -851,7 +836,7 @@ async fn handle_repl_input(
                 } else {
                     let Some(new_api_key) = keys::get_secret(&api_key_name) else {
                         ui.show_error(&format!(
-                            "API key not found. Set {api_key_name} in ~/.aictl/config or run /lock-keys to migrate from another provider"
+                            "API key not found. Set {api_key_name} in ~/.aictl/config or run /keys to migrate from another provider"
                         ));
                         return ReplAction::Continue;
                     };

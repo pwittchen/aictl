@@ -5,8 +5,8 @@
 //! `~/.aictl/config`.
 //!
 //! The rest of the program retrieves API keys via [`get_secret`], which tries
-//! the keyring first and falls back to the config file. Management commands
-//! (`/lock-keys`, `/unlock-keys`, `/clear-keys`) migrate keys between the two
+//! the keyring first and falls back to the config file. The `/keys` REPL menu
+//! exposes the lock/unlock/clear actions that migrate keys between the two
 //! storage backends.
 
 use crate::config::{config_get, config_set, config_unset};

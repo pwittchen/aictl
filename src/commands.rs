@@ -39,30 +39,9 @@ impl std::fmt::Display for MemoryMode {
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "agent",
-    "behavior",
-    "clear",
-    "clear-keys",
-    "clear-stats",
-    "compact",
-    "config",
-    "context",
-    "copy",
-    "exit",
-    "help",
-    "info",
-    "issues",
-    "local",
-    "lock-keys",
-    "memory",
-    "model",
-    "security",
-    "session",
-    "stats",
-    "tools",
-    "unlock-keys",
-    "update",
-    "version",
+    "agent", "behavior", "clear", "compact", "config", "context", "copy", "exit", "help", "info",
+    "issues", "keys", "local", "memory", "model", "security", "session", "stats", "tools",
+    "update", "version",
 ];
 
 /// Result of handling a slash command.
@@ -97,18 +76,12 @@ pub enum CommandResult {
     Local,
     /// Fetch and display known issues.
     Issues,
-    /// Migrate API keys from config to the system keyring.
-    LockKeys,
-    /// Migrate API keys from the system keyring to config.
-    UnlockKeys,
-    /// Remove API keys from both config and keyring.
-    ClearKeys,
+    /// Open the API key management menu (lock/unlock/clear).
+    Keys,
     /// Re-run the interactive configuration wizard.
     Config,
-    /// Show usage statistics.
+    /// Open the usage statistics menu (view/clear).
     Stats,
-    /// Clear all usage statistics.
-    ClearStats,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -149,12 +122,9 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             print_tools();
             CommandResult::Continue
         }
-        "lock-keys" => CommandResult::LockKeys,
-        "unlock-keys" => CommandResult::UnlockKeys,
-        "clear-keys" => CommandResult::ClearKeys,
+        "keys" => CommandResult::Keys,
         "config" => CommandResult::Config,
         "stats" => CommandResult::Stats,
-        "clear-stats" => CommandResult::ClearStats,
         _ => {
             show_error("Unknown command. Type /help for available commands.");
             CommandResult::Continue
@@ -393,27 +363,18 @@ fn print_help() {
         ("/help", "show this help message"),
         ("/info", "show setup info"),
         ("/issues", "show known issues"),
-        ("/local", "manage native local models (pull, list, remove) [experimental]"),
+        (
+            "/local",
+            "manage native local models (pull, list, remove) [experimental]",
+        ),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
         ("/model", "switch model and provider"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
-        ("/stats", "show usage statistics (today/month/overall)"),
-        ("/clear-stats", "clear all usage statistics"),
+        ("/stats", "manage usage statistics (view, clear)"),
         ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
-        (
-            "/lock-keys",
-            "migrate API keys from config to system keyring",
-        ),
-        (
-            "/unlock-keys",
-            "migrate API keys from system keyring to config",
-        ),
-        (
-            "/clear-keys",
-            "remove API keys from both config and keyring",
-        ),
+        ("/keys", "manage API keys (lock, unlock, clear)"),
         ("/config", "re-run the configuration wizard"),
         ("/update", "update to the latest version"),
         ("/version", "check current version against the latest"),
@@ -852,7 +813,7 @@ fn clear_keys_inner() {
 }
 
 /// Remove all known API keys from both config and keyring. Asks for confirmation.
-/// Used by the REPL `/clear-keys` slash command.
+/// Used by the `/keys` REPL menu's "clear keys" entry.
 pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
     println!();
     if !confirm_yn("remove ALL API keys from config AND keyring?") {
@@ -867,6 +828,80 @@ pub fn run_clear_keys(_show_error: &dyn Fn(&str)) {
 pub fn run_clear_keys_unconfirmed() {
     println!();
     clear_keys_inner();
+}
+
+const STATS_MENU_ITEMS: &[(&str, &str)] = &[
+    ("view stats", "show today / this month / overall"),
+    ("clear stats", "remove all usage statistics"),
+];
+
+const KEYS_MENU_ITEMS: &[(&str, &str)] = &[
+    (
+        "lock keys",
+        "migrate API keys from config to system keyring",
+    ),
+    (
+        "unlock keys",
+        "migrate API keys from system keyring to config",
+    ),
+    ("clear keys", "remove API keys from both config and keyring"),
+];
+
+fn build_simple_menu_lines(items: &[(&str, &str)], selected: usize) -> Vec<String> {
+    let max_name = items.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, (name, desc))| {
+            let is_selected = i == selected;
+            let padded = format!("{name:<max_name$}");
+            let name_styled = if is_selected {
+                format!(
+                    "  {}",
+                    padded
+                        .with(Color::White)
+                        .attribute(crossterm::style::Attribute::Bold)
+                )
+            } else {
+                format!("  {}", padded.with(Color::DarkGrey))
+            };
+            let desc_styled = format!("{}", desc.with(Color::DarkGrey));
+            if is_selected {
+                format!("  {} {name_styled}  {desc_styled}", "›".with(Color::Cyan))
+            } else {
+                format!("    {name_styled}  {desc_styled}")
+            }
+        })
+        .collect()
+}
+
+/// Open the `/stats` interactive menu (view or clear).
+pub fn run_stats_menu(show_error: &dyn Fn(&str)) {
+    let Some(sel) = select_from_menu(STATS_MENU_ITEMS.len(), 0, |s| {
+        build_simple_menu_lines(STATS_MENU_ITEMS, s)
+    }) else {
+        return;
+    };
+    match sel {
+        0 => print_stats(),
+        1 => run_clear_stats(show_error),
+        _ => {}
+    }
+}
+
+/// Open the `/keys` interactive menu (lock, unlock, clear).
+pub fn run_keys_menu(show_error: &dyn Fn(&str)) {
+    let Some(sel) = select_from_menu(KEYS_MENU_ITEMS.len(), 0, |s| {
+        build_simple_menu_lines(KEYS_MENU_ITEMS, s)
+    }) else {
+        return;
+    };
+    match sel {
+        0 => run_lock_keys(show_error),
+        1 => run_unlock_keys(show_error),
+        2 => run_clear_keys(show_error),
+        _ => {}
+    }
 }
 
 fn print_tools() {
@@ -2173,7 +2208,10 @@ fn build_popular_models_menu_lines(selected: usize) -> Vec<String> {
                 let (l, _, s) = POPULAR_LOCAL_MODELS[i];
                 (l.to_string(), s.to_string())
             } else {
-                ("custom spec (hf:/owner/repo:/https://...)".to_string(), String::new())
+                (
+                    "custom spec (hf:/owner/repo:/https://...)".to_string(),
+                    String::new(),
+                )
             };
             let padded = format!("{label:<max_label$}");
             let name_styled = if is_selected {
@@ -2276,19 +2314,22 @@ fn show_cancelled() {
 /// download is cancelled via Esc. Silently ignores failures.
 fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io::Result<()> {
     // Resolve the same name the downloader would have used.
-    let name = override_name.map_or_else(|| {
-        spec.rsplit('/')
-            .next()
-            .and_then(|f| f.split('?').next())
-            .map(|f| {
-                std::path::Path::new(f)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(f)
-                    .to_string()
-            })
-            .unwrap_or_default()
-    }, String::from);
+    let name = override_name.map_or_else(
+        || {
+            spec.rsplit('/')
+                .next()
+                .and_then(|f| f.split('?').next())
+                .map(|f| {
+                    std::path::Path::new(f)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(f)
+                        .to_string()
+                })
+                .unwrap_or_default()
+        },
+        String::from,
+    );
     if name.is_empty() {
         return Ok(());
     }
