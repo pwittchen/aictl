@@ -17,7 +17,7 @@ Split the codebase into separate modules: `core` (shared logic), `cli`, `server`
 
 ### Server
 
-Expose program functionality via a REST API protected by a local API key.
+Expose program functionality via a REST API protected by a local API key / token (optional).
 
 ### Desktop
 
