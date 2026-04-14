@@ -13,8 +13,7 @@ fn main() {
                 None
             }
         })
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+        .map_or_else(|| "unknown".to_string(), |s| s.trim().to_string());
     println!("cargo:rustc-env=AICTL_BUILD_DATETIME={datetime}");
-    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=NONEXISTENT_FILE_TO_FORCE_RERUN");
 }
