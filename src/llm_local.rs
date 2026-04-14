@@ -308,7 +308,10 @@ fn mentions_tool_use(text: &str) -> bool {
 }
 
 #[cfg(feature = "local")]
-fn token_piece(model: &llama_cpp_2::model::LlamaModel, token: llama_cpp_2::token::LlamaToken) -> String {
+fn token_piece(
+    model: &llama_cpp_2::model::LlamaModel,
+    token: llama_cpp_2::token::LlamaToken,
+) -> String {
     use llama_cpp_2::TokenToStringError;
     let bytes = match model.token_to_piece_bytes(token, 32, false, None) {
         Ok(b) => b,
@@ -372,7 +375,9 @@ pub async fn call_local(
         // 4096 matches the upper bound used by the agent loop's tool-calling
         // flow on API providers, so local models don't get their `<tool>` tags
         // truncated mid-emission on long reasoning traces.
-        let n_ctx = u32::try_from(batch_capacity + 4096).unwrap_or(8192).max(8192);
+        let n_ctx = u32::try_from(batch_capacity + 4096)
+            .unwrap_or(8192)
+            .max(8192);
 
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
