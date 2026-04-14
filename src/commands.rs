@@ -1403,6 +1403,11 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
 
     println!();
     println!("  {} {version_display}", "version:  ".with(Color::Cyan));
+    println!(
+        "  {} {}",
+        "build:    ".with(Color::Cyan),
+        env!("AICTL_BUILD_DATETIME")
+    );
     println!("  {} {provider}", "provider: ".with(Color::Cyan));
     println!("  {} {model}", "model:    ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior: ".with(Color::Cyan));
