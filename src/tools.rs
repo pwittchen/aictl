@@ -1,8 +1,56 @@
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::io::Write;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use crate::ImageData;
 use crate::config::MAX_TOOL_OUTPUT_LEN;
+
+/// Session-wide set of tool invocations that have already been executed,
+/// keyed by `(tool_name, normalized_input)`. Used to block the model from
+/// calling the same tool with the same input value twice in a single
+/// process lifetime — weaker models (e.g. small local GGUFs) otherwise
+/// loop indefinitely, re-running the same search or fetch.
+static CALL_HISTORY: OnceLock<Mutex<HashSet<(String, String)>>> = OnceLock::new();
+
+fn call_history() -> &'static Mutex<HashSet<(String, String)>> {
+    CALL_HISTORY.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Normalize tool input for duplicate detection: lowercase, strip
+/// punctuation, collapse whitespace. Trivial formatting differences
+/// ("Weather, Gliwice?" vs "weather gliwice") therefore collide.
+fn normalize_input(input: &str) -> String {
+    input
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Clear the session-wide tool call history. Called on REPL `/clear` and
+/// session switches so a new conversation starts with a blank slate.
+pub fn clear_call_history() {
+    if let Ok(mut h) = call_history().lock() {
+        h.clear();
+    }
+}
+
+/// Returns `true` if this exact tool call (same name, same normalized
+/// input) has already been executed in this session. Does not mutate
+/// history — use so the agent loop can abort *before* spending another
+/// LLM round-trip on a call that would be rejected anyway.
+pub fn is_duplicate_call(tool_call: &ToolCall) -> bool {
+    let key = (tool_call.name.clone(), normalize_input(&tool_call.input));
+    call_history()
+        .lock()
+        .map(|h| h.contains(&key))
+        .unwrap_or(false)
+}
 
 #[derive(Debug)]
 pub struct ToolCall {
@@ -77,6 +125,22 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         return ToolOutput::text(
             "All tools are disabled (AICTL_TOOLS_ENABLED=false in config)".to_string(),
         );
+    }
+
+    // Duplicate-call guard: refuse to run the same tool with the same
+    // (normalized) input more than once per session. The model gets a
+    // clear message instead of a fresh result, which breaks tool-call
+    // loops that weaker models otherwise enter.
+    let call_key = (tool_call.name.clone(), normalize_input(&tool_call.input));
+    {
+        let mut history = call_history().lock().expect("tool call history poisoned");
+        if history.contains(&call_key) {
+            return ToolOutput::text(format!(
+                "You already called the tool `{}` with this input earlier in the session, and its result is already in the conversation above. Do not repeat the same tool call. Answer now with your final response based on the information you already have, or call a different tool with a meaningfully different input.",
+                tool_call.name
+            ));
+        }
+        history.insert(call_key);
     }
 
     // Security gate

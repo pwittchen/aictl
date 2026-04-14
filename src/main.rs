@@ -492,6 +492,24 @@ async fn run_agent_turn(
             });
         };
 
+        // Abort the turn if the model is trying to repeat a tool call it
+        // has already made this session. `tools::execute_tool` would reject
+        // the duplicate anyway, but continuing the loop just gives the
+        // model another chance to emit the same call.
+        if tools::is_duplicate_call(&tool_call) {
+            if let Some(idx) = response.find("<tool") {
+                let reasoning = response[..idx].trim();
+                if !reasoning.is_empty() {
+                    ui.show_reasoning(reasoning);
+                }
+            }
+            return Err(format!(
+                "Agent stopped: model tried to call `{}` again with the same input — it is looping. Try a stronger model or rephrase the request.",
+                tool_call.name
+            )
+            .into());
+        }
+
         match handle_tool_call(&tool_call, &response, auto, ui, messages).await {
             Ok(ToolAction::Executed) => {
                 tool_calls += 1;
@@ -645,6 +663,7 @@ async fn handle_repl_input(
         commands::CommandResult::Clear => {
             let _ = rl.add_history_entry(input);
             messages.truncate(1);
+            tools::clear_call_history();
             last_answer.clear();
             *last_input_tokens = 0;
             println!();
