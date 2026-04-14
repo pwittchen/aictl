@@ -1,5 +1,11 @@
 # Issues
 
+## UI
+
+- **Merge commands** - merge `/stats` and `/clear-stats` into one `/stats` command with interactive menu for viewing and clearing stats; merge `/lock-keys`, '/unlock-keys`, `/clear-keys` into one `/keys` command with interactive menu for all these functionalities
+
+- **Short-flags** - remove short-flags from non-interactive UI to keep it more clean and explicit, leave only `-v` shortflag for `--version` and `-h` for `--help` because this is widely used convention
+
 ## Infrastructure
 
 - **Project domain configuration** — configure domain, so it'll point to the VPS via Cloudflare (with `cloudflared`)
