@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /compact, /config, /context, /copy, /exit, /help, /info, /issues, /lock-keys, /memory, /model, /security, /session, /tools, /unlock-keys, /update, /version)
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /clear-stats, /compact, /config, /context, /copy, /exit, /help, /info, /issues, /local, /lock-keys, /memory, /model, /security, /session, /stats, /tools, /unlock-keys, /update, /version)
  ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -22,7 +22,9 @@ src/
  ├── llm_deepseek.rs     DeepSeek chat completions client
  ├── llm_kimi.rs         Kimi (Moonshot AI) chat completions client
  ├── llm_zai.rs          Z.ai chat completions client
- └── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
+ ├── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
+ ├── llm_local.rs        [experimental] Native GGUF inference + model manager (~/.aictl/models/). Download/list/remove always available; inference gated behind the `local` cargo feature (llama-cpp-2). Specs: hf:owner/repo/file.gguf, owner/repo:file.gguf, https:// URL.
+ └── stats.rs            Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() drive /stats and /clear-stats.
 ```
 
 ## Startup Flow
@@ -37,12 +39,16 @@ src/
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
+ │  2c''. --pull-model /         local-model management helpers, exit        │
+ │       --list-local-models /   (use llm_local::download_model / list /     │
+ │       --remove-local-model /  remove_model / clear_models)                │
+ │       --clear-local-models                                                │
  │  2d. --config                run_config_wizard() and exit                │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
  │  5. resolve api_key          keys::get_secret(LLM_*_API_KEY)             │
  │                              keyring first, plain-text config fallback   │
- │                              (Ollama: no key needed)                     │
+ │                              (Ollama and Local: no key needed)           │
  │  5b. session::set_incognito  --incognito flag or AICTL_INCOGNITO config  │
  │  5c. load --agent <name>    agents::read_agent + agents::load_agent      │
  │  6. dispatch:                                                            │
@@ -81,6 +87,7 @@ Both single-shot and REPL modes share the same loop:
  │  │                  │  kimi::call_kimi()                │
  │  │                  │  zai::call_zai()                  │
  │  │                  │  ollama::call_ollama()            │
+ │  │                  │  local::call_local()              │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -190,6 +197,8 @@ Both single-shot and REPL modes share the same loop:
                     └──────────────────┘
 ```
 
+A tenth provider, `call_local()` in `llm_local.rs`, is not wired to a remote endpoint: it flattens `&[Message]` into a ChatML-style prompt and runs inference in-process via `llama-cpp-2` on a `tokio::spawn_blocking` task, loading a GGUF model from `~/.aictl/models/<name>.gguf`. It is compiled in only when the `local` cargo feature is enabled; without that feature, the function returns an error telling the user to rebuild. Cost always resolves to $0.00.
+
 ## UI Layer
 
 ```
@@ -234,7 +243,7 @@ Both single-shot and REPL modes share the same loop:
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /security (Security), /session (Session), /model (Model), /tools (Continue), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /config (Config), /update (Update), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /local (Local), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /clear-stats (ClearStats), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /config (Config), /update (Update), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -247,6 +256,11 @@ Both single-shot and REPL modes share the same loop:
    Security    → show security policy + per-key storage location, continue
    Session     → open session menu (current info / set name / view saved / clear all);
                  disabled in incognito mode; continue
+   Local       → open local-model menu (view downloaded / pull / remove / clear all);
+                 downloads GGUF files to ~/.aictl/models/ with a progress bar; continue
+   Stats       → show usage statistics for today/this-month/overall from
+                 ~/.aictl/stats (calls, tokens, estimated cost), continue
+   ClearStats  → remove all recorded usage statistics (~/.aictl/stats), continue
    Issues      → fetch and display known issues, continue
    LockKeys    → migrate plain-text API keys from config into the system keyring, continue
    UnlockKeys  → migrate API keys from the system keyring back into config, continue
@@ -308,6 +322,14 @@ Both single-shot and REPL modes share the same loop:
       │          │    │ save_current │
       │          │    │ load/list/   │
       │          │    │ delete/names │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
+      │          │───>│  stats.rs    │
+      │          │    │ record usage │
+      │          │    │ per-day JSON │
+      │          │    │ at           │
+      │          │    │ ~/.aictl/    │
+      │          │    │ stats        │
       └────┬─────┘    └──────────────┘
            │
            ├──────────────────────────┐
@@ -324,6 +346,7 @@ Both single-shot and REPL modes share the same loop:
       │ kimi     │             │          │
       │ zai      │             │          │
       │ ollama   │             │          │
+      │ local    │             │          │
       └──────────┘             └──────────┘
            │                          │
            ▼                          ▼
@@ -338,9 +361,13 @@ All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and n
  ~/.aictl/
   ├── config              key=value settings file (provider, model, API keys, security & tool toggles)
   ├── history             rustyline REPL input history (one entry per line)
+  ├── stats               JSON array of per-day usage statistics (calls, tokens, estimated cost; written by stats.rs after every agent turn; consumed by /stats)
   ├── agents/             saved agent prompts — one plain-text file per agent
   │   ├── <name>          full system-prompt extension text; filename == agent name
   │   └── ...             (names validated: ASCII alphanumerics, `_`, `-`)
+  ├── models/             downloaded native GGUF models for the Local provider
+  │   ├── <name>.gguf     model file; filename stem is the local name shown in /model
+  │   └── ...             (names validated: ASCII alphanumerics, `_`, `-`, `.`)
   └── sessions/           persisted conversation histories
       ├── .names          tab-separated `uuid\tname` map (one entry per line, names unique, lowercase `[a-z0-9_]`)
       ├── <uuid-v4>       pretty-printed JSON: `{"id": "...", "messages": [{"role": ..., "content": ...}, ...]}`
@@ -400,6 +427,12 @@ Each file is a plain-text agent prompt — the body that gets appended to the ba
 - `list_agents()` — enumerates regular files whose names pass validation, sorted alphabetically (invalid filenames are silently skipped)
 
 A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` / `-A <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+
+### `~/.aictl/models/<name>.gguf`
+
+Each file is a GGUF weight file for the native Local provider (`src/llm_local.rs`). The directory is created lazily on the first `--pull-model` or `/local → pull model`; by default it does not exist and no local models are available. Downloads stream to `<name>.gguf.part` via `reqwest` with a `futures-util` async chunk loop and an `indicatif` progress bar, then atomically rename to `<name>.gguf` on success — an interrupted download never leaves a half-written model in place. Names are validated against `[A-Za-z0-9._-]+` and default to the GGUF file's stem (overridable at download time).
+
+Management functions (all safe to compile without the `local` feature): `list_models()` scans `*.gguf`, `model_path(name)` resolves to the on-disk path, `remove_model(name)` deletes one file, `clear_models()` wipes the directory. `download_model(spec, override_name)` parses three spec forms — `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, and raw `https://…/file.gguf` — all routed through the same streaming download. `call_local()` is feature-gated: with `--features local` it loads the GGUF via `llama-cpp-2` on a `tokio::spawn_blocking` task, flattens messages into a ChatML-style prompt, and runs greedy sampling up to 1024 new tokens; without the feature it returns an error telling the user to rebuild.
 
 ### `~/.aictl/sessions/`
 

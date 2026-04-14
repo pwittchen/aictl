@@ -52,6 +52,7 @@ pub const COMMANDS: &[&str] = &[
     "help",
     "info",
     "issues",
+    "local",
     "lock-keys",
     "memory",
     "model",
@@ -92,6 +93,8 @@ pub enum CommandResult {
     Agent,
     /// Open the session management menu.
     Session,
+    /// Open the local (native) model management menu.
+    Local,
     /// Fetch and display known issues.
     Issues,
     /// Migrate API keys from config to the system keyring.
@@ -132,6 +135,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "update" => CommandResult::Update,
         "version" => CommandResult::Version,
         "session" => CommandResult::Session,
+        "local" => CommandResult::Local,
         "issues" => CommandResult::Issues,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
@@ -266,6 +270,9 @@ pub async fn compact(
         Provider::Ollama => {
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &summary_msgs)).await
         }
+        Provider::Local => {
+            crate::with_esc_cancel(crate::llm_local::call_local(model, &summary_msgs)).await
+        }
     };
 
     ui.stop_spinner();
@@ -386,6 +393,7 @@ fn print_help() {
         ("/help", "show this help message"),
         ("/info", "show setup info"),
         ("/issues", "show known issues"),
+        ("/local", "manage native local models (pull, list, remove) [experimental]"),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
         ("/model", "switch model and provider"),
         ("/security", "show security policy"),
@@ -921,7 +929,7 @@ struct MenuModel {
     api_key_name: String,
 }
 
-fn build_combined_models(ollama_models: &[String]) -> Vec<MenuModel> {
+fn build_combined_models(ollama_models: &[String], local_models: &[String]) -> Vec<MenuModel> {
     let mut combined: Vec<MenuModel> = MODELS
         .iter()
         .map(|(prov, model, key)| MenuModel {
@@ -934,6 +942,14 @@ fn build_combined_models(ollama_models: &[String]) -> Vec<MenuModel> {
     for m in ollama_models {
         combined.push(MenuModel {
             provider: "ollama".to_string(),
+            model: m.clone(),
+            api_key_name: String::new(),
+        });
+    }
+
+    for m in local_models {
+        combined.push(MenuModel {
+            provider: "local".to_string(),
             model: m.clone(),
             api_key_name: String::new(),
         });
@@ -963,6 +979,7 @@ fn build_menu_lines(
                 "kimi" => "Kimi:",
                 "zai" => "Z.ai:",
                 "ollama" => "Ollama:",
+                "local" => "Local (native):",
                 _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
@@ -1169,8 +1186,9 @@ where
 pub fn select_model(
     current_model: &str,
     ollama_models: &[String],
+    local_models: &[String],
 ) -> Option<(Provider, String, String)> {
-    let combined = build_combined_models(ollama_models);
+    let combined = build_combined_models(ollama_models, local_models);
     let initial = combined
         .iter()
         .position(|m| m.model == current_model)
@@ -1189,6 +1207,7 @@ pub fn select_model(
         "kimi" => Provider::Kimi,
         "zai" => Provider::Zai,
         "ollama" => Provider::Ollama,
+        "local" => Provider::Local,
         _ => unreachable!(),
     };
     Some((provider, entry.model.clone(), entry.api_key_name.clone()))
@@ -1310,6 +1329,7 @@ pub fn select_memory(current: MemoryMode) -> Option<MemoryMode> {
     })
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, version_info: &str) {
     let version = crate::VERSION;
     let behavior = if auto { "auto" } else { "human-in-the-loop" };
@@ -1380,21 +1400,46 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
     if !providers.contains(&"ollama") {
         providers.push("ollama");
     }
+    if !providers.contains(&"local") {
+        providers.push("local");
+    }
     let provider_count = providers.len();
     let model_count = crate::llm::MODELS.len();
     println!(
-        "  {} {provider_count} ({}) + ollama (dynamic)",
+        "  {} {provider_count} ({}) + ollama (dynamic) + local (native)",
         "providers:".with(Color::Cyan),
         providers
             .iter()
-            .filter(|&&p| p != "ollama")
+            .filter(|&&p| p != "ollama" && p != "local")
             .copied()
             .collect::<Vec<_>>()
             .join(", ")
     );
+
+    let local_models = crate::llm_local::list_models();
+    let local_available = crate::llm_local::is_available();
+    let feature_label = if local_available {
+        "enabled".with(Color::Green).to_string()
+    } else {
+        "disabled (rebuild with --features local)"
+            .with(Color::Yellow)
+            .to_string()
+    };
+    let experimental = "[experimental]".with(Color::Yellow).to_string();
+    let local_info = if local_models.is_empty() {
+        format!("0 downloaded · inference {feature_label} {experimental}")
+    } else {
+        format!(
+            "{} downloaded ({}) · inference {feature_label} {experimental}",
+            local_models.len(),
+            local_models.join(", ")
+        )
+    };
+    println!("  {} {local_info}", "local:    ".with(Color::Cyan));
     println!(
-        "  {} {model_count} cataloged + ollama local models",
-        "models:   ".with(Color::Cyan)
+        "  {} {model_count} cataloged + ollama local models + {} native local",
+        "models:   ".with(Color::Cyan),
+        local_models.len()
     );
     let tool_count = crate::tools::TOOL_COUNT;
     let disabled = crate::security::policy().disabled_tools.len();
@@ -1941,6 +1986,410 @@ pub fn print_agents_cli() {
     }
     for e in &entries {
         println!("{}", e.name);
+    }
+}
+
+// --- Local (native) model management ---
+
+const LOCAL_MENU_ITEMS: &[(&str, &str)] = &[
+    ("view downloaded", "list models in ~/.aictl/models/"),
+    (
+        "pull model",
+        "download a GGUF model from Hugging Face or URL",
+    ),
+    ("remove model", "delete a downloaded model"),
+    ("clear all", "remove every downloaded model"),
+];
+
+fn build_local_menu_lines(selected: usize) -> Vec<String> {
+    let max = LOCAL_MENU_ITEMS
+        .iter()
+        .map(|(n, _)| n.len())
+        .max()
+        .unwrap_or(0);
+    LOCAL_MENU_ITEMS
+        .iter()
+        .enumerate()
+        .map(|(i, (name, desc))| {
+            let is_selected = i == selected;
+            let padded = format!("{name:<max$}");
+            let name_styled = if is_selected {
+                format!(
+                    "{}",
+                    padded
+                        .with(Color::White)
+                        .attribute(crossterm::style::Attribute::Bold)
+                )
+            } else {
+                format!("{}", padded.with(Color::DarkGrey))
+            };
+            let desc_styled = format!("{}", desc.with(Color::DarkGrey));
+            if is_selected {
+                format!("  {} {name_styled}  {desc_styled}", "›".with(Color::Cyan))
+            } else {
+                format!("    {name_styled}  {desc_styled}")
+            }
+        })
+        .collect()
+}
+
+fn print_local_models() {
+    let models = crate::llm_local::list_models();
+    println!();
+    if !crate::llm_local::is_available() {
+        println!(
+            "  {}",
+            "native inference is not compiled in — rebuild with `cargo build --features local` to use downloaded models".with(Color::Yellow)
+        );
+    }
+    if models.is_empty() {
+        println!("  {}", "no local models downloaded".with(Color::DarkGrey));
+        println!();
+        return;
+    }
+    let dir = crate::llm_local::models_dir();
+    for m in &models {
+        let path = dir.join(format!("{m}.gguf"));
+        let size = std::fs::metadata(&path)
+            .ok()
+            .map_or_else(|| "?".to_string(), |meta| format_size(meta.len()));
+        println!(
+            "  {} {}  {}",
+            "●".with(Color::Green),
+            m.as_str().with(Color::White),
+            size.with(Color::DarkGrey),
+        );
+    }
+    println!();
+}
+
+/// Cancellable single-line prompt.
+///
+/// Returns `Ok(text)` when the user presses Enter (text may be empty) or
+/// `Err(())` when the user presses Esc or Ctrl+C. Backspace deletes.
+fn prompt_line_cancellable(prompt: &str) -> Result<String, ()> {
+    use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+    use crossterm::terminal;
+
+    print!("  {} ", prompt.with(Color::Cyan));
+    let _ = std::io::stdout().flush();
+
+    let _ = terminal::enable_raw_mode();
+    let mut buf = String::new();
+    let result: Result<String, ()> = loop {
+        if !event::poll(std::time::Duration::from_millis(200)).unwrap_or(false) {
+            continue;
+        }
+        let Ok(ev) = event::read() else {
+            break Err(());
+        };
+        if let Event::Key(key) = ev
+            && key.kind == KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Esc => break Err(()),
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    break Err(());
+                }
+                KeyCode::Enter => break Ok(buf.clone()),
+                KeyCode::Backspace => {
+                    if buf.pop().is_some() {
+                        // Erase last character on screen.
+                        print!("\u{8} \u{8}");
+                        let _ = std::io::stdout().flush();
+                    }
+                }
+                KeyCode::Char(c) => {
+                    buf.push(c);
+                    print!("{c}");
+                    let _ = std::io::stdout().flush();
+                }
+                _ => {}
+            }
+        }
+    };
+    let _ = terminal::disable_raw_mode();
+    println!();
+    result
+}
+
+/// Curated list of popular small-to-medium GGUF models that run well on
+/// consumer hardware. Each entry is (display label, spec, approximate size).
+/// Keep this short — it's a starter selection, not a catalog.
+const POPULAR_LOCAL_MODELS: &[(&str, &str, &str)] = &[
+    (
+        "Llama 3.2 3B Instruct (Q4_K_M)",
+        "bartowski/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        "~2.0 GB",
+    ),
+    (
+        "Llama 3.2 1B Instruct (Q4_K_M)",
+        "bartowski/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        "~0.8 GB",
+    ),
+    (
+        "Llama 3.1 8B Instruct (Q4_K_M)",
+        "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        "~4.9 GB",
+    ),
+    (
+        "Qwen 2.5 7B Instruct (Q4_K_M)",
+        "bartowski/Qwen2.5-7B-Instruct-GGUF:Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        "~4.7 GB",
+    ),
+    (
+        "Qwen 2.5 Coder 7B Instruct (Q4_K_M)",
+        "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF:Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
+        "~4.7 GB",
+    ),
+    (
+        "Mistral 7B Instruct v0.3 (Q4_K_M)",
+        "bartowski/Mistral-7B-Instruct-v0.3-GGUF:Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+        "~4.4 GB",
+    ),
+    (
+        "Phi 3.5 Mini Instruct (Q4_K_M)",
+        "bartowski/Phi-3.5-mini-instruct-GGUF:Phi-3.5-mini-instruct-Q4_K_M.gguf",
+        "~2.4 GB",
+    ),
+    (
+        "Gemma 2 2B Instruct (Q4_K_M)",
+        "bartowski/gemma-2-2b-it-GGUF:gemma-2-2b-it-Q4_K_M.gguf",
+        "~1.7 GB",
+    ),
+];
+
+fn build_popular_models_menu_lines(selected: usize) -> Vec<String> {
+    let max_label = POPULAR_LOCAL_MODELS
+        .iter()
+        .map(|(label, _, _)| label.len())
+        .max()
+        .unwrap_or(0);
+    let total = POPULAR_LOCAL_MODELS.len() + 1; // +1 for "custom spec"
+    (0..total)
+        .map(|i| {
+            let is_selected = i == selected;
+            let (label, size) = if i < POPULAR_LOCAL_MODELS.len() {
+                let (l, _, s) = POPULAR_LOCAL_MODELS[i];
+                (l.to_string(), s.to_string())
+            } else {
+                ("custom spec (hf:/owner/repo:/https://...)".to_string(), String::new())
+            };
+            let padded = format!("{label:<max_label$}");
+            let name_styled = if is_selected {
+                padded
+                    .with(Color::White)
+                    .attribute(crossterm::style::Attribute::Bold)
+                    .to_string()
+            } else {
+                padded.with(Color::DarkGrey).to_string()
+            };
+            let size_styled = format!("{}", size.with(Color::DarkGrey));
+            if is_selected {
+                format!("  {} {name_styled}  {size_styled}", "›".with(Color::Cyan))
+            } else {
+                format!("    {name_styled}  {size_styled}")
+            }
+        })
+        .collect()
+}
+
+async fn pull_local_model(show_error: &dyn Fn(&str)) {
+    let total = POPULAR_LOCAL_MODELS.len() + 1;
+    let Some(sel) = select_from_menu(total, 0, build_popular_models_menu_lines) else {
+        return;
+    };
+
+    let spec = if sel < POPULAR_LOCAL_MODELS.len() {
+        POPULAR_LOCAL_MODELS[sel].1.to_string()
+    } else {
+        println!();
+        println!("  {}", "spec examples:".with(Color::DarkGrey));
+        println!(
+            "    {}",
+            "hf:TheBloke/Llama-2-7B-Chat-GGUF/llama-2-7b-chat.Q4_K_M.gguf".with(Color::DarkGrey)
+        );
+        println!(
+            "    {}",
+            "bartowski/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+                .with(Color::DarkGrey)
+        );
+        println!(
+            "    {}",
+            "https://host/path/model.gguf".with(Color::DarkGrey)
+        );
+        match prompt_line_cancellable("spec:") {
+            Ok(s) if s.trim().is_empty() => {
+                show_cancelled();
+                return;
+            }
+            Ok(s) => s.trim().to_string(),
+            Err(()) => {
+                show_cancelled();
+                return;
+            }
+        }
+    };
+
+    let name_override = if let Ok(s) =
+        prompt_line_cancellable("local name (optional, press enter to use default):")
+    {
+        let t = s.trim().to_string();
+        if t.is_empty() { None } else { Some(t) }
+    } else {
+        show_cancelled();
+        return;
+    };
+
+    let download = crate::llm_local::download_model(&spec, name_override.as_deref());
+    match crate::with_esc_cancel(download).await {
+        Ok(Ok(name)) => {
+            println!();
+            println!(
+                "  {} downloaded {}",
+                "✓".with(Color::Green),
+                name.with(Color::White)
+            );
+            println!();
+        }
+        Ok(Err(e)) => show_error(&format!("download failed: {e}")),
+        Err(_) => {
+            println!();
+            println!(
+                "  {} download cancelled (partial file removed)",
+                "✗".with(Color::Yellow)
+            );
+            println!();
+            // Clean up the leaked .part file so the next attempt starts fresh.
+            let _ = cleanup_partial_download(&spec, name_override.as_deref());
+        }
+    }
+}
+
+fn show_cancelled() {
+    println!();
+    println!("  {} cancelled", "✗".with(Color::Yellow));
+    println!();
+}
+
+/// Best-effort cleanup of a `<name>.gguf.part` file left behind when a
+/// download is cancelled via Esc. Silently ignores failures.
+fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io::Result<()> {
+    // Resolve the same name the downloader would have used.
+    let name = override_name.map_or_else(|| {
+        spec.rsplit('/')
+            .next()
+            .and_then(|f| f.split('?').next())
+            .map(|f| {
+                std::path::Path::new(f)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(f)
+                    .to_string()
+            })
+            .unwrap_or_default()
+    }, String::from);
+    if name.is_empty() {
+        return Ok(());
+    }
+    let path = crate::llm_local::models_dir().join(format!("{name}.gguf.part"));
+    if path.exists() {
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
+fn remove_local_model_interactive(show_error: &dyn Fn(&str)) {
+    let models = crate::llm_local::list_models();
+    if models.is_empty() {
+        println!();
+        println!("  {}", "no local models to remove".with(Color::DarkGrey));
+        println!();
+        return;
+    }
+    let build = |sel: usize| -> Vec<String> {
+        models
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                let is_selected = i == sel;
+                if is_selected {
+                    format!(
+                        "  {} {}",
+                        "›".with(Color::Cyan),
+                        m.as_str()
+                            .with(Color::White)
+                            .attribute(crossterm::style::Attribute::Bold)
+                    )
+                } else {
+                    format!("    {}", m.as_str().with(Color::DarkGrey))
+                }
+            })
+            .collect()
+    };
+    let Some(sel) = select_from_menu(models.len(), 0, build) else {
+        return;
+    };
+    let name = &models[sel];
+    println!();
+    if !confirm_yn(&format!("remove local model '{name}'?")) {
+        return;
+    }
+    match crate::llm_local::remove_model(name) {
+        Ok(()) => {
+            println!();
+            println!(
+                "  {} removed {}",
+                "✓".with(Color::Green),
+                name.as_str().with(Color::White)
+            );
+            println!();
+        }
+        Err(e) => show_error(&format!("remove failed: {e}")),
+    }
+}
+
+fn clear_all_local_models_confirm() {
+    println!();
+    if !confirm_yn("remove ALL downloaded local models?") {
+        return;
+    }
+    match crate::llm_local::clear_models() {
+        Ok(n) => {
+            println!();
+            println!("  {} removed {n} local model(s)", "✓".with(Color::Green));
+            println!();
+        }
+        Err(e) => {
+            println!();
+            println!(
+                "  {} {}",
+                "✗".with(Color::Red),
+                e.to_string().with(Color::Red)
+            );
+            println!();
+        }
+    }
+}
+
+/// Interactive `/local` menu: list / pull / remove / clear.
+pub async fn run_local_menu(show_error: &dyn Fn(&str)) {
+    println!();
+    println!(
+        "  {} {}",
+        "⚠".with(Color::Yellow),
+        "native local-model support is experimental — expect rough edges".with(Color::Yellow)
+    );
+    println!();
+    let Some(sel) = select_from_menu(LOCAL_MENU_ITEMS.len(), 0, build_local_menu_lines) else {
+        return;
+    };
+    match sel {
+        0 => print_local_models(),
+        1 => pull_local_model(show_error).await,
+        2 => remove_local_model_interactive(show_error),
+        3 => clear_all_local_models_confirm(),
+        _ => {}
     }
 }
 
@@ -2697,6 +3146,9 @@ async fn create_agent_with_ai(
         }
         Provider::Ollama => {
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &gen_messages)).await
+        }
+        Provider::Local => {
+            crate::with_esc_cancel(crate::llm_local::call_local(model, &gen_messages)).await
         }
     };
 

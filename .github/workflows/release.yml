@@ -67,14 +67,18 @@ jobs:
 
       - name: Install Linux dependencies
         if: contains(matrix.target, 'linux')
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config cmake build-essential
+
+      - name: Install macOS dependencies
+        if: contains(matrix.os, 'macos')
+        run: brew install cmake
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          key: ${{ matrix.target }}-local
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --features local --target ${{ matrix.target }}
 
       - name: Rename binary
         run: cp target/${{ matrix.target }}/release/aictl ${{ matrix.artifact }}
