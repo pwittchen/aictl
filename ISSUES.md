@@ -11,10 +11,6 @@
 
 Split the codebase into separate modules: `core` (shared logic), `cli`, `server` (currently empty), `desktop` (currently empty) to enable independent development of each target.
 
-### Server
-
-Expose program functionality via a REST API protected by a local API key / token (optional).
-
 ### Desktop
 
 Provide a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal.
