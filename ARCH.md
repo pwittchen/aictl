@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /clear-keys, /clear-stats, /compact, /config, /context, /copy, /exit, /help, /info, /issues, /local, /lock-keys, /memory, /model, /security, /session, /stats, /tools, /unlock-keys, /update, /version)
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /help, /info, /issues, /keys, /local, /memory, /model, /security, /session, /stats, /tools, /update, /version)
  ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -24,7 +24,7 @@ src/
  ├── llm_zai.rs          Z.ai chat completions client
  ├── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
  ├── llm_local.rs        [experimental] Native GGUF inference + model manager (~/.aictl/models/). Download/list/remove always available; inference gated behind the `local` cargo feature (llama-cpp-2). Specs: hf:owner/repo/file.gguf, owner/repo:file.gguf, https:// URL.
- └── stats.rs            Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() drive /stats and /clear-stats.
+ └── stats.rs            Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
 ```
 
 ## Startup Flow
@@ -243,7 +243,7 @@ A tenth provider, `call_local()` in `llm_local.rs`, is not wired to a remote end
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /local (Local), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /clear-stats (ClearStats), /lock-keys (LockKeys), /unlock-keys (UnlockKeys), /clear-keys (ClearKeys), /config (Config), /update (Update), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /local (Local), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -258,13 +258,11 @@ A tenth provider, `call_local()` in `llm_local.rs`, is not wired to a remote end
                  disabled in incognito mode; continue
    Local       → open local-model menu (view downloaded / pull / remove / clear all);
                  downloads GGUF files to ~/.aictl/models/ with a progress bar; continue
-   Stats       → show usage statistics for today/this-month/overall from
-                 ~/.aictl/stats (calls, tokens, estimated cost), continue
-   ClearStats  → remove all recorded usage statistics (~/.aictl/stats), continue
+   Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
+                 clear all recorded usage statistics), continue
    Issues      → fetch and display known issues, continue
-   LockKeys    → migrate plain-text API keys from config into the system keyring, continue
-   UnlockKeys  → migrate API keys from the system keyring back into config, continue
-   ClearKeys   → remove API keys from both config and keyring (with confirmation), continue
+   Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /
+                 clear = remove from both, with confirmation), continue
    Update      → run update, restart if updated, continue
    Version     → check current version against latest available, continue
    Config      → re-run interactive configuration wizard, continue
@@ -409,15 +407,15 @@ API keys can live in two places: the plain-text `~/.aictl/config` file (the lega
 
 `location(name)` returns a `KeyLocation::{None, Config, Keyring, Both}` for `/security` and the welcome banner counts. Migration commands operate on the canonical `KEY_NAMES` list (the eight LLM provider keys plus `FIRECRAWL_API_KEY`):
 
-- `lock_key(name)` reads the value from the config file, writes it to the keyring, then calls `config_unset` to remove the plain-text copy.
-- `unlock_key(name)` reads the value from the keyring, writes it to the config file via `config_set`, then deletes the keyring entry.
-- `clear_key(name)` removes the entry from both stores; the slash command wraps this with a y/N confirmation.
+- `lock_key(name)` reads the value from the config file, writes it to the keyring, then calls `config_unset` to remove the plain-text copy. Exposed via the `/keys → lock keys` menu entry and the one-shot `--lock-keys` flag.
+- `unlock_key(name)` reads the value from the keyring, writes it to the config file via `config_set`, then deletes the keyring entry. Exposed via `/keys → unlock keys` and `--unlock-keys`.
+- `clear_key(name)` removes the entry from both stores. Exposed via `/keys → clear keys` (wrapped with a y/N confirmation) and `--clear-keys` (no confirmation; the explicit flag is treated as the user's consent).
 
 The keyring backend is selected at compile time via Cargo features: `apple-native` on macOS, `sync-secret-service` on Linux. **Without explicit features the `keyring` v3 crate silently uses an in-memory mock store** that pretends writes succeed but never persists — `Cargo.toml` enables both platform backends to avoid this trap. `backend_available()` probes the active backend at runtime so headless Linux systems with no Secret Service daemon transparently fall back to plain-text storage and the welcome banner shows `keys: plain text` in yellow.
 
 ### `~/.aictl/history`
 
-Plain text REPL input history managed by `rustyline`. Written on REPL exit; loaded at REPL startup. Not used by single-shot (`-m`) mode.
+Plain text REPL input history managed by `rustyline`. Written on REPL exit; loaded at REPL startup. Not used by single-shot (`--message`) mode.
 
 ### `~/.aictl/agents/<name>`
 
@@ -426,7 +424,7 @@ Each file is a plain-text agent prompt — the body that gets appended to the ba
 - `read_agent(name)` / `delete_agent(name)` — load/remove a single agent
 - `list_agents()` — enumerates regular files whose names pass validation, sorted alphabetically (invalid filenames are silently skipped)
 
-A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` / `-A <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
 
 ### `~/.aictl/models/<name>.gguf`
 

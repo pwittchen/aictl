@@ -110,14 +110,11 @@ The interactive REPL supports slash commands:
 | `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
-| `/stats` | Show usage statistics for today, this month, and overall (calls, tokens, estimated cost) |
-| `/clear-stats` | Remove all recorded usage statistics from `~/.aictl/stats` |
+| `/stats` | Manage usage statistics — view today/month/overall (calls, tokens, estimated cost) or clear all |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/tools` | Show available tools |
-| `/lock-keys` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring |
-| `/unlock-keys` | Migrate API keys from the system keyring back into `~/.aictl/config` |
-| `/clear-keys` | Remove API keys from both `~/.aictl/config` and the system keyring (with confirmation) |
+| `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
 | `/config` | Re-run the interactive configuration wizard |
 | `/update` | Update to the latest version |
 | `/version` | Check current version against the latest available |
@@ -127,30 +124,33 @@ Press **Esc** during any LLM call or tool execution to interrupt the operation a
 
 ### Parameters
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--version` | `-V` | Print version information |
-| `--update` | `-u` | Update to the latest version |
-| `--config` | `-C` | Interactive configuration wizard — set provider, model, and API keys step by step |
-| `--provider` | `-p` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, or `local`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
-| `--model` | `-M` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
-| `--message` | `-m` | Message to send (omit for interactive mode) |
-| `--agent` | `-A` | Load a saved agent by name (works in both single-shot and interactive modes) |
-| `--list-agents` | `-L` | Print saved agents from `~/.aictl/agents/` and exit |
-| `--auto` | `-a` | Run in autonomous mode (skip tool confirmation prompts) |
-| `--quiet` | `-q` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
-| `--unrestricted` | `-U` | Disable all security restrictions (use with caution) |
-| `--incognito` | `-i` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
-| `--session` | `-s` | Load a saved session by uuid or name on startup (interactive mode only) |
-| `--list-sessions` | `-l` | Print saved sessions from `~/.aictl/sessions/` and exit |
-| `--clear-sessions` | `-c` | Remove all saved sessions and exit |
-| `--lock-keys` | `-k` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring and exit |
-| `--unlock-keys` | `-K` | Migrate API keys from the system keyring back into `~/.aictl/config` and exit |
-| `--clear-keys` | `-X` | Remove API keys from both `~/.aictl/config` and the system keyring and exit |
-| `--pull-model` | | Download a native local GGUF model (spec: `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, or `https://…/file.gguf`). Saved under `~/.aictl/models/` and exits |
-| `--list-local-models` | | Print all downloaded native local models and exit |
-| `--remove-local-model` | | Remove a downloaded native local model by name and exit |
-| `--clear-local-models` | | Remove every downloaded native local model and exit |
+Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options use long form only, by convention.
+
+| Flag | Description |
+|------|-------------|
+| `--version`, `-v` | Print version information |
+| `--help`, `-h` | Print help |
+| `--update` | Update to the latest version |
+| `--config` | Interactive configuration wizard — set provider, model, and API keys step by step |
+| `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, or `local`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
+| `--model` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
+| `--message` | Message to send (omit for interactive mode) |
+| `--agent` | Load a saved agent by name (works in both single-shot and interactive modes) |
+| `--list-agents` | Print saved agents from `~/.aictl/agents/` and exit |
+| `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
+| `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
+| `--unrestricted` | Disable all security restrictions (use with caution) |
+| `--incognito` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
+| `--session` | Load a saved session by uuid or name on startup (interactive mode only) |
+| `--list-sessions` | Print saved sessions from `~/.aictl/sessions/` and exit |
+| `--clear-sessions` | Remove all saved sessions and exit |
+| `--lock-keys` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring and exit |
+| `--unlock-keys` | Migrate API keys from the system keyring back into `~/.aictl/config` and exit |
+| `--clear-keys` | Remove API keys from both `~/.aictl/config` and the system keyring and exit |
+| `--pull-model` | Download a native local GGUF model (spec: `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, or `https://…/file.gguf`). Saved under `~/.aictl/models/` and exits |
+| `--list-local-models` | Print all downloaded native local models and exit |
+| `--remove-local-model` | Remove a downloaded native local model by name and exit |
+| `--clear-local-models` | Remove every downloaded native local model and exit |
 
 CLI flags take priority over config file values.
 
@@ -171,7 +171,7 @@ Use `/agent` to open the agent menu:
 - **View all agents** — browse saved agents, view their prompt, load an agent, or delete it
 - **Unload agent** — remove the currently loaded agent (only shown when one is loaded)
 
-Agents can also be loaded from the command line with `--agent <name>` (or `-A <name>`), which works in both single-shot and interactive modes.
+Agents can also be loaded from the command line with `--agent <name>`, which works in both single-shot and interactive modes.
 
 Agent names may contain only letters, numbers, underscores, and dashes. When an agent is loaded, its prompt is appended to the system prompt and the agent name appears in magenta brackets before the input prompt (e.g. `[my-agent] ❯`).
 
@@ -230,11 +230,13 @@ By default, API keys live as plain text in `~/.aictl/config`. aictl can also sto
 
 The active backend appears in the welcome banner (`keys: Keychain (2 locked · 1 plain · 0 both)`) and `/security` shows the per-key location.
 
-Migration is done from inside the REPL:
+Migration is done from inside the REPL via the `/keys` interactive menu:
 
-- `/lock-keys` — copies every plain-text key found in `~/.aictl/config` into the system keyring and removes the plain-text copy
-- `/unlock-keys` — copies every keyring entry back into `~/.aictl/config` and deletes it from the keyring
-- `/clear-keys` — removes the keys from both stores (asks for confirmation)
+- **lock keys** — copies every plain-text key found in `~/.aictl/config` into the system keyring and removes the plain-text copy
+- **unlock keys** — copies every keyring entry back into `~/.aictl/config` and deletes it from the keyring
+- **clear keys** — removes the keys from both stores (asks for confirmation)
+
+The same operations are available as one-shot CLI flags: `--lock-keys`, `--unlock-keys`, `--clear-keys`.
 
 When the keyring backend is unavailable (e.g. headless Linux without a Secret Service daemon), aictl falls back to plain-text storage automatically and the banner shows `keys: plain text` in yellow.
 
@@ -548,19 +550,19 @@ Security denials are returned to the LLM as tool results (displayed in red) so i
 aictl
 
 # Or send a single message:
-aictl -m "What is Rust?"
+aictl --message "What is Rust?"
 
 # Override provider/model from the command line:
-aictl -p openai -M gpt-4o -m "What is Rust?"
+aictl --provider openai --model gpt-4o --message "What is Rust?"
 
 # Agent with tool calls (interactive confirmation)
-aictl -m "List files in the current directory"
+aictl --message "List files in the current directory"
 
 # Autonomous mode (no confirmation prompts)
-aictl --auto -m "What OS am I running?"
+aictl --auto --message "What OS am I running?"
 
 # Quiet mode (only final answer, no tool calls or reasoning)
-aictl --auto -q -m "What OS am I running?"
+aictl --auto --quiet --message "What OS am I running?"
 ```
 
 ## Tests

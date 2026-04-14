@@ -93,75 +93,75 @@ pub(crate) fn version_info_string(remote: Option<&str>) -> String {
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Print version information
-    #[arg(short = 'V', long = "version")]
+    #[arg(short = 'v', long = "version")]
     version: bool,
 
     /// Update to the latest version
-    #[arg(short = 'u', long = "update")]
+    #[arg(long = "update")]
     update: bool,
 
     /// LLM provider to use (default: `AICTL_PROVIDER` from ~/.aictl/config)
-    #[arg(short, long)]
+    #[arg(long)]
     provider: Option<Provider>,
 
     /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: `AICTL_MODEL` from ~/.aictl/config)
-    #[arg(short = 'M', long)]
+    #[arg(long)]
     model: Option<String>,
 
     /// Message to send to the LLM (omit for interactive mode)
-    #[arg(short, long)]
+    #[arg(long)]
     message: Option<String>,
 
     /// Run in autonomous mode (skip tool confirmation prompts)
-    #[arg(short, long)]
+    #[arg(long)]
     auto: bool,
 
     /// Suppress tool calls and reasoning, only print the final answer (requires --auto)
-    #[arg(short, long, requires = "auto")]
+    #[arg(long, requires = "auto")]
     quiet: bool,
 
     /// Disable security restrictions (use with caution)
-    #[arg(long, short = 'U')]
+    #[arg(long)]
     unrestricted: bool,
 
     /// Load a saved session by uuid or name (interactive mode only)
-    #[arg(short = 's', long = "session")]
+    #[arg(long = "session")]
     session: Option<String>,
 
     /// List all saved sessions and exit
-    #[arg(short = 'l', long = "list-sessions")]
+    #[arg(long = "list-sessions")]
     list_sessions: bool,
 
     /// Clear all saved sessions and exit
-    #[arg(short = 'c', long = "clear-sessions")]
+    #[arg(long = "clear-sessions")]
     clear_sessions: bool,
 
     /// Start in incognito mode: interactive REPL without saving sessions
-    #[arg(short = 'i', long)]
+    #[arg(long)]
     incognito: bool,
 
     /// Load a saved agent by name
-    #[arg(short = 'A', long = "agent")]
+    #[arg(long = "agent")]
     agent: Option<String>,
 
     /// List all saved agents and exit
-    #[arg(short = 'L', long = "list-agents")]
+    #[arg(long = "list-agents")]
     list_agents: bool,
 
     /// Interactive configuration wizard for provider, model, and API keys
-    #[arg(short = 'C', long = "config")]
+    #[arg(long = "config")]
     config: bool,
 
     /// Migrate API keys from ~/.aictl/config into the system keyring and exit
-    #[arg(short = 'k', long = "lock-keys")]
+    #[arg(long = "lock-keys")]
     lock_keys: bool,
 
     /// Migrate API keys from the system keyring back into ~/.aictl/config and exit
-    #[arg(short = 'K', long = "unlock-keys")]
+    #[arg(long = "unlock-keys")]
     unlock_keys: bool,
 
     /// Remove API keys from both ~/.aictl/config and the system keyring and exit
-    #[arg(short = 'X', long = "clear-keys")]
+    #[arg(long = "clear-keys")]
     clear_keys: bool,
 
     /// [experimental] Download a native local GGUF model (spec: hf:owner/repo/file.gguf,
