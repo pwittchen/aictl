@@ -102,6 +102,11 @@ struct Cli {
     #[arg(long = "update")]
     update: bool,
 
+    /// Remove the aictl binary from `~/.cargo/bin/` and `~/.local/bin/` (and
+    /// `$AICTL_INSTALL_DIR` if set) and exit. Leaves `~/.aictl/` untouched.
+    #[arg(long = "uninstall")]
+    uninstall: bool,
+
     /// LLM provider to use (default: `AICTL_PROVIDER` from ~/.aictl/config)
     #[arg(long)]
     provider: Option<Provider>,
@@ -837,6 +842,13 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
+        commands::CommandResult::Uninstall => {
+            let _ = rl.add_history_entry(input);
+            if commands::run_uninstall_repl(&|msg| ui.show_error(msg)) {
+                return ReplAction::Break;
+            }
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Version => {
             let _ = rl.add_history_entry(input);
             commands::run_version(&|msg| ui.show_error(msg)).await;
@@ -1228,6 +1240,11 @@ async fn main() {
 
     if cli.update {
         commands::run_update_cli().await;
+        return;
+    }
+
+    if cli.uninstall {
+        commands::run_uninstall_cli();
         return;
     }
 

@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /issues, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /update, /version)
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /issues, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
  ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -249,7 +249,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `ll
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /uninstall (Uninstall), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -273,6 +273,9 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `ll
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /
                  clear = remove from both, with confirmation), continue
    Update      → run update, restart if updated, continue
+   Uninstall   → list install locations, ask y/N, delete the binary from
+                 ~/.cargo/bin/, ~/.local/bin/, and $AICTL_INSTALL_DIR (if set);
+                 break the REPL on success since the binary is gone, continue otherwise
    Version     → check current version against latest available, continue
    Config      → re-run interactive configuration wizard, continue
    Model       → select new model/provider, persist to ~/.aictl/config, continue

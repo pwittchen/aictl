@@ -116,7 +116,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -147,6 +147,7 @@ The interactive REPL supports slash commands:
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
 | `/config` | Re-run the interactive configuration wizard |
 | `/update` | Update to the latest version |
+| `/uninstall` | Remove the aictl binary from `~/.cargo/bin/` and `~/.local/bin/` (asks for confirmation) |
 | `/version` | Check current version against the latest available |
 | `/exit` | Exit the REPL |
 
@@ -161,6 +162,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--version`, `-v` | Print version information |
 | `--help`, `-h` | Print help |
 | `--update` | Update to the latest version |
+| `--uninstall` | Remove the aictl binary from `~/.cargo/bin/aictl`, `~/.local/bin/aictl`, and `$AICTL_INSTALL_DIR/aictl` (if set) and exit. Leaves `~/.aictl/` untouched |
 | `--config` | Interactive configuration wizard — set provider, model, and API keys step by step |
 | `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, or `mlx`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
