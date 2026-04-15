@@ -40,14 +40,14 @@ src/
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
- │  2c''. --pull-gguf-model /    GGUF model management helpers, exit         │
- │       --list-gguf-models /    (use llm_gguf::download_model / list /      │
- │       --remove-gguf-model /   remove_model / clear_models)                │
- │       --clear-gguf-models                                                 │
- │  2c'''. --pull-mlx-model /    MLX model management helpers, exit          │
- │        --list-mlx-models /    (use llm_mlx::download_model / list /       │
- │        --remove-mlx-model /   remove_model / clear_models)                │
- │        --clear-mlx-models                                                 │
+ │  2c''. --pull-gguf-model /    GGUF model management helpers, exit        │
+ │       --list-gguf-models /    (use llm_gguf::download_model / list /     │
+ │       --remove-gguf-model /   remove_model / clear_models)               │
+ │       --clear-gguf-models                                                │
+ │  2c'''. --pull-mlx-model /    MLX model management helpers, exit         │
+ │        --list-mlx-models /    (use llm_mlx::download_model / list /      │
+ │        --remove-mlx-model /   remove_model / clear_models)               │
+ │        --clear-mlx-models                                                │
  │  2d. --config                run_config_wizard() and exit                │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
