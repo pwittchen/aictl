@@ -8,7 +8,7 @@ mod llm_deepseek;
 mod llm_gemini;
 mod llm_grok;
 mod llm_kimi;
-mod llm_local;
+mod llm_gguf;
 mod llm_mistral;
 mod llm_ollama;
 mod llm_openai;
@@ -427,7 +427,7 @@ async fn run_agent_turn(
             }
             Provider::Zai => with_esc_cancel(llm_zai::call_zai(api_key, model, llm_messages)).await,
             Provider::Ollama => with_esc_cancel(llm_ollama::call_ollama(model, llm_messages)).await,
-            Provider::Local => with_esc_cancel(llm_local::call_local(model, llm_messages)).await,
+            Provider::Local => with_esc_cancel(llm_gguf::call_local(model, llm_messages)).await,
         };
         let call_elapsed = call_start.elapsed();
 
@@ -818,7 +818,7 @@ async fn handle_repl_input(
         commands::CommandResult::Model => {
             let _ = rl.add_history_entry(input);
             let ollama_models = llm_ollama::list_models().await;
-            let local_models = llm_local::list_models();
+            let local_models = llm_gguf::list_models();
             if let Some((new_provider, new_model, api_key_name)) =
                 commands::select_model(model, &ollama_models, &local_models)
             {
@@ -1236,7 +1236,7 @@ async fn main() {
     }
 
     if let Some(spec) = cli.pull_gguf_model.as_deref() {
-        match llm_local::download_model(spec, None).await {
+        match llm_gguf::download_model(spec, None).await {
             Ok(name) => println!("downloaded GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1247,7 +1247,7 @@ async fn main() {
     }
 
     if cli.list_gguf_models {
-        let models = llm_local::list_models();
+        let models = llm_gguf::list_models();
         if models.is_empty() {
             println!(
                 "No GGUF models downloaded. Use `aictl --pull-gguf-model <spec>` to fetch one."
@@ -1261,7 +1261,7 @@ async fn main() {
     }
 
     if let Some(name) = cli.remove_gguf_model.as_deref() {
-        match llm_local::remove_model(name) {
+        match llm_gguf::remove_model(name) {
             Ok(()) => println!("removed GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1272,7 +1272,7 @@ async fn main() {
     }
 
     if cli.clear_gguf_models {
-        match llm_local::clear_models() {
+        match llm_gguf::clear_models() {
             Ok(n) => println!("removed {n} GGUF model(s)"),
             Err(e) => {
                 eprintln!("Error: {e}");

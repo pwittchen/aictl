@@ -241,7 +241,7 @@ pub async fn compact(
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &summary_msgs)).await
         }
         Provider::Local => {
-            crate::with_esc_cancel(crate::llm_local::call_local(model, &summary_msgs)).await
+            crate::with_esc_cancel(crate::llm_gguf::call_local(model, &summary_msgs)).await
         }
     };
 
@@ -1456,12 +1456,12 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
             .join(", ")
     );
 
-    let local_models = crate::llm_local::list_models();
-    let local_available = crate::llm_local::is_available();
+    let local_models = crate::llm_gguf::list_models();
+    let local_available = crate::llm_gguf::is_available();
     let feature_label = if local_available {
         "enabled".with(Color::Green).to_string()
     } else {
-        "disabled (rebuild with --features local)"
+        "disabled (rebuild with --features gguf)"
             .with(Color::Yellow)
             .to_string()
     };
@@ -2074,12 +2074,12 @@ fn build_gguf_menu_lines(selected: usize) -> Vec<String> {
 }
 
 fn print_gguf_models() {
-    let models = crate::llm_local::list_models();
+    let models = crate::llm_gguf::list_models();
     println!();
-    if !crate::llm_local::is_available() {
+    if !crate::llm_gguf::is_available() {
         println!(
             "  {}",
-            "native inference is not compiled in — rebuild with `cargo build --features local` to use downloaded models".with(Color::Yellow)
+            "native inference is not compiled in — rebuild with `cargo build --features gguf` to use downloaded models".with(Color::Yellow)
         );
     }
     if models.is_empty() {
@@ -2087,7 +2087,7 @@ fn print_gguf_models() {
         println!();
         return;
     }
-    let dir = crate::llm_local::models_dir();
+    let dir = crate::llm_gguf::models_dir();
     for m in &models {
         let path = dir.join(format!("{m}.gguf"));
         let size = std::fs::metadata(&path)
@@ -2156,61 +2156,105 @@ fn prompt_line_cancellable(prompt: &str) -> Result<String, ()> {
 /// Curated list of popular small-to-medium GGUF models that run well on
 /// consumer hardware. Each entry is (display label, spec, approximate size).
 /// Keep this short — it's a starter selection, not a catalog.
-const POPULAR_LOCAL_MODELS: &[(&str, &str, &str)] = &[
+/// Curated subset of the LM Studio model catalog (<https://lmstudio.ai/models>).
+/// Each entry points at the `lmstudio-community` GGUF mirror on Hugging Face
+/// with the `Q4_K_M` quant where available (gpt-oss ships only `MXFP4`).
+/// Sizes were read from the HF tree API at the time of selection.
+const LMSTUDIO_CATALOG: &[(&str, &str, &str)] = &[
     (
         "Llama 3.2 3B Instruct (Q4_K_M)",
-        "bartowski/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        "~2.0 GB",
-    ),
-    (
-        "Llama 3.2 1B Instruct (Q4_K_M)",
-        "bartowski/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        "~0.8 GB",
+        "lmstudio-community/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        "~1.9 GB",
     ),
     (
         "Llama 3.1 8B Instruct (Q4_K_M)",
-        "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF:Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-        "~4.9 GB",
+        "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF:Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        "~4.6 GB",
     ),
     (
-        "Qwen 2.5 7B Instruct (Q4_K_M)",
-        "bartowski/Qwen2.5-7B-Instruct-GGUF:Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        "Qwen3 4B (Q4_K_M)",
+        "lmstudio-community/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
+        "~2.3 GB",
+    ),
+    (
+        "Qwen3 8B (Q4_K_M)",
+        "lmstudio-community/Qwen3-8B-GGUF:Qwen3-8B-Q4_K_M.gguf",
         "~4.7 GB",
     ),
     (
-        "Qwen 2.5 Coder 7B Instruct (Q4_K_M)",
-        "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF:Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
-        "~4.7 GB",
+        "Qwen3 14B (Q4_K_M)",
+        "lmstudio-community/Qwen3-14B-GGUF:Qwen3-14B-Q4_K_M.gguf",
+        "~8.4 GB",
     ),
     (
-        "Mistral 7B Instruct v0.3 (Q4_K_M)",
-        "bartowski/Mistral-7B-Instruct-v0.3-GGUF:Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+        "Qwen3 Coder 30B A3B Instruct (Q4_K_M)",
+        "lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-GGUF:Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+        "~17.4 GB",
+    ),
+    (
+        "Gemma 3 4B Instruct (Q4_K_M)",
+        "lmstudio-community/gemma-3-4b-it-GGUF:gemma-3-4b-it-Q4_K_M.gguf",
+        "~2.3 GB",
+    ),
+    (
+        "Gemma 3 12B Instruct (Q4_K_M)",
+        "lmstudio-community/gemma-3-12b-it-GGUF:gemma-3-12b-it-Q4_K_M.gguf",
+        "~6.8 GB",
+    ),
+    (
+        "Gemma 3 27B Instruct (Q4_K_M)",
+        "lmstudio-community/gemma-3-27b-it-GGUF:gemma-3-27b-it-Q4_K_M.gguf",
+        "~15.4 GB",
+    ),
+    (
+        "gpt-oss 20B (MXFP4)",
+        "lmstudio-community/gpt-oss-20b-GGUF:gpt-oss-20b-MXFP4.gguf",
+        "~11.3 GB",
+    ),
+    (
+        "DeepSeek R1 Distill Qwen 7B (Q4_K_M)",
+        "lmstudio-community/DeepSeek-R1-Distill-Qwen-7B-GGUF:DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
         "~4.4 GB",
     ),
     (
-        "Phi 3.5 Mini Instruct (Q4_K_M)",
-        "bartowski/Phi-3.5-mini-instruct-GGUF:Phi-3.5-mini-instruct-Q4_K_M.gguf",
-        "~2.4 GB",
+        "DeepSeek R1 Distill Qwen 14B (Q4_K_M)",
+        "lmstudio-community/DeepSeek-R1-Distill-Qwen-14B-GGUF:DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
+        "~8.4 GB",
     ),
     (
-        "Gemma 2 2B Instruct (Q4_K_M)",
-        "bartowski/gemma-2-2b-it-GGUF:gemma-2-2b-it-Q4_K_M.gguf",
-        "~1.7 GB",
+        "DeepSeek R1 Distill Qwen 32B (Q4_K_M)",
+        "lmstudio-community/DeepSeek-R1-Distill-Qwen-32B-GGUF:DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf",
+        "~18.5 GB",
+    ),
+    (
+        "Mistral Small 24B Instruct 2501 (Q4_K_M)",
+        "lmstudio-community/Mistral-Small-24B-Instruct-2501-GGUF:Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+        "~13.3 GB",
+    ),
+    (
+        "Phi 4 (Q4_K_M)",
+        "lmstudio-community/phi-4-GGUF:phi-4-Q4_K_M.gguf",
+        "~8.4 GB",
+    ),
+    (
+        "Granite 4.0 H Small (Q4_K_M)",
+        "lmstudio-community/granite-4.0-h-small-GGUF:granite-4.0-h-small-Q4_K_M.gguf",
+        "~18.1 GB",
     ),
 ];
 
-fn build_popular_models_menu_lines(selected: usize) -> Vec<String> {
-    let max_label = POPULAR_LOCAL_MODELS
+fn build_lmstudio_catalog_menu_lines(selected: usize) -> Vec<String> {
+    let max_label = LMSTUDIO_CATALOG
         .iter()
         .map(|(label, _, _)| label.len())
         .max()
         .unwrap_or(0);
-    let total = POPULAR_LOCAL_MODELS.len() + 1; // +1 for "custom spec"
+    let total = LMSTUDIO_CATALOG.len() + 1; // +1 for "custom spec"
     (0..total)
         .map(|i| {
             let is_selected = i == selected;
-            let (label, size) = if i < POPULAR_LOCAL_MODELS.len() {
-                let (l, _, s) = POPULAR_LOCAL_MODELS[i];
+            let (label, size) = if i < LMSTUDIO_CATALOG.len() {
+                let (l, _, s) = LMSTUDIO_CATALOG[i];
                 (l.to_string(), s.to_string())
             } else {
                 (
@@ -2238,13 +2282,19 @@ fn build_popular_models_menu_lines(selected: usize) -> Vec<String> {
 }
 
 async fn pull_gguf_model(show_error: &dyn Fn(&str)) {
-    let total = POPULAR_LOCAL_MODELS.len() + 1;
-    let Some(sel) = select_from_menu(total, 0, build_popular_models_menu_lines) else {
+    println!();
+    println!(
+        "  {}",
+        "curated from the LM Studio catalog (lmstudio.ai/models), hosted on Hugging Face by lmstudio-community"
+            .with(Color::DarkGrey)
+    );
+    let total = LMSTUDIO_CATALOG.len() + 1;
+    let Some(sel) = select_from_menu(total, 0, build_lmstudio_catalog_menu_lines) else {
         return;
     };
 
-    let spec = if sel < POPULAR_LOCAL_MODELS.len() {
-        POPULAR_LOCAL_MODELS[sel].1.to_string()
+    let spec = if sel < LMSTUDIO_CATALOG.len() {
+        LMSTUDIO_CATALOG[sel].1.to_string()
     } else {
         println!();
         println!("  {}", "spec examples:".with(Color::DarkGrey));
@@ -2284,7 +2334,7 @@ async fn pull_gguf_model(show_error: &dyn Fn(&str)) {
         return;
     };
 
-    let download = crate::llm_local::download_model(&spec, name_override.as_deref());
+    let download = crate::llm_gguf::download_model(&spec, name_override.as_deref());
     match crate::with_esc_cancel(download).await {
         Ok(Ok(name)) => {
             println!();
@@ -2338,7 +2388,7 @@ fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io:
     if name.is_empty() {
         return Ok(());
     }
-    let path = crate::llm_local::models_dir().join(format!("{name}.gguf.part"));
+    let path = crate::llm_gguf::models_dir().join(format!("{name}.gguf.part"));
     if path.exists() {
         std::fs::remove_file(path)?;
     }
@@ -2346,7 +2396,7 @@ fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io:
 }
 
 fn remove_gguf_model_interactive(show_error: &dyn Fn(&str)) {
-    let models = crate::llm_local::list_models();
+    let models = crate::llm_gguf::list_models();
     if models.is_empty() {
         println!();
         println!("  {}", "no local models to remove".with(Color::DarkGrey));
@@ -2381,7 +2431,7 @@ fn remove_gguf_model_interactive(show_error: &dyn Fn(&str)) {
     if !confirm_yn(&format!("remove local model '{name}'?")) {
         return;
     }
-    match crate::llm_local::remove_model(name) {
+    match crate::llm_gguf::remove_model(name) {
         Ok(()) => {
             println!();
             println!(
@@ -2400,7 +2450,7 @@ fn clear_all_gguf_models_confirm() {
     if !confirm_yn("remove ALL downloaded local models?") {
         return;
     }
-    match crate::llm_local::clear_models() {
+    match crate::llm_gguf::clear_models() {
         Ok(n) => {
             println!();
             println!("  {} removed {n} local model(s)", "✓".with(Color::Green));
@@ -2424,7 +2474,7 @@ pub async fn run_gguf_menu(show_error: &dyn Fn(&str)) {
     println!(
         "  {} {}",
         "⚠".with(Color::Yellow),
-        "native local-model support is experimental — expect rough edges".with(Color::Yellow)
+        "native GGUF model support is experimental — expect rough edges".with(Color::Yellow)
     );
     println!();
     let Some(sel) = select_from_menu(GGUF_MENU_ITEMS.len(), 0, build_gguf_menu_lines) else {
@@ -3194,7 +3244,7 @@ async fn create_agent_with_ai(
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &gen_messages)).await
         }
         Provider::Local => {
-            crate::with_esc_cancel(crate::llm_local::call_local(model, &gen_messages)).await
+            crate::with_esc_cancel(crate::llm_gguf::call_local(model, &gen_messages)).await
         }
     };
 

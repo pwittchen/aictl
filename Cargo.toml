@@ -29,7 +29,7 @@ llama-cpp-2 = { version = "0.1", optional = true }
 
 [features]
 default = []
-# Native local-model inference via llama.cpp bindings. Disabled by default
+# Native GGUF model inference via llama.cpp bindings. Disabled by default
 # because it requires a C++ toolchain (cmake + a working C/C++ compiler) at
-# build time. Enable with `cargo build --features local`.
-local = ["dep:llama-cpp-2"]
+# build time. Enable with `cargo build --features gguf`.
+gguf = ["dep:llama-cpp-2"]

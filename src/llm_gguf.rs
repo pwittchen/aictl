@@ -6,11 +6,11 @@
 //! the provider exposes no entries, so by default native models are
 //! unavailable until the user explicitly pulls one.
 //!
-//! Inference itself is gated behind the `local` cargo feature which pulls
+//! Inference itself is gated behind the `gguf` cargo feature which pulls
 //! in `llama-cpp-2`. When that feature is disabled the download/list/remove
 //! commands still work — they just produce models that can't yet be run,
 //! and `call_local` returns a clear error telling the user to rebuild with
-//! `--features local`.
+//! `--features gguf`.
 
 use std::path::{Path, PathBuf};
 
@@ -19,7 +19,7 @@ use crate::{Message, Role};
 
 /// Return true when this build includes native inference support.
 pub fn is_available() -> bool {
-    cfg!(feature = "local")
+    cfg!(feature = "gguf")
 }
 
 /// Directory where local GGUF models live.
@@ -58,7 +58,7 @@ pub fn list_models() -> Vec<String> {
 }
 
 /// Resolve a model name to its on-disk path. Returns None if not downloaded.
-#[cfg_attr(not(feature = "local"), allow(dead_code))]
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 pub fn model_path(name: &str) -> Option<PathBuf> {
     let path = models_dir().join(format!("{name}.gguf"));
     if path.exists() { Some(path) } else { None }
@@ -239,7 +239,7 @@ Now respond to the user."#;
 /// be added per model later. A final system turn reinforces the tool-call
 /// XML contract — crucial for small local models that otherwise describe
 /// tools in prose instead of invoking them.
-#[cfg_attr(not(feature = "local"), allow(dead_code))]
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 fn render_prompt(messages: &[Message]) -> String {
     let mut out = String::new();
     for m in messages {
@@ -263,7 +263,7 @@ fn render_prompt(messages: &[Message]) -> String {
     out
 }
 
-#[cfg(feature = "local")]
+#[cfg(feature = "gguf")]
 fn silence_llama_logs() {
     use llama_cpp_2::{LogOptions, send_logs_to_tracing};
     use std::sync::Once;
@@ -278,7 +278,7 @@ fn silence_llama_logs() {
 /// Known tool names. When a local model's prose output mentions any of these
 /// without emitting a `<tool>` tag, we treat it as a near-miss and force-seed
 /// the XML prefix so the model can complete the call.
-#[cfg_attr(not(feature = "local"), allow(dead_code))]
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 const KNOWN_TOOL_NAMES: &[&str] = &[
     "exec_shell",
     "read_file",
@@ -301,13 +301,13 @@ const KNOWN_TOOL_NAMES: &[&str] = &[
 
 /// Detect that the model produced tool-intent prose without an actual
 /// `<tool>` tag. The caller has already verified the absence of `<tool`.
-#[cfg_attr(not(feature = "local"), allow(dead_code))]
+#[cfg_attr(not(feature = "gguf"), allow(dead_code))]
 fn mentions_tool_use(text: &str) -> bool {
     let lower = text.to_lowercase();
     KNOWN_TOOL_NAMES.iter().any(|name| lower.contains(name))
 }
 
-#[cfg(feature = "local")]
+#[cfg(feature = "gguf")]
 fn token_piece(
     model: &llama_cpp_2::model::LlamaModel,
     token: llama_cpp_2::token::LlamaToken,
@@ -326,7 +326,7 @@ fn token_piece(
     String::from_utf8_lossy(&bytes).into_owned()
 }
 
-#[cfg(feature = "local")]
+#[cfg(feature = "gguf")]
 pub async fn call_local(
     model: &str,
     messages: &[Message],
@@ -515,13 +515,13 @@ pub async fn call_local(
     ))
 }
 
-#[cfg(not(feature = "local"))]
+#[cfg(not(feature = "gguf"))]
 #[allow(clippy::unused_async)]
 pub async fn call_local(
     _model: &str,
     _messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
-    Err("native local-model inference is not compiled in. Rebuild with `cargo build --features local` (requires cmake and a C/C++ toolchain).".into())
+    Err("native GGUF model inference is not compiled in. Rebuild with `cargo build --features gguf` (requires cmake and a C/C++ toolchain).".into())
 }
 
 #[cfg(test)]
