@@ -1,6 +1,6 @@
 //! Native local-model provider.
 //!
-//! Models are GGUF files stored in `~/.aictl/models/`. They are downloaded
+//! Models are GGUF files stored in `~/.aictl/models/gguf/`. They are downloaded
 //! on demand via `/gguf` in the REPL or `--pull-gguf-model <spec>` on the CLI;
 //! nothing is bundled into the binary. When no model has been downloaded
 //! the provider exposes no entries, so by default native models are
@@ -25,7 +25,7 @@ pub fn is_available() -> bool {
 /// Directory where local GGUF models live.
 pub fn models_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
-    PathBuf::from(format!("{home}/.aictl/models"))
+    PathBuf::from(format!("{home}/.aictl/models/gguf"))
 }
 
 fn ensure_models_dir() -> std::io::Result<PathBuf> {
@@ -143,7 +143,7 @@ fn default_name_from_file(file: &str) -> String {
     stem.replace('/', "_")
 }
 
-/// Download a model to `~/.aictl/models/<name>.gguf`. Prints a progress bar
+/// Download a model to `~/.aictl/models/gguf/<name>.gguf`. Prints a progress bar
 /// to stderr via `indicatif`. Overwrites any existing file with the same
 /// name. Returns the resolved local name.
 pub async fn download_model(

@@ -6,10 +6,11 @@ mod llm;
 mod llm_anthropic;
 mod llm_deepseek;
 mod llm_gemini;
+mod llm_gguf;
 mod llm_grok;
 mod llm_kimi;
-mod llm_gguf;
 mod llm_mistral;
+mod llm_mlx;
 mod llm_ollama;
 mod llm_openai;
 mod llm_zai;
@@ -54,6 +55,7 @@ enum Provider {
     Zai,
     Ollama,
     Local,
+    Mlx,
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -165,7 +167,7 @@ struct Cli {
     clear_keys: bool,
 
     /// [experimental] Download a native local GGUF model (spec: hf:owner/repo/file.gguf,
-    /// owner/repo:file.gguf, or an https:// URL). Saved under ~/.aictl/models/.
+    /// owner/repo:file.gguf, or an https:// URL). Saved under ~/.aictl/models/gguf/.
     #[arg(long = "pull-gguf-model", value_name = "SPEC")]
     pull_gguf_model: Option<String>,
 
@@ -180,6 +182,23 @@ struct Cli {
     /// [experimental] Remove every downloaded native local GGUF model and exit.
     #[arg(long = "clear-gguf-models")]
     clear_gguf_models: bool,
+
+    /// [experimental] Download a native MLX model from Hugging Face (spec:
+    /// mlx:owner/repo or owner/repo). Saved under ~/.aictl/models/mlx/.
+    #[arg(long = "pull-mlx-model", value_name = "SPEC")]
+    pull_mlx_model: Option<String>,
+
+    /// [experimental] List all downloaded MLX models and exit.
+    #[arg(long = "list-mlx-models")]
+    list_mlx_models: bool,
+
+    /// [experimental] Remove a downloaded MLX model by name and exit.
+    #[arg(long = "remove-mlx-model", value_name = "NAME")]
+    remove_mlx_model: Option<String>,
+
+    /// [experimental] Remove every downloaded MLX model and exit.
+    #[arg(long = "clear-mlx-models")]
+    clear_mlx_models: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -428,6 +447,7 @@ async fn run_agent_turn(
             Provider::Zai => with_esc_cancel(llm_zai::call_zai(api_key, model, llm_messages)).await,
             Provider::Ollama => with_esc_cancel(llm_ollama::call_ollama(model, llm_messages)).await,
             Provider::Local => with_esc_cancel(llm_gguf::call_local(model, llm_messages)).await,
+            Provider::Mlx => with_esc_cancel(llm_mlx::call_mlx(model, llm_messages)).await,
         };
         let call_elapsed = call_start.elapsed();
 
@@ -717,6 +737,11 @@ async fn handle_repl_input(
             commands::run_gguf_menu(&|msg| ui.show_error(msg)).await;
             return ReplAction::Continue;
         }
+        commands::CommandResult::Mlx => {
+            let _ = rl.add_history_entry(input);
+            commands::run_mlx_menu(&|msg| ui.show_error(msg)).await;
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Context => {
             let _ = rl.add_history_entry(input);
             commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
@@ -770,6 +795,7 @@ async fn handle_repl_input(
                     "zai" => Some(Provider::Zai),
                     "ollama" => Some(Provider::Ollama),
                     "local" => Some(Provider::Local),
+                    "mlx" => Some(Provider::Mlx),
                     _ => None,
                 };
                 if let Some(p) = resolved {
@@ -779,7 +805,7 @@ async fn handle_repl_input(
             if let Some(new_model) = config_get("AICTL_MODEL") {
                 *model = new_model;
             }
-            if matches!(provider, Provider::Ollama | Provider::Local) {
+            if matches!(provider, Provider::Ollama | Provider::Local | Provider::Mlx) {
                 *api_key = String::new();
             } else {
                 let key_name = match provider {
@@ -791,7 +817,7 @@ async fn handle_repl_input(
                     Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
                     Provider::Kimi => "LLM_KIMI_API_KEY",
                     Provider::Zai => "LLM_ZAI_API_KEY",
-                    Provider::Ollama | Provider::Local => unreachable!(),
+                    Provider::Ollama | Provider::Local | Provider::Mlx => unreachable!(),
                 };
                 if let Some(k) = keys::get_secret(key_name) {
                     *api_key = k;
@@ -819,14 +845,19 @@ async fn handle_repl_input(
             let _ = rl.add_history_entry(input);
             let ollama_models = llm_ollama::list_models().await;
             let local_models = llm_gguf::list_models();
+            let mlx_models = llm_mlx::list_models();
             if let Some((new_provider, new_model, api_key_name)) =
-                commands::select_model(model, &ollama_models, &local_models)
+                commands::select_model(model, &ollama_models, &local_models, &mlx_models)
             {
-                if matches!(new_provider, Provider::Ollama | Provider::Local) {
-                    let pname = if matches!(new_provider, Provider::Ollama) {
-                        "ollama"
-                    } else {
-                        "local"
+                if matches!(
+                    new_provider,
+                    Provider::Ollama | Provider::Local | Provider::Mlx
+                ) {
+                    let pname = match new_provider {
+                        Provider::Ollama => "ollama",
+                        Provider::Local => "local",
+                        Provider::Mlx => "mlx",
+                        _ => unreachable!(),
                     };
                     config_set("AICTL_PROVIDER", pname);
                     config_set("AICTL_MODEL", &new_model);
@@ -1282,6 +1313,51 @@ async fn main() {
         return;
     }
 
+    if let Some(spec) = cli.pull_mlx_model.as_deref() {
+        match llm_mlx::download_model(spec, None).await {
+            Ok(name) => println!("downloaded MLX model: {name}"),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if cli.list_mlx_models {
+        let models = llm_mlx::list_models();
+        if models.is_empty() {
+            println!("No MLX models downloaded. Use `aictl --pull-mlx-model <spec>` to fetch one.");
+        } else {
+            for m in models {
+                println!("{m}");
+            }
+        }
+        return;
+    }
+
+    if let Some(name) = cli.remove_mlx_model.as_deref() {
+        match llm_mlx::remove_model(name) {
+            Ok(()) => println!("removed MLX model: {name}"),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if cli.clear_mlx_models {
+        match llm_mlx::clear_models() {
+            Ok(n) => println!("removed {n} MLX model(s)"),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     let provider = cli.provider.unwrap_or_else(|| {
         match config_get("AICTL_PROVIDER").as_deref() {
             Some("openai") => Provider::Openai,
@@ -1294,8 +1370,9 @@ async fn main() {
             Some("zai") => Provider::Zai,
             Some("ollama") => Provider::Ollama,
             Some("local") => Provider::Local,
+            Some("mlx") => Provider::Mlx,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', or 'local')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'local', or 'mlx')");
                 std::process::exit(1);
             }
             None => {
@@ -1312,7 +1389,7 @@ async fn main() {
         })
     });
 
-    let api_key = if matches!(provider, Provider::Ollama | Provider::Local) {
+    let api_key = if matches!(provider, Provider::Ollama | Provider::Local | Provider::Mlx) {
         String::new()
     } else {
         let key_name = match provider {
@@ -1324,7 +1401,7 @@ async fn main() {
             Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
             Provider::Kimi => "LLM_KIMI_API_KEY",
             Provider::Zai => "LLM_ZAI_API_KEY",
-            Provider::Ollama | Provider::Local => unreachable!(),
+            Provider::Ollama | Provider::Local | Provider::Mlx => unreachable!(),
         };
         keys::get_secret(key_name).unwrap_or_else(|| {
             eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config");
