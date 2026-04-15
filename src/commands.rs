@@ -1390,7 +1390,14 @@ pub fn select_memory(current: MemoryMode) -> Option<MemoryMode> {
 }
 
 #[allow(clippy::too_many_lines)]
-pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, version_info: &str) {
+pub fn print_info(
+    provider: &str,
+    model: &str,
+    auto: bool,
+    memory: MemoryMode,
+    version_info: &str,
+    ollama_models: &[String],
+) {
     let version = crate::VERSION;
     let behavior = if auto { "auto" } else { "human-in-the-loop" };
     let os = std::env::consts::OS;
@@ -1454,57 +1461,87 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
         .map_or_else(|| "(none)".to_string(), |n| format!("{n} (loaded)"));
     println!("  {} {agent_info}", "agent:    ".with(Color::Cyan));
 
-    // Collect unique providers and total model count from the static catalog
-    let mut providers: Vec<&str> = Vec::new();
+    // Collect unique cloud providers from the static catalog. Anything in
+    // MODELS counts as a cloud provider; ollama / native GGUF / native MLX
+    // are listed separately under "local:".
+    let mut cloud_providers: Vec<&str> = Vec::new();
     for &(prov, _, _) in crate::llm::MODELS {
-        if !providers.contains(&prov) {
-            providers.push(prov);
+        if !cloud_providers.contains(&prov) {
+            cloud_providers.push(prov);
         }
     }
-    // Ollama is a supported provider but has dynamic models, so include it
-    if !providers.contains(&"ollama") {
-        providers.push("ollama");
-    }
-    if !providers.contains(&"local") {
-        providers.push("local");
-    }
-    let provider_count = providers.len();
+    let cloud_count = cloud_providers.len();
+    let local_count = 3; // ollama + native GGUF + native MLX
     let model_count = crate::llm::MODELS.len();
     println!(
-        "  {} {provider_count} ({}) + ollama (dynamic) + local (native GGUF)",
-        "providers:".with(Color::Cyan),
-        providers
-            .iter()
-            .filter(|&&p| p != "ollama" && p != "local")
-            .copied()
-            .collect::<Vec<_>>()
-            .join(", ")
+        "  {} {cloud_count} ({})",
+        "cloud:    ".with(Color::Cyan),
+        cloud_providers.join(", ")
+    );
+    let ollama_label = if ollama_models.is_empty() {
+        "ollama [not running]".to_string()
+    } else {
+        format!("ollama [{} model(s)]", ollama_models.len())
+    };
+    println!(
+        "  {} {local_count} ({ollama_label}, gguf, mlx)",
+        "local:    ".with(Color::Cyan),
     );
 
-    let local_models = crate::llm_gguf::list_models();
-    let local_available = crate::llm_gguf::is_available();
-    let feature_label = if local_available {
+    let experimental = "[experimental]".with(Color::Yellow).to_string();
+
+    let gguf_models = crate::llm_gguf::list_models();
+    let gguf_available = crate::llm_gguf::is_available();
+    let gguf_feature_label = if gguf_available {
         "enabled".with(Color::Green).to_string()
     } else {
         "disabled (rebuild with --features gguf)"
             .with(Color::Yellow)
             .to_string()
     };
-    let experimental = "[experimental]".with(Color::Yellow).to_string();
-    let local_info = if local_models.is_empty() {
-        format!("0 GGUF downloaded · inference {feature_label} {experimental}")
+    let gguf_info = if gguf_models.is_empty() {
+        format!("0 downloaded · inference {gguf_feature_label} {experimental}")
     } else {
         format!(
-            "{} GGUF downloaded ({}) · inference {feature_label} {experimental}",
-            local_models.len(),
-            local_models.join(", ")
+            "{} downloaded ({}) · inference {gguf_feature_label} {experimental}",
+            gguf_models.len(),
+            gguf_models.join(", ")
         )
     };
-    println!("  {} {local_info}", "local:    ".with(Color::Cyan));
+    println!("  {} {gguf_info}", "gguf:     ".with(Color::Cyan));
+
+    let mlx_models = crate::llm_mlx::list_models();
+    let mlx_available = crate::llm_mlx::is_available();
+    let mlx_host_ok = crate::llm_mlx::host_supports_mlx();
+    let mlx_feature_label = if mlx_available {
+        "enabled".with(Color::Green).to_string()
+    } else if !mlx_host_ok {
+        "disabled (requires macOS + Apple Silicon)"
+            .with(Color::Yellow)
+            .to_string()
+    } else {
+        "disabled (rebuild with --features mlx)"
+            .with(Color::Yellow)
+            .to_string()
+    };
+    let mlx_info = if mlx_models.is_empty() {
+        format!("0 downloaded · inference {mlx_feature_label} {experimental}")
+    } else {
+        format!(
+            "{} downloaded ({}) · inference {mlx_feature_label} {experimental}",
+            mlx_models.len(),
+            mlx_models.join(", ")
+        )
+    };
+    println!("  {} {mlx_info}", "mlx:      ".with(Color::Cyan));
+
+    let total_models = model_count + ollama_models.len() + gguf_models.len() + mlx_models.len();
     println!(
-        "  {} {model_count} cataloged + ollama local models + {} native GGUF",
+        "  {} {total_models} ({model_count} cataloged, {} ollama, {} gguf, {} mlx)",
         "models:   ".with(Color::Cyan),
-        local_models.len()
+        ollama_models.len(),
+        gguf_models.len(),
+        mlx_models.len()
     );
     let tool_count = crate::tools::TOOL_COUNT;
     let disabled = crate::security::policy().disabled_tools.len();

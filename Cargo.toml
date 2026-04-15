@@ -26,6 +26,10 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 calamine = "0.34"
 futures-util = "0.3"
 llama-cpp-2 = { version = "0.1", optional = true }
+mlx-rs = { version = "0.25", optional = true }
+tokenizers = { version = "0.21", optional = true, default-features = false, features = ["onig"] }
+minijinja = { version = "2", optional = true, features = ["loader"] }
+safetensors = { version = "0.4", optional = true }
 
 [features]
 default = []
@@ -36,7 +40,7 @@ gguf = ["dep:llama-cpp-2"]
 # Native MLX model inference (Apple Silicon only). Disabled by default.
 # Model management (pull / list / remove) works without the feature on any
 # platform; only the actual inference path is gated. Enable with
-# `cargo build --features mlx` on macOS Apple Silicon. Inference wiring is
-# still WIP — the feature flag reserves the switch so the CLI surface
-# (/mlx menu, --pull-mlx-model, etc.) can ship ahead of the runtime.
-mlx = []
+# `cargo build --features mlx` on macOS Apple Silicon. Pulls in mlx-rs
+# (Metal kernels), the HF tokenizers crate, minijinja for chat templates,
+# and safetensors for direct shard parsing.
+mlx = ["dep:mlx-rs", "dep:tokenizers", "dep:minijinja", "dep:safetensors"]

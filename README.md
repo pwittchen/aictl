@@ -50,6 +50,35 @@ cargo build --release
 
 The binary will be at `target/release/aictl`.
 
+### Optional feature flags
+
+Native local-model inference is gated behind cargo features so a plain `cargo build` / `cargo install` keeps a lightweight default (no C++ toolchain or Metal Toolchain required). Opt in per backend:
+
+| Feature | What it enables | Platform | Extra build-time requirements |
+|---------|-----------------|----------|-------------------------------|
+| `gguf` | Native GGUF inference via `llama-cpp-2` | All | `cmake` + a working C/C++ compiler (Xcode Command Line Tools on macOS, `build-essential` on Debian/Ubuntu) |
+| `mlx`  | Native MLX inference via `mlx-rs` (Apple's MLX framework) | macOS + Apple Silicon only | Full Xcode (not just CLT) with the Metal Toolchain installed |
+
+Examples:
+
+```bash
+# GGUF only
+cargo build --release --features gguf
+cargo install --path . --features gguf
+
+# MLX only (macOS Apple Silicon)
+cargo build --release --features mlx
+cargo install --path . --features mlx
+
+# Both at the same time
+cargo build --release --features "gguf mlx"
+cargo install --path . --features "gguf mlx"
+```
+
+Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model prints a clear error telling you which feature to rebuild with.
+
+The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform, and additionally `--features "gguf mlx"` on the macOS aarch64 build — so one-liner installs get native inference out of the box where the platform supports it.
+
 ## Uninstall
 
 ### Binary release (installed via `install.sh`)

@@ -750,7 +750,8 @@ async fn handle_repl_input(
         commands::CommandResult::Info => {
             let _ = rl.add_history_entry(input);
             let pname = format!("{provider:?}").to_lowercase();
-            commands::print_info(&pname, model, *auto, *memory, version_info);
+            let ollama_models = llm_ollama::list_models().await;
+            commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
             return ReplAction::Continue;
         }
         commands::CommandResult::Security => {
