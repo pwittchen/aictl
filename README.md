@@ -260,6 +260,24 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 | `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
 
+##### Where to get API keys
+
+Each provider issues API keys through its own developer console. Sign up, create a key, then paste it into `~/.aictl/config` (or run `aictl --config`).
+
+| Provider | Console URL |
+|----------|-------------|
+| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Anthropic | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) |
+| Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| xAI Grok | [console.x.ai](https://console.x.ai) |
+| Mistral | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
+| DeepSeek | [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
+| Kimi (Moonshot) | [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys) |
+| Z.ai | [z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list) |
+| Firecrawl | [firecrawl.dev/app/api-keys](https://firecrawl.dev/app/api-keys) |
+
+Ollama, native GGUF, and native MLX run locally and require no API key.
+
 #### Secure key storage (system keyring)
 
 By default, API keys live as plain text in `~/.aictl/config`. aictl can also store them in the OS-native keyring — macOS Keychain or Linux Secret Service (gnome-keyring / KWallet via D-Bus) — and reads them transparently from whichever store has them.
