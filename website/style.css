@@ -517,6 +517,13 @@ code {
 
 .platforms__list li:hover { background: var(--surface-hover); }
 
+.platforms__logo {
+  width: 24px;
+  height: 24px;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
 .platforms__os {
   font-family: var(--font-mono);
   font-size: 14px;
