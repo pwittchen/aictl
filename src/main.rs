@@ -1210,7 +1210,7 @@ async fn run_interactive(
         println!(
             "  {} resume with: {} {}",
             "→".with(Color::Cyan),
-            "aictl -s".with(Color::Cyan),
+            "aictl --session".with(Color::Cyan),
             resume_arg.with(Color::Cyan)
         );
         println!();
