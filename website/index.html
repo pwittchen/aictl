@@ -24,6 +24,7 @@
         <a href="#providers">Providers</a>
         <a href="#tools">Tools</a>
         <a href="#install">Install</a>
+        <a href="#platforms">Platforms</a>
         <a href="#license">License</a>
         <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">GitHub</a>
       </nav>
@@ -61,8 +62,8 @@
           <h2 class="section__title">Built like infrastructure</h2>
           <p class="section__lead">
             A Rust CLI that ships as one binary. No runtime, no daemon,
-            no config server. Keys in your keyring, sessions on disk, work
-            in your terminal.
+            no config server.<br>
+            Keys in your keyring, sessions on disk, work in your terminal.
           </p>
         </header>
 
@@ -118,6 +119,7 @@
           <li>Ollama</li>
           <li>GGUF <span class="tag tag--inline">experimental</span></li>
           <li>MLX <span class="tag tag--inline">Apple Silicon</span></li>
+          <li class="providers__note">switch models mid-session — context stays</li>
         </ul>
       </div>
     </section>
@@ -128,8 +130,8 @@
           <span class="section__kicker">// tools</span>
           <h2 class="section__title">Tools the agent can use</h2>
           <p class="section__lead">
-            Every tool call is gated by the security policy. Confirm each one,
-            or run autonomously with <code>--auto</code>.
+            Every tool call is gated by the security policy.<br>
+            Confirm each one, or run autonomously with <code>--auto</code>.
           </p>
         </header>
 
@@ -165,7 +167,7 @@
           <span class="section__kicker">// install</span>
           <h2 class="section__title">Get it running</h2>
           <p class="section__lead">
-            Prebuilt binaries for macOS and Linux on x86_64 and aarch64.
+            Prebuilt binaries for macOS and Linux on x86_64 and aarch64.<br>
             No prerequisites beyond <code>curl</code>.
           </p>
         </header>
@@ -212,7 +214,16 @@
           </div>
         </div>
 
-        <div class="platforms">
+        <div class="install__alt">
+          <p>Or build from source with Rust:</p>
+          <div class="cmd">
+            <span class="cmd__prompt">$</span>
+            <code id="install-cmd-5">cargo install --path . --features "gguf mlx"</code>
+            <button class="cmd__copy" type="button" data-copy="#install-cmd-5" aria-label="Copy cargo command">Copy</button>
+          </div>
+        </div>
+
+        <div class="platforms" id="platforms">
           <h3 class="platforms__title">Supported platforms</h3>
           <ul class="platforms__list">
             <li>
@@ -233,15 +244,6 @@
             and Unix tools. Other Unix-likes (FreeBSD, uncommon Linux
             architectures) can build from source with a Rust toolchain.
           </p>
-        </div>
-
-        <div class="install__alt">
-          <p>Or build from source with Rust:</p>
-          <div class="cmd">
-            <span class="cmd__prompt">$</span>
-            <code id="install-cmd-5">cargo install --path . --features "gguf mlx"</code>
-            <button class="cmd__copy" type="button" data-copy="#install-cmd-5" aria-label="Copy cargo command">Copy</button>
-          </div>
         </div>
       </div>
     </section>
