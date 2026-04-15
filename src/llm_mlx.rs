@@ -1,4 +1,4 @@
-//! Native local-model provider for Apple MLX models (macOS / Apple Silicon).
+//! Native MLX model provider for Apple Silicon (macOS / aarch64).
 //!
 //! Models are multi-file Hugging Face repos (safetensors + tokenizer config +
 //! chat template metadata) stored under `~/.aictl/models/mlx/<name>/`. They

@@ -3,7 +3,7 @@
 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 
-AI agent in your terminal — 52 built-in models across 9 providers, plus any model available through Ollama or native GGUF inference via llama.cpp
+AI agent in your terminal — 48 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 ![aictl screenshot](screenshot.png)
 
@@ -116,7 +116,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-model <SPEC>] [--list-local-models] [--remove-local-model <NAME>] [--clear-local-models]
+aictl [--version] [--update] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -135,7 +135,8 @@ The interactive REPL supports slash commands:
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, behavior, memory, agent, version, OS, binary size) |
 | `/issues` | Fetch and display known issues from the remote ISSUES.md |
-| `/local` | Manage native local GGUF models (view downloaded, pull, remove, clear all) |
+| `/gguf` | Manage native GGUF models (view downloaded, pull, remove, clear all) |
+| `/mlx` | Manage native MLX models (Apple Silicon; view downloaded, pull, remove, clear all) |
 | `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
@@ -161,7 +162,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--help`, `-h` | Print help |
 | `--update` | Update to the latest version |
 | `--config` | Interactive configuration wizard — set provider, model, and API keys step by step |
-| `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, or `local`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
+| `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, or `mlx`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | Message to send (omit for interactive mode) |
 | `--agent` | Load a saved agent by name (works in both single-shot and interactive modes) |
@@ -176,10 +177,14 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--lock-keys` | Migrate plain-text API keys from `~/.aictl/config` into the system keyring and exit |
 | `--unlock-keys` | Migrate API keys from the system keyring back into `~/.aictl/config` and exit |
 | `--clear-keys` | Remove API keys from both `~/.aictl/config` and the system keyring and exit |
-| `--pull-model` | Download a native local GGUF model (spec: `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, or `https://…/file.gguf`). Saved under `~/.aictl/models/` and exits |
-| `--list-local-models` | Print all downloaded native local models and exit |
-| `--remove-local-model` | Remove a downloaded native local model by name and exit |
-| `--clear-local-models` | Remove every downloaded native local model and exit |
+| `--pull-gguf-model` | Download a native GGUF model (spec: `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, or `https://…/file.gguf`). Saved under `~/.aictl/models/gguf/` and exits |
+| `--list-gguf-models` | Print all downloaded native GGUF models and exit |
+| `--remove-gguf-model` | Remove a downloaded native GGUF model by name and exit |
+| `--clear-gguf-models` | Remove every downloaded native GGUF model and exit |
+| `--pull-mlx-model` | Download a native MLX model (spec: `mlx:owner/repo` or `owner/repo`). Saved under `~/.aictl/models/mlx/<name>/` and exits |
+| `--list-mlx-models` | Print all downloaded native MLX models and exit |
+| `--remove-mlx-model` | Remove a downloaded native MLX model by name and exit |
+| `--clear-mlx-models` | Remove every downloaded native MLX model and exit |
 
 CLI flags take priority over config file values.
 
@@ -224,7 +229,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, or `local`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, or `mlx`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_MEMORY` | Memory mode: `long-term` (all messages, default) or `short-term` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
@@ -299,7 +304,7 @@ The file format supports comments (`#`), quoted values, and optional `export` pr
 
 ### Providers
 
-aictl supports ten LLM providers — nine remote APIs plus native local inference via llama.cpp:
+aictl supports eleven LLM providers — eight remote APIs plus Ollama, native GGUF inference via llama.cpp, and native MLX inference on Apple Silicon:
 
 #### OpenAI
 
@@ -437,52 +442,96 @@ All Ollama models are free (self-hosted), so cost estimation shows $0.00.
 
 Any model string can be passed via `--model`; cost estimation uses pattern matching on the model name and falls back to zero if unrecognized.
 
-#### Local (native GGUF via llama.cpp) — experimental
+#### Native GGUF (llama.cpp) — experimental
 
 > **Experimental.** Native GGUF inference is a new, work-in-progress feature. It runs, it works, and it talks to the same tools the API providers do — but expect rough edges: small models struggle with tool-call formatting, chat templates are hard-coded to ChatML (so some models respond in a less natural style than their native template would produce), generation parameters are fixed, and performance tuning (GPU offload, context reuse across turns, speculative decoding) has not been wired up yet. The API-provider path remains the recommended default for day-to-day use. Please report issues at [github.com/pwittchen/aictl/issues](https://github.com/pwittchen/aictl/issues).
 
-aictl can run GGUF models in-process via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2) — no Ollama server required. By default no local models are available; they must be downloaded explicitly by the user, one at a time, into `~/.aictl/models/`.
+aictl can run GGUF models in-process via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2) — no Ollama server required. By default no local models are available; they must be downloaded explicitly by the user, one at a time, into `~/.aictl/models/gguf/`.
 
-Native inference is gated behind the `local` cargo feature. **Prebuilt binaries published on GitHub Releases (the ones `install.sh` downloads) ship with `--features local` enabled**, so users who install via the one-liner get native GGUF inference out of the box — no extra steps required.
+Native inference is gated behind the `gguf` cargo feature. **Prebuilt binaries published on GitHub Releases (the ones `install.sh` downloads) ship with `--features gguf` enabled**, so users who install via the one-liner get native GGUF inference out of the box — no extra steps required.
 
-When building from source, the `local` feature is **off by default** to keep a plain `cargo install aictl` / `cargo build` working without a C/C++ toolchain. Opt in explicitly:
+When building from source, the `gguf` feature is **off by default** to keep a plain `cargo install aictl` / `cargo build` working without a C/C++ toolchain. Opt in explicitly:
 
 ```bash
-cargo install --path . --features local
+cargo install --path . --features gguf
 # or
-cargo build --release --features local
+cargo build --release --features gguf
 ```
 
-Building with `--features local` requires `cmake` and a working C/C++ compiler (Xcode Command Line Tools on macOS, `build-essential` on Debian/Ubuntu). The install-script fallback path (`cargo install --git ...`, triggered when no prebuilt binary exists for your platform) does **not** pass `--features local` and will therefore produce a binary without native inference — in that case, rebuild manually with the command above.
+Building with `--features gguf` requires `cmake` and a working C/C++ compiler (Xcode Command Line Tools on macOS, `build-essential` on Debian/Ubuntu). The install-script fallback path (`cargo install --git ...`, triggered when no prebuilt binary exists for your platform) does **not** pass `--features gguf` and will therefore produce a binary without native inference — in that case, rebuild manually with the command above.
 
-**Model management** (works in every build, even without `--features local`):
+**Model management** (works in every build, even without `--features gguf`):
 
 ```bash
 # Pull a GGUF model from Hugging Face
-aictl --pull-model hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+aictl --pull-gguf-model hf:bartowski/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-Q4_K_M.gguf
 
 # Shorthand form
-aictl --pull-model bartowski/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf
+aictl --pull-gguf-model bartowski/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf
 
 # Direct URL
-aictl --pull-model https://example.com/path/model.gguf
+aictl --pull-gguf-model https://example.com/path/model.gguf
 
 # List, remove, clear
-aictl --list-local-models
-aictl --remove-local-model Llama-3.2-3B-Instruct-Q4_K_M
-aictl --clear-local-models
+aictl --list-gguf-models
+aictl --remove-gguf-model Llama-3.2-3B-Instruct-Q4_K_M
+aictl --clear-gguf-models
 ```
 
-Inside the REPL, `/local` opens an interactive menu with the same operations (view downloaded / pull / remove / clear all). Downloads stream to `~/.aictl/models/<name>.gguf.part` with a progress bar and are atomically renamed on completion, so an interrupted download never leaves a half-written model in place.
+Inside the REPL, `/gguf` opens an interactive menu with the same operations (view downloaded / pull / remove / clear all). Downloads stream to `~/.aictl/models/gguf/<name>.gguf.part` with a progress bar and are atomically renamed on completion, so an interrupted download never leaves a half-written model in place.
 
-Once a model is downloaded it appears in the `/model` picker under the **Local (native)** header, alongside Ollama models. Configure it as the default:
+Once a model is downloaded it appears in the `/model` picker under the **Native GGUF** header, alongside Ollama models. Configure it as the default:
 
 ```
-AICTL_PROVIDER=local
+AICTL_PROVIDER=gguf
 AICTL_MODEL=Llama-3.2-3B-Instruct-Q4_K_M
 ```
 
-Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async runtime. Cost always shows $0.00. Messages are flattened into a ChatML-style prompt, which works well for modern instruction-tuned models; per-model chat templates may be added later. If you try to use a local model in a build without `--features local`, aictl prints a clear error telling you to rebuild.
+Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async runtime. Cost always shows $0.00. Messages are flattened into a ChatML-style prompt, which works well for modern instruction-tuned models; per-model chat templates may be added later. If you try to use a GGUF model in a build without `--features gguf`, aictl prints a clear error telling you to rebuild.
+
+#### Native MLX (Apple Silicon) — experimental
+
+> **Experimental.** Native MLX inference is a new feature limited to macOS on Apple Silicon (`aarch64`). Architecture coverage is currently Llama-family only — Llama 3.x, Qwen 2.5, Mistral 7B v0.3, and DeepSeek-R1 Distill Qwen. Gemma 2, Phi-3.5, and MoE models are rejected with a clear error. Llama 3.1/3.2 RoPE scaling is not yet applied (quality degrades past ~8K context), top-p sampling is omitted (temperature only), and the chat-template renderer falls back to ChatML when the per-model jinja template fails to render. Please report issues at [github.com/pwittchen/aictl/issues](https://github.com/pwittchen/aictl/issues).
+
+aictl can run MLX models in-process via [`mlx-rs`](https://crates.io/crates/mlx-rs) — no Python, no `mlx_lm`, no separate server. Quantized 4-bit weights from the [`mlx-community`](https://huggingface.co/mlx-community) Hugging Face organization are loaded directly via `safetensors`. By default no local MLX models are available; they must be downloaded explicitly by the user into `~/.aictl/models/mlx/<name>/`.
+
+Native inference is gated behind the `mlx` cargo feature. **Prebuilt binaries published on GitHub Releases include `--features mlx` on the macOS aarch64 build** in addition to `--features gguf`, so the one-liner installs get native MLX out of the box on Apple Silicon.
+
+When building from source, the `mlx` feature is **off by default**. Opt in explicitly (Apple Silicon only):
+
+```bash
+cargo install --path . --features mlx
+# or
+cargo build --release --features mlx
+```
+
+Building with `--features mlx` requires the **Xcode Metal Toolchain** (full Xcode, not just the Command Line Tools). Install via Xcode → Settings → Components, or `xcodebuild -downloadComponent MetalToolchain`. Verify with `xcrun --find metal`.
+
+**Model management** (works in every build, even without `--features mlx` and even on non-Apple-Silicon hosts):
+
+```bash
+# Pull an MLX model from Hugging Face (mlx-community)
+aictl --pull-mlx-model mlx:mlx-community/Llama-3.2-3B-Instruct-4bit
+
+# Shorthand form
+aictl --pull-mlx-model mlx-community/Qwen2.5-7B-Instruct-4bit
+
+# List, remove, clear
+aictl --list-mlx-models
+aictl --remove-mlx-model mlx-community__Llama-3.2-3B-Instruct-4bit
+aictl --clear-mlx-models
+```
+
+Inside the REPL, `/mlx` opens an interactive menu with the same operations plus a curated catalog of popular `mlx-community` repos. Downloads stream multi-file safetensors directories with a per-file progress bar.
+
+Once a model is downloaded it appears in the `/model` picker under the **MLX (Apple Silicon)** header. Configure it as the default:
+
+```
+AICTL_PROVIDER=mlx
+AICTL_MODEL=mlx-community__Llama-3.2-3B-Instruct-4bit
+```
+
+Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async runtime. Cost always shows $0.00. If you try to use an MLX model in a build without `--features mlx`, or on a non-Apple-Silicon host, aictl prints a clear error explaining the constraint.
 
 ### Cost estimates
 

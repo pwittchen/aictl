@@ -1,4 +1,4 @@
-//! Native local-model provider.
+//! Native GGUF model provider.
 //!
 //! Models are GGUF files stored in `~/.aictl/models/gguf/`. They are downloaded
 //! on demand via `/gguf` in the REPL or `--pull-gguf-model <spec>` on the CLI;
@@ -9,7 +9,7 @@
 //! Inference itself is gated behind the `gguf` cargo feature which pulls
 //! in `llama-cpp-2`. When that feature is disabled the download/list/remove
 //! commands still work — they just produce models that can't yet be run,
-//! and `call_local` returns a clear error telling the user to rebuild with
+//! and `call_gguf` returns a clear error telling the user to rebuild with
 //! `--features gguf`.
 
 use std::path::{Path, PathBuf};
@@ -327,7 +327,7 @@ fn token_piece(
 }
 
 #[cfg(feature = "gguf")]
-pub async fn call_local(
+pub async fn call_gguf(
     model: &str,
     messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
@@ -517,7 +517,7 @@ pub async fn call_local(
 
 #[cfg(not(feature = "gguf"))]
 #[allow(clippy::unused_async)]
-pub async fn call_local(
+pub async fn call_gguf(
     _model: &str,
     _messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {

@@ -54,7 +54,7 @@ enum Provider {
     Kimi,
     Zai,
     Ollama,
-    Local,
+    Gguf,
     Mlx,
 }
 
@@ -446,7 +446,7 @@ async fn run_agent_turn(
             }
             Provider::Zai => with_esc_cancel(llm_zai::call_zai(api_key, model, llm_messages)).await,
             Provider::Ollama => with_esc_cancel(llm_ollama::call_ollama(model, llm_messages)).await,
-            Provider::Local => with_esc_cancel(llm_gguf::call_local(model, llm_messages)).await,
+            Provider::Gguf => with_esc_cancel(llm_gguf::call_gguf(model, llm_messages)).await,
             Provider::Mlx => with_esc_cancel(llm_mlx::call_mlx(model, llm_messages)).await,
         };
         let call_elapsed = call_start.elapsed();
@@ -795,7 +795,7 @@ async fn handle_repl_input(
                     "kimi" => Some(Provider::Kimi),
                     "zai" => Some(Provider::Zai),
                     "ollama" => Some(Provider::Ollama),
-                    "local" => Some(Provider::Local),
+                    "gguf" => Some(Provider::Gguf),
                     "mlx" => Some(Provider::Mlx),
                     _ => None,
                 };
@@ -806,7 +806,7 @@ async fn handle_repl_input(
             if let Some(new_model) = config_get("AICTL_MODEL") {
                 *model = new_model;
             }
-            if matches!(provider, Provider::Ollama | Provider::Local | Provider::Mlx) {
+            if matches!(provider, Provider::Ollama | Provider::Gguf | Provider::Mlx) {
                 *api_key = String::new();
             } else {
                 let key_name = match provider {
@@ -818,7 +818,7 @@ async fn handle_repl_input(
                     Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
                     Provider::Kimi => "LLM_KIMI_API_KEY",
                     Provider::Zai => "LLM_ZAI_API_KEY",
-                    Provider::Ollama | Provider::Local | Provider::Mlx => unreachable!(),
+                    Provider::Ollama | Provider::Gguf | Provider::Mlx => unreachable!(),
                 };
                 if let Some(k) = keys::get_secret(key_name) {
                     *api_key = k;
@@ -852,11 +852,11 @@ async fn handle_repl_input(
             {
                 if matches!(
                     new_provider,
-                    Provider::Ollama | Provider::Local | Provider::Mlx
+                    Provider::Ollama | Provider::Gguf | Provider::Mlx
                 ) {
                     let pname = match new_provider {
                         Provider::Ollama => "ollama",
-                        Provider::Local => "local",
+                        Provider::Gguf => "gguf",
                         Provider::Mlx => "mlx",
                         _ => unreachable!(),
                     };
@@ -1370,10 +1370,10 @@ async fn main() {
             Some("kimi") => Provider::Kimi,
             Some("zai") => Provider::Zai,
             Some("ollama") => Provider::Ollama,
-            Some("local") => Provider::Local,
+            Some("gguf") => Provider::Gguf,
             Some("mlx") => Provider::Mlx,
             Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'local', or 'mlx')");
+                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'gguf', or 'mlx')");
                 std::process::exit(1);
             }
             None => {
@@ -1390,7 +1390,7 @@ async fn main() {
         })
     });
 
-    let api_key = if matches!(provider, Provider::Ollama | Provider::Local | Provider::Mlx) {
+    let api_key = if matches!(provider, Provider::Ollama | Provider::Gguf | Provider::Mlx) {
         String::new()
     } else {
         let key_name = match provider {
@@ -1402,7 +1402,7 @@ async fn main() {
             Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
             Provider::Kimi => "LLM_KIMI_API_KEY",
             Provider::Zai => "LLM_ZAI_API_KEY",
-            Provider::Ollama | Provider::Local | Provider::Mlx => unreachable!(),
+            Provider::Ollama | Provider::Gguf | Provider::Mlx => unreachable!(),
         };
         keys::get_secret(key_name).unwrap_or_else(|| {
             eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config");

@@ -243,8 +243,8 @@ pub async fn compact(
         Provider::Ollama => {
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &summary_msgs)).await
         }
-        Provider::Local => {
-            crate::with_esc_cancel(crate::llm_gguf::call_local(model, &summary_msgs)).await
+        Provider::Gguf => {
+            crate::with_esc_cancel(crate::llm_gguf::call_gguf(model, &summary_msgs)).await
         }
         Provider::Mlx => {
             crate::with_esc_cancel(crate::llm_mlx::call_mlx(model, &summary_msgs)).await
@@ -998,7 +998,7 @@ fn build_combined_models(
 
     for m in local_models {
         combined.push(MenuModel {
-            provider: "local".to_string(),
+            provider: "gguf".to_string(),
             model: m.clone(),
             api_key_name: String::new(),
         });
@@ -1036,7 +1036,7 @@ fn build_menu_lines(
                 "kimi" => "Kimi:",
                 "zai" => "Z.ai:",
                 "ollama" => "Ollama:",
-                "local" => "Local (native, GGUF):",
+                "gguf" => "Native GGUF:",
                 "mlx" => "MLX (Apple Silicon):",
                 _ => entry.provider.as_str(),
             };
@@ -1266,7 +1266,7 @@ pub fn select_model(
         "kimi" => Provider::Kimi,
         "zai" => Provider::Zai,
         "ollama" => Provider::Ollama,
-        "local" => Provider::Local,
+        "gguf" => Provider::Gguf,
         "mlx" => Provider::Mlx,
         _ => unreachable!(),
     };
@@ -3669,8 +3669,8 @@ async fn create_agent_with_ai(
         Provider::Ollama => {
             crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &gen_messages)).await
         }
-        Provider::Local => {
-            crate::with_esc_cancel(crate::llm_gguf::call_local(model, &gen_messages)).await
+        Provider::Gguf => {
+            crate::with_esc_cancel(crate::llm_gguf::call_gguf(model, &gen_messages)).await
         }
         Provider::Mlx => {
             crate::with_esc_cancel(crate::llm_mlx::call_mlx(model, &gen_messages)).await
