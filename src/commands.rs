@@ -384,7 +384,7 @@ pub fn print_context(
 
 fn print_help() {
     let entries: &[(&str, &str)] = &[
-        ("/agent", "manage agents (create, view, load, unload)"),
+        ("/agent", "manage agents"),
         ("/clear", "clear conversation context"),
         ("/compact", "compact context into a summary"),
         ("/context", "show context usage"),
@@ -392,19 +392,16 @@ fn print_help() {
         ("/help", "show this help message"),
         ("/info", "show setup info"),
         ("/issues", "show known issues"),
-        (
-            "/gguf",
-            "manage native local GGUF models (pull, list, remove) [experimental]",
-        ),
+        ("/gguf", "manage native local GGUF models [experimental]"),
         (
             "/mlx",
-            "manage native MLX models (Apple Silicon; pull, list, remove) [experimental]",
+            "manage native MLX models (Apple Silicon) [experimental]",
         ),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
         ("/model", "switch model and provider"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
-        ("/stats", "manage usage statistics (view, clear)"),
+        ("/stats", "view and manage usage statistics"),
         ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
         ("/keys", "manage API keys (lock, unlock, clear)"),
@@ -2905,7 +2902,7 @@ pub async fn run_mlx_menu(show_error: &dyn Fn(&str)) {
     println!(
         "  {} {}",
         "⚠".with(Color::Yellow),
-        "native MLX model support is experimental — inference is not yet wired up, only management"
+        "native MLX model support is experimental — expect rough edges"
             .with(Color::Yellow)
     );
     if !crate::llm_mlx::host_supports_mlx() {
