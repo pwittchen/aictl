@@ -2,8 +2,7 @@
 
 ## Infrastructure
 
-- **Project domain configuration** — configure domain, so it'll point to the VPS via Cloudflare (with `cloudflared`)
-- **Project website** `[marketing]` — Build a public-facing project website.
+- **Project website** `[marketing]` — Build and publish a public-facing project website. Then update install script, so it'll have fancy domain.
 
 ## Roadmap
 
