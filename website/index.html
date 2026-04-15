@@ -74,19 +74,19 @@
           </article>
           <article class="card">
             <h3>Sessions</h3>
-            <p>Every REPL run is a session. Persist, name, resume, or run incognito. Full conversation history stored as JSON under <code>~/.aictl/sessions</code>.</p>
+            <p>Every REPL run is a session. Persist, name, and resume via <code>/session</code>, or start a private run with <code>--incognito</code>. Full conversation history stored as JSON under <code>~/.aictl/sessions</code>.</p>
           </article>
           <article class="card">
             <h3>Agents</h3>
-            <p>Reusable system prompts as plain text. Create manually, or generate them with an LLM. Load on startup with<br><code>--agent &lt;name&gt;</code>.</p>
+            <p>Reusable system prompts as plain text. Create manually, or generate them with an LLM via <code>/agent</code>. Load on startup with<br><code>--agent &lt;name&gt;</code>.</p>
           </article>
           <article class="card">
             <h3>Security first</h3>
-            <p>CWD jail, blocked paths, shell command allowlists, environment scrubbing, subshell blocking, injection guard, output sanitization. On by default.</p>
+            <p>CWD jail, blocked paths, shell command allowlists, environment scrubbing, subshell blocking, injection guard, output sanitization. On by default. Review policy with <code>/security</code>.</p>
           </article>
           <article class="card">
             <h3>Key storage</h3>
-            <p>API keys in macOS Keychain or Linux Secret Service. Transparent fallback to plain text when no keyring is available. Lock and unlock on demand.</p>
+            <p>API keys in macOS Keychain or Linux Secret Service. Transparent fallback to plain text when no keyring is available. Lock and unlock on demand via <code>/keys</code>.</p>
           </article>
           <article class="card">
             <h3>Cost meter</h3>
@@ -103,7 +103,7 @@
           <h2 class="section__title">Eleven providers, one interface</h2>
           <p class="section__lead">
             Switch models in the REPL with <code>/model</code>. Eight remote
-            APIs plus three local backends. Same tools, same agent loop.
+            APIs plus three local backends. Same tools, same agent loop, same context.
           </p>
         </header>
 
