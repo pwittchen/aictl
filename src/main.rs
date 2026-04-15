@@ -166,20 +166,20 @@ struct Cli {
 
     /// [experimental] Download a native local GGUF model (spec: hf:owner/repo/file.gguf,
     /// owner/repo:file.gguf, or an https:// URL). Saved under ~/.aictl/models/.
-    #[arg(long = "pull-model", value_name = "SPEC")]
-    pull_model: Option<String>,
+    #[arg(long = "pull-gguf-model", value_name = "SPEC")]
+    pull_gguf_model: Option<String>,
 
-    /// [experimental] List all downloaded native local models and exit.
-    #[arg(long = "list-local-models")]
-    list_local_models: bool,
+    /// [experimental] List all downloaded native local GGUF models and exit.
+    #[arg(long = "list-gguf-models")]
+    list_gguf_models: bool,
 
-    /// [experimental] Remove a downloaded native local model by name and exit.
-    #[arg(long = "remove-local-model", value_name = "NAME")]
-    remove_local_model: Option<String>,
+    /// [experimental] Remove a downloaded native local GGUF model by name and exit.
+    #[arg(long = "remove-gguf-model", value_name = "NAME")]
+    remove_gguf_model: Option<String>,
 
-    /// [experimental] Remove every downloaded native local model and exit.
-    #[arg(long = "clear-local-models")]
-    clear_local_models: bool,
+    /// [experimental] Remove every downloaded native local GGUF model and exit.
+    #[arg(long = "clear-gguf-models")]
+    clear_gguf_models: bool,
 }
 
 // --- Esc key interrupt support ---
@@ -712,9 +712,9 @@ async fn handle_repl_input(
             .await;
             return ReplAction::Continue;
         }
-        commands::CommandResult::Local => {
+        commands::CommandResult::Gguf => {
             let _ = rl.add_history_entry(input);
-            commands::run_local_menu(&|msg| ui.show_error(msg)).await;
+            commands::run_gguf_menu(&|msg| ui.show_error(msg)).await;
             return ReplAction::Continue;
         }
         commands::CommandResult::Context => {
@@ -1235,9 +1235,9 @@ async fn main() {
         return;
     }
 
-    if let Some(spec) = cli.pull_model.as_deref() {
+    if let Some(spec) = cli.pull_gguf_model.as_deref() {
         match llm_local::download_model(spec, None).await {
-            Ok(name) => println!("downloaded local model: {name}"),
+            Ok(name) => println!("downloaded GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
@@ -1246,10 +1246,12 @@ async fn main() {
         return;
     }
 
-    if cli.list_local_models {
+    if cli.list_gguf_models {
         let models = llm_local::list_models();
         if models.is_empty() {
-            println!("No local models downloaded. Use `aictl --pull-model <spec>` to fetch one.");
+            println!(
+                "No GGUF models downloaded. Use `aictl --pull-gguf-model <spec>` to fetch one."
+            );
         } else {
             for m in models {
                 println!("{m}");
@@ -1258,9 +1260,9 @@ async fn main() {
         return;
     }
 
-    if let Some(name) = cli.remove_local_model.as_deref() {
+    if let Some(name) = cli.remove_gguf_model.as_deref() {
         match llm_local::remove_model(name) {
-            Ok(()) => println!("removed local model: {name}"),
+            Ok(()) => println!("removed GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
@@ -1269,9 +1271,9 @@ async fn main() {
         return;
     }
 
-    if cli.clear_local_models {
+    if cli.clear_gguf_models {
         match llm_local::clear_models() {
-            Ok(n) => println!("removed {n} local model(s)"),
+            Ok(n) => println!("removed {n} GGUF model(s)"),
             Err(e) => {
                 eprintln!("Error: {e}");
                 std::process::exit(1);

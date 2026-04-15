@@ -1,7 +1,7 @@
 //! Native local-model provider.
 //!
 //! Models are GGUF files stored in `~/.aictl/models/`. They are downloaded
-//! on demand via `/local` in the REPL or `--pull-model <spec>` on the CLI;
+//! on demand via `/gguf` in the REPL or `--pull-gguf-model <spec>` on the CLI;
 //! nothing is bundled into the binary. When no model has been downloaded
 //! the provider exposes no entries, so by default native models are
 //! unavailable until the user explicitly pulls one.
@@ -342,7 +342,7 @@ pub async fn call_local(
 
     let path = model_path(model).ok_or_else(|| -> Box<dyn std::error::Error> {
         format!(
-            "local model '{model}' not found. Pull it with `aictl --pull-model <spec>` or via `/local` in the REPL."
+            "local model '{model}' not found. Pull it with `aictl --pull-gguf-model <spec>` or via `/gguf` in the REPL."
         )
         .into()
     })?;

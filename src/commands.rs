@@ -40,7 +40,7 @@ impl std::fmt::Display for MemoryMode {
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
     "agent", "behavior", "clear", "compact", "config", "context", "copy", "exit", "help", "info",
-    "issues", "keys", "local", "memory", "model", "security", "session", "stats", "tools",
+    "issues", "keys", "gguf", "memory", "model", "security", "session", "stats", "tools",
     "update", "version",
 ];
 
@@ -72,8 +72,8 @@ pub enum CommandResult {
     Agent,
     /// Open the session management menu.
     Session,
-    /// Open the local (native) model management menu.
-    Local,
+    /// Open the native GGUF model management menu.
+    Gguf,
     /// Fetch and display known issues.
     Issues,
     /// Open the API key management menu (lock/unlock/clear).
@@ -108,7 +108,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "update" => CommandResult::Update,
         "version" => CommandResult::Version,
         "session" => CommandResult::Session,
-        "local" => CommandResult::Local,
+        "gguf" => CommandResult::Gguf,
         "issues" => CommandResult::Issues,
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
@@ -364,8 +364,8 @@ fn print_help() {
         ("/info", "show setup info"),
         ("/issues", "show known issues"),
         (
-            "/local",
-            "manage native local models (pull, list, remove) [experimental]",
+            "/gguf",
+            "manage native local GGUF models (pull, list, remove) [experimental]",
         ),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
         ("/model", "switch model and provider"),
@@ -1014,7 +1014,7 @@ fn build_menu_lines(
                 "kimi" => "Kimi:",
                 "zai" => "Z.ai:",
                 "ollama" => "Ollama:",
-                "local" => "Local (native):",
+                "local" => "Local (native, GGUF):",
                 _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
@@ -1446,7 +1446,7 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
     let provider_count = providers.len();
     let model_count = crate::llm::MODELS.len();
     println!(
-        "  {} {provider_count} ({}) + ollama (dynamic) + local (native)",
+        "  {} {provider_count} ({}) + ollama (dynamic) + local (native GGUF)",
         "providers:".with(Color::Cyan),
         providers
             .iter()
@@ -1467,17 +1467,17 @@ pub fn print_info(provider: &str, model: &str, auto: bool, memory: MemoryMode, v
     };
     let experimental = "[experimental]".with(Color::Yellow).to_string();
     let local_info = if local_models.is_empty() {
-        format!("0 downloaded · inference {feature_label} {experimental}")
+        format!("0 GGUF downloaded · inference {feature_label} {experimental}")
     } else {
         format!(
-            "{} downloaded ({}) · inference {feature_label} {experimental}",
+            "{} GGUF downloaded ({}) · inference {feature_label} {experimental}",
             local_models.len(),
             local_models.join(", ")
         )
     };
     println!("  {} {local_info}", "local:    ".with(Color::Cyan));
     println!(
-        "  {} {model_count} cataloged + ollama local models + {} native local",
+        "  {} {model_count} cataloged + ollama local models + {} native GGUF",
         "models:   ".with(Color::Cyan),
         local_models.len()
     );
@@ -2029,9 +2029,9 @@ pub fn print_agents_cli() {
     }
 }
 
-// --- Local (native) model management ---
+// --- Native GGUF model management ---
 
-const LOCAL_MENU_ITEMS: &[(&str, &str)] = &[
+const GGUF_MENU_ITEMS: &[(&str, &str)] = &[
     ("view downloaded", "list models in ~/.aictl/models/"),
     (
         "pull model",
@@ -2041,13 +2041,13 @@ const LOCAL_MENU_ITEMS: &[(&str, &str)] = &[
     ("clear all", "remove every downloaded model"),
 ];
 
-fn build_local_menu_lines(selected: usize) -> Vec<String> {
-    let max = LOCAL_MENU_ITEMS
+fn build_gguf_menu_lines(selected: usize) -> Vec<String> {
+    let max = GGUF_MENU_ITEMS
         .iter()
         .map(|(n, _)| n.len())
         .max()
         .unwrap_or(0);
-    LOCAL_MENU_ITEMS
+    GGUF_MENU_ITEMS
         .iter()
         .enumerate()
         .map(|(i, (name, desc))| {
@@ -2073,7 +2073,7 @@ fn build_local_menu_lines(selected: usize) -> Vec<String> {
         .collect()
 }
 
-fn print_local_models() {
+fn print_gguf_models() {
     let models = crate::llm_local::list_models();
     println!();
     if !crate::llm_local::is_available() {
@@ -2237,7 +2237,7 @@ fn build_popular_models_menu_lines(selected: usize) -> Vec<String> {
         .collect()
 }
 
-async fn pull_local_model(show_error: &dyn Fn(&str)) {
+async fn pull_gguf_model(show_error: &dyn Fn(&str)) {
     let total = POPULAR_LOCAL_MODELS.len() + 1;
     let Some(sel) = select_from_menu(total, 0, build_popular_models_menu_lines) else {
         return;
@@ -2345,7 +2345,7 @@ fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io:
     Ok(())
 }
 
-fn remove_local_model_interactive(show_error: &dyn Fn(&str)) {
+fn remove_gguf_model_interactive(show_error: &dyn Fn(&str)) {
     let models = crate::llm_local::list_models();
     if models.is_empty() {
         println!();
@@ -2395,7 +2395,7 @@ fn remove_local_model_interactive(show_error: &dyn Fn(&str)) {
     }
 }
 
-fn clear_all_local_models_confirm() {
+fn clear_all_gguf_models_confirm() {
     println!();
     if !confirm_yn("remove ALL downloaded local models?") {
         return;
@@ -2418,8 +2418,8 @@ fn clear_all_local_models_confirm() {
     }
 }
 
-/// Interactive `/local` menu: list / pull / remove / clear.
-pub async fn run_local_menu(show_error: &dyn Fn(&str)) {
+/// Interactive `/gguf` menu: list / pull / remove / clear.
+pub async fn run_gguf_menu(show_error: &dyn Fn(&str)) {
     println!();
     println!(
         "  {} {}",
@@ -2427,14 +2427,14 @@ pub async fn run_local_menu(show_error: &dyn Fn(&str)) {
         "native local-model support is experimental — expect rough edges".with(Color::Yellow)
     );
     println!();
-    let Some(sel) = select_from_menu(LOCAL_MENU_ITEMS.len(), 0, build_local_menu_lines) else {
+    let Some(sel) = select_from_menu(GGUF_MENU_ITEMS.len(), 0, build_gguf_menu_lines) else {
         return;
     };
     match sel {
-        0 => print_local_models(),
-        1 => pull_local_model(show_error).await,
-        2 => remove_local_model_interactive(show_error),
-        3 => clear_all_local_models_confirm(),
+        0 => print_gguf_models(),
+        1 => pull_gguf_model(show_error).await,
+        2 => remove_gguf_model_interactive(show_error),
+        3 => clear_all_gguf_models_confirm(),
         _ => {}
     }
 }
