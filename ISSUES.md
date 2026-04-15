@@ -9,7 +9,7 @@
 
 ### Modular architecture
 
-Split the codebase into separate modules: `core` (shared logic), `cli`, `server` (currently empty), `desktop` (currently empty) to enable independent development of each target.
+Split the codebase into separate modules: `core` (shared logic), `cli`, `desktop` (currently empty) to enable independent development of each target.
 
 ### Desktop
 
