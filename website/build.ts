@@ -42,8 +42,11 @@ async function main() {
     .trim();
   await writeFile(join(dist, "index.html"), html);
 
+  // Copy install.sh from the parent repo so the site can serve it for one-liner installs.
+  await copyFile(join(root, "..", "install.sh"), join(dist, "install.sh"));
+
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "style.css", "script.js"]) {
+  for (const f of ["index.html", "style.css", "script.js", "install.sh"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
