@@ -5,6 +5,8 @@
 
 AI agent in your terminal — 48 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
+Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
+
 ![aictl screenshot](screenshot.png)
 
 ## Install

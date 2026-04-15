@@ -2,7 +2,7 @@
 
 ## Infrastructure
 
-- **Project website** `[marketing]` — Build and publish a public-facing project website. Then update install script, so it'll have fancy domain.
+- **Project website** `[marketing]` — publish website from the `website/` dir
 
 ## Roadmap
 

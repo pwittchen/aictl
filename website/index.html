@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>aictl — AI agent in your terminal</title>
+  <meta name="description" content="aictl is a single-binary AI agent CLI for your terminal. 48 built-in cloud models across 8 providers, plus Ollama, native GGUF, and native MLX on Apple Silicon." />
+  <meta name="theme-color" content="#1f2228" />
+  <meta property="og:title" content="aictl — AI agent in your terminal" />
+  <meta property="og:description" content="A single-binary AI agent CLI. 48 models, 8 providers, local inference included." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aictl.app" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="#" class="nav__brand">aictl<span class="nav__caret">_</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#providers">Providers</a>
+        <a href="#tools">Tools</a>
+        <a href="#install">Install</a>
+        <a href="#license">License</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="#install">Install</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="tag">v0.23.3 · Rust · single binary · open source</div>
+        <h1 class="hero__title">aictl</h1>
+        <p class="hero__subtitle">
+          AI agent in your terminal. 48 cloud models across 8 providers,
+          plus Ollama, native GGUF, and native MLX on Apple Silicon.
+        </p>
+
+        <div class="cmd" role="region" aria-label="Install command">
+          <span class="cmd__prompt">$</span>
+          <code id="install-cmd">curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh</code>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd" aria-label="Copy install command">Copy</button>
+        </div>
+
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#install">Get started</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// features</span>
+          <h2 class="section__title">Built like infrastructure</h2>
+          <p class="section__lead">
+            A Rust CLI that ships as one binary. No runtime, no daemon,
+            no config server. Keys in your keyring, sessions on disk, work
+            in your terminal.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Agent loop</h3>
+            <p>Interactive REPL and one-shot mode. 17 built-in tools for shell, files, web, documents, and images. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
+          </article>
+          <article class="card">
+            <h3>Sessions</h3>
+            <p>Every REPL run is a session. Persist, name, resume, or run incognito. Full conversation history stored as JSON under <code>~/.aictl/sessions</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Agents</h3>
+            <p>Reusable system prompts as plain text. Create manually, or generate them with an LLM. Load on startup with<br><code>--agent &lt;name&gt;</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Security first</h3>
+            <p>CWD jail, blocked paths, shell command allowlists, environment scrubbing, subshell blocking, injection guard, output sanitization. On by default.</p>
+          </article>
+          <article class="card">
+            <h3>Key storage</h3>
+            <p>API keys in macOS Keychain or Linux Secret Service. Transparent fallback to plain text when no keyring is available. Lock and unlock on demand.</p>
+          </article>
+          <article class="card">
+            <h3>Cost meter</h3>
+            <p>Every turn reports token usage, estimated cost, and execution time. Daily and monthly usage stats under <code>/stats</code>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="providers">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// providers</span>
+          <h2 class="section__title">Eleven providers, one interface</h2>
+          <p class="section__lead">
+            Switch models in the REPL with <code>/model</code>. Eight remote
+            APIs plus three local backends. Same tools, same agent loop.
+          </p>
+        </header>
+
+        <ul class="providers">
+          <li>OpenAI</li>
+          <li>Anthropic</li>
+          <li>Google Gemini</li>
+          <li>xAI Grok</li>
+          <li>Mistral</li>
+          <li>DeepSeek</li>
+          <li>Kimi</li>
+          <li>Z.ai</li>
+          <li>Ollama</li>
+          <li>GGUF <span class="tag tag--inline">experimental</span></li>
+          <li>MLX <span class="tag tag--inline">Apple Silicon</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="tools">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// tools</span>
+          <h2 class="section__title">Tools the agent can use</h2>
+          <p class="section__lead">
+            Every tool call is gated by the security policy. Confirm each one,
+            or run autonomously with <code>--auto</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="tools">
+            <h3>System</h3>
+            <ul>
+              <li><code>exec_shell</code> — run shell commands</li>
+              <li><code>read_file</code> · <code>write_file</code> · <code>edit_file</code></li>
+              <li><code>remove_file</code> · <code>create_directory</code></li>
+              <li><code>list_directory</code> · <code>find_files</code></li>
+              <li><code>search_files</code> — grep across the tree</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Web &amp; media</h3>
+            <ul>
+              <li><code>fetch_url</code> · <code>extract_website</code></li>
+              <li><code>search_web</code> — via Firecrawl</li>
+              <li><code>fetch_datetime</code> · <code>fetch_geolocation</code></li>
+              <li><code>read_image</code> — vision across providers</li>
+              <li><code>generate_image</code> — DALL·E, Imagen, Grok</li>
+              <li><code>read_document</code> — PDF, DOCX, spreadsheets</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="install">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// install</span>
+          <h2 class="section__title">Get it running</h2>
+          <p class="section__lead">
+            Prebuilt binaries for macOS and Linux on x86_64 and aarch64.
+            No prerequisites beyond <code>curl</code>.
+          </p>
+        </header>
+
+        <div class="install">
+          <div class="install__step">
+            <div class="install__num">01</div>
+            <h3>Install</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="install-cmd-2">curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh</code>
+              <button class="cmd__copy" type="button" data-copy="#install-cmd-2" aria-label="Copy install command">Copy</button>
+            </div>
+          </div>
+
+          <div class="install__row">
+          <div class="install__step">
+            <div class="install__num">02</div>
+            <h3>Configure</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="install-cmd-3">aictl --config</code>
+              <button class="cmd__copy" type="button" data-copy="#install-cmd-3" aria-label="Copy configure command">Copy</button>
+            </div>
+            <p class="install__hint">
+              Interactive wizard for provider, model, and API keys.
+              Stored in <code>~/.aictl/config</code> or the system keyring.
+            </p>
+          </div>
+
+          <div class="install__step">
+            <div class="install__num">03</div>
+            <h3>Run</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="install-cmd-4">aictl</code>
+              <button class="cmd__copy" type="button" data-copy="#install-cmd-4" aria-label="Copy run command">Copy</button>
+            </div>
+            <p class="install__hint">
+              Omit <code>--message</code> to enter the interactive REPL,
+              or pass one for single-shot mode.
+            </p>
+          </div>
+          </div>
+        </div>
+
+        <div class="platforms">
+          <h3 class="platforms__title">Supported platforms</h3>
+          <ul class="platforms__list">
+            <li>
+              <span class="platforms__os">Linux</span>
+              <span class="platforms__arch">x86_64 · aarch64</span>
+            </li>
+            <li>
+              <span class="platforms__os">macOS</span>
+              <span class="platforms__arch">x86_64 · aarch64 (Apple Silicon)</span>
+            </li>
+            <li>
+              <span class="platforms__os">Windows</span>
+              <span class="platforms__arch">via WSL (Linux binary)</span>
+            </li>
+          </ul>
+          <p class="platforms__note">
+            Native Windows is not supported — aictl relies on a POSIX shell
+            and Unix tools. Other Unix-likes (FreeBSD, uncommon Linux
+            architectures) can build from source with a Rust toolchain.
+          </p>
+        </div>
+
+        <div class="install__alt">
+          <p>Or build from source with Rust:</p>
+          <div class="cmd">
+            <span class="cmd__prompt">$</span>
+            <code id="install-cmd-5">cargo install --path . --features "gguf mlx"</code>
+            <button class="cmd__copy" type="button" data-copy="#install-cmd-5" aria-label="Copy cargo command">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="license">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// license</span>
+          <h2 class="section__title">Free for non-commercial use</h2>
+          <p class="section__lead">
+            aictl is released under the
+            <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0</a>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Non-commercial — free</h3>
+            <p>
+              Free to use for personal projects, research, education, and
+              non-profit organizations. Read the source, run it, modify it,
+              share it — at no cost.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Commercial — contact me</h3>
+            <p>
+              Commercial use requires a separate license. If you or your
+              company want to use aictl at work or inside a product, email
+              <a href="mailto:piotr@wittchen.io">piotr@wittchen.io</a>
+              to arrange a commercial license.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">aictl<span class="nav__caret">_</span></div>
+      <div class="footer__links">
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/README.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+      </div>
+      <div class="footer__meta">
+        PolyForm Noncommercial · built by <a href="https://wittchen.io" target="_blank" rel="noopener">Piotr Wittchen</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

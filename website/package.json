@@ -1,0 +1,15 @@
+{
+  "name": "aictl-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing page for aictl — AI agent in your terminal",
+  "scripts": {
+    "dev": "bun run serve",
+    "serve": "bun --hot serve.ts",
+    "build": "bun run build.ts",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
