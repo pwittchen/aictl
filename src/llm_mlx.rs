@@ -516,7 +516,9 @@ mod arch {
             let o_proj = nn::LinearBuilder::new(n_heads * head_dim, cfg.hidden_size)
                 .bias(false)
                 .build()?;
-            let rope = nn::RopeBuilder::new(head_dim).base(cfg.rope_theta).build()?;
+            let rope = nn::RopeBuilder::new(head_dim)
+                .base(cfg.rope_theta)
+                .build()?;
 
             Ok(Self {
                 n_heads,
@@ -764,8 +766,7 @@ mod arch {
 
             let mut mask = None;
             if h.shape()[1] > 1 {
-                let m =
-                    nn::MultiHeadAttention::create_additive_causal_mask::<f32>(h.shape()[1])?;
+                let m = nn::MultiHeadAttention::create_additive_causal_mask::<f32>(h.shape()[1])?;
                 let m = m.as_dtype(h.dtype())?;
                 mask = Some(m);
             }
@@ -972,7 +973,10 @@ mod weights {
 
         let mut params = model.parameters_mut().flatten();
         let mut missing: Vec<String> = Vec::new();
-        let keys: Vec<String> = params.keys().map(std::string::ToString::to_string).collect();
+        let keys: Vec<String> = params
+            .keys()
+            .map(std::string::ToString::to_string)
+            .collect();
         for key in &keys {
             match merged.remove(key) {
                 Some(arr) => {
@@ -1135,8 +1139,8 @@ pub async fn call_mlx(
 
     // --- Load config.json ---
     let cfg_path = dir.join("config.json");
-    let cfg_body = std::fs::read_to_string(&cfg_path)
-        .map_err(|e| -> Box<dyn std::error::Error> {
+    let cfg_body =
+        std::fs::read_to_string(&cfg_path).map_err(|e| -> Box<dyn std::error::Error> {
             format!("failed to read {}: {e}", cfg_path.display()).into()
         })?;
     let cfg_raw: serde_json::Value = serde_json::from_str(&cfg_body)?;
@@ -1223,99 +1227,94 @@ pub async fn call_mlx(
     let prompt_for_spawn = prompt_text.clone();
     let eos_for_spawn: Vec<u32> = eos_ids.into_iter().collect();
 
-    let result = tokio::task::spawn_blocking(
-        move || -> Result<(String, u64, u64), String> {
-            // Build model, optionally convert to quantized variant.
-            let mut mdl = arch::LlamaModel::new(&cfg_for_spawn)
-                .map_err(|e| format!("failed to build model: {e}"))?;
-            let quantized = cfg_for_spawn.quantization.is_some();
-            if let Some(q) = cfg_for_spawn.quantization.as_ref() {
-                mdl = mlx_rs::nn::quantize(mdl, Some(q.group_size), Some(q.bits))
-                    .map_err(|e| format!("quantize wrap failed: {e}"))?;
+    let result = tokio::task::spawn_blocking(move || -> Result<(String, u64, u64), String> {
+        // Build model, optionally convert to quantized variant.
+        let mut mdl = arch::LlamaModel::new(&cfg_for_spawn)
+            .map_err(|e| format!("failed to build model: {e}"))?;
+        let quantized = cfg_for_spawn.quantization.is_some();
+        if let Some(q) = cfg_for_spawn.quantization.as_ref() {
+            mdl = mlx_rs::nn::quantize(mdl, Some(q.group_size), Some(q.bits))
+                .map_err(|e| format!("quantize wrap failed: {e}"))?;
+        }
+
+        // Load weights from shard(s).
+        let (group_size, bits) = cfg_for_spawn
+            .quantization
+            .as_ref()
+            .map_or((64, 4), |q| (q.group_size, q.bits));
+        weights::load_model_weights(&mut mdl, &dir_for_spawn, quantized, group_size, bits)?;
+
+        // Tokenize the prompt.
+        let enc = tokenizer
+            .encode(&prompt_for_spawn[..], true)
+            .map_err(|e| format!("tokenize failed: {e}"))?;
+        let prompt_ids = enc.get_ids();
+        let input_tokens = prompt_ids.len() as u64;
+        if prompt_ids.is_empty() {
+            return Err("empty prompt after tokenization".into());
+        }
+
+        let prompt_arr = Array::from(prompt_ids).index(NewAxis);
+
+        // Prefill.
+        let initial_cache: Vec<Option<(Array, Array)>> = Vec::new();
+        let out = mdl
+            .forward_full(arch::LlamaInput {
+                inputs: &prompt_arr,
+                cache: &initial_cache,
+            })
+            .map_err(|e| format!("prefill failed: {e}"))?;
+        let mut cache = out.cache;
+        let mut next = sample(&out.logits.index((.., -1, ..))).map_err(|e| e.to_string())?;
+
+        let eos_set: HashSet<u32> = eos_for_spawn.into_iter().collect();
+        let mut generated: Vec<u32> = Vec::with_capacity(4096);
+
+        const MAX_NEW: usize = 4096;
+        for _ in 0..MAX_NEW {
+            eval(std::iter::once(&next)).map_err(|e| format!("eval failed: {e}"))?;
+            let id: u32 = next.item::<u32>();
+            if eos_set.contains(&id) {
+                break;
+            }
+            generated.push(id);
+
+            // Short-circuit on end-of-turn / common stop markers that
+            // lots of chat templates emit as plain text instead of a
+            // dedicated EOS id.
+            if let Ok(partial) = tokenizer.decode(&generated, true)
+                && (partial.contains("<|im_end|>")
+                    || partial.contains("<|eot_id|>")
+                    || partial.contains("</s>"))
+            {
+                break;
             }
 
-            // Load weights from shard(s).
-            let (group_size, bits) = cfg_for_spawn
-                .quantization
-                .as_ref()
-                .map_or((64, 4), |q| (q.group_size, q.bits));
-            weights::load_model_weights(&mut mdl, &dir_for_spawn, quantized, group_size, bits)?;
-
-            // Tokenize the prompt.
-            let enc = tokenizer
-                .encode(&prompt_for_spawn[..], true)
-                .map_err(|e| format!("tokenize failed: {e}"))?;
-            let prompt_ids = enc.get_ids();
-            let input_tokens = prompt_ids.len() as u64;
-            if prompt_ids.is_empty() {
-                return Err("empty prompt after tokenization".into());
-            }
-
-            let prompt_arr = Array::from(prompt_ids).index(NewAxis);
-
-            // Prefill.
-            let initial_cache: Vec<Option<(Array, Array)>> = Vec::new();
-            let out = mdl
+            let tok_arr = next.index((.., NewAxis));
+            let step = mdl
                 .forward_full(arch::LlamaInput {
-                    inputs: &prompt_arr,
-                    cache: &initial_cache,
+                    inputs: &tok_arr,
+                    cache: cache.as_slice(),
                 })
-                .map_err(|e| format!("prefill failed: {e}"))?;
-            let mut cache = out.cache;
-            let mut next = sample(&out.logits.index((.., -1, ..))).map_err(|e| e.to_string())?;
+                .map_err(|e| format!("decode step failed: {e}"))?;
+            cache = step.cache;
+            let logits = step.logits.squeeze_axes(&[1]).map_err(|e| e.to_string())?;
+            next = sample(&logits).map_err(|e| e.to_string())?;
+        }
 
-            let eos_set: HashSet<u32> = eos_for_spawn.into_iter().collect();
-            let mut generated: Vec<u32> = Vec::with_capacity(4096);
+        let output_tokens = generated.len() as u64;
+        let mut text = tokenizer
+            .decode(&generated, true)
+            .map_err(|e| format!("decode failed: {e}"))?;
 
-            const MAX_NEW: usize = 4096;
-            for _ in 0..MAX_NEW {
-                eval(std::iter::once(&next)).map_err(|e| format!("eval failed: {e}"))?;
-                let id: u32 = next.item::<u32>();
-                if eos_set.contains(&id) {
-                    break;
-                }
-                generated.push(id);
-
-                // Short-circuit on end-of-turn / common stop markers that
-                // lots of chat templates emit as plain text instead of a
-                // dedicated EOS id.
-                if let Ok(partial) = tokenizer.decode(&generated, true)
-                    && (partial.contains("<|im_end|>")
-                        || partial.contains("<|eot_id|>")
-                        || partial.contains("</s>"))
-                {
-                    break;
-                }
-
-                let tok_arr = next.index((.., NewAxis));
-                let step = mdl
-                    .forward_full(arch::LlamaInput {
-                        inputs: &tok_arr,
-                        cache: cache.as_slice(),
-                    })
-                    .map_err(|e| format!("decode step failed: {e}"))?;
-                cache = step.cache;
-                let logits = step
-                    .logits
-                    .squeeze_axes(&[1])
-                    .map_err(|e| e.to_string())?;
-                next = sample(&logits).map_err(|e| e.to_string())?;
+        for marker in ["<|im_end|>", "<|eot_id|>", "</s>"] {
+            if let Some(idx) = text.find(marker) {
+                text.truncate(idx);
             }
+        }
 
-            let output_tokens = generated.len() as u64;
-            let mut text = tokenizer
-                .decode(&generated, true)
-                .map_err(|e| format!("decode failed: {e}"))?;
-
-            for marker in ["<|im_end|>", "<|eot_id|>", "</s>"] {
-                if let Some(idx) = text.find(marker) {
-                    text.truncate(idx);
-                }
-            }
-
-            Ok((text.trim().to_string(), input_tokens, output_tokens))
-        },
-    )
+        Ok((text.trim().to_string(), input_tokens, output_tokens))
+    })
     .await
     .map_err(|e| -> Box<dyn std::error::Error> {
         format!("inference task panicked: {e}").into()

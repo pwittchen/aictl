@@ -39,9 +39,29 @@ impl std::fmt::Display for MemoryMode {
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
-    "agent", "behavior", "clear", "compact", "config", "context", "copy", "exit", "help", "info",
-    "issues", "keys", "gguf", "memory", "mlx", "model", "security", "session", "stats", "tools",
-    "uninstall", "update", "version",
+    "agent",
+    "behavior",
+    "clear",
+    "compact",
+    "config",
+    "context",
+    "copy",
+    "exit",
+    "help",
+    "info",
+    "issues",
+    "keys",
+    "gguf",
+    "memory",
+    "mlx",
+    "model",
+    "security",
+    "session",
+    "stats",
+    "tools",
+    "uninstall",
+    "update",
+    "version",
 ];
 
 /// Result of handling a slash command.
@@ -390,7 +410,10 @@ fn print_help() {
         ("/keys", "manage API keys (lock, unlock, clear)"),
         ("/config", "re-run the configuration wizard"),
         ("/update", "update to the latest version"),
-        ("/uninstall", "remove the aictl binary (asks for confirmation)"),
+        (
+            "/uninstall",
+            "remove the aictl binary (asks for confirmation)",
+        ),
         ("/version", "check current version against the latest"),
         ("/exit", "exit the REPL"),
     ];
@@ -3429,8 +3452,7 @@ pub fn run_uninstall_cli() {
 /// makes continuing pointless), `false` otherwise.
 pub fn run_uninstall_repl(show_error: &dyn Fn(&str)) -> bool {
     let candidates = uninstall_candidates();
-    let existing: Vec<&std::path::PathBuf> =
-        candidates.iter().filter(|p| p.exists()).collect();
+    let existing: Vec<&std::path::PathBuf> = candidates.iter().filter(|p| p.exists()).collect();
 
     println!();
     if existing.is_empty() {
