@@ -28,3 +28,6 @@ target
 
 # AI
 .claude/settings.local.json
+
+# commercial pricing notes
+COMMERCIAL_PRICING.md
