@@ -633,9 +633,10 @@ fn print_stats_section(label: &str, stats: &crate::stats::DayStats) {
         let mut models: Vec<_> = stats.models.iter().collect();
         models.sort_by(|a, b| b.1.cmp(a.1));
         println!(
-            "    {} {}",
+            "    {} {} ({})",
             format!("{:<15}", "models:").with(Color::DarkGrey),
-            format!("{} ({})", models[0].0, models[0].1),
+            models[0].0,
+            models[0].1,
         );
         for (model, count) in models.iter().skip(1) {
             println!("    {:<15} {} ({})", "", model, count);
