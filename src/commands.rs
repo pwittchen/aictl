@@ -596,6 +596,11 @@ fn print_stats_section(label: &str, stats: &crate::stats::DayStats) {
     );
     println!(
         "    {} {}",
+        format!("{:<15}", "sessions:").with(Color::DarkGrey),
+        stats.sessions,
+    );
+    println!(
+        "    {} {}",
         format!("{:<15}", "requests:").with(Color::DarkGrey),
         stats.requests,
     );
@@ -627,12 +632,14 @@ fn print_stats_section(label: &str, stats: &crate::stats::DayStats) {
     if !stats.models.is_empty() {
         let mut models: Vec<_> = stats.models.iter().collect();
         models.sort_by(|a, b| b.1.cmp(a.1));
-        let model_str: Vec<String> = models.iter().map(|(m, c)| format!("{m} ({c})")).collect();
         println!(
             "    {} {}",
             format!("{:<15}", "models:").with(Color::DarkGrey),
-            model_str.join(", "),
+            format!("{} ({})", models[0].0, models[0].1),
         );
+        for (model, count) in models.iter().skip(1) {
+            println!("    {:<15} {} ({})", "", model, count);
+        }
     }
 }
 

@@ -1074,6 +1074,9 @@ async fn run_interactive(
         let id = session::generate_uuid();
         session::set_current(id, None);
     }
+    if !session::is_incognito() {
+        stats::record_session();
+    }
     session::save_current(&messages);
 
     // Only display the remote-version notice if the background fetch has

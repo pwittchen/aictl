@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 /// Stats recorded for a single day.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct DayStats {
+    pub sessions: u64,
     pub requests: u64,
     pub llm_calls: u64,
     pub tool_calls: u64,
@@ -19,6 +21,7 @@ pub struct DayStats {
 
 impl DayStats {
     fn merge(&mut self, other: &Self) {
+        self.sessions += other.sessions;
         self.requests += other.requests;
         self.llm_calls += other.llm_calls;
         self.tool_calls += other.tool_calls;
@@ -97,6 +100,14 @@ fn save_day(key: &str, stats: &DayStats) {
         &path,
         serde_json::to_string_pretty(stats).unwrap_or_default(),
     );
+}
+
+/// Record a started interactive session.
+pub fn record_session() {
+    let key = today_key();
+    let mut day = load_day(&key);
+    day.sessions += 1;
+    save_day(&key, &day);
 }
 
 /// Record stats from a completed agent turn.
@@ -201,6 +212,7 @@ mod tests {
     #[test]
     fn day_stats_merge() {
         let mut a = DayStats {
+            sessions: 2,
             requests: 5,
             llm_calls: 10,
             tool_calls: 3,
@@ -213,6 +225,7 @@ mod tests {
             ]),
         };
         let b = DayStats {
+            sessions: 1,
             requests: 2,
             llm_calls: 4,
             tool_calls: 1,
@@ -222,6 +235,7 @@ mod tests {
             models: HashMap::from([("gpt-4o".to_string(), 1), ("gpt-4.1".to_string(), 1)]),
         };
         a.merge(&b);
+        assert_eq!(a.sessions, 3);
         assert_eq!(a.requests, 7);
         assert_eq!(a.llm_calls, 14);
         assert_eq!(a.tool_calls, 4);
