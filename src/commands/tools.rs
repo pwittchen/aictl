@@ -35,6 +35,10 @@ pub(super) fn print_tools() {
             "git",
             "run a restricted git subcommand (status, diff, log, blame, commit)",
         ),
+        (
+            "run_code",
+            "execute a code snippet (python, node, ruby, perl, lua, bash, sh)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

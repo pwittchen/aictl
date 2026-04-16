@@ -627,6 +627,7 @@ Available tools:
 | `generate_image` | Generate an image from a text description via DALL-E, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
 | `read_document` | Read a PDF, DOCX, or spreadsheet and extract content as markdown text. Supports `.pdf`, `.docx`, `.xlsx`, `.xls`, `.ods`. PDF text extracted directly; DOCX converted to markdown; spreadsheets converted to markdown tables (one per sheet) |
 | `git` | Run a restricted `git` subcommand (no shell). Allows `status`, `diff`, `log`, `blame`, `commit` with a per-subcommand flag allowlist. Dangerous flags (`-c`, `-C`, `--ext-diff`, `--upload-pack`, `--exec-path`, `--no-verify`, `--amend`, `--git-dir`, `--work-tree`) and all other subcommands are rejected. Env vars that could redirect the subprocess (`GIT_DIR`, `GIT_SSH_COMMAND`, `GIT_CONFIG_*`, editor/askpass) are scrubbed |
+| `run_code` | Execute a short code snippet in a chosen interpreter and return stdout/stderr. First line is the language (`python`, `node`, `ruby`, `perl`, `lua`, `bash`, `sh`); remaining lines are piped to the interpreter on stdin (no temp file). Useful for quick calculations, data transforms, and one-off logic checks. Shares the shell timeout, env scrubber, and CWD pin with `exec_shell`. Not a true sandbox |
 
 #### Image capabilities by provider
 

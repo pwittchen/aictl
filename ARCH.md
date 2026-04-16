@@ -153,6 +153,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
  │  │ read_document       │ pdf-extract/zip/calamine  │      │
  │  │ git                 │ git subprocess (no shell) │      │
+ │  │ run_code            │ interpreter via stdin     │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -170,6 +171,9 @@ Both single-shot and REPL modes share the same loop:
  │  - git invokes `git` directly (no shell) with a strict    │
  │    per-subcommand flag allowlist and a scrubbed env that  │
  │    drops GIT_DIR / GIT_SSH_COMMAND / GIT_CONFIG_* etc.    │
+ │  - run_code picks an interpreter (python/node/ruby/...)   │
+ │    from the first line and pipes the rest of the snippet  │
+ │    to stdin; kill_on_drop reaps the child on timeout      │
  └───────────────────────────────────────────────────────────┘
 ```
 

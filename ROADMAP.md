@@ -8,7 +8,6 @@
 
 #### Code & Development
 
-- **run_code** — Execute a code snippet in a sandboxed interpreter (Python, Node, etc.) and return stdout/stderr. Useful for quick calculations, data transforms, or testing logic without writing files.
 - **lint_file** — Run a language-appropriate linter/formatter on a file and return diagnostics. Avoids the agent needing to know which linter to invoke.
 
 #### Data & Transformation
