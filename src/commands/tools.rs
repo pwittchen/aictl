@@ -59,6 +59,10 @@ pub(super) fn print_tools() {
             "list_processes",
             "list running processes with structured filtering",
         ),
+        (
+            "check_port",
+            "test TCP reachability of a host:port (no shell, no nc)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

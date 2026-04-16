@@ -8,7 +8,6 @@
 
 #### System & Environment
 
-- **check_port** — Test if a host:port is reachable. Handy for debugging connectivity issues.
 - **system_info** — Return OS, arch, memory, disk, CPU info in a structured way.
 
 #### File & Content
