@@ -427,6 +427,12 @@ mod arch {
         pub tie_word_embeddings: bool,
         #[serde(default)]
         pub quantization: Option<QuantConfig>,
+        /// Whether q/k/v projections carry a bias term. Qwen2-family configs
+        /// don't always set this field (the Python side forces it to true in
+        /// modeling code), so we override it from the architecture name in
+        /// `call_mlx` before constructing the model.
+        #[serde(default)]
+        pub attention_bias: bool,
     }
 
     #[derive(Debug, Clone, serde::Deserialize)]
@@ -505,13 +511,13 @@ mod arch {
             let scale = (head_dim as f32).powf(-0.5);
 
             let q_proj = nn::LinearBuilder::new(cfg.hidden_size, n_heads * head_dim)
-                .bias(false)
+                .bias(cfg.attention_bias)
                 .build()?;
             let k_proj = nn::LinearBuilder::new(cfg.hidden_size, n_kv_heads * head_dim)
-                .bias(false)
+                .bias(cfg.attention_bias)
                 .build()?;
             let v_proj = nn::LinearBuilder::new(cfg.hidden_size, n_kv_heads * head_dim)
-                .bias(false)
+                .bias(cfg.attention_bias)
                 .build()?;
             let o_proj = nn::LinearBuilder::new(n_heads * head_dim, cfg.hidden_size)
                 .bias(false)
@@ -715,7 +721,13 @@ mod arch {
         #[param]
         pub model: Backbone,
         /// Only present when `tie_word_embeddings=false` — otherwise we reuse
-        /// `model.embed_tokens` for the output projection.
+        /// `model.embed_tokens` for the output projection. Marked
+        /// `#[quantizable]` so it rides the top-level `mlx_rs::nn::quantize`
+        /// call along with the rest of the model — without this, an otherwise
+        /// quantized model would keep `lm_head` as a plain `Linear`, and the
+        /// file's quantized `lm_head.weight / scales / biases` would all end
+        /// up unused while the model's `lm_head.weight` slot stayed unfilled.
+        #[quantizable]
         #[param]
         pub lm_head: Option<MaybeQuantized<nn::Linear>>,
 
@@ -857,21 +869,20 @@ mod weights {
     /// `...q_proj.weight` (packed u32), `...q_proj.scales`, `...q_proj.biases`,
     /// but the Rust `QuantizedLinear` struct nests the weight inside an
     /// `inner` Linear, so the expected path is `...q_proj.inner.weight`.
-    /// Scales/biases live directly on `QuantizedLinear` and don't need
-    /// rewriting.
+    /// `...q_proj.bias` (Qwen2-family attention bias) gets the same treatment
+    /// because `QuantizedLinear.inner.bias` also lives on the inner Linear.
+    /// `scales`/`biases` (quantization params) live directly on
+    /// `QuantizedLinear` and don't need rewriting.
     ///
     /// Embeddings have the same quirk: `model.embed_tokens.weight` stays as
     /// the top-level Embedding's weight in both quantized and non-quantized
     /// builds, so no rewrite is needed for it. The rewrite only applies to
     /// linear layers whose parent struct wraps them in `MaybeQuantized`.
     pub fn translate_quantized_key(key: &str) -> String {
-        // Only rewrite `<path>.weight` when `<path>` ends in a name we know
-        // corresponds to a MaybeQuantized<Linear> field. Everything else
-        // passes through unchanged so scales/biases and RmsNorm params land
-        // where they should.
-        // Field names whose `MaybeQuantized<...>` wrapper, when quantized,
-        // hides the underlying weight under `.inner.weight`. Linear projections
-        // and the token embedding both use this layout in mlx-rs.
+        // Only rewrite `<path>.weight` / `<path>.bias` when `<path>` ends in
+        // a name we know corresponds to a MaybeQuantized<Linear> field.
+        // Everything else passes through unchanged so the quantization
+        // scales/biases and RmsNorm params land where they should.
         const LINEAR_FIELDS: &[&str] = &[
             "q_proj",
             "k_proj",
@@ -883,10 +894,12 @@ mod weights {
             "lm_head",
             "embed_tokens",
         ];
-        if let Some(stripped) = key.strip_suffix(".weight") {
-            for field in LINEAR_FIELDS {
-                if stripped.ends_with(field) {
-                    return format!("{stripped}.inner.weight");
+        for suffix in [".weight", ".bias"] {
+            if let Some(stripped) = key.strip_suffix(suffix) {
+                for field in LINEAR_FIELDS {
+                    if stripped.ends_with(field) {
+                        return format!("{stripped}.inner{suffix}");
+                    }
                 }
             }
         }
@@ -1145,6 +1158,7 @@ pub async fn call_mlx(
         })?;
     let cfg_raw: serde_json::Value = serde_json::from_str(&cfg_body)?;
 
+    let mut is_qwen2 = false;
     if let Some(arches) = cfg_raw.get("architectures").and_then(|v| v.as_array()) {
         let names: Vec<&str> = arches.iter().filter_map(|v| v.as_str()).collect();
         let supported = names.iter().any(|n| {
@@ -1163,9 +1177,17 @@ pub async fn call_mlx(
             )
             .into());
         }
+        is_qwen2 = names
+            .iter()
+            .any(|n| matches!(*n, "Qwen2ForCausalLM" | "Qwen2MoeForCausalLM"));
     }
 
-    let cfg: arch::LlamaConfig = serde_json::from_str(&cfg_body)?;
+    let mut cfg: arch::LlamaConfig = serde_json::from_str(&cfg_body)?;
+    // Qwen2 modeling unconditionally uses a bias on q/k/v projections.
+    // Most Qwen2 config.json files omit `attention_bias`, so force it here.
+    if is_qwen2 {
+        cfg.attention_bias = true;
+    }
 
     // --- EOS tokens (scalar or list) ---
     let mut eos_ids: HashSet<u32> = HashSet::new();
