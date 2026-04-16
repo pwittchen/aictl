@@ -34,19 +34,21 @@ async function main() {
   }
 
   // Minify HTML (whitespace + HTML comments, preserving pre/code content).
-  let html = await readFile(join(root, "index.html"), "utf8");
-  html = html
-    .replace(/<!--[^[][\s\S]*?-->/g, "")
-    .replace(/>\s+</g, "><")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  await writeFile(join(dist, "index.html"), html);
+  for (const page of ["index.html", "guides.html"]) {
+    let html = await readFile(join(root, page), "utf8");
+    html = html
+      .replace(/<!--[^[][\s\S]*?-->/g, "")
+      .replace(/>\s+</g, "><")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    await writeFile(join(dist, page), html);
+  }
 
   // Copy install.sh from the parent repo so the site can serve it for one-liner installs.
   await copyFile(join(root, "..", "install.sh"), join(dist, "install.sh"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "style.css", "script.js", "install.sh"]) {
+  for (const f of ["index.html", "guides.html", "style.css", "script.js", "install.sh"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;

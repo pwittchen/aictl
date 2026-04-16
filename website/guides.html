@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>aictl — guides</title>
+  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, sessions, and tools." />
+  <meta name="theme-color" content="#1f2228" />
+  <meta property="og:title" content="aictl — guides" />
+  <meta property="og:description" content="How to install, configure, and use aictl — the single-binary AI agent CLI." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aictl.app/guides.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="index.html" class="nav__brand">aictl<span class="nav__caret">_</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#providers">Providers</a>
+        <a href="index.html#tools">Tools</a>
+        <a href="index.html#compare">Compare</a>
+        <a href="index.html#install">Install</a>
+        <a href="index.html#platforms">Platforms</a>
+        <a href="guides.html">Guides</a>
+        <a href="index.html#license">License</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="index.html#install">Install</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="tag">user guides</div>
+        <h1 class="hero__title" style="font-size: clamp(56px, 12vw, 160px);">guides</h1>
+        <p class="hero__subtitle">
+          Everything you need to install, configure, and use aictl
+          from your terminal. Commands, flags, agents, sessions,
+          tools, and security — all in one place.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="toc">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// contents</span>
+          <h2 class="section__title">Jump to a topic</h2>
+          <p class="section__lead">
+            Short, focused entries. Each covers one part of the CLI.
+          </p>
+        </header>
+
+        <ul class="providers">
+          <li><a href="#getting-started">Getting started</a></li>
+          <li><a href="#configuration">Configuration</a></li>
+          <li><a href="#api-keys">API keys</a></li>
+          <li><a href="#key-storage">Secure key storage</a></li>
+          <li><a href="#providers">Providers &amp; models</a></li>
+          <li><a href="#modes">Usage modes</a></li>
+          <li><a href="#repl">REPL commands</a></li>
+          <li><a href="#flags">CLI flags</a></li>
+          <li><a href="#agents">Agents</a></li>
+          <li><a href="#sessions">Sessions</a></li>
+          <li><a href="#tools-ref">Tools</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#local-models">Local models</a></li>
+          <li><a href="#examples">Examples</a></li>
+          <li><a href="#uninstall">Update &amp; uninstall</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="getting-started">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 01 getting started</span>
+          <h2 class="section__title">Install and run</h2>
+          <p class="section__lead">
+            One command installs the prebuilt binary. No runtime,
+            no daemon, no account.
+          </p>
+        </header>
+
+        <div class="install">
+          <div class="install__step">
+            <div class="install__num">01</div>
+            <h3>Install</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-cmd-install">curl -sSf https://aictl.app/install.sh | sh</code>
+              <button class="cmd__copy" type="button" data-copy="#g-cmd-install" aria-label="Copy install command">Copy</button>
+            </div>
+            <p class="install__hint">
+              Downloads the binary for your platform into
+              <code>~/.local/bin/aictl</code>. Set
+              <code>AICTL_INSTALL_DIR</code> to pick a different
+              location.
+            </p>
+          </div>
+
+          <div class="install__row">
+            <div class="install__step">
+              <div class="install__num">02</div>
+              <h3>Configure</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-cmd-config">aictl --config</code>
+                <button class="cmd__copy" type="button" data-copy="#g-cmd-config" aria-label="Copy configure command">Copy</button>
+              </div>
+              <p class="install__hint">
+                Interactive wizard. Pick a provider, pick a model,
+                paste an API key. Re-runnable at any time.
+              </p>
+            </div>
+
+            <div class="install__step">
+              <div class="install__num">03</div>
+              <h3>Start chatting</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-cmd-run">aictl</code>
+                <button class="cmd__copy" type="button" data-copy="#g-cmd-run" aria-label="Copy run command">Copy</button>
+              </div>
+              <p class="install__hint">
+                Launches the interactive REPL. Type a message, or
+                use a slash command like <code>/help</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="configuration">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 02 configuration</span>
+          <h2 class="section__title">Configuration</h2>
+          <p class="section__lead">
+            All state lives under <code>~/.aictl/</code>. The single
+            config file is <code>~/.aictl/config</code> — plain
+            <code>KEY=VALUE</code> lines, comments with <code>#</code>,
+            quoted values and <code>export</code> prefixes both
+            accepted.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Via the wizard</h3>
+            <p>Run <code>aictl --config</code> for an interactive prompt that writes provider, model, and API keys to <code>~/.aictl/config</code> (or your keyring). The same wizard is available inside the REPL as <code>/config</code>.</p>
+          </article>
+          <article class="card">
+            <h3>By hand</h3>
+            <p>Open <code>~/.aictl/config</code> in any editor. CLI flags always override config values, so you can try a different provider with <code>--provider</code> without touching the file.</p>
+          </article>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <div class="tools">
+            <h3>Core keys</h3>
+            <ul>
+              <li><code>AICTL_PROVIDER</code> — default provider (e.g. <code>anthropic</code>, <code>openai</code>, <code>gemini</code>, <code>grok</code>, <code>mistral</code>, <code>deepseek</code>, <code>kimi</code>, <code>zai</code>, <code>ollama</code>, <code>gguf</code>, <code>mlx</code>)</li>
+              <li><code>AICTL_MODEL</code> — default model name</li>
+              <li><code>AICTL_MEMORY</code> — <code>long-term</code> (all messages, default) or <code>short-term</code> (last 20-message sliding window)</li>
+              <li><code>AICTL_INCOGNITO</code> — <code>true</code> to start the REPL without saving sessions (default <code>false</code>)</li>
+              <li><code>AICTL_PROMPT_FILE</code> — project prompt filename loaded from the current directory (default <code>AICTL.md</code>)</li>
+              <li><code>AICTL_TOOLS_ENABLED</code> — <code>false</code> disables every tool; the LLM answers in plain text only (default <code>true</code>)</li>
+              <li><code>AICTL_AUTO_COMPACT_THRESHOLD</code> — context usage % at which the REPL auto-compacts (1–100, default <code>80</code>)</li>
+              <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>300</code>)</li>
+              <li><code>AICTL_MAX_ITERATIONS</code> — max LLM calls per agent turn (default <code>20</code>)</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="section__note">
+          A project-specific prompt can live in an <code>AICTL.md</code>
+          file in the current working directory. When present, its
+          contents are appended to the system prompt — useful for
+          per-project instructions.
+        </p>
+
+        <p class="section__note" style="margin-top: 16px;">
+          Example <code>~/.aictl/config</code>:
+        </p>
+        <div class="cmd" style="margin-top: 12px;">
+          <span class="cmd__prompt">~</span>
+          <code id="g-cmd-example-config">AICTL_PROVIDER=anthropic  AICTL_MODEL=claude-sonnet-4-20250514  LLM_ANTHROPIC_API_KEY=sk-ant-...</code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-example-config" aria-label="Copy config example">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="api-keys">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 03 api keys</span>
+          <h2 class="section__title">API keys</h2>
+          <p class="section__lead">
+            Only the keys matching your active provider are required.
+            Add more if you plan to switch providers mid-session.
+            Ollama, GGUF and MLX run locally and need no key.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="tools">
+            <h3>Required (per provider)</h3>
+            <ul>
+              <li><code>LLM_OPENAI_API_KEY</code> — OpenAI</li>
+              <li><code>LLM_ANTHROPIC_API_KEY</code> — Anthropic</li>
+              <li><code>LLM_GEMINI_API_KEY</code> — Google Gemini</li>
+              <li><code>LLM_GROK_API_KEY</code> — xAI Grok</li>
+              <li><code>LLM_MISTRAL_API_KEY</code> — Mistral</li>
+              <li><code>LLM_DEEPSEEK_API_KEY</code> — DeepSeek</li>
+              <li><code>LLM_KIMI_API_KEY</code> — Kimi (Moonshot)</li>
+              <li><code>LLM_ZAI_API_KEY</code> — Z.ai</li>
+              <li><code>LLM_OLLAMA_HOST</code> — Ollama URL (default <code>http://localhost:11434</code>)</li>
+              <li><code>FIRECRAWL_API_KEY</code> — optional, enables <code>search_web</code></li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Where to get them</h3>
+            <ul>
+              <li>OpenAI — <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a></li>
+              <li>Anthropic — <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a></li>
+              <li>Gemini — <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com</a></li>
+              <li>Grok — <a href="https://console.x.ai" target="_blank" rel="noopener">console.x.ai</a></li>
+              <li>Mistral — <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai</a></li>
+              <li>DeepSeek — <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com</a></li>
+              <li>Kimi — <a href="https://platform.moonshot.ai/console/api-keys" target="_blank" rel="noopener">platform.moonshot.ai</a></li>
+              <li>Z.ai — <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener">z.ai</a></li>
+              <li>Firecrawl — <a href="https://firecrawl.dev/app/api-keys" target="_blank" rel="noopener">firecrawl.dev</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="key-storage">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 04 secure storage</span>
+          <h2 class="section__title">Secure key storage</h2>
+          <p class="section__lead">
+            By default, API keys sit as plain text in
+            <code>~/.aictl/config</code>. aictl can also store them in
+            the OS-native keyring — macOS Keychain or Linux Secret
+            Service — and reads them transparently from whichever
+            store has them.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Lock</h3>
+            <p>Copies every plain-text key from <code>~/.aictl/config</code> into the keyring and removes the plain-text copy. Via <code>/keys</code> in the REPL or <code>--lock-keys</code> at the CLI.</p>
+          </article>
+          <article class="card">
+            <h3>Unlock</h3>
+            <p>Copies keyring entries back into <code>~/.aictl/config</code>. Useful when moving to a machine without a keyring daemon. Via <code>/keys</code> or <code>--unlock-keys</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Clear</h3>
+            <p>Removes keys from both stores (asks for confirmation). Via <code>/keys</code><br>or <code>--clear-keys</code>.</p>
+          </article>
+        </div>
+
+        <p class="section__note">
+          The welcome banner shows the active backend, e.g.
+          <code>keys: Keychain (2 locked · 1 plain · 0 both)</code>.
+          When no keyring is available the banner reads
+          <code>keys: plain text</code> and aictl falls back
+          transparently.
+        </p>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="providers">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 05 providers</span>
+          <h2 class="section__title">Providers &amp; models</h2>
+          <p class="section__lead">
+            Eight remote APIs plus three local backends. Switch with
+            <code>/model</code> inside the REPL — the conversation
+            context survives the switch.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>OpenAI</h3>
+            <p>GPT-4.1 family, GPT-4o, GPT-5 / 5.2 / 5.4, o1 / o3 / o4-mini. Vision on every model. Image generation via DALL-E 3.</p>
+          </article>
+          <article class="card">
+            <h3>Anthropic</h3>
+            <p>Claude Haiku, Sonnet, and Opus — 3.x, 4.x, 4.5, 4.6, 4.7. Vision on every model. Prompt caching is explicit and active.</p>
+          </article>
+          <article class="card">
+            <h3>Google Gemini</h3>
+            <p>Gemini 3.1 Pro / Flash Lite (preview) and 2.5 Pro / Flash. Vision on every model. Image generation via Imagen 4.0.</p>
+          </article>
+          <article class="card">
+            <h3>xAI Grok</h3>
+            <p>grok-4, grok-4-fast (2M-token context), grok-3 / mini. Vision on every model. Image generation via Grok 2 Image.</p>
+          </article>
+          <article class="card">
+            <h3>Mistral</h3>
+            <p>mistral-large, medium, small, codestral. Vision on every model. No image generation.</p>
+          </article>
+          <article class="card">
+            <h3>DeepSeek</h3>
+            <p>deepseek-chat and deepseek-reasoner. Text only.</p>
+          </article>
+          <article class="card">
+            <h3>Kimi (Moonshot)</h3>
+            <p>kimi-k2.5 and moonshot-v1-8k / 32k / 128k. Vision on the k2.5 and moonshot-v1 variants.</p>
+          </article>
+          <article class="card">
+            <h3>Z.ai</h3>
+            <p>glm-5 / 5-turbo / 5.1 and glm-4.7 / 4.7-flash. Text only.</p>
+          </article>
+          <article class="card">
+            <h3>Ollama (local)</h3>
+            <p>Any model pulled via <code>ollama pull</code>. Discovered automatically from the local server. Vision depends on the model (e.g. llava, llama3.2-vision).</p>
+          </article>
+          <article class="card">
+            <h3>Native GGUF (local)</h3>
+            <p>GGUF models via llama.cpp, in-process — no Ollama server required. Managed under <code>/gguf</code>. Experimental.</p>
+          </article>
+          <article class="card">
+            <h3>Native MLX (local)</h3>
+            <p>MLX 4-bit models on Apple Silicon, in-process — no Python. Managed under <code>/mlx</code>. Experimental.</p>
+          </article>
+          <article class="card">
+            <h3>Cost meter</h3>
+            <p>After every turn, aictl prints tokens, estimated cost, and wall time. View daily and monthly totals with <code>/stats</code>.</p>
+          </article>
+        </div>
+
+        <p class="section__note">
+          Per-model pricing lives in the project README under
+          <em>Providers</em>. Local providers always show $0.00.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="modes">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 06 modes</span>
+          <h2 class="section__title">Usage modes</h2>
+          <p class="section__lead">
+            Two ways to talk to the agent: interactive REPL with
+            persistent conversation history, or one-shot for
+            scripting and pipelines.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Interactive REPL</h3>
+            <p>Run <code>aictl</code> with no <code>--message</code> to enter the REPL. Full history, slash commands, markdown rendering, and sessions that persist to disk. Press <kbd>Esc</kbd> to interrupt a running LLM call or tool execution — the turn is rolled back.</p>
+          </article>
+          <article class="card">
+            <h3>Single-shot</h3>
+            <p>Pass <code>--message "..."</code> to run a one-off prompt and exit. Combine with <code>--auto</code> to skip tool-confirmation prompts, or <code>--auto --quiet</code> to print only the final answer (ideal for scripts).</p>
+          </article>
+          <article class="card">
+            <h3>Autonomous mode</h3>
+            <p><code>--auto</code> skips the y/N confirmation before every tool call — the agent runs to completion without asking. Use with care inside directories that matter.</p>
+          </article>
+          <article class="card">
+            <h3>Unrestricted mode</h3>
+            <p><code>--unrestricted</code> disables every security check (CWD jail, blocked commands, injection guard). Only use in fully trusted contexts.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="repl">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 07 repl</span>
+          <h2 class="section__title">REPL commands</h2>
+          <p class="section__lead">
+            Inside the REPL, type <code>/</code> plus a command name.
+            Press <kbd>Esc</kbd> at any time to interrupt an LLM call
+            or a running tool.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="tools">
+            <h3>Session &amp; context</h3>
+            <ul>
+              <li><code>/clear</code> — clear conversation context</li>
+              <li><code>/compact</code> — summarize the conversation</li>
+              <li><code>/context</code> — show tokens &amp; messages vs. limits</li>
+              <li><code>/memory</code> — switch long-term / short-term memory</li>
+              <li><code>/copy</code> — copy last response to clipboard</li>
+              <li><code>/session</code> — show, name, browse, or clear sessions</li>
+              <li><code>/stats</code> — view today / month / overall usage</li>
+              <li><code>/exit</code> — leave the REPL</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Behavior &amp; setup</h3>
+            <ul>
+              <li><code>/info</code> — provider, model, version, OS</li>
+              <li><code>/model</code> — switch provider and model live</li>
+              <li><code>/behavior</code> — toggle auto / human-in-the-loop</li>
+              <li><code>/agent</code> — manage agents (create, load, delete)</li>
+              <li><code>/tools</code> — list available tools</li>
+              <li><code>/security</code> — show current security policy</li>
+              <li><code>/keys</code> — lock / unlock / clear API keys</li>
+              <li><code>/config</code> — re-run the config wizard</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Local models</h3>
+            <ul>
+              <li><code>/gguf</code> — view / pull / remove GGUF models</li>
+              <li><code>/mlx</code> — view / pull / remove MLX models (Apple Silicon)</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Version &amp; updates</h3>
+            <ul>
+              <li><code>/version</code> — check for a newer release</li>
+              <li><code>/update</code> — update to the latest version</li>
+              <li><code>/uninstall</code> — remove the aictl binary</li>
+              <li><code>/help</code> — show the command list</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="flags">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 08 cli flags</span>
+          <h2 class="section__title">CLI flags</h2>
+          <p class="section__lead">
+            Long-form only by convention. The only short flags are
+            <code>-v</code> (<code>--version</code>)<br>
+            and <code>-h</code> (<code>--help</code>).
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="tools">
+            <h3>Core</h3>
+            <ul>
+              <li><code>--message</code> — one-shot prompt (omit for REPL)</li>
+              <li><code>--provider</code> — override provider</li>
+              <li><code>--model</code> — override model</li>
+              <li><code>--auto</code> — skip tool confirmation</li>
+              <li><code>--quiet</code> — final answer only (requires <code>--auto</code>)</li>
+              <li><code>--unrestricted</code> — disable security checks</li>
+              <li><code>--incognito</code> — no session save</li>
+              <li><code>--config</code> — interactive wizard</li>
+              <li><code>--version</code>, <code>-v</code> — print version</li>
+              <li><code>--help</code>, <code>-h</code> — print help</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Agents &amp; sessions</h3>
+            <ul>
+              <li><code>--agent &lt;name&gt;</code> — load a saved agent</li>
+              <li><code>--list-agents</code> — print saved agents and exit</li>
+              <li><code>--session &lt;id|name&gt;</code> — resume a session</li>
+              <li><code>--list-sessions</code> — print saved sessions and exit</li>
+              <li><code>--clear-sessions</code> — delete all saved sessions</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>API keys</h3>
+            <ul>
+              <li><code>--lock-keys</code> — move plain keys into the keyring</li>
+              <li><code>--unlock-keys</code> — move keyring keys to config</li>
+              <li><code>--clear-keys</code> — delete keys from both stores</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Local models</h3>
+            <ul>
+              <li><code>--pull-gguf-model &lt;spec&gt;</code></li>
+              <li><code>--list-gguf-models</code> · <code>--remove-gguf-model &lt;name&gt;</code> · <code>--clear-gguf-models</code></li>
+              <li><code>--pull-mlx-model &lt;spec&gt;</code></li>
+              <li><code>--list-mlx-models</code> · <code>--remove-mlx-model &lt;name&gt;</code> · <code>--clear-mlx-models</code></li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Maintenance</h3>
+            <ul>
+              <li><code>--update</code> — update to latest version</li>
+              <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
+            </ul>
+          </div>
+          <div aria-hidden="true" style="background: var(--bg);"></div>
+        </div>
+
+        <p class="section__note">
+          CLI flags always take priority over values in
+          <code>~/.aictl/config</code>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="agents">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 09 agents</span>
+          <h2 class="section__title">Agents</h2>
+          <p class="section__lead">
+            Agents are reusable system-prompt extensions that
+            specialize the LLM for a dedicated task or persona.
+            They live as plain text under
+            <code>~/.aictl/agents/</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Create</h3>
+            <p>Use <code>/agent</code> in the REPL. Pick <em>Create manually</em> to paste your own prompt, or <em>Create with AI</em> to have the current model draft one from a short description.</p>
+          </article>
+          <article class="card">
+            <h3>Load</h3>
+            <p>Via <code>/agent</code> &rarr; <em>View all</em>, or pass <code>--agent &lt;name&gt;</code> on the command line. Works in both single-shot and REPL modes.</p>
+          </article>
+          <article class="card">
+            <h3>Naming</h3>
+            <p>Agent names may contain letters, numbers, underscores, and dashes only. When loaded, the agent name appears in magenta brackets on the REPL prompt: <code>[my-agent] ❯</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Unload &amp; delete</h3>
+            <p>Pick <em>Unload</em> in the <code>/agent</code> menu to drop the active agent mid-session, or <em>Delete</em> to remove a saved file. <code>--list-agents</code> prints every saved agent.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="sessions">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 10 sessions</span>
+          <h2 class="section__title">Sessions</h2>
+          <p class="section__lead">
+            Every REPL run is a session. A new UUID is generated at
+            startup and the conversation is persisted after every
+            turn under <code>~/.aictl/sessions/</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Name &amp; resume</h3>
+            <p>Use <code>/session</code> &rarr; <em>Set name</em> to give a run a human-readable alias.<br>Resume later with <code>--session &lt;uuid|name&gt;</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Browse &amp; clear</h3>
+            <p>List saved sessions with <code>--list-sessions</code>, delete one from inside the <code>/session</code> menu, or wipe everything with <code>--clear-sessions</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Incognito</h3>
+            <p><code>--incognito</code> (or <code>AICTL_INCOGNITO=true</code>) disables session creation entirely. A yellow notice appears in the banner and <code>/session</code> reports that it is disabled.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="tools-ref">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 11 tools</span>
+          <h2 class="section__title">Tools the agent can use</h2>
+          <p class="section__lead">
+            Every tool call is validated by the security policy and
+            — unless <code>--auto</code> is set — confirmed with a
+            y/N prompt before running.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <div class="tools">
+            <h3>Files &amp; shell</h3>
+            <ul>
+              <li><code>exec_shell</code> — run a shell command</li>
+              <li><code>read_file</code> · <code>write_file</code> · <code>edit_file</code></li>
+              <li><code>remove_file</code> · <code>create_directory</code></li>
+              <li><code>list_directory</code> · <code>find_files</code></li>
+              <li><code>search_files</code> — grep across the tree</li>
+            </ul>
+          </div>
+          <div class="tools">
+            <h3>Web &amp; media</h3>
+            <ul>
+              <li><code>fetch_url</code> · <code>extract_website</code></li>
+              <li><code>search_web</code> — Firecrawl-backed</li>
+              <li><code>fetch_datetime</code> · <code>fetch_geolocation</code></li>
+              <li><code>read_image</code> — vision on supported providers</li>
+              <li><code>generate_image</code> — DALL-E, Imagen, Grok</li>
+              <li><code>read_document</code> — PDF, DOCX, spreadsheets</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="section__note">
+          All tool output is sanitized to prevent prompt injection
+          via <code>&lt;tool&gt;</code> tags. Shell subprocesses run
+          with a scrubbed environment (API keys stripped) and a
+          30-second timeout by default.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 12 security</span>
+          <h2 class="section__title">Security</h2>
+          <p class="section__lead">
+            aictl is locked down by default. Review the active
+            policy any time with <code>/security</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>CWD jail</h3>
+            <p>File tools only operate within the current working directory. Path traversal via <code>..</code> is blocked via canonicalization.</p>
+          </article>
+          <article class="card">
+            <h3>Blocked paths</h3>
+            <p>Sensitive paths are always refused: <code>~/.ssh</code>, <code>~/.gnupg</code>, <code>~/.aws</code>, <code>~/.config/gcloud</code>, <code>~/.aictl</code>, <code>/etc/shadow</code>, <code>/etc/sudoers</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Shell allowlist</h3>
+            <p>Dangerous commands (<code>rm</code>, <code>sudo</code>, <code>dd</code>, <code>mkfs</code>, <code>nc</code>, …) are blocked. Command substitution (<code>$()</code>, backticks) is rejected. Compound commands are split and each segment validated.</p>
+          </article>
+          <article class="card">
+            <h3>Env scrubbing</h3>
+            <p>Shell subprocesses see no environment variable matching <code>*_KEY</code>, <code>*_SECRET</code>, <code>*_TOKEN</code>, or <code>*_PASSWORD</code>. Your API keys cannot leak into a tool call.</p>
+          </article>
+          <article class="card">
+            <h3>Injection guard</h3>
+            <p>User prompts containing instruction-override phrases or forged role / tool tags are blocked before reaching the LLM. Disable with <code>AICTL_SECURITY_INJECTION_GUARD=false</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Tunable</h3>
+            <p>Every setting is configurable via <code>AICTL_SECURITY_*</code> keys. Disable individual tools with <code>AICTL_SECURITY_DISABLED_TOOLS</code>. Bypass everything with <code>--unrestricted</code>.</p>
+          </article>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <div class="tools">
+            <h3>Security config keys</h3>
+            <ul>
+              <li><code>AICTL_SECURITY</code> — master security switch (default <code>true</code>)</li>
+              <li><code>AICTL_SECURITY_INJECTION_GUARD</code> — block prompt-injection attempts (default <code>true</code>)</li>
+              <li><code>AICTL_SECURITY_CWD_RESTRICT</code> — restrict file tools to the working directory (default <code>true</code>)</li>
+              <li><code>AICTL_SECURITY_SHELL_ALLOWED</code> — comma-separated whitelist of allowed shell commands (empty = all except blocked); e.g. <code>ls,cat,grep,find</code></li>
+              <li><code>AICTL_SECURITY_SHELL_BLOCKED</code> — comma-separated list of extra blocked shell commands, added to built-in defaults; e.g. <code>curl,wget,ssh</code></li>
+              <li><code>AICTL_SECURITY_BLOCK_SUBSHELL</code> — block <code>$()</code>, backticks, and process substitution (default <code>true</code>)</li>
+              <li><code>AICTL_SECURITY_BLOCKED_PATHS</code> — comma-separated list of extra blocked file paths, added to built-in defaults; e.g. <code>/etc/passwd,~/.bashrc,~/secrets</code></li>
+              <li><code>AICTL_SECURITY_ALLOWED_PATHS</code> — comma-separated list of paths allowed outside the working directory; e.g. <code>/tmp,~/Downloads,/var/log</code></li>
+              <li><code>AICTL_SECURITY_SHELL_TIMEOUT</code> — shell command timeout in seconds (default <code>30</code>)</li>
+              <li><code>AICTL_SECURITY_MAX_WRITE</code> — max file write size in bytes (default <code>1048576</code> = 1 MB)</li>
+              <li><code>AICTL_SECURITY_DISABLED_TOOLS</code> — comma-separated list of tool names to disable; e.g. <code>exec_shell,search_web</code></li>
+              <li><code>AICTL_SECURITY_BLOCKED_ENV</code> — comma-separated list of extra env vars to scrub from shell subprocesses; e.g. <code>GITHUB_TOKEN,AWS_SESSION_TOKEN</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="local-models">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 13 local models</span>
+          <h2 class="section__title">Local models</h2>
+          <p class="section__lead">
+            Run models on your own hardware — no API key, no remote
+            call, no per-token cost. Three options: Ollama, native
+            GGUF, and native MLX.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Ollama</h3>
+            <p>Install from <a href="https://ollama.com" target="_blank" rel="noopener">ollama.com</a>, then <code>ollama pull &lt;model&gt;</code> and <code>ollama serve</code>. aictl discovers pulled models automatically via the REST API. Set <code>AICTL_PROVIDER=ollama</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Native GGUF</h3>
+            <p>In-process llama.cpp — no Ollama required. Pull with <code>aictl --pull-gguf-model hf:owner/repo/file.gguf</code> or use the <code>/gguf</code> menu. Experimental; small models may struggle with tool-call formatting.</p>
+          </article>
+          <article class="card">
+            <h3>Native MLX</h3>
+            <p>Apple Silicon only. Quantized 4-bit models from the <code>mlx-community</code> HF org. Pull with <code>aictl --pull-mlx-model mlx-community/Llama-3.2-3B-Instruct-4bit</code> or use the <code>/mlx</code> menu. Experimental.</p>
+          </article>
+        </div>
+
+        <p class="section__note">
+          Prebuilt binaries from the install script ship with GGUF
+          support on every platform and MLX support on macOS
+          Apple Silicon. Source builds opt in with
+          <code>cargo install --path . --features "gguf mlx"</code>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="examples">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 14 examples</span>
+          <h2 class="section__title">Examples</h2>
+          <p class="section__lead">
+            Common one-liners to get a feel for the CLI.
+          </p>
+        </header>
+
+        <div class="install">
+          <div class="install__step">
+            <div class="install__num">01</div>
+            <h3>Start the REPL with defaults</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-1">aictl</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-1" aria-label="Copy example">Copy</button>
+            </div>
+          </div>
+
+          <div class="install__row">
+            <div class="install__step">
+              <div class="install__num">02</div>
+              <h3>One-shot question</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-2">aictl --message "What is Rust?"</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-2" aria-label="Copy example">Copy</button>
+              </div>
+            </div>
+
+            <div class="install__step">
+              <div class="install__num">03</div>
+              <h3>Pick provider &amp; model</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-3">aictl --provider openai --model gpt-4o --message "What is Rust?"</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-3" aria-label="Copy example">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="install__row">
+            <div class="install__step">
+              <div class="install__num">04</div>
+              <h3>Autonomous mode</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-4">aictl --auto --message "List files in the current directory"</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-4" aria-label="Copy example">Copy</button>
+              </div>
+              <p class="install__hint">No per-tool y/N confirmation.</p>
+            </div>
+
+            <div class="install__step">
+              <div class="install__num">05</div>
+              <h3>Quiet mode (scripts)</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-5">aictl --auto --quiet --message "What OS am I running?"</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-5" aria-label="Copy example">Copy</button>
+              </div>
+              <p class="install__hint">Final answer only — no tool log.</p>
+            </div>
+          </div>
+
+          <div class="install__row">
+            <div class="install__step">
+              <div class="install__num">06</div>
+              <h3>Load an agent</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-6">aictl --agent writer</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-6" aria-label="Copy example">Copy</button>
+              </div>
+            </div>
+
+            <div class="install__step">
+              <div class="install__num">07</div>
+              <h3>Resume a session</h3>
+              <div class="cmd">
+                <span class="cmd__prompt">$</span>
+                <code id="g-ex-7">aictl --session research</code>
+                <button class="cmd__copy" type="button" data-copy="#g-ex-7" aria-label="Copy example">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="uninstall">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 15 update &amp; uninstall</span>
+          <h2 class="section__title">Update &amp; uninstall</h2>
+          <p class="section__lead">
+            Keep aictl current, or remove it cleanly when you are
+            done.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Update</h3>
+            <p>Run <code>/update</code> in the REPL or <code>aictl --update</code> from the shell. Both pull the latest release and swap the binary in place.</p>
+          </article>
+          <article class="card">
+            <h3>Uninstall</h3>
+            <p>Run <code>aictl --uninstall</code> (or <code>/uninstall</code> in the REPL) to remove the binary from <code>~/.local/bin/</code> and <code>~/.cargo/bin/</code>. Your config, agents, and sessions under <code>~/.aictl/</code> are left intact.</p>
+          </article>
+          <article class="card">
+            <h3>Wipe state</h3>
+            <p>To also remove config, API keys, saved agents, and sessions, delete <code>~/.aictl/</code> manually: <code>rm -rf ~/.aictl</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Feedback &amp; issues</h3>
+            <p>File bugs and suggestions at <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">github.com/pwittchen/aictl/issues</a>. Releases are on <a href="https://github.com/pwittchen/aictl/releases" target="_blank" rel="noopener">GitHub Releases</a>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand"><a href="index.html">aictl<span class="nav__caret">_</span></a></div>
+      <div class="footer__links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/README.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/pwittchen/aictl/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">Issues</a>
+      </div>
+      <div class="footer__meta">
+        PolyForm Noncommercial · built by <a href="https://wittchen.io" target="_blank" rel="noopener">Piotr Wittchen</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
