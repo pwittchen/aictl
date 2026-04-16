@@ -693,7 +693,8 @@
           <p class="section__lead">
             Run models on your own hardware — no API key, no remote
             call, no per-token cost. Three options: Ollama, native
-            GGUF, and native MLX.
+            GGUF, and native MLX.<br/>
+            Please note, GGUF and MLX are <strong>experimental</strong> and may have bugs.
           </p>
         </header>
 
@@ -715,7 +716,9 @@
         <p class="section__note">
           Prebuilt binaries from the install script ship with GGUF
           support on every platform and MLX support on macOS
-          Apple Silicon. Source builds opt in with
+          Apple Silicon.
+          <br />
+          Source builds opt in with
           <code>cargo install --path . --features "gguf mlx"</code>.
         </p>
       </div>
