@@ -36,7 +36,7 @@ pub fn max_iterations() -> usize {
 /// Picked to accommodate slow native GGUF/MLX inference on modest hardware
 /// while still bounding API hangs. Users can shorten or extend this via
 /// `AICTL_LLM_TIMEOUT` in `~/.aictl/config`.
-pub const DEFAULT_LLM_TIMEOUT_SECS: u64 = 300;
+pub const DEFAULT_LLM_TIMEOUT_SECS: u64 = 30;
 
 /// Return the auto-compact threshold as a percentage (1..=100).
 ///
