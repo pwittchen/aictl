@@ -47,6 +47,7 @@
 - **`/model` search** - Add model search capability
 - **Auto-compaction confirmation** — Currently silent at 80% threshold. A brief notice or opt-in preview would reduce surprise.
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
+- **AICTL.md entry file** - create fallback, so when there's no AICTL.md/configured file, then fallback to `CLAUDE.md` and then to `AGENTS.md`
 
 ### Provider & Model
 
