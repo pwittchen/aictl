@@ -1523,15 +1523,10 @@ pub fn print_info(
             .with(Color::Yellow)
             .to_string()
     };
-    let gguf_info = if gguf_models.is_empty() {
-        format!("0 downloaded · inference {gguf_feature_label} {experimental}")
-    } else {
-        format!(
-            "{} downloaded ({}) · inference {gguf_feature_label} {experimental}",
-            gguf_models.len(),
-            gguf_models.join(", ")
-        )
-    };
+    let gguf_info = format!(
+        "{} downloaded · inference {gguf_feature_label} {experimental}",
+        gguf_models.len()
+    );
     println!("  {} {gguf_info}", "gguf:     ".with(Color::Cyan));
 
     let mlx_models = crate::llm_mlx::list_models();
@@ -1548,15 +1543,10 @@ pub fn print_info(
             .with(Color::Yellow)
             .to_string()
     };
-    let mlx_info = if mlx_models.is_empty() {
-        format!("0 downloaded · inference {mlx_feature_label} {experimental}")
-    } else {
-        format!(
-            "{} downloaded ({}) · inference {mlx_feature_label} {experimental}",
-            mlx_models.len(),
-            mlx_models.join(", ")
-        )
-    };
+    let mlx_info = format!(
+        "{} downloaded · inference {mlx_feature_label} {experimental}",
+        mlx_models.len()
+    );
     println!("  {} {mlx_info}", "mlx:      ".with(Color::Cyan));
 
     let total_models = model_count + ollama_models.len() + gguf_models.len() + mlx_models.len();
