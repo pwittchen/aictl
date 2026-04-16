@@ -28,10 +28,7 @@ use mlx_rs::{
     macros::{ModuleParameters, Quantizable},
     module::{Module, Param},
     nn,
-    ops::{
-        concatenate_axis, expand_dims, matmul, softmax_axis,
-        tanh,
-    },
+    ops::{concatenate_axis, expand_dims, matmul, softmax_axis, tanh},
     quantization::MaybeQuantized,
 };
 
@@ -185,7 +182,9 @@ impl Attention {
         let o_proj = nn::LinearBuilder::new(n_heads * head_dim, cfg.hidden_size)
             .bias(false)
             .build()?;
-        let rope = nn::RopeBuilder::new(head_dim).base(cfg.rope_theta).build()?;
+        let rope = nn::RopeBuilder::new(head_dim)
+            .base(cfg.rope_theta)
+            .build()?;
 
         Ok(Self {
             n_heads,
@@ -503,12 +502,7 @@ impl Gemma2Model {
         // "allow all past keys" and we can skip building them.
         let need_mask = seq_len > 1 || past_len + seq_len > self.sliding_window;
         let mask_global = if need_mask {
-            Some(build_causal_mask(
-                seq_len,
-                past_len,
-                None,
-                h.dtype(),
-            )?)
+            Some(build_causal_mask(seq_len, past_len, None, h.dtype())?)
         } else {
             None
         };
@@ -591,17 +585,12 @@ pub fn load_weights(
     group_size: i32,
     bits: i32,
 ) -> Result<(), String> {
-    use mlx_rs::module::ModuleParameters;
     use super::weights::{apply_merged_to_model, build_merged_map, install_quantized_embedding};
+    use mlx_rs::module::ModuleParameters;
     let mut merged = build_merged_map(dir, quantized)?;
     model.unfreeze_parameters(true);
     if quantized {
-        install_quantized_embedding(
-            &mut model.model.embed_tokens,
-            &mut merged,
-            group_size,
-            bits,
-        )?;
+        install_quantized_embedding(&mut model.model.embed_tokens, &mut merged, group_size, bits)?;
     }
     apply_merged_to_model(model, merged)
 }

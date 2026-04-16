@@ -137,10 +137,7 @@ pub fn install_quantized_embedding(
 /// Walk every shard in `dir`, apply `translate_quantized_key` when the
 /// model is quantized, and return a flat {translated_key → Array} map.
 /// Shared between Llama and Gemma2 load paths.
-pub fn build_merged_map(
-    dir: &Path,
-    quantized: bool,
-) -> Result<HashMap<String, Array>, String> {
+pub fn build_merged_map(dir: &Path, quantized: bool) -> Result<HashMap<String, Array>, String> {
     let shards = shard_paths(dir)?;
     let mut merged: HashMap<String, Array> = HashMap::new();
     for shard in &shards {
@@ -261,12 +258,7 @@ pub fn load_model_weights(
     // updating so every param is assignable.
     model.unfreeze_parameters(true);
     if quantized {
-        install_quantized_embedding(
-            &mut model.model.embed_tokens,
-            &mut merged,
-            group_size,
-            bits,
-        )?;
+        install_quantized_embedding(&mut model.model.embed_tokens, &mut merged, group_size, bits)?;
     }
     apply_merged_to_model(model, merged)
 }

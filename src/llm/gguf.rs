@@ -314,8 +314,7 @@ fn ensure_backend() -> Result<&'static llama_cpp_2::llama_backend::LlamaBackend,
 /// invalidation helper must reach the same `OnceLock` — keeping it in a
 /// single accessor avoids accidentally creating two distinct statics.
 #[cfg(feature = "gguf")]
-fn model_cache()
--> &'static std::sync::Mutex<
+fn model_cache() -> &'static std::sync::Mutex<
     std::collections::HashMap<PathBuf, Arc<llama_cpp_2::model::LlamaModel>>,
 > {
     use llama_cpp_2::model::LlamaModel;
@@ -441,8 +440,7 @@ pub async fn call_gguf(
     // actual work it guards is cheap after the first call; loading a model
     // from disk can take tens of seconds, so caching is what the user sees.
     let backend = ensure_backend().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-    let model_arc =
-        ensure_model(&path).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let model_arc = ensure_model(&path).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
 
     let prompt = render_prompt(messages);
 

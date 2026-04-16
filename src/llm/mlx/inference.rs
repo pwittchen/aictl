@@ -361,7 +361,13 @@ pub async fn call_mlx(
         // fields that the Llama config doesn't understand).
         let cfg_g: gemma2::Gemma2Config = serde_json::from_str(&cfg_body)?;
         tokio::task::spawn_blocking(move || {
-            run_gemma2_inference(cfg_g, dir_for_spawn, prompt_for_spawn, eos_for_spawn, tokenizer)
+            run_gemma2_inference(
+                cfg_g,
+                dir_for_spawn,
+                prompt_for_spawn,
+                eos_for_spawn,
+                tokenizer,
+            )
         })
         .await
         .map_err(|e| -> Box<dyn std::error::Error> {
@@ -375,7 +381,13 @@ pub async fn call_mlx(
             cfg.attention_bias = true;
         }
         tokio::task::spawn_blocking(move || {
-            run_llama_inference(cfg, dir_for_spawn, prompt_for_spawn, eos_for_spawn, tokenizer)
+            run_llama_inference(
+                cfg,
+                dir_for_spawn,
+                prompt_for_spawn,
+                eos_for_spawn,
+                tokenizer,
+            )
         })
         .await
         .map_err(|e| -> Box<dyn std::error::Error> {
