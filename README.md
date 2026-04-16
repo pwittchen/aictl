@@ -8,6 +8,8 @@ AI agent in your terminal — 52 built-in cloud models across 8 providers, plus 
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
+User guides: https://aictl.app/guides.html
+
 > [!NOTE]
 > The **aictl** is a general-purpose AI agent.
 > Dedicated coding capabilities may be added in the future. If you are looking for an AI agent specialized in software development today,
