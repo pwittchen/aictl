@@ -46,6 +46,7 @@
 - **`/model` update UI** - Right now there's a lot of models - consider making UI horizontal when terminal window is wider
 - **Auto-compaction confirmation** — Currently silent at 80% threshold. A brief notice or opt-in preview would reduce surprise.
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
+- **Agent Loop Iteration Config** - add possibility to configure number of the Agent Loop Iterations
 
 ### Provider & Model
 
