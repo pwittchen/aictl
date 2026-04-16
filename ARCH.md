@@ -157,6 +157,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ lint_file           │ ext→linter (first on PATH)│      │
  │  │ json_query          │ jq filter (subprocess)    │      │
  │  │ csv_query           │ csv crate + SQL-like eval │      │
+ │  │ calculate           │ recursive-descent eval    │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -189,6 +190,10 @@ Both single-shot and REPL modes share the same loop:
  │    a tiny SQL-like evaluator (SELECT/FROM csv|tsv/WHERE/  │
  │    ORDER BY/LIMIT). Shares the @path security helper      │
  │    with json_query; renders results as a Markdown table   │
+ │  - calculate evaluates math expressions via a recursive-  │
+ │    descent parser (no eval, no shell). Supports operators,│
+ │    parens, constants (pi/e/tau), one- and two-arg math    │
+ │    functions; recursion depth is capped to stay safe      │
  └───────────────────────────────────────────────────────────┘
 ```
 

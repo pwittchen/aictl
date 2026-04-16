@@ -6,10 +6,6 @@
 
 ### New tools
 
-#### Data & Transformation
-
-- **calculate** — Evaluate mathematical expressions safely (no eval). Avoids the agent shelling out for arithmetic.
-
 #### System & Environment
 
 - **list_processes** — List running processes with filtering (by name, port, resource usage). Safer and more structured than `ps aux | grep`.

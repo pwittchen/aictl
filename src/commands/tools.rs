@@ -51,6 +51,10 @@ pub(super) fn print_tools() {
             "csv_query",
             "filter CSV/TSV with SQL-like expressions (table output)",
         ),
+        (
+            "calculate",
+            "evaluate a math expression safely (no eval, no shell)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
