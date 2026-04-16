@@ -725,6 +725,7 @@ This project includes [Claude Code](https://claude.ai/code) skills for common wo
 | `/evaluate-rust-quality` | Audit code quality, idiomatic Rust usage, and best practices |
 | `/evaluate-rust-security` | Audit security posture, injection risks, and credential handling |
 | `/evaluate-rust-performance` | Audit performance patterns, allocations, and CLI responsiveness |
+| `/project-stats-report` | Generate a project statistics report (LOC, commit activity, contributors, etc.) |
 
 Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
 
