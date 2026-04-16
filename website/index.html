@@ -23,6 +23,7 @@
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
         <a href="#tools">Tools</a>
+        <a href="#compare">Compare</a>
         <a href="#install">Install</a>
         <a href="#platforms">Platforms</a>
         <a href="#license">License</a>
@@ -161,7 +162,71 @@
       </div>
     </section>
 
-    <section class="section section--alt" id="install">
+    <section class="section section--alt" id="compare">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// compare</span>
+          <h2 class="section__title">How aictl differs</h2>
+          <p class="section__lead">
+            Claude Code, OpenAI Codex, ChatGPT, Gemini CLI, GitHub Copilot,
+            Cursor, and Windsurf are great tools &mdash; but each is locked
+            to one vendor, one IDE, or one workflow.<br>
+            Most of them are specialized for software development.<br>
+            aictl takes a different path &mdash; it is a general-purpose AI agent.
+          </p>
+        </header>
+
+        <p class="compare__note">
+          Dedicated coding capabilities may be added in the future. If you are
+          looking for an AI agent specialized in software development today,<br>
+          consider <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>,
+          <a href="https://openai.com/codex/" target="_blank" rel="noopener">Codex</a>, or
+          <a href="https://opencode.ai/" target="_blank" rel="noopener">opencode</a>
+          &mdash; they are purpose-built for that workflow.
+        </p>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>General purpose, not IDE-only</h3>
+            <p>Most AI coding tools live inside an editor &mdash; Copilot in VS Code, Cursor and Windsurf as IDE forks. aictl is a general-purpose agent: write code, research topics, process documents, analyze images, query the web &mdash; all from a single terminal session.</p>
+          </article>
+          <article class="card">
+            <h3>Provider neutral</h3>
+            <p>Claude Code is Anthropic-only. Codex and ChatGPT are OpenAI-only. Gemini CLI is Google-only. aictl gives you eleven providers behind one interface &mdash; switch from Anthropic to Grok to a local model mid-session and your conversation context stays.</p>
+          </article>
+          <article class="card">
+            <h3>Local inference built in</h3>
+            <p>Native GGUF via llama.cpp and native MLX on Apple Silicon are compiled into the binary. No Python, no Ollama server, no sidecar &mdash; just the model file and aictl. ChatGPT, Copilot, and Codex have no local path at all.</p>
+          </article>
+          <article class="card">
+            <h3>Single binary, zero runtime</h3>
+            <p>One <code>curl</code> and you are running. No Node.js (Claude Code, Codex), no Electron (Cursor, Windsurf), no runtime at all. The Rust binary has no dependencies on macOS or Linux.</p>
+          </article>
+          <article class="card">
+            <h3>Security on by default</h3>
+            <p>CWD jail, shell allowlists, environment scrubbing, prompt injection guard, output sanitization &mdash; all enabled out of the box. Most CLI agents run tools with full user privileges and no guardrails. Review the full policy with <code>/security</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Keyring-native secrets</h3>
+            <p>API keys stored in macOS Keychain or Linux Secret Service &mdash; not in a dotfile or environment variable. Transparent fallback when no keyring is available. Lock and unlock on demand via <code>/keys</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Cross-provider cost meter</h3>
+            <p>Every turn reports tokens, estimated cost, and wall time. Daily and monthly stats via <code>/stats</code>. When you switch between providers with very different pricing, you see the impact immediately &mdash; no separate billing dashboard required.</p>
+          </article>
+          <article class="card">
+            <h3>No subscription, no account</h3>
+            <p>ChatGPT, Copilot, Cursor, and Windsurf require paid subscriptions and vendor accounts. aictl is a free binary &mdash; bring your own API keys, pay only for the tokens you use, and keep full control of your data.</p>
+          </article>
+          <article class="card">
+            <h3>Open source</h3>
+            <p>The full source is on GitHub under the PolyForm Noncommercial License. Read it, modify it, learn from it. No telemetry, no analytics, no phone-home &mdash; the binary does exactly what you tell it to.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="install">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// install</span>

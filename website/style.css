@@ -425,6 +425,24 @@ code {
 
 .providers li.providers__note:hover { background: var(--bg-alt); }
 
+/* Compare */
+.compare__note {
+  margin: 0 0 32px;
+  font-size: 14px;
+  color: var(--fg-50);
+  line-height: 1.55;
+}
+
+.compare__note a {
+  color: var(--fg-70);
+  border-bottom: 1px solid var(--border);
+}
+
+.compare__note a:hover {
+  color: var(--fg);
+  border-bottom-color: var(--fg-50);
+}
+
 /* Install */
 .install {
   display: grid;
