@@ -247,7 +247,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
 | `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |
 | `AICTL_AUTO_COMPACT_THRESHOLD` | Context usage percentage at which the REPL auto-compacts the conversation. Accepts an integer in `1..=100` (default: `80`) |
-| `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `300` |
+| `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
 
 #### API keys

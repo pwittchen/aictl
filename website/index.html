@@ -71,7 +71,7 @@
         <div class="grid grid--3">
           <article class="card">
             <h3>Agent loop</h3>
-            <p>Interactive REPL and one-shot mode. 17 built-in tools for shell, files, web, documents, and images. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
+            <p>Interactive REPL and one-shot mode. 23 built-in tools for shell, files, web, documents, images, code execution, math, and queries. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
           </article>
           <article class="card">
             <h3>Sessions</h3>
@@ -145,6 +145,7 @@
               <li><code>remove_file</code> · <code>create_directory</code></li>
               <li><code>list_directory</code> · <code>find_files</code></li>
               <li><code>search_files</code> — grep across the tree</li>
+              <li><code>git</code> — restricted status / diff / log / blame / commit</li>
             </ul>
           </div>
           <div class="tools">
@@ -158,6 +159,17 @@
               <li><code>read_document</code> — PDF, DOCX, spreadsheets</li>
             </ul>
           </div>
+          <div class="tools">
+            <h3>Code &amp; data</h3>
+            <ul>
+              <li><code>run_code</code> — python, node, ruby, perl, lua, bash</li>
+              <li><code>lint_file</code> — auto-selected linter per extension</li>
+              <li><code>json_query</code> — jq-style JSON filters</li>
+              <li><code>csv_query</code> — SQL-like over CSV/TSV</li>
+              <li><code>calculate</code> — safe math expression evaluator</li>
+            </ul>
+          </div>
+          <div aria-hidden="true" style="background: var(--bg);"></div>
         </div>
       </div>
     </section>

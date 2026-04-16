@@ -5,27 +5,30 @@
 ```
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
- ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
- ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
- ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
- ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
- ├── session.rs          Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
- ├── tools.rs            XML tool-call parsing, tool execution dispatch (security gate + output sanitization)
- ├── ui.rs               AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
- ├── llm.rs              TokenUsage type, cost estimation (price_per_million), model list, context limits
- ├── llm_openai.rs       OpenAI chat completions client
- ├── llm_anthropic.rs    Anthropic messages client
- ├── llm_gemini.rs       Google Gemini generateContent client
- ├── llm_grok.rs         xAI Grok chat completions client
- ├── llm_mistral.rs      Mistral chat completions client
- ├── llm_deepseek.rs     DeepSeek chat completions client
- ├── llm_kimi.rs         Kimi (Moonshot AI) chat completions client
- ├── llm_zai.rs          Z.ai chat completions client
- ├── llm_ollama.rs       Ollama local model client (dynamic model discovery via /api/tags)
- ├── llm_gguf.rs         [experimental] Native GGUF inference + model manager (~/.aictl/models/gguf/). Download/list/remove always available; inference gated behind the `gguf` cargo feature (llama-cpp-2). Specs: hf:owner/repo/file.gguf, owner/repo:file.gguf, https:// URL.
- ├── llm_mlx.rs          [experimental, macOS Apple Silicon only] Native MLX inference + model manager (~/.aictl/models/mlx/<name>/). Download/list/remove always available; inference gated behind the `mlx` cargo feature (mlx-rs + tokenizers + minijinja + safetensors). Llama-family architectures only. Specs: mlx:owner/repo or owner/repo (Hugging Face mlx-community).
- └── stats.rs            Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
+ ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
+ ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, info, keys, memory, menu, mlx, model, security, session, stats, tools, uninstall, update)
+ ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
+ ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
+ ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
+ ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
+ ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT
+ ├── tools/             One submodule per tool (calculate, csv_query, datetime, document, filesystem, geo, git, image, json_query, lint, run_code, shell, util, web)
+ ├── ui.rs              AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
+ ├── llm.rs             TokenUsage type, cost estimation (price_per_million), MODELS list, context_limit, cache_read_multiplier
+ ├── llm/               One submodule per provider
+ │   ├── openai.rs      OpenAI chat completions client
+ │   ├── anthropic.rs   Anthropic messages client
+ │   ├── gemini.rs      Google Gemini generateContent client
+ │   ├── grok.rs        xAI Grok chat completions client
+ │   ├── mistral.rs     Mistral chat completions client
+ │   ├── deepseek.rs    DeepSeek chat completions client
+ │   ├── kimi.rs        Kimi (Moonshot AI) chat completions client
+ │   ├── zai.rs         Z.ai chat completions client
+ │   ├── ollama.rs      Ollama local model client (dynamic model discovery via /api/tags)
+ │   ├── gguf.rs        [experimental] Native GGUF inference + model manager (~/.aictl/models/gguf/). Download/list/remove always available; inference gated behind the `gguf` cargo feature (llama-cpp-2). Specs: hf:owner/repo/file.gguf, owner/repo:file.gguf, https:// URL.
+ │   └── mlx.rs (+ mlx/) [experimental, macOS Apple Silicon only] Native MLX inference + model manager (~/.aictl/models/mlx/<name>/). Download/list/remove always available; inference gated behind the `mlx` cargo feature (mlx-rs + tokenizers + minijinja + safetensors). Llama-family architectures only. Specs: mlx:owner/repo or owner/repo (Hugging Face mlx-community).
+ └── stats.rs           Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
 ```
 
 ## Startup Flow
@@ -41,11 +44,11 @@ src/
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
  │  2c''. --pull-gguf-model /    GGUF model management helpers, exit        │
- │       --list-gguf-models /    (use llm_gguf::download_model / list /     │
+ │       --list-gguf-models /    (use llm::gguf::download_model / list /    │
  │       --remove-gguf-model /   remove_model / clear_models)               │
  │       --clear-gguf-models                                                │
  │  2c'''. --pull-mlx-model /    MLX model management helpers, exit         │
- │        --list-mlx-models /    (use llm_mlx::download_model / list /      │
+ │        --list-mlx-models /    (use llm::mlx::download_model / list /     │
  │        --remove-mlx-model /   remove_model / clear_models)               │
  │        --clear-mlx-models                                                │
  │  2d. --config                run_config_wizard() and exit                │
@@ -92,8 +95,8 @@ Both single-shot and REPL modes share the same loop:
  │  │                  │  kimi::call_kimi()                │
  │  │                  │  zai::call_zai()                  │
  │  │                  │  ollama::call_ollama()            │
- │  │                  │  llm_gguf::call_gguf()            │
- │  │                  │  llm_mlx::call_mlx()              │
+ │  │                  │  gguf::call_gguf()                │
+ │  │                  │  mlx::call_mlx()                  │
  │  └────────┬─────────┘                                   │
  │           │                                             │
  │           ▼                                             │
@@ -231,7 +234,7 @@ Both single-shot and REPL modes share the same loop:
                     └──────────────────┘
 ```
 
-Two additional providers are not wired to remote endpoints. `call_gguf()` in `llm_gguf.rs` flattens `&[Message]` into a ChatML-style prompt and runs inference in-process via `llama-cpp-2` on a `tokio::spawn_blocking` task, loading a GGUF model from `~/.aictl/models/gguf/<name>.gguf`. It is compiled in only when the `gguf` cargo feature is enabled. `call_mlx()` in `llm_mlx.rs` builds a hand-written Llama-family transformer with `mlx-rs` primitives, renders the per-model jinja chat template via `minijinja` (ChatML fallback), loads safetensors shards from `~/.aictl/models/mlx/<name>/`, and runs greedy + temperature sampling with KV cache on a `tokio::spawn_blocking` task. It is compiled in only when the `mlx` cargo feature is enabled and only on macOS+aarch64; elsewhere the function returns an error telling the user to rebuild. Both report input/output token counts and cost always resolves to $0.00.
+Two additional providers are not wired to remote endpoints. `call_gguf()` in `src/llm/gguf.rs` flattens `&[Message]` into a ChatML-style prompt and runs inference in-process via `llama-cpp-2` on a `tokio::spawn_blocking` task, loading a GGUF model from `~/.aictl/models/gguf/<name>.gguf`. It is compiled in only when the `gguf` cargo feature is enabled. `call_mlx()` in `src/llm/mlx.rs` builds a hand-written Llama-family transformer with `mlx-rs` primitives, renders the per-model jinja chat template via `minijinja` (ChatML fallback), loads safetensors shards from `~/.aictl/models/mlx/<name>/`, and runs greedy + temperature sampling with KV cache on a `tokio::spawn_blocking` task. It is compiled in only when the `mlx` cargo feature is enabled and only on macOS+aarch64; elsewhere the function returns an error telling the user to rebuild. Both report input/output token counts and cost always resolves to $0.00.
 
 ## UI Layer
 
@@ -423,7 +426,7 @@ Plain text, one `key=value` per line. Comments start with `#`; blank lines are i
 Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
-- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `300`)
+- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), etc. (see `security.rs`)
 
 ### API key storage (`src/keys.rs`)
@@ -472,13 +475,13 @@ A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loade
 
 ### `~/.aictl/models/gguf/<name>.gguf`
 
-Each file is a GGUF weight file for the native GGUF provider (`src/llm_gguf.rs`). The directory is created lazily on the first `--pull-gguf-model` or `/gguf → pull model`; by default it does not exist and no GGUF models are available. Downloads stream to `<name>.gguf.part` via `reqwest` with a `futures-util` async chunk loop and an `indicatif` progress bar, then atomically rename to `<name>.gguf` on success — an interrupted download never leaves a half-written model in place. Names are validated against `[A-Za-z0-9._-]+` and default to the GGUF file's stem (overridable at download time).
+Each file is a GGUF weight file for the native GGUF provider (`src/llm/gguf.rs`). The directory is created lazily on the first `--pull-gguf-model` or `/gguf → pull model`; by default it does not exist and no GGUF models are available. Downloads stream to `<name>.gguf.part` via `reqwest` with a `futures-util` async chunk loop and an `indicatif` progress bar, then atomically rename to `<name>.gguf` on success — an interrupted download never leaves a half-written model in place. Names are validated against `[A-Za-z0-9._-]+` and default to the GGUF file's stem (overridable at download time).
 
 Management functions (all safe to compile without the `gguf` feature): `list_models()` scans `*.gguf`, `model_path(name)` resolves to the on-disk path, `remove_model(name)` deletes one file, `clear_models()` wipes the directory. `download_model(spec, override_name)` parses three spec forms — `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, and raw `https://…/file.gguf` — all routed through the same streaming download. `call_gguf()` is feature-gated: with `--features gguf` it loads the GGUF via `llama-cpp-2` on a `tokio::spawn_blocking` task, flattens messages into a ChatML-style prompt, and runs sampling up to 4096 new tokens; without the feature it returns an error telling the user to rebuild.
 
 ### `~/.aictl/models/mlx/<name>/`
 
-Each subdirectory is a Hugging Face MLX model snapshot for the native MLX provider (`src/llm_mlx.rs`), containing at minimum `config.json`, `tokenizer.json`, `tokenizer_config.json`, and one or more `*.safetensors` files (with `model.safetensors.index.json` for sharded models). The parent `~/.aictl/models/mlx/` directory is created lazily on the first `--pull-mlx-model` or `/mlx → pull model`. Downloads walk the Hugging Face tree API, skip non-essential files (READMEs, images, alternate weight formats), and stream each file with a per-file `indicatif` progress bar into a `<name>.part/` staging directory that is renamed atomically on success.
+Each subdirectory is a Hugging Face MLX model snapshot for the native MLX provider (`src/llm/mlx.rs`), containing at minimum `config.json`, `tokenizer.json`, `tokenizer_config.json`, and one or more `*.safetensors` files (with `model.safetensors.index.json` for sharded models). The parent `~/.aictl/models/mlx/` directory is created lazily on the first `--pull-mlx-model` or `/mlx → pull model`. Downloads walk the Hugging Face tree API, skip non-essential files (READMEs, images, alternate weight formats), and stream each file with a per-file `indicatif` progress bar into a `<name>.part/` staging directory that is renamed atomically on success.
 
 Management functions (all safe to compile without the `mlx` feature, on every platform): `list_models()` enumerates subdirectories that contain a `config.json`, `model_path(name)` resolves to the directory, `remove_model(name)` recursively deletes one (with a defence-in-depth check that the canonical path is inside `models/mlx/`), `clear_models()` wipes every subdirectory, `model_size(name)` reports total on-disk bytes for the `/mlx` view. `download_model(spec, override_name)` parses two spec forms — `mlx:owner/repo` and `owner/repo` — both resolved against `huggingface.co/<owner>/<repo>`. `call_mlx()` is feature-gated: with `--features mlx` on `macos`+`aarch64` it builds a hand-written Llama-family transformer with `mlx-rs` primitives, hand-installs the quantized embedding (the `MaybeQuantized<Embedding>` derive doesn't expose its params), translates `q_proj.weight` → `q_proj.inner.weight` so safetensors keys match `QuantizedLinear`'s nested layout, renders the per-model jinja chat template via `minijinja` (ChatML fallback), and runs temperature-sampled generation with KV cache up to 4096 new tokens on a `tokio::spawn_blocking` task; without the feature or off Apple Silicon it returns a clear error telling the user how to enable native inference.
 

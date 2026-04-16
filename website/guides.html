@@ -173,7 +173,7 @@
               <li><code>AICTL_PROMPT_FILE</code> — project prompt filename loaded from the current directory (default <code>AICTL.md</code>)</li>
               <li><code>AICTL_TOOLS_ENABLED</code> — <code>false</code> disables every tool; the LLM answers in plain text only (default <code>true</code>)</li>
               <li><code>AICTL_AUTO_COMPACT_THRESHOLD</code> — context usage % at which the REPL auto-compacts (1–100, default <code>80</code>)</li>
-              <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>300</code>)</li>
+              <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>30</code>)</li>
               <li><code>AICTL_MAX_ITERATIONS</code> — max LLM calls per agent turn (default <code>20</code>)</li>
             </ul>
           </div>
@@ -600,6 +600,7 @@
               <li><code>remove_file</code> · <code>create_directory</code></li>
               <li><code>list_directory</code> · <code>find_files</code></li>
               <li><code>search_files</code> — grep across the tree</li>
+              <li><code>git</code> — restricted status / diff / log / blame / commit</li>
             </ul>
           </div>
           <div class="tools">
@@ -613,6 +614,17 @@
               <li><code>read_document</code> — PDF, DOCX, spreadsheets</li>
             </ul>
           </div>
+          <div class="tools">
+            <h3>Code &amp; data</h3>
+            <ul>
+              <li><code>run_code</code> — python, node, ruby, perl, lua, bash</li>
+              <li><code>lint_file</code> — auto-selected linter per extension</li>
+              <li><code>json_query</code> — jq-style JSON filters</li>
+              <li><code>csv_query</code> — SQL-like over CSV/TSV</li>
+              <li><code>calculate</code> — safe math expression evaluator</li>
+            </ul>
+          </div>
+          <div aria-hidden="true" style="background: var(--bg-alt);"></div>
         </div>
 
         <p class="section__note">
