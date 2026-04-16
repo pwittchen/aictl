@@ -8,7 +8,6 @@
 
 #### System & Environment
 
-- **network_request** — A more general HTTP client tool (GET/POST/PUT/DELETE with headers, body, auth) beyond the current fetch-and-extract tools. Useful for API debugging.
 - **check_port** — Test if a host:port is reachable. Handy for debugging connectivity issues.
 - **system_info** — Return OS, arch, memory, disk, CPU info in a structured way.
 
