@@ -5,10 +5,12 @@ on:
     branches: [ "master" ]
     paths-ignore:
       - '**/*.md'
+      - 'website/**'
   pull_request:
     branches: [ "master" ]
     paths-ignore:
       - '**/*.md'
+      - 'website/**'
   workflow_dispatch:
 
 env:
