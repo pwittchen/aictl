@@ -1,12 +1,14 @@
 ---
 name: update-docs
-description: Update README.md, CLAUDE.md, and ARCH.md to match the current project state
+description: Update README.md, CLAUDE.md, ARCH.md, and the website (website/index.html, website/guides.html) to match the current project state
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
 ## Purpose
 
 Synchronize all project documentation with the actual codebase. Read the source of truth (Rust source files, Cargo.toml, config) and update each doc file so it accurately reflects the current state — no stale references, no missing features, no wrong counts.
+
+Scope covers both repo-level docs (`README.md`, `CLAUDE.md`, `ARCH.md`) and the public website under `website/` (`index.html`, `guides.html`). The Rust source is authoritative; website copy must stay aligned with it.
 
 ## Workflow
 
@@ -75,15 +77,58 @@ For each file, compare the checklist against what the doc currently says. Fix an
 - REPL command dispatch — all commands listed
 - Data flow — accurate end-to-end path
 
+#### website/index.html
+
+The public landing page. Marketing copy, but the concrete numbers and names must still match the source. Check:
+
+- `<meta name="description">` and `<meta property="og:description">` — provider count, model count, mention of Ollama / GGUF / MLX
+- Version tag in the hero (e.g. `v0.24.2 · Rust · single binary · open source`) — must match `Cargo.toml`
+- Hero headline and subhead — model count, provider count
+- Features section — tool count ("17 built-in tools"), iteration limit ("Up to 20 tool iterations"), security feature list (must match `src/security.rs` actual mechanisms)
+- Providers section — title ("Eleven providers, one interface") and the `<ul class="providers">` list (must match the Provider enum + local backends)
+- Tools section — the `<ul>` entries under `<div class="tools">` blocks must be a faithful subset of `execute_tool` arms with accurate one-liners
+- Comparison/differentiators copy — provider count, local-inference claims, security feature names
+- Install section — commands must still work
+- Nav anchors — every `href="#..."` must resolve to an `id` that still exists
+
+#### website/guides.html
+
+The long-form user guide. Same source-of-truth rules as index.html, plus more detail. Check:
+
+- `<meta name="description">` — topic list matches sections on the page
+- Nav links across the top — anchors point to real ids
+- Table-of-contents list — every bullet points to a real section id
+- Install section — command matches `install.sh`
+- Configuration section — config keys (`AICTL_PROVIDER`, `AICTL_MODEL`, `AICTL_TOOLS_ENABLED`, `AICTL_MEMORY`, `AICTL_INCOGNITO`, `AICTL_LLM_TIMEOUT`, `AICTL_SECURITY_*`, `AICTL_PROMPT_FILE`, etc.) — must match `src/config.rs` and `src/security.rs`
+- API keys section — one entry per remote provider, key name matches `KEY_NAMES` in `src/keys.rs`
+- Providers & models section — one card per provider, model families and vision/image-gen claims match `src/llm.rs` MODELS and the image-capability matrix in CLAUDE.md
+- REPL commands section — must list every entry in the `COMMANDS` array in `src/commands.rs` with accurate descriptions
+- Agents section — describes `/agent` menu, `--agent`, `--list-agents`, `~/.aictl/agents/` path
+- Sessions section — describes UUID/named sessions, `--session`, `--list-sessions`, `--clear-sessions`, `--incognito`, `AICTL_INCOGNITO`
+- Tools section — entry per `execute_tool` arm with accurate description
+- Local models section — GGUF (`/gguf`, `--pull-gguf-model`, etc.) and MLX (`/mlx`, `--pull-mlx-model`, etc.) flows match `src/llm_gguf.rs` and `src/llm_mlx.rs`; feature-flag wording matches `Cargo.toml` `[features]`
+- Security section — matches `src/security.rs` policy (CWD jail, blocked paths, env scrub, timeout, injection guard, `--unrestricted`)
+
+Rules specific to the website:
+
+- Keep the existing HTML structure, class names, and `id`s. Don't restructure the DOM for stylistic reasons — `style.css` depends on it and [`website/DESIGN.md`](../../../website/DESIGN.md) is load-bearing.
+- Preserve HTML entities as-is (`&mdash;`, `&amp;`). Don't convert to raw Unicode inside entities that are already encoded.
+- Don't introduce new `id`s without also updating the nav and ToC that link to them; don't remove an `id` that's linked from elsewhere.
+- No emoji, no new frameworks, no new external assets.
+- Do not edit anything under `website/dist/` — it's a build output. `bun run build` regenerates it from the source files.
+
 ### 4. Verify consistency
 
 After editing, confirm:
 
-- The same tool count appears in all three files
-- The same command list appears in README.md and ARCH.md
+- The same tool count appears in README.md, CLAUDE.md, ARCH.md, `website/index.html`, and `website/guides.html`
+- The same provider count and list appear in README.md, CLAUDE.md, `website/index.html`, and `website/guides.html`
+- The same version string appears in `Cargo.toml`, `src/main.rs` (if hardcoded), README.md (if referenced), and the hero tag in `website/index.html`
+- The same command list appears in README.md, ARCH.md, and `website/guides.html` REPL section
 - The same module list appears in CLAUDE.md and ARCH.md
 - No doc references features or values that don't exist in source
 - No source feature is missing from the docs
+- Every website anchor (`href="#..."` and cross-page `href="index.html#..."`) resolves to an existing `id`
 
 ## Rules
 
