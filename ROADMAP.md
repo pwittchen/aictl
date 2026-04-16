@@ -57,12 +57,9 @@
 
 - **Agent chaining / pipelines** — Run multiple agents in sequence where each agent's output feeds the next (e.g., research agent → summarize agent → write agent).
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize.
-- **Scheduled / cron tasks** — Run a prompt on a schedule (e.g., "summarize my git log every morning"). Could use OS-level cron under the hood.
-- **Multi-turn tool approval batching** — In non-auto mode, let the user approve multiple pending tool calls at once instead of one-by-one.
 
 ### Developer Experience
 
-- **Development version** - add a postfix, e.g. commit hash + DEV to the version or separate task/alias for this, so I know that I'm using DEV version
 - **Integration tests with a mock LLM** — End-to-end tests exercising the full agent loop with a mock provider.
 - **Unit tests for `agents.rs`, `session.rs`, `keys.rs`** — These critical modules currently have zero test coverage.
 - **Config schema / example file** — Ship a `.aictl/config.example` so users know what keys exist without reading documentation.
