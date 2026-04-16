@@ -6,8 +6,6 @@
 
 ### New tools
 
-#### Code & Development
-
 #### Data & Transformation
 
 - **json_query** — Query/transform JSON data with jq-like expressions. Saves the agent from writing ad-hoc scripts for common data wrangling.
