@@ -49,7 +49,7 @@ pub const COMMANDS: &[&str] = &[
     "exit",
     "help",
     "info",
-    "issues",
+
     "keys",
     "gguf",
     "memory",
@@ -98,8 +98,7 @@ pub enum CommandResult {
     Gguf,
     /// Open the native MLX model management menu (Apple Silicon).
     Mlx,
-    /// Fetch and display known issues.
-    Issues,
+
     /// Open the API key management menu (lock/unlock/clear).
     Keys,
     /// Re-run the interactive configuration wizard.
@@ -135,7 +134,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "session" => CommandResult::Session,
         "gguf" => CommandResult::Gguf,
         "mlx" => CommandResult::Mlx,
-        "issues" => CommandResult::Issues,
+
         "copy" => {
             copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -391,7 +390,7 @@ fn print_help() {
         ("/copy", "copy last response to clipboard"),
         ("/help", "show this help message"),
         ("/info", "show setup info"),
-        ("/issues", "show known issues"),
+
         ("/gguf", "manage native local GGUF models [experimental]"),
         (
             "/mlx",
@@ -469,13 +468,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn cmd_issues() {
-        assert!(matches!(
-            handle("/issues", "", &noop_error),
-            CommandResult::Issues
-        ));
-    }
 
     #[test]
     fn cmd_model() {
@@ -1586,47 +1578,7 @@ pub fn print_info(
     println!();
 }
 
-const ISSUES_URL: &str =
-    "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/ISSUES.md";
 
-/// Fetch and display known issues from the remote ISSUES.md.
-pub async fn run_issues(show_error: &dyn Fn(&str)) {
-    println!();
-    println!("  {} fetching issues...", "↓".with(Color::Cyan));
-
-    let client = crate::config::http_client();
-    let result = client
-        .get(ISSUES_URL)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .ok();
-
-    let Some(response) = result else {
-        show_error("Could not fetch ISSUES.md. Please try again later.");
-        return;
-    };
-
-    let Ok(body) = response.text().await else {
-        show_error("Could not read ISSUES.md response body.");
-        return;
-    };
-
-    let skin = termimad::MadSkin::default();
-    let width = crossterm::terminal::size()
-        .map_or(80, |(w, _)| w as usize)
-        .min(100);
-    let rendered = format!(
-        "{}",
-        termimad::FmtText::from_text(&skin, body.as_str().into(), Some(width))
-    );
-    println!();
-    for line in rendered.lines() {
-        println!("  {line}");
-    }
-    println!();
-}
 
 /// Check the current version against the latest available (REPL `/version`).
 pub async fn run_version(show_error: &dyn Fn(&str)) {

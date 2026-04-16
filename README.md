@@ -142,7 +142,6 @@ The interactive REPL supports slash commands:
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/info` | Show setup info (provider, model, behavior, memory, agent, version, OS, binary size) |
-| `/issues` | Fetch and display known issues from the remote ISSUES.md |
 | `/gguf` | Manage native GGUF models (view downloaded, pull, remove, clear all) |
 | `/mlx` | Manage native MLX models (Apple Silicon; view downloaded, pull, remove, clear all) |
 | `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
@@ -704,10 +703,6 @@ This project includes [Claude Code](https://claude.ai/code) skills for common wo
 | `/evaluate-rust-performance` | Audit performance patterns, allocations, and CLI responsiveness |
 
 Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
-
-## Known Issues & Ideas
-
-See [ISSUES.md](ISSUES.md) for a list of known issues and planned improvements.
 
 ## License
 

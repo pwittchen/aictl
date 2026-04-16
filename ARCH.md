@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs           Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /issues, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
+ ├── commands.rs         REPL slash commands (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
  ├── config.rs           Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs             Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs         SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -249,7 +249,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `ll
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /issues (Issues), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /uninstall (Uninstall), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /uninstall (Uninstall), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -269,7 +269,6 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `ll
                  with a per-file progress bar; continue
    Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
                  clear all recorded usage statistics), continue
-   Issues      → fetch and display known issues, continue
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /
                  clear = remove from both, with confirmation), continue
    Update      → run update, restart if updated, continue
