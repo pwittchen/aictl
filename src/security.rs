@@ -290,28 +290,10 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
         }
         "remove_file" => check_path_write(input.trim()).map(|_| ()),
         "lint_file" => check_path_read(input.trim()).map(|_| ()),
-        "json_query" => {
-            // Input shape: `<filter>\n<json or @path>`. Only the `@path`
-            // form touches the filesystem; inline JSON is passed to jq
-            // on stdin without hitting disk.
-            let input = input.trim_start_matches('\n');
-            match input.split_once('\n') {
-                Some((_, rest)) => {
-                    let rest = rest.trim();
-                    if let Some(path) = rest.strip_prefix('@') {
-                        let path = path.trim();
-                        if path.is_empty() {
-                            Ok(())
-                        } else {
-                            check_path_read(path).map(|_| ())
-                        }
-                    } else {
-                        Ok(())
-                    }
-                }
-                None => Ok(()),
-            }
-        }
+        // json_query / csv_query share input shape: `<header>\n<inline or @path>`.
+        // Only the `@path` form touches the filesystem; inline data is consumed
+        // in-process without hitting disk.
+        "json_query" | "csv_query" => check_at_path_on_second_line(input),
         "create_directory" => check_path_write(input.trim()).map(|_| ()),
         "edit_file" => {
             let input = input.trim();
@@ -349,6 +331,27 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
             check_dir(base_dir).map(|_| ())
         }
         _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
+    }
+}
+
+/// For tools whose input is `<header line>\n<inline data or @path>`,
+/// validate the `@path` branch against the CWD jail and leave inline
+/// data untouched. Empty `@` (just the sigil with no path) is accepted
+/// here and left for the tool itself to reject with a clearer error.
+fn check_at_path_on_second_line(input: &str) -> Result<(), String> {
+    let input = input.trim_start_matches('\n');
+    let Some((_, rest)) = input.split_once('\n') else {
+        return Ok(());
+    };
+    let rest = rest.trim();
+    let Some(path) = rest.strip_prefix('@') else {
+        return Ok(());
+    };
+    let path = path.trim();
+    if path.is_empty() {
+        Ok(())
+    } else {
+        check_path_read(path).map(|_| ())
     }
 }
 

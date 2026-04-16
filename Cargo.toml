@@ -24,6 +24,7 @@ base64 = "0.22"
 pdf-extract = "0.10"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 calamine = "0.34"
+csv = "1"
 futures-util = "0.3"
 llama-cpp-2 = { version = "0.1", optional = true }
 mlx-rs = { version = "0.25", optional = true }

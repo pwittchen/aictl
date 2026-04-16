@@ -47,6 +47,10 @@ pub(super) fn print_tools() {
             "json_query",
             "query/transform JSON with jq-like expressions",
         ),
+        (
+            "csv_query",
+            "filter CSV/TSV with SQL-like expressions (table output)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

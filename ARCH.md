@@ -156,6 +156,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ run_code            │ interpreter via stdin     │      │
  │  │ lint_file           │ ext→linter (first on PATH)│      │
  │  │ json_query          │ jq filter (subprocess)    │      │
+ │  │ csv_query           │ csv crate + SQL-like eval │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -184,6 +185,10 @@ Both single-shot and REPL modes share the same loop:
  │    arg after `--` (no shell, no flag reinterpretation);   │
  │    JSON is piped on stdin or loaded from @path through    │
  │    the CWD jail. No -f / --slurpfile flags are passed     │
+ │  - csv_query parses in-process via the `csv` crate with   │
+ │    a tiny SQL-like evaluator (SELECT/FROM csv|tsv/WHERE/  │
+ │    ORDER BY/LIMIT). Shares the @path security helper      │
+ │    with json_query; renders results as a Markdown table   │
  └───────────────────────────────────────────────────────────┘
 ```
 

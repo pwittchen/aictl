@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 
 use crate::ImageData;
 
+mod csv_query;
 mod datetime;
 mod document;
 mod filesystem;
@@ -97,7 +98,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 21;
+pub const TOOL_COUNT: usize = 22;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -202,6 +203,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "run_code" => run_code::tool_run_code(input).await,
         "lint_file" => lint::tool_lint_file(input).await,
         "json_query" => json_query::tool_json_query(input).await,
+        "csv_query" => csv_query::tool_csv_query(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))
