@@ -35,7 +35,6 @@
 
 - **clipboard** — Read from or write to the system clipboard. The agent could stage results for the user without writing files.
 - **notify** — Send a desktop notification (useful for long-running tasks in `--auto` mode).
-- **open_url** — Open a URL in the user's default browser.
 
 ### UX & Interactivity
 
@@ -51,7 +50,6 @@
 
 ### Provider & Model
 
-- **Multi-modal audio/voice input** — Accept audio files or microphone input, transcribe via Whisper/Gemini, and feed into the conversation.
 - **Provider health check** — A `/ping` or `/provider status` command that validates API keys and tests connectivity for all configured providers.
 - **Automatic model fallback** — If the primary model returns a rate-limit or outage error, optionally fall back to a configured secondary.
 
