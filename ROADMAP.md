@@ -8,8 +8,6 @@
 
 #### Code & Development
 
-- **lint_file** — Run a language-appropriate linter/formatter on a file and return diagnostics. Avoids the agent needing to know which linter to invoke.
-
 #### Data & Transformation
 
 - **json_query** — Query/transform JSON data with jq-like expressions. Saves the agent from writing ad-hoc scripts for common data wrangling.

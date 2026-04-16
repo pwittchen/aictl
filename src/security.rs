@@ -289,6 +289,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
             }
         }
         "remove_file" => check_path_write(input.trim()).map(|_| ()),
+        "lint_file" => check_path_read(input.trim()).map(|_| ()),
         "create_directory" => check_path_write(input.trim()).map(|_| ()),
         "edit_file" => {
             let input = input.trim();

@@ -154,6 +154,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ read_document       │ pdf-extract/zip/calamine  │      │
  │  │ git                 │ git subprocess (no shell) │      │
  │  │ run_code            │ interpreter via stdin     │      │
+ │  │ lint_file           │ ext→linter (first on PATH)│      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -174,6 +175,10 @@ Both single-shot and REPL modes share the same loop:
  │  - run_code picks an interpreter (python/node/ruby/...)   │
  │    from the first line and pipes the rest of the snippet  │
  │    to stdin; kill_on_drop reaps the child on timeout      │
+ │  - lint_file maps the file extension to an ordered list   │
+ │    of candidate linters (rustfmt / ruff / eslint / ...)   │
+ │    and runs the first one installed on PATH; no --fix     │
+ │    flags are ever passed, so the file stays unchanged     │
  └───────────────────────────────────────────────────────────┘
 ```
 

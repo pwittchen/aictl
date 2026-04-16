@@ -39,6 +39,10 @@ pub(super) fn print_tools() {
             "run_code",
             "execute a code snippet (python, node, ruby, perl, lua, bash, sh)",
         ),
+        (
+            "lint_file",
+            "run a language-appropriate linter/formatter on a file",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
