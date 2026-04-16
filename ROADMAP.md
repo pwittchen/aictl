@@ -43,6 +43,7 @@
 - **`/undo` command** — Remove the last user/assistant exchange and retry. Useful when a response goes off track.
 - **Resumable model downloads** — Use HTTP range requests so interrupted GGUF/MLX pulls resume instead of restarting from zero.
 - **`/model` show current selection** — The model picker should highlight which model is currently active.
+- **`/model` update UI** - Right now there's a lot of models - consider making UI horizontal when terminal window is wider
 - **Auto-compaction confirmation** — Currently silent at 80% threshold. A brief notice or opt-in preview would reduce surprise.
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
 
