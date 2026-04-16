@@ -1,4 +1,8 @@
-## Roadmap
+# Roadmap
+
+---
+
+## General
 
 ### New tools
 
@@ -75,58 +79,62 @@
 - **Shell completions** — Generate bash/zsh/fish completions from the clap definitions and ship them.
 - **Man page** — Auto-generate from clap's help text for `man aictl`.
 
-### Desktop
+---
+
+## Desktop
 
 Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal.
 
-#### Modular architecture
+### Modular architecture
 
 Split the codebase into separate modules: `core` (shared logic), `cli`, `desktop` (currently empty) to enable independent development of each target.
 
-#### Cargo workspace split
+### Cargo workspace split
 
 Split into `aictl-core` (library — agents, config, keys, LLM providers, security, sessions, stats, tools), `aictl-cli` (binary — clap, REPL, `PlainUI`, `InteractiveUI`), and `aictl-desktop` (binary — GUI frontend). The `AgentUI` trait stays in core as the abstraction boundary. The hard part is removing scattered `println!`/`eprintln!` calls from core logic and routing them through the trait.
 
-#### Core API stabilization
+### Core API stabilization
 
 Define clean public types for the desktop to consume: `AgentLoop`, `Conversation`, `ToolCallEvent`, `StreamChunk`, etc. Add a channel-based interface (`tokio::mpsc`) so the desktop can receive events asynchronously — streaming tokens, tool approval requests, progress updates.
 
-#### GUI framework: Tauri v2
+### GUI framework: Tauri v2
 
 Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap `aictl-core`. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
 
-#### Desktop `AgentUI` implementation
+### Desktop `AgentUI` implementation
 
 Implement a `DesktopUI` that satisfies the `AgentUI` trait: send messages to the GUI thread instead of stdout, show tool approval via a dialog instead of terminal y/N, render markdown in a rich text widget, show spinners/progress as native UI elements. The agent loop in core calls `ui.show_answer()`, `ui.confirm_tool()`, etc. — the desktop provides a different implementation.
 
-#### Tool approval UX
+### Tool approval UX
 
 In the CLI it's a blocking y/N prompt. In the desktop, the agent loop should `await` a response from a channel that the UI resolves when the user clicks approve/deny in a dialog.
 
-#### Phased rollout
+### Phased rollout
 
 1. Extract `aictl-core` — pure refactoring, CLI stays working.
 2. Stabilize the core API — channel-based event interface.
 3. Scaffold the desktop app — Tauri + minimal frontend, send a message and see the response.
 4. Feature parity incrementally — sessions, agents, tool approval dialogs, settings, stats, one at a time.
 
-### Coding Agent
+---
+
+## Coding Agent
 
 Provide configurable mode, which will transform the general purpose agent into the coding agent. There should be additional skills/tools and prompts available for such mode, which won't be available in the "default" general purpose mode. Coding agent should work only in CLI app and be unavailable for server and desktop.
 
-#### Streaming output
+### Streaming output
 
 Stream LLM responses token-by-token instead of waiting for the full response. Parse tool calls from the stream incrementally (detect `<tool` opening tag, buffer until `</tool>`). Display reasoning text in real-time, then execute tools after the stream completes.
 
-#### Parallel tool execution
+### Parallel tool execution
 
 Allow the LLM to return multiple `<tool>` tags per response and execute independent calls concurrently via `tokio::JoinSet`. Inject all results back as a batch before the next LLM turn. Remove the "use at most one tool call per response" constraint from the system prompt.
 
-#### Coding-specific system prompt
+### Coding-specific system prompt
 
 Add coding-specific guidance to the system prompt when in coding agent mode: read files before editing, run tests after changes, don't introduce security vulnerabilities, prefer minimal changes, diagnose errors before retrying, check git status before and after changes. This dramatically improves coding behavior without any tool changes.
 
-#### Smarter edit tool
+### Smarter edit tool
 
 Improve `edit_file` beyond single-occurrence exact-match find-and-replace:
 - Support multiple edits per call (list of old/new blocks applied top-to-bottom).
@@ -134,31 +142,31 @@ Improve `edit_file` beyond single-occurrence exact-match find-and-replace:
 - Add fuzzy matching with a similarity threshold for near-misses (trailing whitespace, indentation changes).
 - Consider a write-with-diff approach: the LLM writes the full new file content, and the user sees a diff for approval.
 
-#### Read file with line numbers and selective reading
+### Read file with line numbers and selective reading
 
 Add line numbers to `read_file` output so the LLM can reference them in edits. Support selective reading (e.g., read lines 50-100 of a file). Increase the truncation limit beyond 10KB for large files — consider 50-100KB with smart truncation (keep first/last N lines, summarize middle).
 
-#### Native git tool
+### Native git tool
 
 Dedicated `git` tool with subcommands: `status`, `diff`, `log`, `blame`, `commit`, `branch`, `checkout`, `add`, `stash`. Safety tiers: read-only ops (status, diff, log, blame) auto-approved; write ops (commit, branch) need confirmation; destructive ops (push --force, reset --hard) always require explicit approval. Feed `git diff` and `git status` into the system prompt automatically so the LLM always knows the repo state.
 
-#### Code-aware search
+### Code-aware search
 
 Replace hand-rolled glob+match search with ripgrep (`rg`) for 10-100x speed improvement on large repos. Respect `.gitignore` in `find_files` and `search_files`. Add symbol search via `ctags`, `tree-sitter`, or LSP to find definitions/references by symbol name rather than raw text.
 
-#### Automatic context injection
+### Automatic context injection
 
 On startup, inject a project summary into the system prompt: git branch, recent commits, directory tree (depth 2), language/framework detection. After each edit, auto-run the relevant linter and feed errors back. After test failures, auto-include the failure output in the next turn.
 
-#### Test loop integration
+### Test loop integration
 
 Close the edit-test-fix cycle: after edits, auto-detect the test framework and run relevant tests. Parse test output to identify failures. Feed failures back to the LLM for automatic fixing. Support a test-driven mode: run tests, fix failures, repeat until green.
 
-#### Multi-turn planning and task decomposition
+### Multi-turn planning and task decomposition
 
 For complex tasks, let the LLM create an explicit plan (list of steps) and track completion. Show the user the plan before execution for approval. Allow the user to modify the plan mid-execution.
 
-#### Tool output improvements
+### Tool output improvements
 
 - `list_directory` should show file sizes and support recursive tree view (depth-limited).
 - Tool output truncation at 10KB is too aggressive for large files — consider 50-100KB with smart truncation (keep first/last N lines, summarize middle).
