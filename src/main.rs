@@ -3,17 +3,6 @@ mod commands;
 mod config;
 mod keys;
 mod llm;
-mod llm_anthropic;
-mod llm_deepseek;
-mod llm_gemini;
-mod llm_gguf;
-mod llm_grok;
-mod llm_kimi;
-mod llm_mistral;
-mod llm_mlx;
-mod llm_ollama;
-mod llm_openai;
-mod llm_zai;
 mod security;
 mod session;
 mod stats;
@@ -433,77 +422,77 @@ async fn run_agent_turn(
             Provider::Openai => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_openai::call_openai(api_key, model, llm_messages),
+                    llm::openai::call_openai(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Anthropic => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_anthropic::call_anthropic(api_key, model, llm_messages),
+                    llm::anthropic::call_anthropic(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Gemini => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_gemini::call_gemini(api_key, model, llm_messages),
+                    llm::gemini::call_gemini(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Grok => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_grok::call_grok(api_key, model, llm_messages),
+                    llm::grok::call_grok(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Mistral => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_mistral::call_mistral(api_key, model, llm_messages),
+                    llm::mistral::call_mistral(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Deepseek => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_deepseek::call_deepseek(api_key, model, llm_messages),
+                    llm::deepseek::call_deepseek(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Kimi => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_kimi::call_kimi(api_key, model, llm_messages),
+                    llm::kimi::call_kimi(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Zai => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_zai::call_zai(api_key, model, llm_messages),
+                    llm::zai::call_zai(api_key, model, llm_messages),
                 ))
                 .await
             }
             Provider::Ollama => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_ollama::call_ollama(model, llm_messages),
+                    llm::ollama::call_ollama(model, llm_messages),
                 ))
                 .await
             }
             Provider::Gguf => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_gguf::call_gguf(model, llm_messages),
+                    llm::gguf::call_gguf(model, llm_messages),
                 ))
                 .await
             }
             Provider::Mlx => {
                 with_esc_cancel(tokio::time::timeout(
                     llm_timeout,
-                    llm_mlx::call_mlx(model, llm_messages),
+                    llm::mlx::call_mlx(model, llm_messages),
                 ))
                 .await
             }
@@ -816,7 +805,7 @@ async fn handle_repl_input(
         commands::CommandResult::Info => {
             let _ = rl.add_history_entry(input);
             let pname = format!("{provider:?}").to_lowercase();
-            let ollama_models = llm_ollama::list_models().await;
+            let ollama_models = llm::ollama::list_models().await;
             commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
             return ReplAction::Continue;
         }
@@ -912,9 +901,9 @@ async fn handle_repl_input(
         }
         commands::CommandResult::Model => {
             let _ = rl.add_history_entry(input);
-            let ollama_models = llm_ollama::list_models().await;
-            let local_models = llm_gguf::list_models();
-            let mlx_models = llm_mlx::list_models();
+            let ollama_models = llm::ollama::list_models().await;
+            let local_models = llm::gguf::list_models();
+            let mlx_models = llm::mlx::list_models();
             if let Some((new_provider, new_model, api_key_name)) =
                 commands::select_model(model, &ollama_models, &local_models, &mlx_models)
             {
@@ -1344,7 +1333,7 @@ async fn main() {
     }
 
     if let Some(spec) = cli.pull_gguf_model.as_deref() {
-        match llm_gguf::download_model(spec, None).await {
+        match llm::gguf::download_model(spec, None).await {
             Ok(name) => println!("downloaded GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1355,7 +1344,7 @@ async fn main() {
     }
 
     if cli.list_gguf_models {
-        let models = llm_gguf::list_models();
+        let models = llm::gguf::list_models();
         if models.is_empty() {
             println!(
                 "No GGUF models downloaded. Use `aictl --pull-gguf-model <spec>` to fetch one."
@@ -1369,7 +1358,7 @@ async fn main() {
     }
 
     if let Some(name) = cli.remove_gguf_model.as_deref() {
-        match llm_gguf::remove_model(name) {
+        match llm::gguf::remove_model(name) {
             Ok(()) => println!("removed GGUF model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1380,7 +1369,7 @@ async fn main() {
     }
 
     if cli.clear_gguf_models {
-        match llm_gguf::clear_models() {
+        match llm::gguf::clear_models() {
             Ok(n) => println!("removed {n} GGUF model(s)"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1391,7 +1380,7 @@ async fn main() {
     }
 
     if let Some(spec) = cli.pull_mlx_model.as_deref() {
-        match llm_mlx::download_model(spec, None).await {
+        match llm::mlx::download_model(spec, None).await {
             Ok(name) => println!("downloaded MLX model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1402,7 +1391,7 @@ async fn main() {
     }
 
     if cli.list_mlx_models {
-        let models = llm_mlx::list_models();
+        let models = llm::mlx::list_models();
         if models.is_empty() {
             println!("No MLX models downloaded. Use `aictl --pull-mlx-model <spec>` to fetch one.");
         } else {
@@ -1414,7 +1403,7 @@ async fn main() {
     }
 
     if let Some(name) = cli.remove_mlx_model.as_deref() {
-        match llm_mlx::remove_model(name) {
+        match llm::mlx::remove_model(name) {
             Ok(()) => println!("removed MLX model: {name}"),
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -1425,7 +1414,7 @@ async fn main() {
     }
 
     if cli.clear_mlx_models {
-        match llm_mlx::clear_models() {
+        match llm::mlx::clear_models() {
             Ok(n) => println!("removed {n} MLX model(s)"),
             Err(e) => {
                 eprintln!("Error: {e}");

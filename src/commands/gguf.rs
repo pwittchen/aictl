@@ -47,9 +47,9 @@ fn build_gguf_menu_lines(selected: usize) -> Vec<String> {
 }
 
 fn print_gguf_models() {
-    let models = crate::llm_gguf::list_models();
+    let models = crate::llm::gguf::list_models();
     println!();
-    if !crate::llm_gguf::is_available() {
+    if !crate::llm::gguf::is_available() {
         println!(
             "  {}",
             "native inference is not compiled in — rebuild with `cargo build --features gguf` to use downloaded models".with(Color::Yellow)
@@ -60,7 +60,7 @@ fn print_gguf_models() {
         println!();
         return;
     }
-    let dir = crate::llm_gguf::models_dir();
+    let dir = crate::llm::gguf::models_dir();
     for m in &models {
         let path = dir.join(format!("{m}.gguf"));
         let size = std::fs::metadata(&path)
@@ -254,7 +254,7 @@ async fn pull_gguf_model(show_error: &dyn Fn(&str)) {
         return;
     };
 
-    let download = crate::llm_gguf::download_model(&spec, name_override.as_deref());
+    let download = crate::llm::gguf::download_model(&spec, name_override.as_deref());
     match crate::with_esc_cancel(download).await {
         Ok(Ok(name)) => {
             println!();
@@ -302,7 +302,7 @@ fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io:
     if name.is_empty() {
         return Ok(());
     }
-    let path = crate::llm_gguf::models_dir().join(format!("{name}.gguf.part"));
+    let path = crate::llm::gguf::models_dir().join(format!("{name}.gguf.part"));
     if path.exists() {
         std::fs::remove_file(path)?;
     }
@@ -310,7 +310,7 @@ fn cleanup_partial_download(spec: &str, override_name: Option<&str>) -> std::io:
 }
 
 fn remove_gguf_model_interactive(show_error: &dyn Fn(&str)) {
-    let models = crate::llm_gguf::list_models();
+    let models = crate::llm::gguf::list_models();
     if models.is_empty() {
         println!();
         println!("  {}", "no local models to remove".with(Color::DarkGrey));
@@ -345,7 +345,7 @@ fn remove_gguf_model_interactive(show_error: &dyn Fn(&str)) {
     if !confirm_yn(&format!("remove local model '{name}'?")) {
         return;
     }
-    match crate::llm_gguf::remove_model(name) {
+    match crate::llm::gguf::remove_model(name) {
         Ok(()) => {
             println!();
             println!(
@@ -364,7 +364,7 @@ fn clear_all_gguf_models_confirm() {
     if !confirm_yn("remove ALL downloaded local models?") {
         return;
     }
-    match crate::llm_gguf::clear_models() {
+    match crate::llm::gguf::clear_models() {
         Ok(n) => {
             println!();
             println!("  {} removed {n} local model(s)", "✓".with(Color::Green));

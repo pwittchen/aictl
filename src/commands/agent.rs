@@ -183,77 +183,77 @@ async fn create_agent_with_ai(
         Provider::Openai => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_openai::call_openai(api_key, model, &gen_messages),
+                crate::llm::openai::call_openai(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Anthropic => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_anthropic::call_anthropic(api_key, model, &gen_messages),
+                crate::llm::anthropic::call_anthropic(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Gemini => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_gemini::call_gemini(api_key, model, &gen_messages),
+                crate::llm::gemini::call_gemini(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Grok => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_grok::call_grok(api_key, model, &gen_messages),
+                crate::llm::grok::call_grok(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Mistral => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_mistral::call_mistral(api_key, model, &gen_messages),
+                crate::llm::mistral::call_mistral(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Deepseek => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_deepseek::call_deepseek(api_key, model, &gen_messages),
+                crate::llm::deepseek::call_deepseek(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Kimi => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_kimi::call_kimi(api_key, model, &gen_messages),
+                crate::llm::kimi::call_kimi(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Zai => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_zai::call_zai(api_key, model, &gen_messages),
+                crate::llm::zai::call_zai(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Ollama => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_ollama::call_ollama(model, &gen_messages),
+                crate::llm::ollama::call_ollama(model, &gen_messages),
             ))
             .await
         }
         Provider::Gguf => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_gguf::call_gguf(model, &gen_messages),
+                crate::llm::gguf::call_gguf(model, &gen_messages),
             ))
             .await
         }
         Provider::Mlx => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm_mlx::call_mlx(model, &gen_messages),
+                crate::llm::mlx::call_mlx(model, &gen_messages),
             ))
             .await
         }

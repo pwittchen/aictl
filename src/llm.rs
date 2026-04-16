@@ -1,3 +1,15 @@
+pub mod anthropic;
+pub mod deepseek;
+pub mod gemini;
+pub mod gguf;
+pub mod grok;
+pub mod kimi;
+pub mod mistral;
+pub mod mlx;
+pub mod ollama;
+pub mod openai;
+pub mod zai;
+
 /// Available models: (`provider_str`, `model_name`, `api_key_config_key`)
 pub const MODELS: &[(&str, &str, &str)] = &[
     (

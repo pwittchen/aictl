@@ -128,8 +128,8 @@ pub fn print_info(
 
     let experimental = "[experimental]".with(Color::Yellow).to_string();
 
-    let gguf_models = crate::llm_gguf::list_models();
-    let gguf_available = crate::llm_gguf::is_available();
+    let gguf_models = crate::llm::gguf::list_models();
+    let gguf_available = crate::llm::gguf::is_available();
     let gguf_feature_label = if gguf_available {
         "enabled".with(Color::Green).to_string()
     } else {
@@ -143,9 +143,9 @@ pub fn print_info(
     );
     println!("  {} {gguf_info}", "gguf:     ".with(Color::Cyan));
 
-    let mlx_models = crate::llm_mlx::list_models();
-    let mlx_available = crate::llm_mlx::is_available();
-    let mlx_host_ok = crate::llm_mlx::host_supports_mlx();
+    let mlx_models = crate::llm::mlx::list_models();
+    let mlx_available = crate::llm::mlx::is_available();
+    let mlx_host_ok = crate::llm::mlx::host_supports_mlx();
     let mlx_feature_label = if mlx_available {
         "enabled".with(Color::Green).to_string()
     } else if !mlx_host_ok {

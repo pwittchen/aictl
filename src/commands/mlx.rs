@@ -47,15 +47,15 @@ fn build_mlx_menu_lines(selected: usize) -> Vec<String> {
 }
 
 fn print_mlx_models() {
-    let models = crate::llm_mlx::list_models();
+    let models = crate::llm::mlx::list_models();
     println!();
-    if !crate::llm_mlx::host_supports_mlx() {
+    if !crate::llm::mlx::host_supports_mlx() {
         println!(
             "  {}",
             "MLX inference requires macOS + Apple Silicon — downloaded models on this host can't run"
                 .with(Color::Yellow)
         );
-    } else if !crate::llm_mlx::is_available() {
+    } else if !crate::llm::mlx::is_available() {
         println!(
             "  {}",
             "native MLX inference is not compiled in — rebuild with `cargo build --features mlx` to use downloaded models".with(Color::Yellow)
@@ -67,7 +67,7 @@ fn print_mlx_models() {
         return;
     }
     for m in &models {
-        let size = format_size(crate::llm_mlx::model_size(m));
+        let size = format_size(crate::llm::mlx::model_size(m));
         println!(
             "  {} {}  {}",
             "●".with(Color::Green),
@@ -240,7 +240,7 @@ async fn pull_mlx_model(show_error: &dyn Fn(&str)) {
         return;
     };
 
-    let download = crate::llm_mlx::download_model(&spec, name_override.as_deref());
+    let download = crate::llm::mlx::download_model(&spec, name_override.as_deref());
     match crate::with_esc_cancel(download).await {
         Ok(Ok(name)) => {
             println!();
@@ -264,7 +264,7 @@ async fn pull_mlx_model(show_error: &dyn Fn(&str)) {
 }
 
 fn remove_mlx_model_interactive(show_error: &dyn Fn(&str)) {
-    let models = crate::llm_mlx::list_models();
+    let models = crate::llm::mlx::list_models();
     if models.is_empty() {
         println!();
         println!("  {}", "no MLX models to remove".with(Color::DarkGrey));
@@ -299,7 +299,7 @@ fn remove_mlx_model_interactive(show_error: &dyn Fn(&str)) {
     if !confirm_yn(&format!("remove MLX model '{name}'?")) {
         return;
     }
-    match crate::llm_mlx::remove_model(name) {
+    match crate::llm::mlx::remove_model(name) {
         Ok(()) => {
             println!();
             println!(
@@ -318,7 +318,7 @@ fn clear_all_mlx_models_confirm() {
     if !confirm_yn("remove ALL downloaded MLX models?") {
         return;
     }
-    match crate::llm_mlx::clear_models() {
+    match crate::llm::mlx::clear_models() {
         Ok(n) => {
             println!();
             println!("  {} removed {n} MLX model(s)", "✓".with(Color::Green));
@@ -344,7 +344,7 @@ pub async fn run_mlx_menu(show_error: &dyn Fn(&str)) {
         "⚠".with(Color::Yellow),
         "native MLX model support is experimental — expect rough edges".with(Color::Yellow)
     );
-    if !crate::llm_mlx::host_supports_mlx() {
+    if !crate::llm::mlx::host_supports_mlx() {
         println!(
             "  {} {}",
             "⚠".with(Color::Yellow),
