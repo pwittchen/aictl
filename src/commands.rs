@@ -212,64 +212,84 @@ pub async fn compact(
         images: vec![],
     });
 
+    let llm_timeout = crate::config::llm_timeout();
     let result = match provider {
         Provider::Openai => {
-            crate::with_esc_cancel(crate::llm_openai::call_openai(
-                api_key,
-                model,
-                &summary_msgs,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_openai::call_openai(api_key, model, &summary_msgs),
             ))
             .await
         }
         Provider::Anthropic => {
-            crate::with_esc_cancel(crate::llm_anthropic::call_anthropic(
-                api_key,
-                model,
-                &summary_msgs,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_anthropic::call_anthropic(api_key, model, &summary_msgs),
             ))
             .await
         }
         Provider::Gemini => {
-            crate::with_esc_cancel(crate::llm_gemini::call_gemini(
-                api_key,
-                model,
-                &summary_msgs,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_gemini::call_gemini(api_key, model, &summary_msgs),
             ))
             .await
         }
         Provider::Grok => {
-            crate::with_esc_cancel(crate::llm_grok::call_grok(api_key, model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_grok::call_grok(api_key, model, &summary_msgs),
+            ))
+            .await
         }
         Provider::Mistral => {
-            crate::with_esc_cancel(crate::llm_mistral::call_mistral(
-                api_key,
-                model,
-                &summary_msgs,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_mistral::call_mistral(api_key, model, &summary_msgs),
             ))
             .await
         }
         Provider::Deepseek => {
-            crate::with_esc_cancel(crate::llm_deepseek::call_deepseek(
-                api_key,
-                model,
-                &summary_msgs,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_deepseek::call_deepseek(api_key, model, &summary_msgs),
             ))
             .await
         }
         Provider::Kimi => {
-            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_kimi::call_kimi(api_key, model, &summary_msgs),
+            ))
+            .await
         }
         Provider::Zai => {
-            crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_zai::call_zai(api_key, model, &summary_msgs),
+            ))
+            .await
         }
         Provider::Ollama => {
-            crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_ollama::call_ollama(model, &summary_msgs),
+            ))
+            .await
         }
         Provider::Gguf => {
-            crate::with_esc_cancel(crate::llm_gguf::call_gguf(model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_gguf::call_gguf(model, &summary_msgs),
+            ))
+            .await
         }
         Provider::Mlx => {
-            crate::with_esc_cancel(crate::llm_mlx::call_mlx(model, &summary_msgs)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_mlx::call_mlx(model, &summary_msgs),
+            ))
+            .await
         }
     };
 
@@ -279,6 +299,18 @@ pub async fn compact(
         Ok(inner) => inner,
         Err(_interrupted) => {
             println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
+            return;
+        }
+    };
+
+    let result = match result {
+        Ok(inner) => inner,
+        Err(_elapsed) => {
+            println!(
+                "\n  {} compaction timed out after {}s (AICTL_LLM_TIMEOUT)\n",
+                "✗".with(Color::Yellow),
+                llm_timeout.as_secs()
+            );
             return;
         }
     };
@@ -1468,6 +1500,18 @@ pub fn print_info(
     println!("  {} {model}", "model:    ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior: ".with(Color::Cyan));
     println!("  {} {memory}", "memory:   ".with(Color::Cyan));
+    let timeout_secs = crate::config::llm_timeout().as_secs();
+    let timeout_source = crate::config::config_get("AICTL_LLM_TIMEOUT")
+        .and_then(|v| v.parse::<u64>().ok())
+        .is_some();
+    let timeout_display = if timeout_secs >= u64::MAX / 4 {
+        "disabled (0, AICTL_LLM_TIMEOUT)".to_string()
+    } else if timeout_source {
+        format!("{timeout_secs}s (AICTL_LLM_TIMEOUT)")
+    } else {
+        format!("{timeout_secs}s (default)")
+    };
+    println!("  {} {timeout_display}", "timeout:  ".with(Color::Cyan));
     let prompt_file = crate::config::load_prompt_file();
     let prompt_file_name =
         crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
@@ -3732,64 +3776,84 @@ async fn create_agent_with_ai(
         },
     ];
 
+    let llm_timeout = crate::config::llm_timeout();
     let result = match provider {
         Provider::Openai => {
-            crate::with_esc_cancel(crate::llm_openai::call_openai(
-                api_key,
-                model,
-                &gen_messages,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_openai::call_openai(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Anthropic => {
-            crate::with_esc_cancel(crate::llm_anthropic::call_anthropic(
-                api_key,
-                model,
-                &gen_messages,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_anthropic::call_anthropic(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Gemini => {
-            crate::with_esc_cancel(crate::llm_gemini::call_gemini(
-                api_key,
-                model,
-                &gen_messages,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_gemini::call_gemini(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Grok => {
-            crate::with_esc_cancel(crate::llm_grok::call_grok(api_key, model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_grok::call_grok(api_key, model, &gen_messages),
+            ))
+            .await
         }
         Provider::Mistral => {
-            crate::with_esc_cancel(crate::llm_mistral::call_mistral(
-                api_key,
-                model,
-                &gen_messages,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_mistral::call_mistral(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Deepseek => {
-            crate::with_esc_cancel(crate::llm_deepseek::call_deepseek(
-                api_key,
-                model,
-                &gen_messages,
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_deepseek::call_deepseek(api_key, model, &gen_messages),
             ))
             .await
         }
         Provider::Kimi => {
-            crate::with_esc_cancel(crate::llm_kimi::call_kimi(api_key, model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_kimi::call_kimi(api_key, model, &gen_messages),
+            ))
+            .await
         }
         Provider::Zai => {
-            crate::with_esc_cancel(crate::llm_zai::call_zai(api_key, model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_zai::call_zai(api_key, model, &gen_messages),
+            ))
+            .await
         }
         Provider::Ollama => {
-            crate::with_esc_cancel(crate::llm_ollama::call_ollama(model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_ollama::call_ollama(model, &gen_messages),
+            ))
+            .await
         }
         Provider::Gguf => {
-            crate::with_esc_cancel(crate::llm_gguf::call_gguf(model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_gguf::call_gguf(model, &gen_messages),
+            ))
+            .await
         }
         Provider::Mlx => {
-            crate::with_esc_cancel(crate::llm_mlx::call_mlx(model, &gen_messages)).await
+            crate::with_esc_cancel(tokio::time::timeout(
+                llm_timeout,
+                crate::llm_mlx::call_mlx(model, &gen_messages),
+            ))
+            .await
         }
     };
 
@@ -3799,6 +3863,17 @@ async fn create_agent_with_ai(
         Ok(inner) => inner,
         Err(_interrupted) => {
             println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
+            return false;
+        }
+    };
+
+    let result = match result {
+        Ok(inner) => inner,
+        Err(_elapsed) => {
+            show_error(&format!(
+                "Agent generation timed out after {}s (AICTL_LLM_TIMEOUT).",
+                llm_timeout.as_secs()
+            ));
             return false;
         }
     };

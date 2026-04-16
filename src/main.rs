@@ -427,38 +427,98 @@ async fn run_agent_turn(
         };
 
         let call_start = std::time::Instant::now();
+        let llm_timeout = config::llm_timeout();
         let result = match provider {
             Provider::Openai => {
-                with_esc_cancel(llm_openai::call_openai(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_openai::call_openai(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Anthropic => {
-                with_esc_cancel(llm_anthropic::call_anthropic(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_anthropic::call_anthropic(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Gemini => {
-                with_esc_cancel(llm_gemini::call_gemini(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_gemini::call_gemini(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Grok => {
-                with_esc_cancel(llm_grok::call_grok(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_grok::call_grok(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Mistral => {
-                with_esc_cancel(llm_mistral::call_mistral(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_mistral::call_mistral(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Deepseek => {
-                with_esc_cancel(llm_deepseek::call_deepseek(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_deepseek::call_deepseek(api_key, model, llm_messages),
+                ))
+                .await
             }
             Provider::Kimi => {
-                with_esc_cancel(llm_kimi::call_kimi(api_key, model, llm_messages)).await
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_kimi::call_kimi(api_key, model, llm_messages),
+                ))
+                .await
             }
-            Provider::Zai => with_esc_cancel(llm_zai::call_zai(api_key, model, llm_messages)).await,
-            Provider::Ollama => with_esc_cancel(llm_ollama::call_ollama(model, llm_messages)).await,
-            Provider::Gguf => with_esc_cancel(llm_gguf::call_gguf(model, llm_messages)).await,
-            Provider::Mlx => with_esc_cancel(llm_mlx::call_mlx(model, llm_messages)).await,
+            Provider::Zai => {
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_zai::call_zai(api_key, model, llm_messages),
+                ))
+                .await
+            }
+            Provider::Ollama => {
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_ollama::call_ollama(model, llm_messages),
+                ))
+                .await
+            }
+            Provider::Gguf => {
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_gguf::call_gguf(model, llm_messages),
+                ))
+                .await
+            }
+            Provider::Mlx => {
+                with_esc_cancel(tokio::time::timeout(
+                    llm_timeout,
+                    llm_mlx::call_mlx(model, llm_messages),
+                ))
+                .await
+            }
         };
         let call_elapsed = call_start.elapsed();
 
         ui.stop_spinner();
 
         let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
+        let result = result.map_err(|_| -> Box<dyn std::error::Error> {
+            format!(
+                "LLM call exceeded the {}s timeout. Increase AICTL_LLM_TIMEOUT in ~/.aictl/config (seconds, 0 disables) if this is expected on your hardware.",
+                llm_timeout.as_secs()
+            )
+            .into()
+        })?;
         let (response, usage) = result?;
 
         total_usage.input_tokens += usage.input_tokens;

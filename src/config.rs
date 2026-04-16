@@ -18,6 +18,13 @@ pub const MAX_RESPONSE_TOKENS: u32 = 4096;
 pub const SHORT_TERM_MEMORY_WINDOW: usize = 20;
 pub const DEFAULT_AUTO_COMPACT_THRESHOLD: u8 = 80;
 
+/// Default timeout (seconds) for a single LLM provider call.
+///
+/// Picked to accommodate slow native GGUF/MLX inference on modest hardware
+/// while still bounding API hangs. Users can shorten or extend this via
+/// `AICTL_LLM_TIMEOUT` in `~/.aictl/config`.
+pub const DEFAULT_LLM_TIMEOUT_SECS: u64 = 300;
+
 /// Return the auto-compact threshold as a percentage (1..=100).
 ///
 /// Read from `AICTL_AUTO_COMPACT_THRESHOLD` in `~/.aictl/config`. Values outside
@@ -27,6 +34,26 @@ pub fn auto_compact_threshold() -> u8 {
         .and_then(|v| v.parse::<u8>().ok())
         .filter(|v| (1..=100).contains(v))
         .unwrap_or(DEFAULT_AUTO_COMPACT_THRESHOLD)
+}
+
+/// Return the per-call LLM timeout as a `Duration`.
+///
+/// Read from `AICTL_LLM_TIMEOUT` (in seconds) in `~/.aictl/config`. A value of
+/// `0` disables the timeout entirely (wrapping the call in an effectively
+/// infinite duration). Unparseable values fall back to
+/// `DEFAULT_LLM_TIMEOUT_SECS`. Applied uniformly to every provider — remote
+/// HTTP calls, native GGUF/MLX, and Ollama.
+pub fn llm_timeout() -> std::time::Duration {
+    let secs = config_get("AICTL_LLM_TIMEOUT")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(DEFAULT_LLM_TIMEOUT_SECS);
+    if secs == 0 {
+        // A zero value means "no timeout"; tokio::time::timeout still needs a
+        // Duration, so use the largest safe value we can hand it.
+        std::time::Duration::from_secs(u64::MAX / 2)
+    } else {
+        std::time::Duration::from_secs(secs)
+    }
 }
 
 // --- Spinner phrases ---

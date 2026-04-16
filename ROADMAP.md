@@ -48,7 +48,6 @@
 - **Auto-compaction confirmation** — Currently silent at 80% threshold. A brief notice or opt-in preview would reduce surprise.
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
 - **Agent Loop Iteration Config** - add possibility to configure number of the Agent Loop Iterations
-- **LLM Response Timeout** - add LLM response timeout and make it configurable
 
 ### Provider & Model
 

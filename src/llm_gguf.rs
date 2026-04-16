@@ -17,6 +17,9 @@ use std::path::{Path, PathBuf};
 use crate::llm::TokenUsage;
 use crate::{Message, Role};
 
+#[cfg(feature = "gguf")]
+use std::sync::Arc;
+
 /// Return true when this build includes native inference support.
 pub fn is_available() -> bool {
     cfg!(feature = "gguf")
@@ -67,7 +70,10 @@ pub fn model_path(name: &str) -> Option<PathBuf> {
 /// Remove a downloaded model file by name.
 pub fn remove_model(name: &str) -> std::io::Result<()> {
     let path = models_dir().join(format!("{name}.gguf"));
-    std::fs::remove_file(path)
+    let result = std::fs::remove_file(&path);
+    #[cfg(feature = "gguf")]
+    invalidate_cached_model(&path);
+    result
 }
 
 /// Clear every downloaded model.
@@ -81,7 +87,9 @@ pub fn clear_models() -> std::io::Result<usize> {
         let entry = entry?;
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) == Some("gguf") {
-            std::fs::remove_file(path)?;
+            std::fs::remove_file(&path)?;
+            #[cfg(feature = "gguf")]
+            invalidate_cached_model(&path);
             count += 1;
         }
     }
@@ -275,6 +283,88 @@ fn silence_llama_logs() {
     });
 }
 
+/// Return the process-wide `LlamaBackend`, initializing it once on first call.
+///
+/// `LlamaBackend::init()` can only succeed a single time per process — calling
+/// it twice returns `BackendAlreadyInitialized`. Double-checked locking around
+/// a `OnceLock` keeps the first init exclusive and hands out the same static
+/// reference to every subsequent caller.
+#[cfg(feature = "gguf")]
+fn ensure_backend() -> Result<&'static llama_cpp_2::llama_backend::LlamaBackend, String> {
+    use llama_cpp_2::llama_backend::LlamaBackend;
+    use std::sync::{Mutex, OnceLock};
+
+    static BACKEND: OnceLock<LlamaBackend> = OnceLock::new();
+    static INIT_LOCK: Mutex<()> = Mutex::new(());
+
+    if let Some(b) = BACKEND.get() {
+        return Ok(b);
+    }
+    let _guard = INIT_LOCK.lock().map_err(|e| e.to_string())?;
+    if let Some(b) = BACKEND.get() {
+        return Ok(b);
+    }
+    silence_llama_logs();
+    let backend = LlamaBackend::init().map_err(|e| e.to_string())?;
+    let _ = BACKEND.set(backend);
+    Ok(BACKEND.get().expect("backend just initialized"))
+}
+
+/// Shared handle to the process-wide model cache. Both the loader and the
+/// invalidation helper must reach the same `OnceLock` — keeping it in a
+/// single accessor avoids accidentally creating two distinct statics.
+#[cfg(feature = "gguf")]
+fn model_cache()
+-> &'static std::sync::Mutex<
+    std::collections::HashMap<PathBuf, Arc<llama_cpp_2::model::LlamaModel>>,
+> {
+    use llama_cpp_2::model::LlamaModel;
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, Arc<LlamaModel>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Return the cached `LlamaModel` for `path`, loading it from disk on first
+/// access. Reloading weights on every turn costs tens of seconds for
+/// quantized 7B+ models and made the agent loop look frozen — caching
+/// amortizes the load across the session.
+#[cfg(feature = "gguf")]
+fn ensure_model(path: &Path) -> Result<Arc<llama_cpp_2::model::LlamaModel>, String> {
+    use llama_cpp_2::model::LlamaModel;
+    use llama_cpp_2::model::params::LlamaModelParams;
+
+    let cache = model_cache();
+    {
+        let guard = cache.lock().map_err(|e| e.to_string())?;
+        if let Some(model) = guard.get(path) {
+            return Ok(model.clone());
+        }
+    }
+
+    let backend = ensure_backend()?;
+    let model_params = LlamaModelParams::default();
+    let model = LlamaModel::load_from_file(backend, path, &model_params)
+        .map_err(|e| format!("failed to load model: {e}"))?;
+    let arc = Arc::new(model);
+
+    let mut guard = cache.lock().map_err(|e| e.to_string())?;
+    Ok(guard
+        .entry(path.to_path_buf())
+        .or_insert_with(|| arc.clone())
+        .clone())
+}
+
+/// Drop any cached `LlamaModel` whose on-disk file has been removed. Called
+/// from `remove_model` / `clear_models` so a later re-pull with the same name
+/// doesn't reuse the stale mmap from the deleted file.
+#[cfg(feature = "gguf")]
+fn invalidate_cached_model(path: &Path) {
+    if let Ok(mut guard) = model_cache().lock() {
+        guard.remove(path);
+    }
+}
+
 /// Known tool names. When a local model's prose output mentions any of these
 /// without emitting a `<tool>` tag, we treat it as a near-miss and force-seed
 /// the XML prefix so the model can complete the call.
@@ -332,10 +422,8 @@ pub async fn call_gguf(
     messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     use llama_cpp_2::context::params::LlamaContextParams;
-    use llama_cpp_2::llama_backend::LlamaBackend;
     use llama_cpp_2::llama_batch::LlamaBatch;
-    use llama_cpp_2::model::params::LlamaModelParams;
-    use llama_cpp_2::model::{AddBos, LlamaModel};
+    use llama_cpp_2::model::AddBos;
     use llama_cpp_2::sampling::LlamaSampler;
     use llama_cpp_2::token::data_array::LlamaTokenDataArray;
     use std::num::NonZeroU32;
@@ -347,20 +435,22 @@ pub async fn call_gguf(
         .into()
     })?;
 
+    // Load (or reuse) the backend and model outside the blocking task so the
+    // expensive first-turn cost is paid once per session instead of per call.
+    // `ensure_backend` touches llama.cpp's global init machinery, but the
+    // actual work it guards is cheap after the first call; loading a model
+    // from disk can take tens of seconds, so caching is what the user sees.
+    let backend = ensure_backend().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let model_arc =
+        ensure_model(&path).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+
     let prompt = render_prompt(messages);
 
-    // llama.cpp state is not Send/Sync — keep everything inside a blocking task.
+    // llama.cpp context state is not Send/Sync — keep context creation and
+    // decoding inside a blocking task. The cached model and backend reference
+    // are both `Send + Sync`, so we can move them in safely.
     let result = tokio::task::spawn_blocking(move || -> Result<(String, u64, u64), String> {
-        // Silence the verbose C-level logs llama.cpp/ggml dump to stderr
-        // (model metadata, tensor shapes, Metal init, sampler info, etc.).
-        // Installing a no-op callback before the backend is created swallows
-        // everything that would otherwise leak into the user's terminal.
-        silence_llama_logs();
-
-        let backend = LlamaBackend::init().map_err(|e| e.to_string())?;
-        let model_params = LlamaModelParams::default();
-        let model = LlamaModel::load_from_file(&backend, &path, &model_params)
-            .map_err(|e| format!("failed to load model: {e}"))?;
+        let model = &*model_arc;
 
         let tokens = model
             .str_to_token(&prompt, AddBos::Always)
@@ -383,7 +473,7 @@ pub async fn call_gguf(
             .with_n_ctx(NonZeroU32::new(n_ctx))
             .with_n_batch(u32::try_from(batch_capacity).unwrap_or(512));
         let mut ctx = model
-            .new_context(&backend, ctx_params)
+            .new_context(backend, ctx_params)
             .map_err(|e| format!("failed to create context: {e}"))?;
 
         let mut batch = LlamaBatch::new(batch_capacity, 1);
@@ -423,7 +513,7 @@ pub async fn call_gguf(
             if next == eos {
                 break;
             }
-            let piece = token_piece(&model, next);
+            let piece = token_piece(model, next);
             if piece.contains("<|im_end|>") {
                 break;
             }
@@ -471,7 +561,7 @@ pub async fn call_gguf(
                 if next == eos {
                     break;
                 }
-                let piece = token_piece(&model, next);
+                let piece = token_piece(model, next);
                 if piece.contains("<|im_end|>") {
                     break;
                 }

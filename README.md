@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent in your terminal — 48 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
+AI agent in your terminal — 52 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -245,6 +245,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
 | `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |
 | `AICTL_AUTO_COMPACT_THRESHOLD` | Context usage percentage at which the REPL auto-compacts the conversation. Accepts an integer in `1..=100` (default: `80`) |
+| `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `300` |
 
 #### API keys
 
@@ -515,6 +516,14 @@ AICTL_MODEL=Llama-3.2-3B-Instruct-Q4_K_M
 ```
 
 Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async runtime. Cost always shows $0.00. Messages are flattened into a ChatML-style prompt, which works well for modern instruction-tuned models; per-model chat templates may be added later. If you try to use a GGUF model in a build without `--features gguf`, aictl prints a clear error telling you to rebuild.
+
+##### Tested GGUF models
+
+The following models have been verified end-to-end (download, load, inference, tool calls) via the `/gguf` pull menu's predefined catalog:
+
+| Model | Pull command |
+|-------|--------------|
+| `Qwen3-4B-Q4_K_M` | `aictl --pull-gguf-model lmstudio-community/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf` |
 
 #### Native MLX (Apple Silicon) — experimental
 
