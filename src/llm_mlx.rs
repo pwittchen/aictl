@@ -369,20 +369,27 @@ Now respond to the user."#;
 // The inference path is intentionally kept inside this file so the feature
 // flag stays a single opt-in. It is split into small private modules below:
 //
-// * `arch`   — HF-naming Llama-family transformer built on `mlx-rs` primitives.
-//              Works for Llama 3.x, Qwen 2.5, Mistral 7B v0.3, and DeepSeek-R1
-//              Distill Qwen. Does NOT handle Gemma (logit softcap / sliding
-//              window), Phi (different MLP), or MoE models.
+// * `arch`    — HF-naming Llama-family transformer built on `mlx-rs` primitives.
+//               Works for Llama 3.x, Qwen 2.5, Mistral 7B v0.3, and DeepSeek-R1
+//               Distill Qwen. Does NOT handle Phi (different MLP) or MoE models.
+// * `gemma2`  — parallel module for `Gemma2ForCausalLM`. Wraps the extra
+//               pieces Llama doesn't have: `(1 + weight)` RMSNorm,
+//               attention + final logit softcap, alternating sliding-window
+//               attention, four layernorms per layer, GeGLU MLP with
+//               tanh-approx GELU, and input embedding scaling.
 // * `weights` — safetensors loader that walks `model.safetensors` or
-//              `model.safetensors.index.json`, rewrites `q_proj.weight` →
-//              `q_proj.inner.weight` so mlx-rs's `QuantizedLinear` param
-//              paths match what mlx-community repos ship, and updates the
-//              model in place.
-// * `tmpl`   — chat-template renderer. Prefers the jinja template embedded
-//              in `tokenizer_config.json` (rendered via `minijinja`);
-//              falls back to a ChatML-like format if the template is
-//              missing or fails to render.
-// * `gen`    — top-level generation loop with KV cache + sampling.
+//               `model.safetensors.index.json`, rewrites `q_proj.weight` →
+//               `q_proj.inner.weight` so mlx-rs's `QuantizedLinear` param
+//               paths match what mlx-community repos ship, and updates the
+//               model in place. Shared between the Llama and Gemma2 paths.
+// * `tmpl`    — chat-template renderer. Prefers the jinja template embedded
+//               in `tokenizer_config.json` (rendered via `minijinja`);
+//               falls back to a ChatML-like format if the template is
+//               missing or fails to render. Gemma 2 uses a dedicated
+//               `gemma_prompt` builder because its jinja template rejects
+//               system role and enforces strict user/assistant alternation.
+// * `gen`     — top-level generation loop with KV cache + sampling,
+//               split into `run_llama_inference` and `run_gemma2_inference`.
 //
 // Known limitations in this first landing:
 //   * Llama 3.1/3.2 RoPE scaling is NOT applied — we feed `rope_theta`
@@ -390,9 +397,13 @@ Now respond to the user."#;
 //     past ~8K context will degrade.
 //   * No streaming output — the generation loop returns the full string
 //     when done. The REPL spinner stays active throughout.
+//   * Gemma 2 sliding-window layers keep the full KV cache instead of
+//     truncating to the last `sliding_window` tokens; correctness is
+//     preserved by a sliding-window mask, but long-context decoding
+//     wastes memory.
 //   * Models whose config reports an `architectures` value other than
-//     `LlamaForCausalLM`, `Qwen2ForCausalLM`, `MistralForCausalLM`, or
-//     `Qwen2MoeForCausalLM` (treated as Llama-like) are rejected.
+//     `LlamaForCausalLM`, `Qwen2ForCausalLM`, `MistralForCausalLM`,
+//     `Qwen2MoeForCausalLM`, or `Gemma2ForCausalLM` are rejected.
 
 #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
 mod arch {
@@ -906,17 +917,21 @@ mod weights {
         key.to_string()
     }
 
-    /// Manually install the quantized token-embedding weights. The
-    /// `ModuleParameters` derive on our `Backbone` doesn't expose the
-    /// `MaybeQuantized<Embedding>` field in its flattened parameter tree
-    /// (linears with the same wrapper *do* show up — apparently a quirk of
-    /// the macro), so the safetensors entries `model.embed_tokens.weight`,
-    /// `model.embed_tokens.scales`, `model.embed_tokens.biases` would
-    /// otherwise be silently unused. We pull them out of the merged
-    /// HashMap and construct a `QuantizedEmbedding` in place.
-    fn install_quantized_embedding(
-        model: &mut LlamaModel,
-        merged: &mut std::collections::HashMap<String, Array>,
+    /// Manually install the quantized token-embedding weights into the
+    /// given `MaybeQuantized<Embedding>` slot. The `ModuleParameters`
+    /// derive on mlx-rs's `QuantizedEmbedding` doesn't mark its inner
+    /// fields `#[param]` (linears with the same wrapper *do* show up —
+    /// apparently a quirk of the macro), so the safetensors entries
+    /// `model.embed_tokens.weight`, `model.embed_tokens.scales`,
+    /// `model.embed_tokens.biases` would otherwise be silently unused.
+    /// We pull them out of the merged HashMap and construct a
+    /// `QuantizedEmbedding` in place.
+    ///
+    /// Takes the embedding field directly (not the parent model) so the
+    /// same helper works for both Llama-family and Gemma2 models.
+    pub fn install_quantized_embedding(
+        embed_slot: &mut MaybeQuantized<Embedding>,
+        merged: &mut HashMap<String, Array>,
         group_size: i32,
         bits: i32,
     ) -> Result<(), String> {
@@ -942,22 +957,19 @@ mod weights {
                 weight: Param::new(weight),
             },
         };
-        model.model.embed_tokens = MaybeQuantized::Quantized(qe);
+        *embed_slot = MaybeQuantized::Quantized(qe);
         Ok(())
     }
 
-    /// Load every shard into a merged HashMap of {translated_key → Array},
-    /// then update the model's parameters in place.
-    pub fn load_model_weights(
-        model: &mut LlamaModel,
+    /// Walk every shard in `dir`, apply `translate_quantized_key` when the
+    /// model is quantized, and return a flat {translated_key → Array} map.
+    /// Shared between Llama and Gemma2 load paths.
+    pub fn build_merged_map(
         dir: &Path,
         quantized: bool,
-        group_size: i32,
-        bits: i32,
-    ) -> Result<(), String> {
+    ) -> Result<HashMap<String, Array>, String> {
         let shards = shard_paths(dir)?;
         let mut merged: HashMap<String, Array> = HashMap::new();
-
         for shard in &shards {
             let loaded = Array::load_safetensors(shard)
                 .map_err(|e| format!("failed to load {}: {e}", shard.display()))?;
@@ -970,20 +982,17 @@ mod weights {
                 merged.insert(key, v);
             }
         }
+        Ok(merged)
+    }
 
-        // QuantizedLinear and QuantizedEmbedding call `freeze_parameters(true)`
-        // on themselves during construction. Unfreeze everything before
-        // updating so every param is assignable.
-        model.unfreeze_parameters(true);
-
-        // Hand-install the quantized token embedding before the regular
-        // load loop runs so its safetensors entries don't end up reported
-        // as "unused". See `install_quantized_embedding` for the reason
-        // the embedding can't go through the normal parameter tree.
-        if quantized {
-            install_quantized_embedding(model, &mut merged, group_size, bits)?;
-        }
-
+    /// Walk the model's parameter tree, consume matching entries from
+    /// `merged`, and report any mismatches. Shared between Llama and
+    /// Gemma2 load paths. Calls `eval` at the end so the lazy graph
+    /// materializes and the Array handles actually hold the new data.
+    pub fn apply_merged_to_model<M: ModuleParameters>(
+        model: &mut M,
+        mut merged: HashMap<String, Array>,
+    ) -> Result<(), String> {
         let mut params = model.parameters_mut().flatten();
         let mut missing: Vec<String> = Vec::new();
         let keys: Vec<String> = params
@@ -1020,10 +1029,6 @@ mod weights {
                 .cloned()
                 .collect::<Vec<_>>()
                 .join(", ");
-            // Show the first few model param paths that touch `embed_tokens`
-            // so we can see what the model actually expects vs what the file
-            // ships. Falls back to the first 8 keys overall if nothing
-            // matches the embedding prefix.
             let mut embed_paths: Vec<&String> = keys
                 .iter()
                 .filter(|k| k.contains("embed"))
@@ -1061,11 +1066,644 @@ mod weights {
             ));
         }
 
-        // Parameters updated — evaluate so the lazy graph materializes.
+        drop(params);
         model
             .eval()
             .map_err(|e| format!("parameter eval failed: {e}"))?;
         Ok(())
+    }
+
+    /// Llama-family weight loader. Builds the merged shard map, installs
+    /// the quantized embedding, then walks the model's parameter tree.
+    pub fn load_model_weights(
+        model: &mut LlamaModel,
+        dir: &Path,
+        quantized: bool,
+        group_size: i32,
+        bits: i32,
+    ) -> Result<(), String> {
+        let mut merged = build_merged_map(dir, quantized)?;
+        // QuantizedLinear and QuantizedEmbedding call `freeze_parameters(true)`
+        // on themselves during construction. Unfreeze everything before
+        // updating so every param is assignable.
+        model.unfreeze_parameters(true);
+        if quantized {
+            install_quantized_embedding(
+                &mut model.model.embed_tokens,
+                &mut merged,
+                group_size,
+                bits,
+            )?;
+        }
+        apply_merged_to_model(model, merged)
+    }
+}
+
+/// Gemma2 architecture (`Gemma2ForCausalLM`). Differs from the Llama
+/// backbone in several ways that each need explicit handling:
+///
+/// * **RMSNorm with `(1 + weight)`** — we wrap `fast::rms_norm` in a
+///   `GemmaRmsNorm` module that adds 1 to the stored weight at every
+///   forward pass.
+/// * **Attention softcap** — the raw attention scores are run through
+///   `softcap * tanh(scores / softcap)` before the mask + softmax. That
+///   rules out mlx-rs's fused `scaled_dot_product_attention`, so
+///   attention is written out manually.
+/// * **Sliding-window attention** on even-indexed layers. Odd-indexed
+///   layers use the full causal mask. Both masks are built once at the
+///   top of `forward_full` and each layer picks the one that matches
+///   its `is_sliding` flag.
+/// * **Four layernorms per layer** (input / post-attn / pre-FFN /
+///   post-FFN) instead of the Llama-style two.
+/// * **GeGLU MLP** with a tanh-approximate GELU (`gelu_pytorch_tanh` in
+///   HF config), implemented via `nn::gelu_approximate`.
+/// * **Input embedding scaling** by `sqrt(hidden_size)` and **final
+///   logit softcap**.
+#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+mod gemma2 {
+    use mlx_rs::{
+        Array, array,
+        builder::Builder,
+        error::Exception,
+        macros::{ModuleParameters, Quantizable},
+        module::{Module, Param},
+        nn,
+        ops::{
+            concatenate_axis, expand_dims, matmul, softmax_axis,
+            tanh,
+        },
+        quantization::MaybeQuantized,
+    };
+
+    use super::arch::QuantConfig;
+
+    #[derive(Debug, Clone, serde::Deserialize)]
+    pub struct Gemma2Config {
+        pub hidden_size: i32,
+        pub intermediate_size: i32,
+        pub num_attention_heads: i32,
+        #[serde(default)]
+        pub num_key_value_heads: Option<i32>,
+        pub num_hidden_layers: i32,
+        #[serde(default = "default_rms_eps")]
+        pub rms_norm_eps: f32,
+        #[serde(default = "default_rope_theta")]
+        pub rope_theta: f32,
+        pub vocab_size: i32,
+        #[serde(default)]
+        pub head_dim: Option<i32>,
+        #[serde(default)]
+        pub quantization: Option<QuantConfig>,
+        /// Applied as `softcap * tanh(scores / softcap)` to the raw
+        /// attention logits. 50.0 on Gemma 2 9B/27B.
+        #[serde(default)]
+        pub attn_logit_softcapping: Option<f32>,
+        /// Same treatment on the final logits before softmax. 30.0 on
+        /// Gemma 2 9B/27B.
+        #[serde(default)]
+        pub final_logit_softcapping: Option<f32>,
+        #[serde(default = "default_sliding_window")]
+        pub sliding_window: i32,
+        /// Gemma 2 decouples the attention-score scale from `head_dim`.
+        /// When present it becomes `scale = 1 / sqrt(query_pre_attn_scalar)`.
+        /// 224 on Gemma 2 9B, 144 on 27B, 256 on 2B.
+        #[serde(default)]
+        pub query_pre_attn_scalar: Option<i32>,
+    }
+
+    const fn default_rms_eps() -> f32 {
+        1e-6
+    }
+    const fn default_rope_theta() -> f32 {
+        10_000.0
+    }
+    const fn default_sliding_window() -> i32 {
+        4096
+    }
+
+    impl Gemma2Config {
+        pub fn head_dim(&self) -> i32 {
+            self.head_dim
+                .unwrap_or(self.hidden_size / self.num_attention_heads)
+        }
+        pub fn kv_heads(&self) -> i32 {
+            self.num_key_value_heads.unwrap_or(self.num_attention_heads)
+        }
+        /// Attention scale = 1 / sqrt(query_pre_attn_scalar or head_dim).
+        pub fn attn_scale(&self) -> f32 {
+            let d = self
+                .query_pre_attn_scalar
+                .unwrap_or_else(|| self.head_dim()) as f32;
+            1.0 / d.sqrt()
+        }
+    }
+
+    /// Gemma's RMSNorm uses `(1 + weight) * rms_norm(x)` — subtly but
+    /// importantly different from Llama's `weight * rms_norm(x)`. We
+    /// keep the weight in its stored form (so safetensors keys line up
+    /// with the file) and add 1 at forward time. The extra add is one
+    /// broadcast op per norm per step, which is negligible at inference.
+    #[derive(Debug, Clone, ModuleParameters)]
+    pub struct GemmaRmsNorm {
+        #[param]
+        pub weight: Param<Array>,
+        pub eps: f32,
+    }
+
+    impl GemmaRmsNorm {
+        pub fn new(dim: i32, eps: f32) -> Result<Self, Exception> {
+            let weight = mlx_rs::ops::zeros::<f32>(&[dim])?;
+            Ok(Self {
+                weight: Param::new(weight),
+                eps,
+            })
+        }
+    }
+
+    impl Module<&Array> for GemmaRmsNorm {
+        type Output = Array;
+        type Error = Exception;
+
+        fn forward(&mut self, x: &Array) -> Result<Array, Exception> {
+            let one_plus_w = array!(1.0f32).add(self.weight.as_ref())?;
+            mlx_rs::fast::rms_norm(x, &one_plus_w, self.eps)
+        }
+
+        fn training_mode(&mut self, _mode: bool) {}
+    }
+
+    #[derive(Debug, Clone, ModuleParameters, Quantizable)]
+    pub struct Attention {
+        n_heads: i32,
+        n_kv_heads: i32,
+        head_dim: i32,
+        scale: f32,
+        softcap: Option<f32>,
+
+        #[quantizable]
+        #[param]
+        pub q_proj: MaybeQuantized<nn::Linear>,
+        #[quantizable]
+        #[param]
+        pub k_proj: MaybeQuantized<nn::Linear>,
+        #[quantizable]
+        #[param]
+        pub v_proj: MaybeQuantized<nn::Linear>,
+        #[quantizable]
+        #[param]
+        pub o_proj: MaybeQuantized<nn::Linear>,
+        #[param]
+        pub rope: nn::Rope,
+    }
+
+    pub struct AttnIn<'a> {
+        pub x: &'a Array,
+        pub mask: Option<&'a Array>,
+        pub cache: Option<(&'a Array, &'a Array)>,
+    }
+    pub struct AttnOut {
+        pub output: Array,
+        pub cache: (Array, Array),
+    }
+
+    impl Attention {
+        pub fn new(cfg: &Gemma2Config) -> Result<Self, Exception> {
+            let n_heads = cfg.num_attention_heads;
+            let n_kv_heads = cfg.kv_heads();
+            let head_dim = cfg.head_dim();
+            let scale = cfg.attn_scale();
+
+            let q_proj = nn::LinearBuilder::new(cfg.hidden_size, n_heads * head_dim)
+                .bias(false)
+                .build()?;
+            let k_proj = nn::LinearBuilder::new(cfg.hidden_size, n_kv_heads * head_dim)
+                .bias(false)
+                .build()?;
+            let v_proj = nn::LinearBuilder::new(cfg.hidden_size, n_kv_heads * head_dim)
+                .bias(false)
+                .build()?;
+            let o_proj = nn::LinearBuilder::new(n_heads * head_dim, cfg.hidden_size)
+                .bias(false)
+                .build()?;
+            let rope = nn::RopeBuilder::new(head_dim).base(cfg.rope_theta).build()?;
+
+            Ok(Self {
+                n_heads,
+                n_kv_heads,
+                head_dim,
+                scale,
+                softcap: cfg.attn_logit_softcapping,
+                q_proj: MaybeQuantized::new(q_proj),
+                k_proj: MaybeQuantized::new(k_proj),
+                v_proj: MaybeQuantized::new(v_proj),
+                o_proj: MaybeQuantized::new(o_proj),
+                rope,
+            })
+        }
+
+        /// Expand a grouped K/V tensor (`[b, n_kv_heads, t, head_dim]`)
+        /// to `[b, n_heads, t, head_dim]` by repeating each group along a
+        /// new axis. Equivalent to `repeat_interleave` on axis 1; done
+        /// via `expand_dims + reshape` to avoid an explicit repeat op.
+        fn expand_kv(&self, x: &Array) -> Result<Array, Exception> {
+            if self.n_heads == self.n_kv_heads {
+                return Ok(x.clone());
+            }
+            let rep = self.n_heads / self.n_kv_heads;
+            let s = x.shape().to_vec();
+            // [b, n_kv, t, d] -> [b, n_kv, 1, t, d]
+            let e = expand_dims(x, 2)?;
+            // -> [b, n_kv, rep, t, d] via broadcast
+            let broadcasted = mlx_rs::ops::broadcast_to(&e, &[s[0], s[1], rep, s[2], s[3]])?;
+            // -> [b, n_heads, t, d]
+            broadcasted.reshape(&[s[0], self.n_heads, s[2], s[3]])
+        }
+    }
+
+    impl Module<AttnIn<'_>> for Attention {
+        type Output = AttnOut;
+        type Error = Exception;
+
+        fn forward(&mut self, input: AttnIn<'_>) -> Result<Self::Output, Self::Error> {
+            let AttnIn { x, mask, cache } = input;
+            let b = x.shape()[0];
+            let l = x.shape()[1];
+
+            let mut q = self.q_proj.forward(x)?;
+            let mut k = self.k_proj.forward(x)?;
+            let mut v = self.v_proj.forward(x)?;
+
+            q = q
+                .reshape(&[b, l, self.n_heads, self.head_dim])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+            k = k
+                .reshape(&[b, l, self.n_kv_heads, self.head_dim])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+            v = v
+                .reshape(&[b, l, self.n_kv_heads, self.head_dim])?
+                .transpose_axes(&[0, 2, 1, 3])?;
+
+            match cache {
+                Some((kc, vc)) => {
+                    let offset = kc.shape()[2];
+                    q = self.rope.forward((&q, offset))?;
+                    k = self.rope.forward((&k, offset))?;
+                    k = concatenate_axis(&[kc, &k], 2)?;
+                    v = concatenate_axis(&[vc, &v], 2)?;
+                }
+                None => {
+                    q = self.rope.forward(&q)?;
+                    k = self.rope.forward(&k)?;
+                }
+            }
+
+            // Cache the pre-expansion K/V so subsequent steps reuse the
+            // compact GQA-sized tensor. Expand only for the attention math.
+            let k_full = self.expand_kv(&k)?;
+            let v_full = self.expand_kv(&v)?;
+
+            let k_t = k_full.transpose_axes(&[0, 1, 3, 2])?;
+            let mut scores = matmul(&q, &k_t)?.multiply(array!(self.scale))?;
+
+            if let Some(cap) = self.softcap {
+                let c = array!(cap);
+                let ratio = scores.divide(&c)?;
+                scores = tanh(&ratio)?.multiply(&c)?;
+            }
+
+            if let Some(m) = mask {
+                scores = scores.add(m)?;
+            }
+
+            let weights = softmax_axis(&scores, -1, None)?;
+            let out = matmul(&weights, &v_full)?;
+            let out = out.transpose_axes(&[0, 2, 1, 3])?.reshape(&[b, l, -1])?;
+            let out = self.o_proj.forward(&out)?;
+
+            Ok(AttnOut {
+                output: out,
+                cache: (k, v),
+            })
+        }
+
+        fn training_mode(&mut self, mode: bool) {
+            self.q_proj.training_mode(mode);
+            self.k_proj.training_mode(mode);
+            self.v_proj.training_mode(mode);
+            self.o_proj.training_mode(mode);
+        }
+    }
+
+    #[derive(Debug, Clone, ModuleParameters, Quantizable)]
+    pub struct Mlp {
+        #[quantizable]
+        #[param]
+        pub gate_proj: MaybeQuantized<nn::Linear>,
+        #[quantizable]
+        #[param]
+        pub up_proj: MaybeQuantized<nn::Linear>,
+        #[quantizable]
+        #[param]
+        pub down_proj: MaybeQuantized<nn::Linear>,
+    }
+
+    impl Mlp {
+        pub fn new(cfg: &Gemma2Config) -> Result<Self, Exception> {
+            let gate_proj = nn::LinearBuilder::new(cfg.hidden_size, cfg.intermediate_size)
+                .bias(false)
+                .build()?;
+            let up_proj = nn::LinearBuilder::new(cfg.hidden_size, cfg.intermediate_size)
+                .bias(false)
+                .build()?;
+            let down_proj = nn::LinearBuilder::new(cfg.intermediate_size, cfg.hidden_size)
+                .bias(false)
+                .build()?;
+            Ok(Self {
+                gate_proj: MaybeQuantized::new(gate_proj),
+                up_proj: MaybeQuantized::new(up_proj),
+                down_proj: MaybeQuantized::new(down_proj),
+            })
+        }
+    }
+
+    impl Module<&Array> for Mlp {
+        type Output = Array;
+        type Error = Exception;
+
+        fn forward(&mut self, x: &Array) -> Result<Self::Output, Self::Error> {
+            // Gemma2 uses gelu_pytorch_tanh on the gate branch.
+            let gate = nn::gelu_approximate(self.gate_proj.forward(x)?)?;
+            let up = self.up_proj.forward(x)?;
+            self.down_proj.forward(&gate.multiply(&up)?)
+        }
+
+        fn training_mode(&mut self, mode: bool) {
+            self.gate_proj.training_mode(mode);
+            self.up_proj.training_mode(mode);
+            self.down_proj.training_mode(mode);
+        }
+    }
+
+    #[derive(Debug, Clone, ModuleParameters, Quantizable)]
+    pub struct Layer {
+        #[quantizable]
+        #[param]
+        pub self_attn: Attention,
+        #[quantizable]
+        #[param]
+        pub mlp: Mlp,
+        #[param]
+        pub input_layernorm: GemmaRmsNorm,
+        #[param]
+        pub post_attention_layernorm: GemmaRmsNorm,
+        #[param]
+        pub pre_feedforward_layernorm: GemmaRmsNorm,
+        #[param]
+        pub post_feedforward_layernorm: GemmaRmsNorm,
+        /// HF's Gemma 2 modeling uses `is_sliding = !(layer_idx % 2)`,
+        /// so even-indexed layers get the sliding-window mask and odd
+        /// layers get the full causal mask.
+        pub is_sliding: bool,
+    }
+
+    impl Layer {
+        pub fn new(cfg: &Gemma2Config, layer_idx: i32) -> Result<Self, Exception> {
+            Ok(Self {
+                self_attn: Attention::new(cfg)?,
+                mlp: Mlp::new(cfg)?,
+                input_layernorm: GemmaRmsNorm::new(cfg.hidden_size, cfg.rms_norm_eps)?,
+                post_attention_layernorm: GemmaRmsNorm::new(cfg.hidden_size, cfg.rms_norm_eps)?,
+                pre_feedforward_layernorm: GemmaRmsNorm::new(cfg.hidden_size, cfg.rms_norm_eps)?,
+                post_feedforward_layernorm: GemmaRmsNorm::new(cfg.hidden_size, cfg.rms_norm_eps)?,
+                is_sliding: layer_idx % 2 == 0,
+            })
+        }
+    }
+
+    pub struct LayerIn<'a> {
+        pub x: &'a Array,
+        pub mask_global: Option<&'a Array>,
+        pub mask_sliding: Option<&'a Array>,
+        pub cache: Option<(&'a Array, &'a Array)>,
+    }
+
+    impl Module<LayerIn<'_>> for Layer {
+        type Output = AttnOut;
+        type Error = Exception;
+
+        fn forward(&mut self, input: LayerIn<'_>) -> Result<Self::Output, Self::Error> {
+            let LayerIn {
+                x,
+                mask_global,
+                mask_sliding,
+                cache,
+            } = input;
+            let mask = if self.is_sliding {
+                mask_sliding
+            } else {
+                mask_global
+            };
+
+            // Attention: x -> input_norm -> attn -> post_attn_norm -> residual.
+            let h_norm = self.input_layernorm.forward(x)?;
+            let attn = self.self_attn.forward(AttnIn {
+                x: &h_norm,
+                mask,
+                cache,
+            })?;
+            let attn_out = self.post_attention_layernorm.forward(&attn.output)?;
+            let h = x.add(&attn_out)?;
+
+            // MLP: h -> pre_ffn_norm -> mlp -> post_ffn_norm -> residual.
+            let r = self.pre_feedforward_layernorm.forward(&h)?;
+            let r = self.mlp.forward(&r)?;
+            let r = self.post_feedforward_layernorm.forward(&r)?;
+            let output = h.add(&r)?;
+
+            Ok(AttnOut {
+                output,
+                cache: attn.cache,
+            })
+        }
+
+        fn training_mode(&mut self, mode: bool) {
+            self.self_attn.training_mode(mode);
+            self.mlp.training_mode(mode);
+            self.input_layernorm.training_mode(mode);
+            self.post_attention_layernorm.training_mode(mode);
+            self.pre_feedforward_layernorm.training_mode(mode);
+            self.post_feedforward_layernorm.training_mode(mode);
+        }
+    }
+
+    #[derive(Debug, Clone, ModuleParameters, Quantizable)]
+    pub struct Backbone {
+        #[quantizable]
+        #[param]
+        pub embed_tokens: MaybeQuantized<nn::Embedding>,
+        #[quantizable]
+        #[param]
+        pub layers: Vec<Layer>,
+        #[param]
+        pub norm: GemmaRmsNorm,
+    }
+
+    #[derive(Debug, Clone, ModuleParameters, Quantizable)]
+    pub struct Gemma2Model {
+        #[quantizable]
+        #[param]
+        pub model: Backbone,
+        pub embed_scale: f32,
+        pub final_softcap: Option<f32>,
+        pub sliding_window: i32,
+    }
+
+    pub struct ModelInput<'a> {
+        pub inputs: &'a Array,
+        pub cache: &'a [Option<(Array, Array)>],
+    }
+    pub struct ModelOutput {
+        pub logits: Array,
+        pub cache: Vec<Option<(Array, Array)>>,
+    }
+
+    impl Gemma2Model {
+        pub fn new(cfg: &Gemma2Config) -> Result<Self, Exception> {
+            let embed_tokens = nn::Embedding::new(cfg.vocab_size, cfg.hidden_size)?;
+            let layers = (0..cfg.num_hidden_layers)
+                .map(|i| Layer::new(cfg, i))
+                .collect::<Result<Vec<_>, _>>()?;
+            let norm = GemmaRmsNorm::new(cfg.hidden_size, cfg.rms_norm_eps)?;
+            Ok(Self {
+                model: Backbone {
+                    embed_tokens: MaybeQuantized::new(embed_tokens),
+                    layers,
+                    norm,
+                },
+                embed_scale: (cfg.hidden_size as f32).sqrt(),
+                final_softcap: cfg.final_logit_softcapping,
+                sliding_window: cfg.sliding_window,
+            })
+        }
+
+        pub fn forward_full(&mut self, input: ModelInput<'_>) -> Result<ModelOutput, Exception> {
+            let ModelInput { inputs, cache } = input;
+            let mut h = self.model.embed_tokens.forward(inputs)?;
+            // Gemma2 scales input embeddings by sqrt(hidden_size).
+            h = h.multiply(array!(self.embed_scale))?;
+
+            let seq_len = h.shape()[1];
+            let past_len = cache
+                .first()
+                .and_then(Option::as_ref)
+                .map_or(0, |(k, _)| k.shape()[2]);
+
+            // Build the two masks once. For single-token decode when
+            // past_len stays below sliding_window, both masks collapse to
+            // "allow all past keys" and we can skip building them.
+            let need_mask = seq_len > 1 || past_len + seq_len > self.sliding_window;
+            let mask_global = if need_mask {
+                Some(build_causal_mask(
+                    seq_len,
+                    past_len,
+                    None,
+                    h.dtype(),
+                )?)
+            } else {
+                None
+            };
+            let mask_sliding = if need_mask {
+                Some(build_causal_mask(
+                    seq_len,
+                    past_len,
+                    Some(self.sliding_window),
+                    h.dtype(),
+                )?)
+            } else {
+                None
+            };
+
+            let mut out_cache = Vec::with_capacity(self.model.layers.len());
+            for (i, layer) in self.model.layers.iter_mut().enumerate() {
+                let entry = cache.get(i).and_then(Option::as_ref).map(|(k, v)| (k, v));
+                let out = layer.forward(LayerIn {
+                    x: &h,
+                    mask_global: mask_global.as_ref(),
+                    mask_sliding: mask_sliding.as_ref(),
+                    cache: entry,
+                })?;
+                h = out.output;
+                out_cache.push(Some(out.cache));
+            }
+
+            let h = self.model.norm.forward(&h)?;
+            // Gemma 2 ties the output projection to embed_tokens.
+            let mut logits = match &self.model.embed_tokens {
+                MaybeQuantized::Original(e) => e.as_linear(&h)?,
+                MaybeQuantized::Quantized(q) => q.as_linear(&h)?,
+            };
+            if let Some(cap) = self.final_softcap {
+                let c = array!(cap);
+                let ratio = logits.divide(&c)?;
+                logits = tanh(&ratio)?.multiply(&c)?;
+            }
+
+            Ok(ModelOutput {
+                logits,
+                cache: out_cache,
+            })
+        }
+    }
+
+    /// Build an additive causal mask with optional sliding-window limit.
+    /// Shape is `[1, 1, q_len, past_len + q_len]` so it broadcasts over
+    /// batch and heads. Masked entries are `-inf`; allowed entries are
+    /// `0`. When `window` is `Some(w)`, keys older than `abs_pos - w + 1`
+    /// are also masked, i.e. each query only attends to the last `w`
+    /// keys.
+    fn build_causal_mask(
+        q_len: i32,
+        past_len: i32,
+        window: Option<i32>,
+        dtype: mlx_rs::Dtype,
+    ) -> Result<Array, Exception> {
+        let k_len = past_len + q_len;
+        let mut data = vec![0f32; (q_len * k_len) as usize];
+        for i in 0..q_len {
+            let abs = past_len + i;
+            let lower = window.map_or(0, |w| (abs - w + 1).max(0));
+            for j in 0..k_len {
+                if j > abs || j < lower {
+                    data[(i * k_len + j) as usize] = f32::NEG_INFINITY;
+                }
+            }
+        }
+        let arr = Array::from_slice(&data, &[1, 1, q_len, k_len]);
+        arr.as_dtype(dtype)
+    }
+
+    /// Gemma2 weight loader. Mirrors `weights::load_model_weights` but
+    /// operates on `Gemma2Model` and installs its embedding slot.
+    pub fn load_weights(
+        model: &mut Gemma2Model,
+        dir: &std::path::Path,
+        quantized: bool,
+        group_size: i32,
+        bits: i32,
+    ) -> Result<(), String> {
+        use mlx_rs::module::ModuleParameters;
+        use super::weights::{apply_merged_to_model, build_merged_map, install_quantized_embedding};
+        let mut merged = build_merged_map(dir, quantized)?;
+        model.unfreeze_parameters(true);
+        if quantized {
+            install_quantized_embedding(
+                &mut model.model.embed_tokens,
+                &mut merged,
+                group_size,
+                bits,
+            )?;
+        }
+        apply_merged_to_model(model, merged)
     }
 }
 
@@ -1105,6 +1743,70 @@ mod tmpl {
         .map_err(|e| format!("chat template render failed: {e}"))
     }
 
+    /// Gemma 2-specific prompt builder. Gemma's official chat template
+    /// `raise_exception`s on system role and enforces strict user/assistant
+    /// alternation — both violated by aictl's normal message flow (system
+    /// prompt, then system reinforcement appended as a tail). We skip the
+    /// jinja template entirely and build Gemma's `<start_of_turn>role\n...
+    /// <end_of_turn>` envelope manually, merging adjacent system content
+    /// into the next user turn. The trailing reinforcement is glued onto
+    /// the last user message so the whole prompt ends in a single `model`
+    /// turn start, which is what the tokenizer's BOS + generation prompt
+    /// contract expects.
+    pub fn gemma_prompt(messages: &[Message], reinforcement: &str) -> String {
+        let mut items: Vec<(&'static str, String)> = Vec::new();
+        let mut pending_system = String::new();
+        for m in messages {
+            match m.role {
+                Role::System => {
+                    if !pending_system.is_empty() {
+                        pending_system.push_str("\n\n");
+                    }
+                    pending_system.push_str(&m.content);
+                }
+                Role::User => {
+                    let content = if pending_system.is_empty() {
+                        m.content.clone()
+                    } else {
+                        let merged = format!("{}\n\n{}", pending_system, m.content);
+                        pending_system.clear();
+                        merged
+                    };
+                    items.push(("user", content));
+                }
+                Role::Assistant => {
+                    items.push(("model", m.content.clone()));
+                }
+            }
+        }
+        if !pending_system.is_empty() {
+            // System-only prompt with no user turn: make it the user turn.
+            items.push(("user", std::mem::take(&mut pending_system)));
+        }
+
+        // Glue the reinforcement onto the final user turn so Gemma's
+        // alternation invariant holds (no trailing system/model message).
+        if let Some(last) = items.last_mut()
+            && last.0 == "user"
+        {
+            last.1.push_str("\n\n");
+            last.1.push_str(reinforcement);
+        } else {
+            items.push(("user", reinforcement.to_string()));
+        }
+
+        let mut out = String::new();
+        for (role, content) in &items {
+            out.push_str("<start_of_turn>");
+            out.push_str(role);
+            out.push('\n');
+            out.push_str(content.trim());
+            out.push_str("<end_of_turn>\n");
+        }
+        out.push_str("<start_of_turn>model\n");
+        out
+    }
+
     /// ChatML-ish fallback used when the repo's template can't be rendered.
     /// Not canonical for any specific model family, but produces coherent
     /// output for most instruction-tuned Llama/Qwen/Mistral checkpoints.
@@ -1130,6 +1832,193 @@ mod tmpl {
     }
 }
 
+/// Llama-family inference worker. Runs synchronously on a worker
+/// thread (spawned by `call_mlx`). Builds the model, loads safetensors
+/// weights, tokenizes the prompt, and runs the prefill + decode loop
+/// until EOS or the hard `MAX_NEW` cap.
+#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+fn run_llama_inference(
+    cfg: arch::LlamaConfig,
+    dir: std::path::PathBuf,
+    prompt: String,
+    eos: Vec<u32>,
+    tokenizer: tokenizers::Tokenizer,
+) -> Result<(String, u64, u64), String> {
+    use mlx_rs::Array;
+    use mlx_rs::ops::indexing::{IndexOp, NewAxis};
+    use mlx_rs::transforms::eval;
+    use std::collections::HashSet;
+
+    let mut mdl = arch::LlamaModel::new(&cfg).map_err(|e| format!("failed to build model: {e}"))?;
+    let quantized = cfg.quantization.is_some();
+    if let Some(q) = cfg.quantization.as_ref() {
+        mdl = mlx_rs::nn::quantize(mdl, Some(q.group_size), Some(q.bits))
+            .map_err(|e| format!("quantize wrap failed: {e}"))?;
+    }
+    let (group_size, bits) = cfg
+        .quantization
+        .as_ref()
+        .map_or((64, 4), |q| (q.group_size, q.bits));
+    weights::load_model_weights(&mut mdl, &dir, quantized, group_size, bits)?;
+
+    let enc = tokenizer
+        .encode(&prompt[..], true)
+        .map_err(|e| format!("tokenize failed: {e}"))?;
+    let prompt_ids = enc.get_ids();
+    let input_tokens = prompt_ids.len() as u64;
+    if prompt_ids.is_empty() {
+        return Err("empty prompt after tokenization".into());
+    }
+    let prompt_arr = Array::from(prompt_ids).index(NewAxis);
+
+    let initial_cache: Vec<Option<(Array, Array)>> = Vec::new();
+    let out = mdl
+        .forward_full(arch::LlamaInput {
+            inputs: &prompt_arr,
+            cache: &initial_cache,
+        })
+        .map_err(|e| format!("prefill failed: {e}"))?;
+    let mut cache = out.cache;
+    let mut next = sample(&out.logits.index((.., -1, ..))).map_err(|e| e.to_string())?;
+
+    let eos_set: HashSet<u32> = eos.into_iter().collect();
+    let mut generated: Vec<u32> = Vec::with_capacity(4096);
+
+    const MAX_NEW: usize = 4096;
+    for _ in 0..MAX_NEW {
+        eval(std::iter::once(&next)).map_err(|e| format!("eval failed: {e}"))?;
+        let id: u32 = next.item::<u32>();
+        if eos_set.contains(&id) {
+            break;
+        }
+        generated.push(id);
+
+        if let Ok(partial) = tokenizer.decode(&generated, true)
+            && (partial.contains("<|im_end|>")
+                || partial.contains("<|eot_id|>")
+                || partial.contains("</s>"))
+        {
+            break;
+        }
+
+        let tok_arr = next.index((.., NewAxis));
+        let step = mdl
+            .forward_full(arch::LlamaInput {
+                inputs: &tok_arr,
+                cache: cache.as_slice(),
+            })
+            .map_err(|e| format!("decode step failed: {e}"))?;
+        cache = step.cache;
+        let logits = step.logits.squeeze_axes(&[1]).map_err(|e| e.to_string())?;
+        next = sample(&logits).map_err(|e| e.to_string())?;
+    }
+
+    let output_tokens = generated.len() as u64;
+    let mut text = tokenizer
+        .decode(&generated, true)
+        .map_err(|e| format!("decode failed: {e}"))?;
+    for marker in ["<|im_end|>", "<|eot_id|>", "</s>"] {
+        if let Some(idx) = text.find(marker) {
+            text.truncate(idx);
+        }
+    }
+    Ok((text.trim().to_string(), input_tokens, output_tokens))
+}
+
+/// Gemma 2 inference worker. Mirrors `run_llama_inference` but
+/// dispatches to `gemma2::Gemma2Model` and also watches for Gemma's
+/// `<end_of_turn>` marker as a stop condition (some repos don't list
+/// it in `eos_token_id`).
+#[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
+fn run_gemma2_inference(
+    cfg: gemma2::Gemma2Config,
+    dir: std::path::PathBuf,
+    prompt: String,
+    eos: Vec<u32>,
+    tokenizer: tokenizers::Tokenizer,
+) -> Result<(String, u64, u64), String> {
+    use mlx_rs::Array;
+    use mlx_rs::ops::indexing::{IndexOp, NewAxis};
+    use mlx_rs::transforms::eval;
+    use std::collections::HashSet;
+
+    let mut mdl =
+        gemma2::Gemma2Model::new(&cfg).map_err(|e| format!("failed to build model: {e}"))?;
+    let quantized = cfg.quantization.is_some();
+    if let Some(q) = cfg.quantization.as_ref() {
+        mdl = mlx_rs::nn::quantize(mdl, Some(q.group_size), Some(q.bits))
+            .map_err(|e| format!("quantize wrap failed: {e}"))?;
+    }
+    let (group_size, bits) = cfg
+        .quantization
+        .as_ref()
+        .map_or((64, 4), |q| (q.group_size, q.bits));
+    gemma2::load_weights(&mut mdl, &dir, quantized, group_size, bits)?;
+
+    let enc = tokenizer
+        .encode(&prompt[..], true)
+        .map_err(|e| format!("tokenize failed: {e}"))?;
+    let prompt_ids = enc.get_ids();
+    let input_tokens = prompt_ids.len() as u64;
+    if prompt_ids.is_empty() {
+        return Err("empty prompt after tokenization".into());
+    }
+    let prompt_arr = Array::from(prompt_ids).index(NewAxis);
+
+    let initial_cache: Vec<Option<(Array, Array)>> = Vec::new();
+    let out = mdl
+        .forward_full(gemma2::ModelInput {
+            inputs: &prompt_arr,
+            cache: &initial_cache,
+        })
+        .map_err(|e| format!("prefill failed: {e}"))?;
+    let mut cache = out.cache;
+    let mut next = sample(&out.logits.index((.., -1, ..))).map_err(|e| e.to_string())?;
+
+    let eos_set: HashSet<u32> = eos.into_iter().collect();
+    let mut generated: Vec<u32> = Vec::with_capacity(4096);
+
+    const MAX_NEW: usize = 4096;
+    for _ in 0..MAX_NEW {
+        eval(std::iter::once(&next)).map_err(|e| format!("eval failed: {e}"))?;
+        let id: u32 = next.item::<u32>();
+        if eos_set.contains(&id) {
+            break;
+        }
+        generated.push(id);
+
+        if let Ok(partial) = tokenizer.decode(&generated, true)
+            && (partial.contains("<end_of_turn>")
+                || partial.contains("<|im_end|>")
+                || partial.contains("</s>"))
+        {
+            break;
+        }
+
+        let tok_arr = next.index((.., NewAxis));
+        let step = mdl
+            .forward_full(gemma2::ModelInput {
+                inputs: &tok_arr,
+                cache: cache.as_slice(),
+            })
+            .map_err(|e| format!("decode step failed: {e}"))?;
+        cache = step.cache;
+        let logits = step.logits.squeeze_axes(&[1]).map_err(|e| e.to_string())?;
+        next = sample(&logits).map_err(|e| e.to_string())?;
+    }
+
+    let output_tokens = generated.len() as u64;
+    let mut text = tokenizer
+        .decode(&generated, true)
+        .map_err(|e| format!("decode failed: {e}"))?;
+    for marker in ["<end_of_turn>", "<|im_end|>", "</s>"] {
+        if let Some(idx) = text.find(marker) {
+            text.truncate(idx);
+        }
+    }
+    Ok((text.trim().to_string(), input_tokens, output_tokens))
+}
+
 #[cfg(all(feature = "mlx", target_os = "macos", target_arch = "aarch64"))]
 #[allow(clippy::too_many_lines)]
 pub async fn call_mlx(
@@ -1137,9 +2026,6 @@ pub async fn call_mlx(
     messages: &[Message],
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     use crate::Role;
-    use mlx_rs::Array;
-    use mlx_rs::ops::indexing::{IndexOp, NewAxis};
-    use mlx_rs::transforms::eval;
     use std::collections::HashSet;
     use tokenizers::Tokenizer;
 
@@ -1159,6 +2045,7 @@ pub async fn call_mlx(
     let cfg_raw: serde_json::Value = serde_json::from_str(&cfg_body)?;
 
     let mut is_qwen2 = false;
+    let mut is_gemma2 = false;
     if let Some(arches) = cfg_raw.get("architectures").and_then(|v| v.as_array()) {
         let names: Vec<&str> = arches.iter().filter_map(|v| v.as_str()).collect();
         let supported = names.iter().any(|n| {
@@ -1168,11 +2055,12 @@ pub async fn call_mlx(
                     | "Qwen2ForCausalLM"
                     | "MistralForCausalLM"
                     | "Qwen2MoeForCausalLM"
+                    | "Gemma2ForCausalLM"
             )
         });
         if !supported && !names.is_empty() {
             return Err(format!(
-                "unsupported model architecture: {} — only Llama-family models are supported in this build",
+                "unsupported model architecture: {} — only Llama-family and Gemma 2 models are supported in this build",
                 names.join(", ")
             )
             .into());
@@ -1180,13 +2068,7 @@ pub async fn call_mlx(
         is_qwen2 = names
             .iter()
             .any(|n| matches!(*n, "Qwen2ForCausalLM" | "Qwen2MoeForCausalLM"));
-    }
-
-    let mut cfg: arch::LlamaConfig = serde_json::from_str(&cfg_body)?;
-    // Qwen2 modeling unconditionally uses a bias on q/k/v projections.
-    // Most Qwen2 config.json files omit `attention_bias`, so force it here.
-    if is_qwen2 {
-        cfg.attention_bias = true;
+        is_gemma2 = names.contains(&"Gemma2ForCausalLM");
     }
 
     // --- EOS tokens (scalar or list) ---
@@ -1235,112 +2117,51 @@ pub async fn call_mlx(
         images: vec![],
     });
 
-    let prompt_text = match tok_cfg.get("chat_template").and_then(|v| v.as_str()) {
-        Some(template) => match tmpl::render(template, &messages_with_tail) {
-            Ok(s) => s,
-            Err(_) => tmpl::chatml_fallback(messages, reinforcement),
-        },
-        None => tmpl::chatml_fallback(messages, reinforcement),
+    let prompt_text = if is_gemma2 {
+        // Gemma 2's jinja template rejects system role, so we skip it
+        // and build the `<start_of_turn>` envelope manually.
+        tmpl::gemma_prompt(messages, reinforcement)
+    } else {
+        match tok_cfg.get("chat_template").and_then(|v| v.as_str()) {
+            Some(template) => match tmpl::render(template, &messages_with_tail) {
+                Ok(s) => s,
+                Err(_) => tmpl::chatml_fallback(messages, reinforcement),
+            },
+            None => tmpl::chatml_fallback(messages, reinforcement),
+        }
     };
 
     // --- Heavy work: build model, load weights, run generation ---
-    let cfg_for_spawn = cfg.clone();
     let dir_for_spawn = dir.clone();
     let prompt_for_spawn = prompt_text.clone();
     let eos_for_spawn: Vec<u32> = eos_ids.into_iter().collect();
 
-    let result = tokio::task::spawn_blocking(move || -> Result<(String, u64, u64), String> {
-        // Build model, optionally convert to quantized variant.
-        let mut mdl = arch::LlamaModel::new(&cfg_for_spawn)
-            .map_err(|e| format!("failed to build model: {e}"))?;
-        let quantized = cfg_for_spawn.quantization.is_some();
-        if let Some(q) = cfg_for_spawn.quantization.as_ref() {
-            mdl = mlx_rs::nn::quantize(mdl, Some(q.group_size), Some(q.bits))
-                .map_err(|e| format!("quantize wrap failed: {e}"))?;
+    let result = if is_gemma2 {
+        // Parse the Gemma2-specific config (extra softcap / sliding-window
+        // fields that the Llama config doesn't understand).
+        let cfg_g: gemma2::Gemma2Config = serde_json::from_str(&cfg_body)?;
+        tokio::task::spawn_blocking(move || {
+            run_gemma2_inference(cfg_g, dir_for_spawn, prompt_for_spawn, eos_for_spawn, tokenizer)
+        })
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> {
+            format!("inference task panicked: {e}").into()
+        })?
+    } else {
+        let mut cfg: arch::LlamaConfig = serde_json::from_str(&cfg_body)?;
+        // Qwen2 modeling unconditionally uses a bias on q/k/v projections.
+        // Most Qwen2 config.json files omit `attention_bias`, so force it here.
+        if is_qwen2 {
+            cfg.attention_bias = true;
         }
-
-        // Load weights from shard(s).
-        let (group_size, bits) = cfg_for_spawn
-            .quantization
-            .as_ref()
-            .map_or((64, 4), |q| (q.group_size, q.bits));
-        weights::load_model_weights(&mut mdl, &dir_for_spawn, quantized, group_size, bits)?;
-
-        // Tokenize the prompt.
-        let enc = tokenizer
-            .encode(&prompt_for_spawn[..], true)
-            .map_err(|e| format!("tokenize failed: {e}"))?;
-        let prompt_ids = enc.get_ids();
-        let input_tokens = prompt_ids.len() as u64;
-        if prompt_ids.is_empty() {
-            return Err("empty prompt after tokenization".into());
-        }
-
-        let prompt_arr = Array::from(prompt_ids).index(NewAxis);
-
-        // Prefill.
-        let initial_cache: Vec<Option<(Array, Array)>> = Vec::new();
-        let out = mdl
-            .forward_full(arch::LlamaInput {
-                inputs: &prompt_arr,
-                cache: &initial_cache,
-            })
-            .map_err(|e| format!("prefill failed: {e}"))?;
-        let mut cache = out.cache;
-        let mut next = sample(&out.logits.index((.., -1, ..))).map_err(|e| e.to_string())?;
-
-        let eos_set: HashSet<u32> = eos_for_spawn.into_iter().collect();
-        let mut generated: Vec<u32> = Vec::with_capacity(4096);
-
-        const MAX_NEW: usize = 4096;
-        for _ in 0..MAX_NEW {
-            eval(std::iter::once(&next)).map_err(|e| format!("eval failed: {e}"))?;
-            let id: u32 = next.item::<u32>();
-            if eos_set.contains(&id) {
-                break;
-            }
-            generated.push(id);
-
-            // Short-circuit on end-of-turn / common stop markers that
-            // lots of chat templates emit as plain text instead of a
-            // dedicated EOS id.
-            if let Ok(partial) = tokenizer.decode(&generated, true)
-                && (partial.contains("<|im_end|>")
-                    || partial.contains("<|eot_id|>")
-                    || partial.contains("</s>"))
-            {
-                break;
-            }
-
-            let tok_arr = next.index((.., NewAxis));
-            let step = mdl
-                .forward_full(arch::LlamaInput {
-                    inputs: &tok_arr,
-                    cache: cache.as_slice(),
-                })
-                .map_err(|e| format!("decode step failed: {e}"))?;
-            cache = step.cache;
-            let logits = step.logits.squeeze_axes(&[1]).map_err(|e| e.to_string())?;
-            next = sample(&logits).map_err(|e| e.to_string())?;
-        }
-
-        let output_tokens = generated.len() as u64;
-        let mut text = tokenizer
-            .decode(&generated, true)
-            .map_err(|e| format!("decode failed: {e}"))?;
-
-        for marker in ["<|im_end|>", "<|eot_id|>", "</s>"] {
-            if let Some(idx) = text.find(marker) {
-                text.truncate(idx);
-            }
-        }
-
-        Ok((text.trim().to_string(), input_tokens, output_tokens))
-    })
-    .await
-    .map_err(|e| -> Box<dyn std::error::Error> {
-        format!("inference task panicked: {e}").into()
-    })?;
+        tokio::task::spawn_blocking(move || {
+            run_llama_inference(cfg, dir_for_spawn, prompt_for_spawn, eos_for_spawn, tokenizer)
+        })
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> {
+            format!("inference task panicked: {e}").into()
+        })?
+    };
 
     let (text, input_tokens, output_tokens) =
         result.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
