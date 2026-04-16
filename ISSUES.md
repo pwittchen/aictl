@@ -1,9 +1,5 @@
 # Issues
 
-## Infrastructure
-
-- **Project website** `[marketing]` — publish website from the `website/` dir
-
 ## Roadmap
 
 ### Modular architecture

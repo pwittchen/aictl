@@ -17,7 +17,7 @@ Project website: [aictl.app](https://aictl.app) — source in [`website/`](websi
 ## Install
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh
+curl -sSf https://aictl.app/install.sh | sh
 ```
 
 The installer downloads a prebuilt binary for your platform from the latest GitHub release and places it in `~/.local/bin/aictl`. If aictl is already installed at `~/.cargo/bin/aictl` (e.g. from a prior `cargo install`), the installer updates it in place at that location instead of the default `~/.local/bin/`. Set `AICTL_INSTALL_DIR` to pick a different location explicitly. If no prebuilt binary exists for your platform, the installer falls back to building from source with `cargo install`.

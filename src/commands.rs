@@ -1658,7 +1658,7 @@ pub async fn run_version(show_error: &dyn Fn(&str)) {
 }
 
 const UPDATE_CMD: &str =
-    "curl -sSf https://raw.githubusercontent.com/pwittchen/aictl/master/install.sh | sh";
+    "curl -sSf https://aictl.app/install.sh | sh";
 
 /// Run the update process interactively (REPL `/update`).
 /// Returns `true` if the binary was updated and the REPL should exit.
