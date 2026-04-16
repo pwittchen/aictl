@@ -518,7 +518,7 @@ Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async 
 
 #### Native MLX (Apple Silicon) — experimental
 
-> **Experimental.** Native MLX inference is a new feature limited to macOS on Apple Silicon (`aarch64`). Architecture coverage is currently Llama-family only — Llama 3.x, Qwen 2.5, Mistral 7B v0.3, and DeepSeek-R1 Distill Qwen. Gemma 2, Phi-3.5, and MoE models are rejected with a clear error. Llama 3.1/3.2 RoPE scaling is not yet applied (quality degrades past ~8K context), top-p sampling is omitted (temperature only), and the chat-template renderer falls back to ChatML when the per-model jinja template fails to render. Please report issues at [github.com/pwittchen/aictl/issues](https://github.com/pwittchen/aictl/issues).
+> **Experimental.** Native MLX inference is a new feature limited to macOS on Apple Silicon (`aarch64`). Architecture coverage is currently Llama-family — Llama 3.x, Qwen 2.5, Mistral 7B v0.3, DeepSeek-R1 Distill Qwen — plus Gemma 2. Phi-3.5 and MoE models are rejected with a clear error. Llama 3.1/3.2 RoPE scaling is not yet applied (quality degrades past ~8K context), top-p sampling is omitted (temperature only), and the chat-template renderer falls back to ChatML when the per-model jinja template fails to render. Please report issues at [github.com/pwittchen/aictl/issues](https://github.com/pwittchen/aictl/issues).
 
 aictl can run MLX models in-process via [`mlx-rs`](https://crates.io/crates/mlx-rs) — no Python, no `mlx_lm`, no separate server. Quantized 4-bit weights from the [`mlx-community`](https://huggingface.co/mlx-community) Hugging Face organization are loaded directly via `safetensors`. By default no local MLX models are available; they must be downloaded explicitly by the user into `~/.aictl/models/mlx/<name>/`.
 
@@ -559,6 +559,16 @@ AICTL_MODEL=mlx-community__Llama-3.2-3B-Instruct-4bit
 ```
 
 Inference runs on a `tokio::spawn_blocking` task, so it doesn't block the async runtime. Cost always shows $0.00. If you try to use an MLX model in a build without `--features mlx`, or on a non-Apple-Silicon host, aictl prints a clear error explaining the constraint.
+
+##### Tested MLX models
+
+The following models have been verified end-to-end (download, load, inference, tool calls) on Apple Silicon:
+
+| Model | Pull command |
+|-------|--------------|
+| `mlx-community__DeepSeek-R1-Distill-Qwen-7B-4bit` | `aictl --pull-mlx-model mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit` |
+| `mlx-community__Llama-3.2-3B-Instruct-4bit` | `aictl --pull-mlx-model mlx-community/Llama-3.2-3B-Instruct-4bit` |
+| `mlx-community__gemma-2-9b-it-4bit` | `aictl --pull-mlx-model mlx-community/gemma-2-9b-it-4bit` |
 
 ### Cost estimates
 
