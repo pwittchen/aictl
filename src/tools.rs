@@ -28,6 +28,7 @@ mod git;
 mod image;
 mod json_query;
 mod lint;
+mod list_processes;
 mod run_code;
 mod shell;
 mod util;
@@ -99,7 +100,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 23;
+pub const TOOL_COUNT: usize = 24;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -206,6 +207,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "json_query" => json_query::tool_json_query(input).await,
         "csv_query" => csv_query::tool_csv_query(input).await,
         "calculate" => calculate::tool_calculate(input),
+        "list_processes" => list_processes::tool_list_processes(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

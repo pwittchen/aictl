@@ -55,6 +55,10 @@ pub(super) fn print_tools() {
             "calculate",
             "evaluate a math expression safely (no eval, no shell)",
         ),
+        (
+            "list_processes",
+            "list running processes with structured filtering",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
