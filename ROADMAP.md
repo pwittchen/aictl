@@ -6,10 +6,6 @@
 
 ### New tools
 
-#### System & Environment
-
-- **system_info** — Return OS, arch, memory, disk, CPU info in a structured way.
-
 #### File & Content
 
 - **diff_files** — Compare two files and return a unified diff. Useful before edits or for understanding changes.
