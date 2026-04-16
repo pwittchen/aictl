@@ -1,9 +1,5 @@
 ## Roadmap
 
-### Modular architecture
-
-Split the codebase into separate modules: `core` (shared logic), `cli`, `desktop` (currently empty) to enable independent development of each target.
-
 ### New tools
 
 #### Code & Development
@@ -82,6 +78,10 @@ Split the codebase into separate modules: `core` (shared logic), `cli`, `desktop
 ### Desktop
 
 Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal.
+
+#### Modular architecture
+
+Split the codebase into separate modules: `core` (shared logic), `cli`, `desktop` (currently empty) to enable independent development of each target.
 
 #### Cargo workspace split
 
