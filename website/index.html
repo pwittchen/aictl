@@ -71,7 +71,7 @@
         <div class="grid grid--3">
           <article class="card">
             <h3>Agent loop</h3>
-            <p>Interactive REPL and one-shot mode. 23 built-in tools for shell, files, web, documents, images, code execution, math, and queries. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
+            <p>Interactive REPL and one-shot mode. 26 built-in tools for shell, files, web, documents, images, code execution, math, queries, and host probing. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
           </article>
           <article class="card">
             <h3>Sessions</h3>
@@ -169,7 +169,14 @@
               <li><code>calculate</code> — safe math expression evaluator</li>
             </ul>
           </div>
-          <div aria-hidden="true" style="background: var(--bg);"></div>
+          <div class="tools">
+            <h3>Host &amp; network</h3>
+            <ul>
+              <li><code>list_processes</code> — structured `ps` with filters</li>
+              <li><code>check_port</code> — TCP reachability probe</li>
+              <li><code>system_info</code> — OS, CPU, memory, disk</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>

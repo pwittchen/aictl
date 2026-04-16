@@ -582,7 +582,7 @@
     <section class="section section--alt" id="tools-ref">
       <div class="container">
         <header class="section__head">
-          <span class="section__kicker">// 11 tools</span>
+          <span class="section__kicker">// 26 tools</span>
           <h2 class="section__title">Tools the agent can use</h2>
           <p class="section__lead">
             Every tool call is validated by the security policy and
@@ -624,7 +624,14 @@
               <li><code>calculate</code> — safe math expression evaluator</li>
             </ul>
           </div>
-          <div aria-hidden="true" style="background: var(--bg-alt);"></div>
+          <div class="tools">
+            <h3>Host &amp; network</h3>
+            <ul>
+              <li><code>list_processes</code> — structured `ps` with filters (name/user/pid/%cpu/%mem/port)</li>
+              <li><code>check_port</code> — TCP reachability probe (host:port, DNS + URL forms)</li>
+              <li><code>system_info</code> — OS, CPU, memory, disk info (macOS + Linux)</li>
+            </ul>
+          </div>
         </div>
 
         <p class="section__note">

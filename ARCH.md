@@ -13,7 +13,7 @@ src/
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT
- ├── tools/             One submodule per tool (calculate, csv_query, datetime, document, filesystem, geo, git, image, json_query, lint, run_code, shell, util, web)
+ ├── tools/             One submodule per tool (calculate, check_port, csv_query, datetime, document, filesystem, geo, git, image, json_query, lint, list_processes, run_code, shell, system_info, util, web)
  ├── ui.rs              AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
  ├── llm.rs             TokenUsage type, cost estimation (price_per_million), MODELS list, context_limit, cache_read_multiplier
  ├── llm/               One submodule per provider
@@ -161,6 +161,9 @@ Both single-shot and REPL modes share the same loop:
  │  │ json_query          │ jq filter (subprocess)    │      │
  │  │ csv_query           │ csv crate + SQL-like eval │      │
  │  │ calculate           │ recursive-descent eval    │      │
+ │  │ list_processes      │ ps subprocess + parse     │      │
+ │  │ check_port          │ tokio TcpStream::connect  │      │
+ │  │ system_info         │ sysctl/vm_stat/df+/proc/* │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -197,6 +200,18 @@ Both single-shot and REPL modes share the same loop:
  │    descent parser (no eval, no shell). Supports operators,│
  │    parens, constants (pi/e/tau), one- and two-arg math    │
  │    functions; recursion depth is capped to stay safe      │
+ │  - list_processes invokes `ps` directly (no shell) with   │
+ │    LC_ALL=C for deterministic columns, parses rows in     │
+ │    process, filters on name/user/pid/%cpu/%mem/port (port │
+ │    resolved via `lsof`), and renders a Markdown table     │
+ │  - check_port resolves DNS on spawn_blocking then runs    │
+ │    TcpStream::connect inside tokio::time::timeout. Only   │
+ │    completes the TCP handshake; reports classified errors │
+ │    (refused, timed out, DNS failure, unreachable)         │
+ │  - system_info renders OS/CPU/memory/disk as Markdown:    │
+ │    macOS via sysctl + vm_stat + sw_vers + uname + df;     │
+ │    Linux via /proc/cpuinfo + /proc/meminfo +              │
+ │    /etc/os-release + df. Sections are filterable          │
  └───────────────────────────────────────────────────────────┘
 ```
 
