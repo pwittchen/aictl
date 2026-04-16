@@ -43,6 +43,10 @@ pub(super) fn print_tools() {
             "lint_file",
             "run a language-appropriate linter/formatter on a file",
         ),
+        (
+            "json_query",
+            "query/transform JSON with jq-like expressions",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

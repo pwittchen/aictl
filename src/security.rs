@@ -290,6 +290,28 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
         }
         "remove_file" => check_path_write(input.trim()).map(|_| ()),
         "lint_file" => check_path_read(input.trim()).map(|_| ()),
+        "json_query" => {
+            // Input shape: `<filter>\n<json or @path>`. Only the `@path`
+            // form touches the filesystem; inline JSON is passed to jq
+            // on stdin without hitting disk.
+            let input = input.trim_start_matches('\n');
+            match input.split_once('\n') {
+                Some((_, rest)) => {
+                    let rest = rest.trim();
+                    if let Some(path) = rest.strip_prefix('@') {
+                        let path = path.trim();
+                        if path.is_empty() {
+                            Ok(())
+                        } else {
+                            check_path_read(path).map(|_| ())
+                        }
+                    } else {
+                        Ok(())
+                    }
+                }
+                None => Ok(()),
+            }
+        }
         "create_directory" => check_path_write(input.trim()).map(|_| ()),
         "edit_file" => {
             let input = input.trim();

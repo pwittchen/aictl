@@ -24,6 +24,7 @@ mod filesystem;
 mod geo;
 mod git;
 mod image;
+mod json_query;
 mod lint;
 mod run_code;
 mod shell;
@@ -96,7 +97,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 20;
+pub const TOOL_COUNT: usize = 21;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -200,6 +201,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "git" => git::tool_git(input).await,
         "run_code" => run_code::tool_run_code(input).await,
         "lint_file" => lint::tool_lint_file(input).await,
+        "json_query" => json_query::tool_json_query(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

@@ -155,6 +155,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ git                 │ git subprocess (no shell) │      │
  │  │ run_code            │ interpreter via stdin     │      │
  │  │ lint_file           │ ext→linter (first on PATH)│      │
+ │  │ json_query          │ jq filter (subprocess)    │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -179,6 +180,10 @@ Both single-shot and REPL modes share the same loop:
  │    of candidate linters (rustfmt / ruff / eslint / ...)   │
  │    and runs the first one installed on PATH; no --fix     │
  │    flags are ever passed, so the file stays unchanged     │
+ │  - json_query runs the filter via `jq` as a positional    │
+ │    arg after `--` (no shell, no flag reinterpretation);   │
+ │    JSON is piped on stdin or loaded from @path through    │
+ │    the CWD jail. No -f / --slurpfile flags are passed     │
  └───────────────────────────────────────────────────────────┘
 ```
 

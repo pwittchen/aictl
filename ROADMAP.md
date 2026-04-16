@@ -8,7 +8,6 @@
 
 #### Data & Transformation
 
-- **json_query** — Query/transform JSON data with jq-like expressions. Saves the agent from writing ad-hoc scripts for common data wrangling.
 - **csv_query** — Read and filter CSV/TSV files with SQL-like expressions, return results as a table.
 - **calculate** — Evaluate mathematical expressions safely (no eval). Avoids the agent shelling out for arithmetic.
 
