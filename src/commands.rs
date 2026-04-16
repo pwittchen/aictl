@@ -1061,7 +1061,7 @@ fn build_menu_lines(
                 "zai" => "Z.ai:",
                 "ollama" => "Ollama:",
                 "gguf" => "Native GGUF:",
-                "mlx" => "MLX (Apple Silicon):",
+                "mlx" => "Native MLX (Apple Silicon):",
                 _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
