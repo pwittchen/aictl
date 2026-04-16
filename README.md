@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent in your terminal — 52 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
+AI agent in your terminal — 53 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -371,7 +371,7 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-haiku-*` (3.x) | $0.25 | $1.25 |
 | `claude-haiku-4-*` | $1.00 | $5.00 |
 | `claude-sonnet-*` | $3.00 | $15.00 |
-| `claude-opus-4-5-*` / `claude-opus-4-6-*` | $5.00 | $25.00 |
+| `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` | $5.00 | $25.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
 #### Google Gemini
