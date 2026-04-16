@@ -678,6 +678,10 @@ cargo test
 
 Unit tests cover core logic across six modules: `commands` (slash command parsing), `config` (config file parsing), `tools` (tool-call XML parsing), `ui` (formatting helpers), `llm` (cost estimation and model matching), and `security` (shell validation, path validation, output sanitization). The `session` module handles persistence of REPL conversations under `~/.aictl/sessions/`.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features and future direction, including new tools, UX improvements, desktop app plans, and coding agent capabilities.
+
 ## Architecture
 
 See [ARCH.md](ARCH.md) for detailed ASCII diagrams covering:
