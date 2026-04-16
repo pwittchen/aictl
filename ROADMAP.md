@@ -61,6 +61,7 @@
 
 ### Developer Experience
 
+- **Development version** - add a postfix, e.g. commit hash + DEV to the version or separate task/alias for this, so I know that I'm using DEV version
 - **Integration tests with a mock LLM** — End-to-end tests exercising the full agent loop with a mock provider.
 - **Unit tests for `agents.rs`, `session.rs`, `keys.rs`** — These critical modules currently have zero test coverage.
 - **Config schema / example file** — Ship a `.aictl/config.example` so users know what keys exist without reading documentation.
