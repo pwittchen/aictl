@@ -11,12 +11,25 @@ pub fn http_client() -> &'static reqwest::Client {
 
 // --- Agent loop limits ---
 
-pub const MAX_ITERATIONS: usize = 20;
+pub const DEFAULT_MAX_ITERATIONS: usize = 20;
 pub const MAX_MESSAGES: usize = 200;
 pub const MAX_TOOL_OUTPUT_LEN: usize = 10_000;
 pub const MAX_RESPONSE_TOKENS: u32 = 4096;
 pub const SHORT_TERM_MEMORY_WINDOW: usize = 20;
 pub const DEFAULT_AUTO_COMPACT_THRESHOLD: u8 = 80;
+
+/// Return the maximum number of LLM calls allowed in a single agent turn.
+///
+/// Read from `AICTL_MAX_ITERATIONS` in `~/.aictl/config`. Values that are
+/// missing, unparseable, or below `1` fall back to `DEFAULT_MAX_ITERATIONS`.
+/// Bounds the agent loop so a runaway tool-call cycle terminates instead of
+/// burning tokens forever.
+pub fn max_iterations() -> usize {
+    config_get("AICTL_MAX_ITERATIONS")
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v >= 1)
+        .unwrap_or(DEFAULT_MAX_ITERATIONS)
+}
 
 /// Default timeout (seconds) for a single LLM provider call.
 ///

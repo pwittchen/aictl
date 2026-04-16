@@ -1512,6 +1512,17 @@ pub fn print_info(
         format!("{timeout_secs}s (default)")
     };
     println!("  {} {timeout_display}", "timeout:  ".with(Color::Cyan));
+    let max_iter = crate::config::max_iterations();
+    let max_iter_source = crate::config::config_get("AICTL_MAX_ITERATIONS")
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v >= 1)
+        .is_some();
+    let max_iter_display = if max_iter_source {
+        format!("{max_iter} (AICTL_MAX_ITERATIONS)")
+    } else {
+        format!("{max_iter} (default)")
+    };
+    println!("  {} {max_iter_display}", "max iter: ".with(Color::Cyan));
     let prompt_file = crate::config::load_prompt_file();
     let prompt_file_name =
         crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());

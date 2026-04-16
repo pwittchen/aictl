@@ -27,8 +27,8 @@ use clap::{Parser, ValueEnum};
 
 use commands::MemoryMode;
 use config::{
-    MAX_ITERATIONS, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT,
-    auto_compact_threshold, config_get, config_set, load_config, load_prompt_file,
+    MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT, auto_compact_threshold,
+    config_get, config_set, load_config, load_prompt_file, max_iterations,
 };
 use llm::TokenUsage;
 use ui::{AgentUI, InteractiveUI, PlainUI};
@@ -405,7 +405,8 @@ async fn run_agent_turn(
     #[allow(unused_assignments)]
     let mut last_input_tokens = 0u64;
 
-    for llm_calls in 1..=MAX_ITERATIONS {
+    let max_iter = max_iterations();
+    for llm_calls in 1..=max_iter {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -569,7 +570,7 @@ async fn run_agent_turn(
             return Ok(TurnResult {
                 answer: response,
                 usage: total_usage,
-                #[allow(clippy::cast_possible_truncation)] // MAX_ITERATIONS is 20
+                #[allow(clippy::cast_possible_truncation)] // max_iter is small (default 20)
                 llm_calls: llm_calls as u32,
                 tool_calls,
                 elapsed: turn_start.elapsed(),
@@ -605,7 +606,7 @@ async fn run_agent_turn(
     }
 
     Err(format!(
-        "Agent loop reached maximum iterations ({MAX_ITERATIONS}) after {:.1}s",
+        "Agent loop reached maximum iterations ({max_iter}) after {:.1}s",
         turn_start.elapsed().as_secs_f64()
     )
     .into())
