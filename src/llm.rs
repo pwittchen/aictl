@@ -29,6 +29,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "LLM_ANTHROPIC_API_KEY",
     ),
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
@@ -223,7 +224,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
 
     // Anthropic — opus 4.5+ ($5/$25), older opus 4/4.1 ($15/$75)
-    if model.contains("opus-4-5") || model.contains("opus-4-6") {
+    if model.contains("opus-4-5") || model.contains("opus-4-6") || model.contains("opus-4-7") {
         return Some((5.00, 25.00));
     }
     if model.contains("opus-4") {
@@ -490,6 +491,13 @@ mod tests {
     #[test]
     fn price_claude_opus_4_6() {
         let (i, o) = price_per_million("claude-opus-4-6").unwrap();
+        assert_eq!(i, 5.00);
+        assert_eq!(o, 25.00);
+    }
+
+    #[test]
+    fn price_claude_opus_4_7() {
+        let (i, o) = price_per_million("claude-opus-4-7").unwrap();
         assert_eq!(i, 5.00);
         assert_eq!(o, 25.00);
     }
