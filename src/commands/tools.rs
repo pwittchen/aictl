@@ -31,6 +31,10 @@ pub(super) fn print_tools() {
             "read_document",
             "read a PDF, DOCX, or spreadsheet as markdown",
         ),
+        (
+            "git",
+            "run a restricted git subcommand (status, diff, log, blame, commit)",
+        ),
     ];
     let enabled = crate::tools::tools_enabled();
     let max_len = tools.iter().map(|(n, _)| n.len()).max().unwrap_or(0);

@@ -22,6 +22,7 @@ mod datetime;
 mod document;
 mod filesystem;
 mod geo;
+mod git;
 mod image;
 mod shell;
 mod util;
@@ -93,7 +94,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 17;
+pub const TOOL_COUNT: usize = 18;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -194,6 +195,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "fetch_geolocation" => geo::tool_fetch_geolocation(input).await,
         "generate_image" => image::tool_generate_image(input).await,
         "read_document" => document::tool_read_document(input).await,
+        "git" => git::tool_git(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

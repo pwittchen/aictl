@@ -152,6 +152,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ read_image          │ fs::read / HTTP GET+base64│      │
  │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
  │  │ read_document       │ pdf-extract/zip/calamine  │      │
+ │  │ git                 │ git subprocess (no shell) │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -166,6 +167,9 @@ Both single-shot and REPL modes share the same loop:
  │  - read_document dispatches by extension: .pdf via        │
  │    pdf-extract, .docx via zip + XML-to-markdown parser,   │
  │    .xlsx/.xls/.ods via calamine → markdown tables         │
+ │  - git invokes `git` directly (no shell) with a strict    │
+ │    per-subcommand flag allowlist and a scrubbed env that  │
+ │    drops GIT_DIR / GIT_SSH_COMMAND / GIT_CONFIG_* etc.    │
  └───────────────────────────────────────────────────────────┘
 ```
 
