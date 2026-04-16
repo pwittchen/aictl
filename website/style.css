@@ -498,6 +498,21 @@ code {
   border-top: 1px solid var(--border);
 }
 
+.section__note {
+  margin-top: 32px;
+  color: var(--fg-70);
+  font-size: 15px;
+}
+
+.section__note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.section__note a:hover {
+  opacity: 0.5;
+}
+
 .platforms {
   margin-top: 48px;
   padding-top: 48px;
