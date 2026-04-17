@@ -22,6 +22,7 @@ mod archive;
 mod calculate;
 mod check_port;
 mod checksum;
+mod clipboard;
 mod csv_query;
 mod datetime;
 mod diff;
@@ -105,7 +106,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 29;
+pub const TOOL_COUNT: usize = 30;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -218,6 +219,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "system_info" => system_info::tool_system_info(input).await,
         "archive" => archive::tool_archive(input).await,
         "checksum" => checksum::tool_checksum(input).await,
+        "clipboard" => clipboard::tool_clipboard(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

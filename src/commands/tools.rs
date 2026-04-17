@@ -78,6 +78,10 @@ const TOOLS: &[(&str, &str)] = &[
         "checksum",
         "compute SHA-256 and/or MD5 of a file (streaming)",
     ),
+    (
+        "clipboard",
+        "read from or write to the system clipboard (pbcopy/wl-copy/xclip)",
+    ),
 ];
 
 pub(super) fn print_tools() {

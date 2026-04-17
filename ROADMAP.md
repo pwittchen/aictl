@@ -8,7 +8,6 @@
 
 #### Productivity
 
-- **clipboard** — Read from or write to the system clipboard. The agent could stage results for the user without writing files.
 - **notify** — Send a desktop notification (useful for long-running tasks in `--auto` mode).
 
 ### UX & Interactivity
