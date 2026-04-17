@@ -7,7 +7,6 @@
 ### UX & Interactivity
 
 - **`/undo` command** — Remove the last user/assistant exchange and retry. Useful when a response goes off track.
-- **`/model` search** - Add model search capability
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
 - **AICTL.md entry file** - create fallback, so when there's no AICTL.md/configured file, then fallback to `CLAUDE.md` and then to `AGENTS.md`
 
