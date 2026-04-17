@@ -345,7 +345,57 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
             };
             check_dir(base_dir).map(|_| ())
         }
+        "archive" => check_archive(input),
         _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
+    }
+}
+
+/// Validate paths referenced by the `archive` tool. The first line declares
+/// the operation and its positional arguments; for `create` the remaining
+/// lines are input paths that must be readable. Unknown ops fall through to
+/// the tool for a clearer usage error.
+fn check_archive(input: &str) -> Result<(), String> {
+    let input = input.trim();
+    let (first_line, rest) = match input.split_once('\n') {
+        Some((a, b)) => (a.trim(), b),
+        None => (input, ""),
+    };
+    let mut parts = first_line.split_whitespace();
+    let op = parts.next().unwrap_or("");
+    match op {
+        "create" => {
+            let _fmt = parts.next();
+            let Some(output) = parts.next() else {
+                return Ok(());
+            };
+            check_path_write(output)?;
+            for line in rest.lines() {
+                let p = line.trim();
+                if p.is_empty() {
+                    continue;
+                }
+                check_path_read(p)?;
+            }
+            Ok(())
+        }
+        "extract" => {
+            let Some(archive) = parts.next() else {
+                return Ok(());
+            };
+            let Some(dest) = parts.next() else {
+                return Ok(());
+            };
+            check_path_read(archive)?;
+            check_path_write(dest)?;
+            Ok(())
+        }
+        "list" => {
+            let Some(archive) = parts.next() else {
+                return Ok(());
+            };
+            check_path_read(archive).map(|_| ())
+        }
+        _ => Ok(()),
     }
 }
 

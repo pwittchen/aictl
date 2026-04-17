@@ -8,7 +8,6 @@
 
 #### File & Content
 
-- **archive** — Create or extract tar.gz/zip archives. Common enough to warrant a dedicated tool over shell commands.
 - **checksum** — Compute SHA-256/MD5 of a file. Useful for verifying downloads or file integrity.
 
 #### Productivity
