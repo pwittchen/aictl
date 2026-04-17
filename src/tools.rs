@@ -22,6 +22,7 @@ mod calculate;
 mod check_port;
 mod csv_query;
 mod datetime;
+mod diff;
 mod document;
 mod filesystem;
 mod geo;
@@ -102,7 +103,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 26;
+pub const TOOL_COUNT: usize = 27;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -195,6 +196,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "list_directory" => filesystem::tool_list_directory(input).await,
         "search_files" => filesystem::tool_search_files(input).await,
         "edit_file" => filesystem::tool_edit_file(input).await,
+        "diff_files" => diff::tool_diff_files(input).await,
         "search_web" => web::tool_search_web(input).await,
         "find_files" => filesystem::tool_find_files(input),
         "fetch_url" => web::tool_fetch_url(input).await,

@@ -303,6 +303,21 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
                 Ok(())
             }
         }
+        "diff_files" => {
+            let input = input.trim();
+            let Some((a, rest)) = input.split_once('\n') else {
+                return Ok(()); // tool surfaces a clearer "Invalid input" error
+            };
+            let b = match rest.split_once('\n') {
+                Some((first, _)) => first.trim(),
+                None => rest.trim(),
+            };
+            check_path_read(a.trim())?;
+            if !b.is_empty() {
+                check_path_read(b)?;
+            }
+            Ok(())
+        }
         "list_directory" => {
             let path = input.trim();
             let path = if path.is_empty() { "." } else { path };

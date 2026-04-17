@@ -119,6 +119,7 @@ Available tools:
   ===
   replacement text
   >>>
+- diff_files: Compare two text files and return a unified diff with 3 lines of context. First line is the path to the "before" file, second line is the path to the "after" file. Output is standard unified-diff format (`--- <a>`, `+++ <b>`, `@@ -start,count +start,count @@`, ` unchanged` / `-removed` / `+added`). Returns `(files are identical)` when there are no differences. Refuses to diff files longer than 2000 lines each. Prefer this over `exec_shell` `diff` whenever you need to understand or preview what changed between two files — works the same on every platform without shelling out.
 - find_files: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
 - fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
 - extract_website: Fetch a URL and extract only the main readable content. Pass the URL as input. Strips scripts, styles, navigation, headers, footers, and other boilerplate. Use this instead of fetch_url when you need clean article or page text.
