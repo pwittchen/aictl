@@ -6,8 +6,8 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
- ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, info, keys, memory, menu, mlx, model, security, session, stats, tools, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
+ ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, stats, tools, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -316,7 +316,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -334,6 +334,9 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
    Mlx         → open MLX model menu (view downloaded / pull / remove / clear all);
                  downloads multi-file safetensors directories to ~/.aictl/models/mlx/<name>/
                  with a per-file progress bar; continue
+   Ping        → probe every cloud provider catalog endpoint (`GET /models` with the
+                 configured API key) plus the local Ollama daemon in parallel and
+                 print per-provider status + latency; GGUF/MLX skipped (local only); continue
    Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
                  clear all recorded usage statistics), continue
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /

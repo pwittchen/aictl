@@ -153,6 +153,7 @@ The interactive REPL supports slash commands:
 | `/stats` | Manage usage statistics — view today/month/overall (sessions, calls, tokens, estimated cost) or clear all |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
+| `/ping` | Validate every configured API key and probe provider connectivity (cloud providers + Ollama daemon) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
 | `/config` | Re-run the interactive configuration wizard |
