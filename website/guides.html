@@ -189,7 +189,7 @@
         <p class="section__note" style="margin-top: 16px;">
           Example <code>~/.aictl/config</code>:
         </p>
-        <div class="cmd" style="margin-top: 12px;">
+        <div class="cmd" style="margin-top: 12px; max-width: none;">
           <span class="cmd__prompt">~</span>
           <code id="g-cmd-example-config">AICTL_PROVIDER=anthropic  AICTL_MODEL=claude-sonnet-4-20250514  LLM_ANTHROPIC_API_KEY=sk-ant-...</code>
           <button class="cmd__copy" type="button" data-copy="#g-cmd-example-config" aria-label="Copy config example">Copy</button>
@@ -236,6 +236,7 @@
               <li>DeepSeek — <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com</a></li>
               <li>Kimi — <a href="https://platform.moonshot.ai/console/api-keys" target="_blank" rel="noopener">platform.moonshot.ai</a></li>
               <li>Z.ai — <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener">z.ai</a></li>
+              <li>Ollama — <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a> (no key needed)</li>
               <li>Firecrawl — <a href="https://firecrawl.dev/app/api-keys" target="_blank" rel="noopener">firecrawl.dev</a></li>
             </ul>
           </div>
@@ -347,7 +348,8 @@
 
         <p class="section__note">
           Per-model pricing lives in the project README under
-          <em>Providers</em>. Local providers always show $0.00.
+          <em>Providers</em>. For full pricing details, visit the
+          providers' websites. Local providers always show $0.00.
         </p>
       </div>
     </section>
@@ -491,6 +493,13 @@
             </ul>
           </div>
           <div class="tools">
+            <h3>Maintenance</h3>
+            <ul>
+              <li><code>--update</code> — update to latest version</li>
+              <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
+            </ul>
+          </div>
+          <div class="tools" style="grid-column: 1 / -1;">
             <h3>Local models</h3>
             <ul>
               <li><code>--pull-gguf-model &lt;spec&gt;</code></li>
@@ -499,14 +508,6 @@
               <li><code>--list-mlx-models</code> · <code>--remove-mlx-model &lt;name&gt;</code> · <code>--clear-mlx-models</code></li>
             </ul>
           </div>
-          <div class="tools">
-            <h3>Maintenance</h3>
-            <ul>
-              <li><code>--update</code> — update to latest version</li>
-              <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
-            </ul>
-          </div>
-          <div aria-hidden="true" style="background: var(--bg);"></div>
         </div>
 
         <p class="section__note">
@@ -565,7 +566,7 @@
         <div class="grid grid--3">
           <article class="card">
             <h3>Name &amp; resume</h3>
-            <p>Use <code>/session</code> &rarr; <em>Set name</em> to give a run a human-readable alias.<br>Resume later with <code>--session &lt;uuid|name&gt;</code>.</p>
+            <p>Use <code>/session</code> &rarr; <em>Set name</em> to give a run a human-readable alias. Resume later<br>with <code>--session &lt;uuid|name&gt;</code>.</p>
           </article>
           <article class="card">
             <h3>Browse &amp; clear</h3>
