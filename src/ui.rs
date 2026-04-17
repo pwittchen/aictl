@@ -65,6 +65,31 @@ fn first_input_line(input: &str) -> String {
     }
 }
 
+/// Write `text` to `out`, translating every bare `\n` into `\r\n`. Used by the
+/// streaming path because [`crate::with_esc_cancel`] holds the terminal in
+/// crossterm raw mode for the duration of the LLM call — in raw mode a lone
+/// line-feed moves the cursor down but does not reset it to column 0, so
+/// multi-line streamed output otherwise marches off to the right.
+fn write_with_crlf<W: Write>(out: &mut W, text: &str) {
+    // Fast path: no newlines to translate.
+    if !text.contains('\n') {
+        let _ = out.write_all(text.as_bytes());
+        return;
+    }
+    let bytes = text.as_bytes();
+    let mut last = 0usize;
+    for (idx, b) in bytes.iter().enumerate() {
+        if *b == b'\n' {
+            let _ = out.write_all(&bytes[last..idx]);
+            let _ = out.write_all(b"\r\n");
+            last = idx + 1;
+        }
+    }
+    if last < bytes.len() {
+        let _ = out.write_all(&bytes[last..]);
+    }
+}
+
 // ── AgentUI trait ────────────────────────────────────────────────────
 
 pub trait AgentUI {
@@ -76,6 +101,20 @@ pub trait AgentUI {
     fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval;
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
+    /// Begin a streamed response — called once just before the first
+    /// `stream_chunk` of a turn, after the spinner has been stopped.
+    /// Used by the interactive UI to draw the top frame; the plain UI
+    /// does nothing.
+    fn stream_begin(&self) {}
+    /// Forward an incremental delta of text from the LLM stream to the user.
+    /// Empty deltas should be tolerated (and ignored). The default impl is a
+    /// no-op so providers don't need to special-case UIs that don't render
+    /// progressively.
+    fn stream_chunk(&self, _text: &str) {}
+    /// End a streamed response — called once after the stream completes
+    /// (whether or not a tool call was detected). Draws the bottom frame
+    /// in the interactive UI; no-op in plain UI.
+    fn stream_end(&self) {}
     #[allow(clippy::too_many_arguments)]
     fn show_token_usage(
         &self,
@@ -102,6 +141,9 @@ pub trait AgentUI {
 
 pub struct PlainUI {
     pub quiet: bool,
+    /// True once a streamed response has been printed in this turn — tells
+    /// the agent loop to skip the trailing `show_answer` re-render.
+    pub streamed: Cell<bool>,
 }
 
 impl AgentUI for PlainUI {
@@ -139,11 +181,32 @@ impl AgentUI for PlainUI {
     }
 
     fn show_answer(&self, text: &str) {
+        if self.streamed.replace(false) {
+            // Streamed response already on screen. Just terminate the line so
+            // the next prompt isn't glued to the answer's last token.
+            println!();
+            return;
+        }
         println!("{text}");
     }
 
     fn show_error(&self, text: &str) {
         eprintln!("{text}");
+    }
+
+    fn stream_chunk(&self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.streamed.set(true);
+        // `with_esc_cancel` puts the terminal in raw mode for the duration of
+        // the LLM call, so bare `\n` is a line-feed with no carriage return.
+        // Translate embedded newlines to `\r\n` so the cursor snaps back to
+        // column 0 on each line — otherwise long responses cascade right
+        // across the terminal.
+        let mut out = std::io::stdout();
+        write_with_crlf(&mut out, text);
+        let _ = out.flush();
     }
 
     fn show_token_usage(
@@ -175,6 +238,29 @@ impl AgentUI for PlainUI {
 pub struct InteractiveUI {
     spinner: RefCell<ProgressBar>,
     first_spinner: Cell<bool>,
+    /// True once any text has been streamed in this turn — flips the trailing
+    /// `show_answer` into a no-op so the markdown-rendered answer doesn't
+    /// duplicate the raw streamed text.
+    streamed: Cell<bool>,
+    /// `true` when the streaming cursor is at column 0 — used by
+    /// `stream_chunk` to know whether to emit the `PAD` left margin before
+    /// the next text byte. Reset to `true` by `stream_begin` and after every
+    /// `\r\n` we emit mid-chunk.
+    at_line_start: Cell<bool>,
+    /// Visible character count on the current streamed line (excluding the
+    /// leading `PAD`). Used by the word-wrap logic in `stream_chunk` to
+    /// decide when to break to a new line so streamed output matches the
+    /// fixed width of tool output blocks.
+    stream_col: Cell<usize>,
+    /// Buffered run of non-whitespace characters that hasn't been emitted
+    /// yet — held until we see whitespace (or end of stream) so we can
+    /// word-wrap at a clean boundary instead of mid-token. Survives across
+    /// chunks so a word split mid-delta still wraps correctly.
+    stream_word: RefCell<String>,
+    /// Pending space characters that follow the last emitted word. Held
+    /// alongside `stream_word` so they can either ride along with the next
+    /// word on the same line or be dropped after a wrap.
+    stream_spaces: Cell<usize>,
 }
 
 impl InteractiveUI {
@@ -182,6 +268,11 @@ impl InteractiveUI {
         Self {
             spinner: RefCell::new(ProgressBar::hidden()),
             first_spinner: Cell::new(true),
+            streamed: Cell::new(false),
+            at_line_start: Cell::new(true),
+            stream_col: Cell::new(0),
+            stream_word: RefCell::new(String::new()),
+            stream_spaces: Cell::new(0),
         }
     }
 
@@ -424,17 +515,53 @@ impl InteractiveUI {
         eprintln!();
     }
 
-    fn bottom_rule() {
+    /// Horizontal rule drawn above status / summary lines. Dark-grey, left-
+    /// aligned with the PAD margin used by the rest of the turn body.
+    fn status_rule() {
         let dashes = "─".repeat(rule_width());
-        eprintln!(
-            "{PAD}{}{}",
-            "╰".with(Color::DarkGrey),
-            dashes.as_str().with(Color::DarkGrey),
-        );
+        eprintln!("{PAD}{}", dashes.as_str().with(Color::DarkGrey));
     }
 
-    fn pipe(text: &str, color: Color) {
-        eprintln!("{PAD}{} {}", PIPE.with(Color::DarkGrey), text.with(color));
+    fn pad_line(text: &str, color: Color) {
+        eprintln!("{PAD}{}", text.with(color));
+    }
+
+    /// Emit the buffered streamed word (with any pending inter-word spaces)
+    /// to `out`, wrapping to a fresh `PAD`-prefixed line if it wouldn't fit
+    /// inside `max_w` visible columns. Updates `stream_col`, `at_line_start`,
+    /// and clears `stream_word` / `stream_spaces`. No-op when the word
+    /// buffer is empty (trailing whitespace before a newline is discarded
+    /// by the caller's `\r\n` reset).
+    fn flush_stream_word<W: Write>(&self, out: &mut W, max_w: usize) {
+        let mut word = self.stream_word.borrow_mut();
+        if word.is_empty() {
+            return;
+        }
+        let word_len = word.chars().count();
+        let spaces = self.stream_spaces.replace(0);
+        let col = self.stream_col.get();
+        let needs_wrap = col > 0 && col + spaces + word_len > max_w;
+
+        if needs_wrap {
+            // Word doesn't fit on the current line — break to a new line and
+            // drop the pending inter-word spaces (standard word-wrap).
+            let _ = write!(out, "\r\n");
+            let _ = write!(out, "{PAD}");
+            let _ = out.write_all(word.as_bytes());
+            self.stream_col.set(word_len);
+            self.at_line_start.set(false);
+        } else {
+            if self.at_line_start.get() {
+                let _ = write!(out, "{PAD}");
+            }
+            for _ in 0..spaces {
+                let _ = out.write_all(b" ");
+            }
+            let _ = out.write_all(word.as_bytes());
+            self.stream_col.set(col + spaces + word_len);
+            self.at_line_start.set(false);
+        }
+        word.clear();
     }
 
     fn print_block(text: &str, color: Color) {
@@ -444,18 +571,18 @@ impl InteractiveUI {
 
         if total <= MAX_RESULT_LINES {
             for line in &lines {
-                Self::pipe(&truncate_line(line, max_w), color);
+                Self::pad_line(&truncate_line(line, max_w), color);
             }
         } else {
             let head = MAX_RESULT_LINES - 3;
             let tail = 2;
             for line in &lines[..head] {
-                Self::pipe(&truncate_line(line, max_w), color);
+                Self::pad_line(&truncate_line(line, max_w), color);
             }
             let hidden = total - head - tail;
-            Self::pipe(&format!("… {hidden} lines hidden …"), Color::DarkGrey);
+            Self::pad_line(&format!("… {hidden} lines hidden …"), Color::DarkGrey);
             for line in &lines[total - tail..] {
-                Self::pipe(&truncate_line(line, max_w), color);
+                Self::pad_line(&truncate_line(line, max_w), color);
             }
         }
     }
@@ -485,7 +612,7 @@ impl AgentUI for InteractiveUI {
     }
 
     fn show_reasoning(&self, text: &str) {
-        eprintln!("{PAD}{}", "│".with(Color::DarkGrey));
+        eprintln!();
         Self::print_block(text, Color::DarkGrey);
     }
 
@@ -494,10 +621,9 @@ impl AgentUI for InteractiveUI {
         let input = first_input_line(&tool_call.input);
         let budget = max_w.saturating_sub(tool_call.name.len() + 13);
         let input = truncate_line(&input, budget);
-        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
+        eprintln!();
         eprintln!(
-            "{PAD}{} {} {} {} {}",
-            PIPE.with(Color::DarkGrey),
+            "{PAD}{} {} {} {}",
             tool_call.name.as_str().with(Color::Cyan),
             "──".with(Color::DarkGrey),
             input.with(Color::DarkGrey),
@@ -506,13 +632,12 @@ impl AgentUI for InteractiveUI {
     }
 
     fn show_tool_result(&self, result: &str) {
-        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
+        eprintln!();
         if result.starts_with("Security policy denied:") || result.starts_with("Error:") {
             Self::print_block(result, Color::Red);
         } else {
             Self::print_block(result, Color::DarkGrey);
         }
-        Self::bottom_rule();
     }
 
     fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval {
@@ -527,10 +652,9 @@ impl AgentUI for InteractiveUI {
         let input = first_input_line(&tool_call.input);
         let budget = max_w.saturating_sub(tool_call.name.len() + 5);
         let input = truncate_line(&input, budget);
-        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
+        eprintln!();
         eprintln!(
-            "{PAD}{} {} {} {}",
-            PIPE.with(Color::DarkGrey),
+            "{PAD}{} {} {}",
             tool_call.name.as_str().with(Color::Cyan),
             "──".with(Color::DarkGrey),
             input.with(Color::DarkGrey),
@@ -625,18 +749,27 @@ impl AgentUI for InteractiveUI {
 
     fn show_answer(&self, text: &str) {
         self.first_spinner.set(true);
+        // When the answer was streamed, it's already on screen with the
+        // pipe framing — don't re-render. Trying to clear the streamed
+        // output and reprint with termimad markdown is unreliable across
+        // terminals (line-wrap counting, scrolled viewports). We trade
+        // the pretty markdown render for progressive output; documented
+        // in CLAUDE.md.
+        if self.streamed.replace(false) {
+            return;
+        }
+        // Buffered path (streaming off, or non-TTY). Render markdown but
+        // without the old `│` frame — show_token_usage draws the rule.
         let skin = termimad::MadSkin::default();
         let width = max_content_width().min(MAX_ANSWER_WIDTH);
         let rendered = format!(
             "{}",
             termimad::FmtText::from_text(&skin, text.into(), Some(width))
         );
-        eprintln!("{PAD}{}", PIPE.with(Color::DarkGrey));
-        for line in rendered.lines() {
-            eprintln!("{PAD}{} {line}", PIPE.with(Color::DarkGrey));
-        }
-        Self::bottom_rule();
         eprintln!();
+        for line in rendered.lines() {
+            eprintln!("{PAD}{line}");
+        }
     }
 
     fn show_error(&self, text: &str) {
@@ -644,6 +777,74 @@ impl AgentUI for InteractiveUI {
         eprintln!();
         eprintln!("{PAD}{}", text.with(Color::Red).attribute(Attribute::Bold));
         eprintln!();
+    }
+
+    fn stream_begin(&self) {
+        // Blank spacer line between the prompt and the streamed body — no
+        // frame glyphs. `with_esc_cancel` holds the terminal in raw mode for
+        // the whole LLM call, so we emit CR+LF explicitly (a bare `\n` only
+        // moves the cursor down, without resetting it to column 0).
+        self.first_spinner.set(true);
+        self.streamed.set(true);
+        self.at_line_start.set(true);
+        self.stream_col.set(0);
+        self.stream_word.borrow_mut().clear();
+        self.stream_spaces.set(0);
+        let mut out = std::io::stderr();
+        let _ = write!(out, "\r\n");
+        let _ = out.flush();
+    }
+
+    fn stream_chunk(&self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.streamed.set(true);
+        let mut out = std::io::stderr();
+        let max_w = max_content_width();
+        // Walk the chunk char by char: build up the current word, flush at
+        // whitespace/newlines. Wrapping happens inside `flush_stream_word`
+        // when col + spaces + word would exceed `max_w`, so streamed output
+        // aligns with the fixed tool-output width instead of relying on the
+        // terminal's soft-wrap.
+        for ch in text.chars() {
+            match ch {
+                '\n' => {
+                    self.flush_stream_word(&mut out, max_w);
+                    let _ = write!(out, "\r\n");
+                    self.at_line_start.set(true);
+                    self.stream_col.set(0);
+                    self.stream_spaces.set(0);
+                }
+                ' ' | '\t' => {
+                    self.flush_stream_word(&mut out, max_w);
+                    self.stream_spaces.set(self.stream_spaces.get() + 1);
+                }
+                _ => {
+                    self.stream_word.borrow_mut().push(ch);
+                }
+            }
+        }
+        let _ = out.flush();
+    }
+
+    fn stream_end(&self) {
+        // Flush any half-emitted word still pending from the last chunk,
+        // then make sure we leave the cursor at column 0 of a fresh line so
+        // the caller (show_token_usage, show_auto_tool, etc.) starts cleanly.
+        // Skip the trailing CR+LF when the last chunk already left us at
+        // column 0 — otherwise we'd inject an extra blank line above the
+        // tool call or status rule.
+        // The horizontal rule is drawn by show_token_usage, not here — that
+        // keeps the rule+status pair together for both streamed final
+        // answers and tool-call iterations where show_token_usage runs
+        // after the tool output.
+        let mut out = std::io::stderr();
+        self.flush_stream_word(&mut out, max_content_width());
+        if !self.at_line_start.get() {
+            let _ = write!(out, "\r\n");
+        }
+        let _ = out.flush();
     }
 
     fn show_token_usage(
@@ -679,11 +880,10 @@ impl AgentUI for InteractiveUI {
             tool_calls,
             elapsed.as_secs_f64(),
         );
-        eprintln!(
-            "{PAD}{} {}",
-            "╭".with(Color::DarkGrey),
-            text.with(Color::Green).attribute(Attribute::Dim),
-        );
+        // Rule-above-status so every iteration (streamed final answer or
+        // tool-call block) ends in the same visual shape.
+        Self::status_rule();
+        eprintln!("{PAD}{}", text.with(Color::Green).attribute(Attribute::Dim));
     }
 
     fn show_summary(
@@ -705,7 +905,11 @@ impl AgentUI for InteractiveUI {
             usage.output_tokens,
             elapsed.as_secs_f64(),
         );
-        eprintln!("{PAD}{}", text.with(Color::Green).attribute(Attribute::Dim));
+        // End-of-turn summary gets its own rule above and a distinct color
+        // (Cyan) so it reads differently from the per-call status lines
+        // (Green). Same dim attribute keeps it quiet in the terminal.
+        Self::status_rule();
+        eprintln!("{PAD}{}", text.with(Color::Cyan).attribute(Attribute::Dim));
         eprintln!();
     }
 }

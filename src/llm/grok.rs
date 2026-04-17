@@ -1,12 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 #[derive(Serialize)]
 struct GrokRequest {
     model: String,
     messages: Vec<GrokMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream_options: Option<GrokStreamOptions>,
+}
+
+#[derive(Serialize)]
+struct GrokStreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Serialize)]
@@ -76,6 +85,7 @@ pub async fn call_grok(
     api_key: &str,
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
 
@@ -108,9 +118,14 @@ pub async fn call_grok(
         })
         .collect();
 
+    let stream = on_token.is_some();
     let body = GrokRequest {
         model: model.to_string(),
         messages: grok_messages,
+        stream: stream.then_some(true),
+        stream_options: stream.then_some(GrokStreamOptions {
+            include_usage: true,
+        }),
     };
 
     let resp = client
@@ -121,12 +136,25 @@ pub async fn call_grok(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("Grok API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        let (content, usage) = crate::llm::stream::drive_openai_compatible_stream(
+            resp,
+            &sink,
+            crate::llm::openai::parse_openai_usage,
+        )
+        .await?;
+        if content.is_empty() {
+            return Err("No response from Grok".into());
+        }
+        return Ok((content, usage));
+    }
+
+    let text = resp.text().await?;
     let parsed: GrokResponse = serde_json::from_str(&text)?;
     let content = parsed
         .choices

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 // --- Request types ---
@@ -65,6 +65,7 @@ pub async fn call_gemini(
     api_key: &str,
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
 
@@ -114,9 +115,15 @@ pub async fn call_gemini(
         system_instruction,
     };
 
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-    );
+    let url = if on_token.is_some() {
+        format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse&key={api_key}"
+        )
+    } else {
+        format!(
+            "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        )
+    };
 
     let resp = client
         .post(&url)
@@ -126,28 +133,16 @@ pub async fn call_gemini(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
-        // Try to extract a concise error message from the JSON response
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-            let msg = json["error"]["message"]
-                .as_str()
-                .and_then(|m| m.lines().next())
-                .unwrap_or("unknown error");
-            let model_name = json["error"]["details"]
-                .as_array()
-                .and_then(|details| {
-                    details.iter().find_map(|d| {
-                        d["violations"].as_array()?.first()?["quotaDimensions"]["model"].as_str()
-                    })
-                })
-                .unwrap_or(model);
-            return Err(format!("Gemini API error ({status}): {msg} [model: {model_name}]").into());
-        }
-        return Err(format!("Gemini API error ({status}): {text}").into());
+        let text = resp.text().await.unwrap_or_default();
+        return surface_gemini_error(status, &text, model);
     }
 
+    if let Some(sink) = on_token {
+        return drive_gemini_stream(resp, &sink).await;
+    }
+
+    let text = resp.text().await?;
     let parsed: GeminiResponse = serde_json::from_str(&text)?;
     let content = parsed
         .candidates
@@ -171,4 +166,96 @@ pub async fn call_gemini(
         })
         .unwrap_or_default();
     Ok((content, usage))
+}
+
+/// Format a Gemini API error response. Tries to pull `error.message` and the
+/// quota-violation model out of the JSON body; falls back to raw text.
+fn surface_gemini_error(
+    status: reqwest::StatusCode,
+    text: &str,
+    model: &str,
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(text) {
+        let msg = json["error"]["message"]
+            .as_str()
+            .and_then(|m| m.lines().next())
+            .unwrap_or("unknown error");
+        let model_name = json["error"]["details"]
+            .as_array()
+            .and_then(|details| {
+                details.iter().find_map(|d| {
+                    d["violations"].as_array()?.first()?["quotaDimensions"]["model"].as_str()
+                })
+            })
+            .unwrap_or(model);
+        return Err(format!("Gemini API error ({status}): {msg} [model: {model_name}]").into());
+    }
+    Err(format!("Gemini API error ({status}): {text}").into())
+}
+
+/// Consume Gemini's `streamGenerateContent?alt=sse` stream. Each event carries
+/// a partial `candidates[0].content.parts[].text` plus a cumulative
+/// `usage_metadata` block — last one wins.
+async fn drive_gemini_stream(
+    response: reqwest::Response,
+    on_token: &TokenSink,
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    use futures_util::StreamExt;
+
+    let mut bytes = response.bytes_stream();
+    let mut sse = crate::llm::stream::SseLines::new();
+    let mut full = String::new();
+    let mut usage = TokenUsage::default();
+
+    while let Some(chunk) = bytes.next().await {
+        let chunk = chunk?;
+        for line in sse.push(&chunk) {
+            let Some(payload) = line.strip_prefix("data:") else {
+                continue;
+            };
+            let payload = payload.trim();
+            if payload.is_empty() {
+                continue;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) else {
+                continue;
+            };
+            if let Some(parts) = v["candidates"][0]["content"]["parts"].as_array() {
+                for p in parts {
+                    if let Some(t) = p.get("text").and_then(|t| t.as_str())
+                        && !t.is_empty()
+                    {
+                        full.push_str(t);
+                        on_token(t);
+                    }
+                }
+            }
+            if let Some(u) = v.get("usageMetadata") {
+                let prompt = u
+                    .get("promptTokenCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let cached = u
+                    .get("cachedContentTokenCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let candidates = u
+                    .get("candidatesTokenCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                // Cumulative — replace, do not sum.
+                usage = TokenUsage {
+                    input_tokens: prompt.saturating_sub(cached),
+                    output_tokens: candidates,
+                    cache_read_input_tokens: cached,
+                    ..TokenUsage::default()
+                };
+            }
+        }
+    }
+
+    if full.is_empty() {
+        return Err("No response from Gemini".into());
+    }
+    Ok((full, usage))
 }

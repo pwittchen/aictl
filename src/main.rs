@@ -9,7 +9,11 @@ mod stats;
 mod tools;
 mod ui;
 
+use std::cell::Cell;
+use std::io::IsTerminal;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::{Parser, ValueEnum};
@@ -19,8 +23,18 @@ use config::{
     MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT, auto_compact_threshold,
     config_get, config_set, load_config, load_prompt_file, max_iterations,
 };
-use llm::TokenUsage;
+use llm::{TokenSink, TokenUsage, stream::StreamState};
 use ui::{AgentUI, InteractiveUI, PlainUI};
+
+/// Cached "is stdout a TTY?" check. Computed once at startup to avoid repeated
+/// syscalls on every agent turn. Streaming auto-disables when stdout is being
+/// piped to a file/pager regardless of `AICTL_STREAMING`, since interleaved
+/// progressive output is rarely useful in that case.
+static STDOUT_IS_TTY: OnceLock<bool> = OnceLock::new();
+
+fn stdout_is_tty() -> bool {
+    *STDOUT_IS_TTY.get_or_init(|| std::io::stdout().is_terminal())
+}
 
 /// Result of a single agent turn.
 struct TurnResult {
@@ -297,6 +311,115 @@ fn build_system_prompt() -> String {
     prompt
 }
 
+// --- Streaming plumbing ---
+
+/// Build the [`TokenSink`] callback the agent loop hands to a provider when
+/// streaming is on, plus the [`tokio::sync::mpsc::UnboundedReceiver`] the
+/// caller drains in lock-step.
+///
+/// The returned sink:
+///   * Feeds every delta through [`StreamState::accept`], which holds back any
+///     pending tail that could grow into the `<tool name="…">` prefix.
+///   * For deltas the state machine has cleared as not-tool-markup, sends
+///     them on the channel so the agent loop can forward them to the UI.
+///   * Drops everything once the prefix has matched (stream is suspended).
+///
+/// The state is also handed back to the caller so it can grab `state.full`
+/// after the stream finishes — that's the single source of truth for
+/// `parse_tool_call`, even though every provider also returns the assembled
+/// string.
+fn build_stream_sink() -> (
+    TokenSink,
+    tokio::sync::mpsc::UnboundedReceiver<String>,
+    Arc<Mutex<StreamState>>,
+) {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let state = Arc::new(Mutex::new(StreamState::new()));
+    let state_for_sink = state.clone();
+    let sink: TokenSink = Arc::new(move |delta: &str| {
+        let Ok(mut s) = state_for_sink.lock() else {
+            return;
+        };
+        let result = s.accept(delta);
+        if !result.emit.is_empty() {
+            let _ = tx.send(result.emit);
+        }
+    });
+    (sink, rx, state)
+}
+
+/// Run an LLM call concurrently with a UI-drain loop: as the provider's
+/// streaming sink pushes deltas into `rx`, this function forwards them to
+/// `ui` (calling `stream_begin` once on the first chunk and `stream_end` once
+/// when the stream finishes — but only if anything was actually emitted).
+///
+/// On the first delta we also stop the spinner so the body doesn't print
+/// underneath an active spinner.
+async fn run_with_streaming<F, T>(
+    llm_future: F,
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    ui: &dyn AgentUI,
+) -> (T, bool)
+where
+    F: std::future::Future<Output = T>,
+{
+    tokio::pin!(llm_future);
+    let mut began = false;
+    let emit = |chunk: &str, began: &mut bool, ui: &dyn AgentUI| {
+        if !*began {
+            ui.stop_spinner();
+            ui.stream_begin();
+            *began = true;
+        }
+        ui.stream_chunk(chunk);
+    };
+
+    let result = loop {
+        tokio::select! {
+            // Bias toward the LLM future so on completion we drop to draining
+            // any remaining buffered chunks before returning. (tokio::select!
+            // is otherwise fair, which would leave unread chunks in `rx`.)
+            biased;
+            r = &mut llm_future => break r,
+            Some(chunk) = rx.recv() => {
+                emit(&chunk, &mut began, ui);
+            }
+        }
+    };
+    // Drain anything the sink pushed after the future resolved but before
+    // we got back here.
+    while let Ok(chunk) = rx.try_recv() {
+        emit(&chunk, &mut began, ui);
+    }
+    if began {
+        ui.stream_end();
+    }
+    (result, began)
+}
+
+/// Wraps an LLM provider future with the right combination of esc-cancel and
+/// (optionally) streaming-drain. Returns `(call_result, streamed)` where
+/// `streamed` is `true` if any text was actually pushed to the UI via
+/// `stream_chunk` during the call (so the caller can decide whether to skip
+/// the duplicate `show_answer` / `show_reasoning` re-renders downstream).
+async fn run_provider_call<F, T>(
+    llm_future: F,
+    rx: Option<&mut tokio::sync::mpsc::UnboundedReceiver<String>>,
+    ui: &dyn AgentUI,
+) -> (Result<T, Interrupted>, bool)
+where
+    F: std::future::Future<Output = T>,
+{
+    if let Some(rx) = rx {
+        match with_esc_cancel(run_with_streaming(llm_future, rx, ui)).await {
+            Ok((value, streamed)) => (Ok(value), streamed),
+            Err(e) => (Err(e), false),
+        }
+    } else {
+        (with_esc_cancel(llm_future).await, false)
+    }
+}
+
 // --- Agent loop ---
 
 enum ToolAction {
@@ -311,9 +434,13 @@ async fn handle_tool_call(
     auto: &mut bool,
     ui: &dyn AgentUI,
     messages: &mut Vec<Message>,
+    streamed: bool,
 ) -> Result<ToolAction, Interrupted> {
-    // Print the LLM's reasoning (text before the tool tag)
-    if let Some(idx) = response.find("<tool") {
+    // Print the LLM's reasoning (text before the tool tag).
+    // Skip when streaming was active for this LLM call: the same reasoning
+    // text was already forwarded to the UI by stream_chunk before the
+    // suspend buffer caught the `<tool name="` prefix.
+    if !streamed && let Some(idx) = response.find("<tool") {
         let reasoning = response[..idx].trim();
         if !reasoning.is_empty() {
             ui.show_reasoning(reasoning);
@@ -376,6 +503,7 @@ async fn run_agent_turn(
     auto: &mut bool,
     ui: &dyn AgentUI,
     memory: MemoryMode,
+    streaming: bool,
 ) -> Result<TurnResult, Box<dyn std::error::Error>> {
     if security::policy().enabled
         && security::policy().injection_guard
@@ -420,88 +548,155 @@ async fn run_agent_turn(
 
         let call_start = std::time::Instant::now();
         let llm_timeout = config::llm_timeout();
-        let result = match provider {
+
+        // Build a streaming sink + receiver for this iteration when streaming
+        // is enabled. Each iteration gets fresh state — the suspend buffer
+        // must reset every LLM call.
+        let mut stream_ctx: Option<(
+            tokio::sync::mpsc::UnboundedReceiver<String>,
+            Arc<Mutex<StreamState>>,
+        )> = None;
+        let sink: Option<TokenSink> = if streaming {
+            let (s, rx, state) = build_stream_sink();
+            stream_ctx = Some((rx, state));
+            Some(s)
+        } else {
+            None
+        };
+        let rx_opt = stream_ctx.as_mut().map(|(rx, _)| rx);
+
+        let (result, streamed) = match provider {
             Provider::Openai => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::openai::call_openai(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::openai::call_openai(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Anthropic => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::anthropic::call_anthropic(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::anthropic::call_anthropic(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Gemini => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::gemini::call_gemini(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::gemini::call_gemini(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Grok => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::grok::call_grok(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::grok::call_grok(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Mistral => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::mistral::call_mistral(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::mistral::call_mistral(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Deepseek => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::deepseek::call_deepseek(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::deepseek::call_deepseek(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Kimi => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::kimi::call_kimi(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::kimi::call_kimi(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Zai => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::zai::call_zai(api_key, model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::zai::call_zai(api_key, model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Ollama => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::ollama::call_ollama(model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::ollama::call_ollama(model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Gguf => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::gguf::call_gguf(model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::gguf::call_gguf(model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
             Provider::Mlx => {
-                with_esc_cancel(tokio::time::timeout(
-                    llm_timeout,
-                    llm::mlx::call_mlx(model, llm_messages),
-                ))
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::mlx::call_mlx(model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
                 .await
             }
         };
         let call_elapsed = call_start.elapsed();
 
-        ui.stop_spinner();
+        if !streamed {
+            ui.stop_spinner();
+        }
+        // Done with the streaming machinery for this iteration. The receiver
+        // and state aren't needed once the call returns — the provider
+        // already returned the full assembled string.
+        drop(stream_ctx);
 
         let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
         let result = result.map_err(|_| -> Box<dyn std::error::Error> {
@@ -532,17 +727,26 @@ async fn run_agent_turn(
         let tool_call = tools::parse_tool_call(&response);
         let malformed_tool_call =
             tool_call.is_none() && tools::looks_like_malformed_tool_call(&response);
-        ui.show_token_usage(
-            &usage,
-            model,
-            tool_call.is_none() && !malformed_tool_call,
-            tool_calls,
-            call_elapsed,
-            context_pct,
-            &memory.to_string(),
-        );
+        let is_final_answer = tool_call.is_none() && !malformed_tool_call;
+
+        // Helper closure so every exit path shows the same rule+status line.
+        // We intentionally defer this past tool execution in the tool-call
+        // branch so the status lands below the tool output, matching the
+        // "response → rule → status" shape of the final-answer branch.
+        let emit_status = |tool_calls: u32| {
+            ui.show_token_usage(
+                &usage,
+                model,
+                is_final_answer,
+                tool_calls,
+                call_elapsed,
+                context_pct,
+                &memory.to_string(),
+            );
+        };
 
         if malformed_tool_call {
+            emit_status(tool_calls);
             // The model tried to emit a tool call but produced invalid XML.
             // Ask it to retry instead of surfacing raw markup as a final answer.
             ui.show_reasoning(
@@ -558,6 +762,7 @@ async fn run_agent_turn(
 
         let Some(tool_call) = tool_call else {
             // No tool call — this is the final answer
+            emit_status(tool_calls);
             return Ok(TurnResult {
                 answer: response,
                 usage: total_usage,
@@ -574,7 +779,11 @@ async fn run_agent_turn(
         // the duplicate anyway, but continuing the loop just gives the
         // model another chance to emit the same call.
         if tools::is_duplicate_call(&tool_call) {
-            if let Some(idx) = response.find("<tool") {
+            emit_status(tool_calls);
+            // Only print the leading reasoning when streaming wasn't already
+            // showing it. With streaming on, the reasoning is on screen
+            // already (the suspend buffer flushed it before catching <tool).
+            if !streamed && let Some(idx) = response.find("<tool") {
                 let reasoning = response[..idx].trim();
                 if !reasoning.is_empty() {
                     ui.show_reasoning(reasoning);
@@ -587,13 +796,17 @@ async fn run_agent_turn(
             .into());
         }
 
-        match handle_tool_call(&tool_call, &response, auto, ui, messages).await {
+        match handle_tool_call(&tool_call, &response, auto, ui, messages, streamed).await {
             Ok(ToolAction::Executed) => {
                 tool_calls += 1;
             }
             Ok(ToolAction::Denied) => {}
             Err(e) => return Err(Box::new(e)),
         }
+        // Status line goes at the bottom of the iteration — below the tool
+        // output, above the next prompt. The counter includes the tool call
+        // we just ran so the display tracks progress intuitively.
+        emit_status(tool_calls);
     }
 
     Err(format!(
@@ -619,7 +832,14 @@ async fn run_agent_single(
     }];
 
     let mut auto = auto;
-    let ui = PlainUI { quiet };
+    let ui = PlainUI {
+        quiet,
+        streamed: Cell::new(false),
+    };
+    // Stream in single-shot non-quiet mode when stdout is a TTY and the user
+    // hasn't disabled streaming. Quiet mode pipes a single final answer; a
+    // non-TTY stdout (file/pager) gets nothing useful from raw deltas.
+    let streaming = !quiet && stdout_is_tty() && config::streaming_enabled();
     let turn = run_agent_turn(
         provider,
         api_key,
@@ -629,6 +849,7 @@ async fn run_agent_single(
         &mut auto,
         &ui,
         MemoryMode::LongTerm,
+        streaming,
     )
     .await?;
     stats::record(model, turn.llm_calls, turn.tool_calls, &turn.usage);
@@ -1063,7 +1284,13 @@ async fn run_and_display_turn(
     use crossterm::style::{Color, Stylize};
 
     let msg_len_before = messages.len();
-    match run_agent_turn(provider, api_key, model, messages, input, auto, ui, memory).await {
+    // Interactive REPL is always a TTY; honor user's AICTL_STREAMING preference.
+    let streaming = stdout_is_tty() && config::streaming_enabled();
+    match run_agent_turn(
+        provider, api_key, model, messages, input, auto, ui, memory, streaming,
+    )
+    .await
+    {
         Ok(turn) => {
             stats::record(model, turn.llm_calls, turn.tool_calls, &turn.usage);
             ui.show_answer(&turn.answer);

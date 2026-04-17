@@ -56,6 +56,7 @@ fn run_llama_inference(
     prompt: String,
     eos: Vec<u32>,
     tokenizer: tokenizers::Tokenizer,
+    on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, u64, u64), String> {
     use mlx_rs::Array;
     use mlx_rs::ops::indexing::{IndexOp, NewAxis};
@@ -99,6 +100,11 @@ fn run_llama_inference(
 
     let eos_set: HashSet<u32> = eos.into_iter().collect();
     let mut generated: Vec<u32> = Vec::with_capacity(4096);
+    // Cumulative-decoded prefix already forwarded to the on_token callback.
+    // BPE/SentencePiece tokenizers can't reliably decode a single token in
+    // isolation (multi-byte UTF-8 / leading-space pieces depend on prior
+    // context), so we decode the whole vec each step and emit the new suffix.
+    let mut emitted_prefix = String::new();
 
     const MAX_NEW: usize = 4096;
     for _ in 0..MAX_NEW {
@@ -109,12 +115,23 @@ fn run_llama_inference(
         }
         generated.push(id);
 
-        if let Ok(partial) = tokenizer.decode(&generated, true)
-            && (partial.contains("<|im_end|>")
+        if let Ok(partial) = tokenizer.decode(&generated, true) {
+            if partial.contains("<|im_end|>")
                 || partial.contains("<|eot_id|>")
-                || partial.contains("</s>"))
-        {
-            break;
+                || partial.contains("</s>")
+            {
+                break;
+            }
+            if let Some(ref sink) = on_token
+                && partial.len() > emitted_prefix.len()
+                && partial.starts_with(&emitted_prefix)
+            {
+                let delta = &partial[emitted_prefix.len()..];
+                if !delta.is_empty() {
+                    sink(delta);
+                    emitted_prefix = partial;
+                }
+            }
         }
 
         let tok_arr = next.index((.., NewAxis));
@@ -152,6 +169,7 @@ fn run_gemma2_inference(
     prompt: String,
     eos: Vec<u32>,
     tokenizer: tokenizers::Tokenizer,
+    on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, u64, u64), String> {
     use mlx_rs::Array;
     use mlx_rs::ops::indexing::{IndexOp, NewAxis};
@@ -195,6 +213,7 @@ fn run_gemma2_inference(
 
     let eos_set: HashSet<u32> = eos.into_iter().collect();
     let mut generated: Vec<u32> = Vec::with_capacity(4096);
+    let mut emitted_prefix = String::new();
 
     const MAX_NEW: usize = 4096;
     for _ in 0..MAX_NEW {
@@ -205,12 +224,23 @@ fn run_gemma2_inference(
         }
         generated.push(id);
 
-        if let Ok(partial) = tokenizer.decode(&generated, true)
-            && (partial.contains("<end_of_turn>")
+        if let Ok(partial) = tokenizer.decode(&generated, true) {
+            if partial.contains("<end_of_turn>")
                 || partial.contains("<|im_end|>")
-                || partial.contains("</s>"))
-        {
-            break;
+                || partial.contains("</s>")
+            {
+                break;
+            }
+            if let Some(ref sink) = on_token
+                && partial.len() > emitted_prefix.len()
+                && partial.starts_with(&emitted_prefix)
+            {
+                let delta = &partial[emitted_prefix.len()..];
+                if !delta.is_empty() {
+                    sink(delta);
+                    emitted_prefix = partial;
+                }
+            }
         }
 
         let tok_arr = next.index((.., NewAxis));
@@ -242,6 +272,7 @@ fn run_gemma2_inference(
 pub async fn call_mlx(
     model: &str,
     messages: &[Message],
+    on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     use crate::Role;
     use std::collections::HashSet;
@@ -356,6 +387,7 @@ pub async fn call_mlx(
     let prompt_for_spawn = prompt_text.clone();
     let eos_for_spawn: Vec<u32> = eos_ids.into_iter().collect();
 
+    let on_token_for_spawn = on_token.clone();
     let result = if is_gemma2 {
         // Parse the Gemma2-specific config (extra softcap / sliding-window
         // fields that the Llama config doesn't understand).
@@ -367,6 +399,7 @@ pub async fn call_mlx(
                 prompt_for_spawn,
                 eos_for_spawn,
                 tokenizer,
+                on_token_for_spawn,
             )
         })
         .await
@@ -387,6 +420,7 @@ pub async fn call_mlx(
                 prompt_for_spawn,
                 eos_for_spawn,
                 tokenizer,
+                on_token_for_spawn,
             )
         })
         .await
@@ -429,6 +463,7 @@ fn sample(logits: &mlx_rs::Array) -> Result<mlx_rs::Array, mlx_rs::error::Except
 pub async fn call_mlx(
     _model: &str,
     _messages: &[Message],
+    _on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     if !super::host_supports_mlx() {
         return Err("MLX inference is only available on macOS + Apple Silicon (aarch64).".into());

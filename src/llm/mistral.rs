@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 #[derive(Serialize)]
 struct MistralRequest {
     model: String,
     messages: Vec<MistralMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -68,6 +70,7 @@ pub async fn call_mistral(
     api_key: &str,
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
 
@@ -100,9 +103,11 @@ pub async fn call_mistral(
         })
         .collect();
 
+    let stream = on_token.is_some();
     let body = MistralRequest {
         model: model.to_string(),
         messages: mistral_messages,
+        stream: stream.then_some(true),
     };
 
     let resp = client
@@ -113,12 +118,34 @@ pub async fn call_mistral(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("Mistral API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        let (content, usage) =
+            crate::llm::stream::drive_openai_compatible_stream(resp, &sink, |v| {
+                let u = v.get("usage")?;
+                let prompt = u.get("prompt_tokens")?.as_u64()?;
+                let completion = u
+                    .get("completion_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                Some(TokenUsage {
+                    input_tokens: prompt,
+                    output_tokens: completion,
+                    ..TokenUsage::default()
+                })
+            })
+            .await?;
+        if content.is_empty() {
+            return Err("No response from Mistral".into());
+        }
+        return Ok((content, usage));
+    }
+
+    let text = resp.text().await?;
     let parsed: MistralResponse = serde_json::from_str(&text)?;
     let content = parsed
         .choices

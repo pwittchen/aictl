@@ -8,7 +8,24 @@ pub mod mistral;
 pub mod mlx;
 pub mod ollama;
 pub mod openai;
+pub mod stream;
 pub mod zai;
+
+use std::sync::Arc;
+
+/// Callback invoked once per delta chunk during streaming inference.
+///
+/// Receives **incremental** deltas (never cumulative text). Each provider's
+/// streaming code path calls this from inside its SSE/JSONL read loop or its
+/// `spawn_blocking` per-token decode loop. Implementations MUST be cheap and
+/// non-blocking — a slow callback stalls the read loop and causes TCP
+/// backpressure on remote providers, or stalls the inference thread on local
+/// ones.
+///
+/// `None` (passed by callers like `compact.rs` or the agent-prompt generator,
+/// or by the agent loop when streaming is disabled) means "no streaming —
+/// take the original buffered code path".
+pub type TokenSink = Arc<dyn Fn(&str) + Send + Sync + 'static>;
 
 /// Available models: (`provider_str`, `model_name`, `api_key_config_key`)
 pub const MODELS: &[(&str, &str, &str)] = &[

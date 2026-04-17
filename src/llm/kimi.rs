@@ -1,12 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 #[derive(Serialize)]
 struct KimiRequest {
     model: String,
     messages: Vec<KimiMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream_options: Option<KimiStreamOptions>,
+}
+
+#[derive(Serialize)]
+struct KimiStreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Serialize)]
@@ -74,10 +83,12 @@ struct KimiPromptTokensDetails {
     cached_tokens: u64,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn call_kimi(
     api_key: &str,
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
 
@@ -110,9 +121,14 @@ pub async fn call_kimi(
         })
         .collect();
 
+    let stream = on_token.is_some();
     let body = KimiRequest {
         model: model.to_string(),
         messages: kimi_messages,
+        stream: stream.then_some(true),
+        stream_options: stream.then_some(KimiStreamOptions {
+            include_usage: true,
+        }),
     };
 
     let resp = client
@@ -123,12 +139,45 @@ pub async fn call_kimi(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("Kimi API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        let (content, usage) =
+            crate::llm::stream::drive_openai_compatible_stream(resp, &sink, |v| {
+                let u = v.get("usage")?;
+                let prompt = u.get("prompt_tokens")?.as_u64()?;
+                let completion = u
+                    .get("completion_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let nested = u
+                    .get("prompt_tokens_details")
+                    .and_then(|d| d.get("cached_tokens"))
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let top = u
+                    .get("cached_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                let cached = nested.max(top);
+                Some(TokenUsage {
+                    input_tokens: prompt.saturating_sub(cached),
+                    output_tokens: completion,
+                    cache_read_input_tokens: cached,
+                    ..TokenUsage::default()
+                })
+            })
+            .await?;
+        if content.is_empty() {
+            return Err("No response from Kimi".into());
+        }
+        return Ok((content, usage));
+    }
+
+    let text = resp.text().await?;
     let parsed: KimiResponse = serde_json::from_str(&text)?;
     let content = parsed
         .choices

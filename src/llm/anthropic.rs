@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::MAX_RESPONSE_TOKENS;
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 // --- Request types ---
@@ -13,6 +13,8 @@ struct AnthropicRequest {
     messages: Vec<AnthropicMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     system: Option<Vec<ContentBlock>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -96,6 +98,7 @@ pub async fn call_anthropic(
     api_key: &str,
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
 
@@ -199,11 +202,13 @@ pub async fn call_anthropic(
         }]
     });
 
+    let stream = on_token.is_some();
     let body = AnthropicRequest {
         model: model.to_string(),
         max_tokens: MAX_RESPONSE_TOKENS,
         messages: api_messages,
         system,
+        stream: stream.then_some(true),
     };
 
     let resp = client
@@ -216,12 +221,16 @@ pub async fn call_anthropic(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("Anthropic API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        return drive_anthropic_stream(resp, &sink).await;
+    }
+
+    let text = resp.text().await?;
     let parsed: AnthropicResponse = serde_json::from_str(&text)?;
     let content = parsed
         .content
@@ -238,4 +247,104 @@ pub async fn call_anthropic(
         })
         .unwrap_or_default();
     Ok((content, usage))
+}
+
+/// Consume Anthropic's typed SSE stream. Forwards each `content_block_delta`
+/// text fragment to `on_token`, accumulates the full text, and assembles a
+/// final [`TokenUsage`].
+///
+/// Anthropic emits four event kinds we care about:
+///   - `message_start`: `usage.input_tokens` (fresh), `cache_creation_input_tokens`,
+///     `cache_read_input_tokens`. `output_tokens` here is just a small initial
+///     placeholder; the authoritative count arrives in `message_delta`.
+///   - `content_block_delta`: `delta.text` is the incremental text fragment.
+///   - `message_delta`: `usage.output_tokens` is **cumulative across the whole
+///     response**, not incremental — REPLACE on every event, never sum.
+///   - `message_stop`: terminator; we just stop reading.
+async fn drive_anthropic_stream(
+    response: reqwest::Response,
+    on_token: &TokenSink,
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    use futures_util::StreamExt;
+
+    let mut bytes = response.bytes_stream();
+    let mut sse = crate::llm::stream::SseLines::new();
+    let mut full = String::new();
+    let mut usage = TokenUsage::default();
+
+    while let Some(chunk) = bytes.next().await {
+        let chunk = chunk?;
+        for line in sse.push(&chunk) {
+            let Some(payload) = line.strip_prefix("data:") else {
+                continue;
+            };
+            let payload = payload.trim();
+            if payload.is_empty() {
+                continue;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) else {
+                continue;
+            };
+            let Some(event_type) = v.get("type").and_then(|t| t.as_str()) else {
+                continue;
+            };
+            match event_type {
+                "message_start" => {
+                    if let Some(u) = v.get("message").and_then(|m| m.get("usage")) {
+                        if let Some(t) = u.get("input_tokens").and_then(serde_json::Value::as_u64) {
+                            usage.input_tokens = t;
+                        }
+                        if let Some(t) = u
+                            .get("cache_creation_input_tokens")
+                            .and_then(serde_json::Value::as_u64)
+                        {
+                            usage.cache_creation_input_tokens = t;
+                        }
+                        if let Some(t) = u
+                            .get("cache_read_input_tokens")
+                            .and_then(serde_json::Value::as_u64)
+                        {
+                            usage.cache_read_input_tokens = t;
+                        }
+                    }
+                }
+                "content_block_delta" => {
+                    if let Some(text) = v
+                        .get("delta")
+                        .and_then(|d| d.get("text"))
+                        .and_then(|t| t.as_str())
+                        && !text.is_empty()
+                    {
+                        full.push_str(text);
+                        on_token(text);
+                    }
+                }
+                "message_delta" => {
+                    // output_tokens here is cumulative across the whole
+                    // response — replace, do not add.
+                    if let Some(t) = v
+                        .get("usage")
+                        .and_then(|u| u.get("output_tokens"))
+                        .and_then(serde_json::Value::as_u64)
+                    {
+                        usage.output_tokens = t;
+                    }
+                }
+                "error" => {
+                    let msg = v
+                        .get("error")
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("unknown stream error");
+                    return Err(format!("Anthropic stream error: {msg}").into());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if full.is_empty() {
+        return Err("No response from Anthropic".into());
+    }
+    Ok((full, usage))
 }

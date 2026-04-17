@@ -45,81 +45,84 @@ pub async fn compact(
     });
 
     let llm_timeout = crate::config::llm_timeout();
+    // Compaction never streams — it produces a one-shot summary the user
+    // doesn't see. Pass `None` to every provider so they take the buffered
+    // code path.
     let result = match provider {
         Provider::Openai => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::openai::call_openai(api_key, model, &summary_msgs),
+                crate::llm::openai::call_openai(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Anthropic => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::anthropic::call_anthropic(api_key, model, &summary_msgs),
+                crate::llm::anthropic::call_anthropic(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Gemini => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::gemini::call_gemini(api_key, model, &summary_msgs),
+                crate::llm::gemini::call_gemini(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Grok => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::grok::call_grok(api_key, model, &summary_msgs),
+                crate::llm::grok::call_grok(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Mistral => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::mistral::call_mistral(api_key, model, &summary_msgs),
+                crate::llm::mistral::call_mistral(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Deepseek => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::deepseek::call_deepseek(api_key, model, &summary_msgs),
+                crate::llm::deepseek::call_deepseek(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Kimi => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::kimi::call_kimi(api_key, model, &summary_msgs),
+                crate::llm::kimi::call_kimi(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Zai => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::zai::call_zai(api_key, model, &summary_msgs),
+                crate::llm::zai::call_zai(api_key, model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Ollama => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::ollama::call_ollama(model, &summary_msgs),
+                crate::llm::ollama::call_ollama(model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Gguf => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::gguf::call_gguf(model, &summary_msgs),
+                crate::llm::gguf::call_gguf(model, &summary_msgs, None),
             ))
             .await
         }
         Provider::Mlx => {
             crate::with_esc_cancel(tokio::time::timeout(
                 llm_timeout,
-                crate::llm::mlx::call_mlx(model, &summary_msgs),
+                crate::llm::mlx::call_mlx(model, &summary_msgs, None),
             ))
             .await
         }

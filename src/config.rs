@@ -49,6 +49,16 @@ pub fn auto_compact_threshold() -> u8 {
         .unwrap_or(DEFAULT_AUTO_COMPACT_THRESHOLD)
 }
 
+/// Return whether token-by-token streaming of LLM responses is enabled.
+///
+/// Read from `AICTL_STREAMING` in `~/.aictl/config`. Absent or any value other
+/// than `false`/`0` enables streaming (the default). The agent loop further
+/// forces it off in `--quiet` mode and when stdout is not a TTY (piping to a
+/// file or pager) — this helper only reflects the user's configured preference.
+pub fn streaming_enabled() -> bool {
+    config_get("AICTL_STREAMING").is_none_or(|v| v != "false" && v != "0")
+}
+
 /// Return the per-call LLM timeout as a `Duration`.
 ///
 /// Read from `AICTL_LLM_TIMEOUT` (in seconds) in `~/.aictl/config`. A value of

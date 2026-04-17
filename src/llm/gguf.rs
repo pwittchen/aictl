@@ -419,6 +419,7 @@ fn token_piece(
 pub async fn call_gguf(
     model: &str,
     messages: &[Message],
+    on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_batch::LlamaBatch;
@@ -447,6 +448,7 @@ pub async fn call_gguf(
     // llama.cpp context state is not Send/Sync — keep context creation and
     // decoding inside a blocking task. The cached model and backend reference
     // are both `Send + Sync`, so we can move them in safely.
+    let on_token = on_token.clone();
     let result = tokio::task::spawn_blocking(move || -> Result<(String, u64, u64), String> {
         let model = &*model_arc;
 
@@ -515,6 +517,9 @@ pub async fn call_gguf(
             if piece.contains("<|im_end|>") {
                 break;
             }
+            if let Some(ref sink) = on_token {
+                sink(&piece);
+            }
             out.push_str(&piece);
             output_tokens += 1;
 
@@ -547,6 +552,9 @@ pub async fn call_gguf(
                     .map_err(|e| e.to_string())?;
                 n_cur += 1;
                 ctx.decode(&mut batch).map_err(|e| e.to_string())?;
+            }
+            if let Some(ref sink) = on_token {
+                sink(forced_prefix);
             }
             out.push_str(forced_prefix);
 
@@ -608,6 +616,7 @@ pub async fn call_gguf(
 pub async fn call_gguf(
     _model: &str,
     _messages: &[Message],
+    _on_token: Option<crate::llm::TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     Err("native GGUF model inference is not compiled in. Rebuild with `cargo build --features gguf` (requires cmake and a C/C++ toolchain).".into())
 }

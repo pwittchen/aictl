@@ -1,12 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 #[derive(Serialize)]
 struct OpenAiRequest {
     model: String,
     messages: Vec<OpenAiMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream_options: Option<StreamOptions>,
+}
+
+#[derive(Serialize)]
+struct StreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Serialize)]
@@ -72,14 +81,8 @@ struct OpenAiPromptTokensDetails {
     cached_tokens: u64,
 }
 
-pub async fn call_openai(
-    api_key: &str,
-    model: &str,
-    messages: &[Message],
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
-    let client = crate::config::http_client();
-
-    let oai_messages: Vec<OpenAiMessage> = messages
+fn build_messages(messages: &[Message]) -> Vec<OpenAiMessage> {
+    messages
         .iter()
         .map(|m| {
             let role = match m.role {
@@ -106,11 +109,49 @@ pub async fn call_openai(
             };
             OpenAiMessage { role, content }
         })
-        .collect();
+        .collect()
+}
 
+/// Pull a `TokenUsage` out of any streamed event JSON that carries `OpenAI`'s
+/// `usage` object. Returns `None` for events without it (most of them).
+/// Shared with grok/mistral/zai which use the same shape.
+pub(crate) fn parse_openai_usage(v: &serde_json::Value) -> Option<TokenUsage> {
+    let u = v.get("usage")?;
+    let prompt = u.get("prompt_tokens")?.as_u64()?;
+    let completion = u
+        .get("completion_tokens")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let cached = u
+        .get("prompt_tokens_details")
+        .and_then(|d| d.get("cached_tokens"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    Some(TokenUsage {
+        input_tokens: prompt.saturating_sub(cached),
+        output_tokens: completion,
+        cache_read_input_tokens: cached,
+        ..TokenUsage::default()
+    })
+}
+
+pub async fn call_openai(
+    api_key: &str,
+    model: &str,
+    messages: &[Message],
+    on_token: Option<TokenSink>,
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    let client = crate::config::http_client();
+    let oai_messages = build_messages(messages);
+
+    let stream = on_token.is_some();
     let body = OpenAiRequest {
         model: model.to_string(),
         messages: oai_messages,
+        stream: stream.then_some(true),
+        stream_options: stream.then_some(StreamOptions {
+            include_usage: true,
+        }),
     };
 
     let resp = client
@@ -121,12 +162,22 @@ pub async fn call_openai(
         .await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("OpenAI API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        let (content, usage) =
+            crate::llm::stream::drive_openai_compatible_stream(resp, &sink, parse_openai_usage)
+                .await?;
+        if content.is_empty() {
+            return Err("No response from OpenAI".into());
+        }
+        return Ok((content, usage));
+    }
+
+    let text = resp.text().await?;
     let parsed: OpenAiResponse = serde_json::from_str(&text)?;
     let content = parsed
         .choices

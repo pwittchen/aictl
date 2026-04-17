@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::llm::TokenUsage;
+use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
 const DEFAULT_BASE_URL: &str = "http://localhost:11434";
@@ -81,6 +81,7 @@ pub async fn list_models() -> Vec<String> {
 pub async fn call_ollama(
     model: &str,
     messages: &[Message],
+    on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
     let client = crate::config::http_client();
     let url = format!("{}/api/chat", base_url());
@@ -98,21 +99,26 @@ pub async fn call_ollama(
         })
         .collect();
 
+    let stream = on_token.is_some();
     let body = OllamaRequest {
         model: model.to_string(),
         messages: ollama_messages,
-        stream: false,
+        stream,
     };
 
     let resp = client.post(&url).json(&body).send().await?;
 
     let status = resp.status();
-    let text = resp.text().await?;
-
     if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
         return Err(format!("Ollama API error ({status}): {text}").into());
     }
 
+    if let Some(sink) = on_token {
+        return drive_ollama_stream(resp, &sink).await;
+    }
+
+    let text = resp.text().await?;
     let parsed: OllamaResponse = serde_json::from_str(&text)?;
     let content = parsed
         .message
@@ -124,4 +130,67 @@ pub async fn call_ollama(
         ..TokenUsage::default()
     };
     Ok((content, usage))
+}
+
+/// Consume Ollama's JSONL streaming response. Each line is a complete
+/// `OllamaResponse`-shaped JSON object. The final line carries `done: true`
+/// and the cumulative `prompt_eval_count` / `eval_count`.
+async fn drive_ollama_stream(
+    response: reqwest::Response,
+    on_token: &TokenSink,
+) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+    use futures_util::StreamExt;
+
+    let mut bytes = response.bytes_stream();
+    let mut sse = crate::llm::stream::SseLines::new();
+    let mut full = String::new();
+    let mut usage = TokenUsage::default();
+
+    while let Some(chunk) = bytes.next().await {
+        let chunk = chunk?;
+        for line in sse.push(&chunk) {
+            if line.is_empty() {
+                continue;
+            }
+            let Ok(parsed) = serde_json::from_str::<OllamaResponse>(&line) else {
+                continue;
+            };
+            if let Some(msg) = parsed.message
+                && !msg.content.is_empty()
+            {
+                full.push_str(&msg.content);
+                on_token(&msg.content);
+            }
+            if parsed.prompt_eval_count.is_some() || parsed.eval_count.is_some() {
+                usage = TokenUsage {
+                    input_tokens: parsed.prompt_eval_count.unwrap_or(usage.input_tokens),
+                    output_tokens: parsed.eval_count.unwrap_or(usage.output_tokens),
+                    ..TokenUsage::default()
+                };
+            }
+        }
+    }
+    // Drain any unterminated trailing line.
+    if let Some(line) = sse.take_remaining()
+        && let Ok(parsed) = serde_json::from_str::<OllamaResponse>(&line)
+    {
+        if let Some(msg) = parsed.message
+            && !msg.content.is_empty()
+        {
+            full.push_str(&msg.content);
+            on_token(&msg.content);
+        }
+        if parsed.prompt_eval_count.is_some() || parsed.eval_count.is_some() {
+            usage = TokenUsage {
+                input_tokens: parsed.prompt_eval_count.unwrap_or(usage.input_tokens),
+                output_tokens: parsed.eval_count.unwrap_or(usage.output_tokens),
+                ..TokenUsage::default()
+            };
+        }
+    }
+
+    if full.is_empty() {
+        return Err("No response from Ollama".into());
+    }
+    Ok((full, usage))
 }
