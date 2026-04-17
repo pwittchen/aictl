@@ -8,6 +8,7 @@ pub(super) fn print_help() {
         ("/context", "show context usage"),
         ("/copy", "copy last response to clipboard"),
         ("/help", "show this help message"),
+        ("/history", "view conversation (filter by role or keyword)"),
         ("/info", "show setup info"),
         ("/gguf", "manage native local GGUF models [experimental]"),
         (

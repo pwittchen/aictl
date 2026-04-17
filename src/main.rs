@@ -802,6 +802,11 @@ async fn handle_repl_input(
             commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
             return ReplAction::Continue;
         }
+        commands::CommandResult::History(args) => {
+            let _ = rl.add_history_entry(input);
+            commands::print_history(messages, &args);
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Info => {
             let _ = rl.add_history_entry(input);
             let pname = format!("{provider:?}").to_lowercase();

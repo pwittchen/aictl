@@ -19,6 +19,7 @@ mod compact;
 mod config_wizard;
 mod gguf;
 mod help;
+mod history;
 mod info;
 mod keys;
 mod memory;
@@ -37,6 +38,7 @@ pub use behavior::select_behavior;
 pub use compact::{compact, print_context};
 pub use config_wizard::run_config_wizard;
 pub use gguf::run_gguf_menu;
+pub use history::print_history;
 pub use info::print_info;
 pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unlock_keys};
 pub use memory::{MemoryMode, select_memory};
@@ -60,6 +62,7 @@ pub const COMMANDS: &[&str] = &[
     "copy",
     "exit",
     "help",
+    "history",
     "info",
     "keys",
     "gguf",
@@ -85,6 +88,9 @@ pub enum CommandResult {
     Compact,
     /// Show context usage info.
     Context,
+    /// View / search the in-memory conversation. Carries the raw arg string
+    /// after `/history` (e.g. `"user rust"`) for the consumer to parse.
+    History(String),
     /// Show setup info (provider, model, version, etc.).
     Info,
     /// Show security policy status.
@@ -123,15 +129,19 @@ pub enum CommandResult {
 
 /// Handle slash command input. Returns how the REPL should proceed.
 pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> CommandResult {
-    let Some(cmd) = input.strip_prefix('/') else {
+    let Some(rest) = input.strip_prefix('/') else {
         return CommandResult::NotACommand;
     };
+    let (cmd, args) = rest
+        .split_once(char::is_whitespace)
+        .map_or((rest, ""), |(c, a)| (c, a.trim()));
 
     match cmd {
         "exit" => CommandResult::Exit,
         "clear" => CommandResult::Clear,
         "compact" => CommandResult::Compact,
         "context" => CommandResult::Context,
+        "history" => CommandResult::History(args.to_string()),
         "info" => CommandResult::Info,
         "agent" => CommandResult::Agent,
         "security" => CommandResult::Security,
@@ -242,6 +252,23 @@ mod tests {
             handle("/memory", "", &noop_error),
             CommandResult::Memory
         ));
+    }
+
+    #[test]
+    fn cmd_history_no_args() {
+        assert!(matches!(
+            handle("/history", "", &noop_error),
+            CommandResult::History(ref a) if a.is_empty()
+        ));
+    }
+
+    #[test]
+    fn cmd_history_with_args() {
+        let res = handle("/history user rust", "", &noop_error);
+        match res {
+            CommandResult::History(args) => assert_eq!(args, "user rust"),
+            _ => panic!("expected History variant"),
+        }
     }
 
     #[test]

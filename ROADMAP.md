@@ -6,7 +6,6 @@
 
 ### UX & Interactivity
 
-- **`/history` command** — View and search the current conversation without scrolling. Support filtering by role or keyword.
 - **`/undo` command** — Remove the last user/assistant exchange and retry. Useful when a response goes off track.
 - **`/model` search** - Add model search capability
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
