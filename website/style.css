@@ -118,6 +118,7 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   padding: 12px 24px;
   font-family: var(--font-mono);
   font-size: 14px;
@@ -130,6 +131,12 @@ code {
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
   line-height: 1;
   min-height: 44px;
+}
+
+.btn__icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .btn--primary {
