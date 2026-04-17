@@ -38,7 +38,7 @@
 - **Integration tests with a mock LLM** — End-to-end tests exercising the full agent loop with a mock provider.
 - **Unit tests for `agents.rs`, `session.rs`, `keys.rs`** — These critical modules currently have zero test coverage.
 - **Config schema / example file** — Ship a `.aictl/config.example` so users know what keys exist without reading documentation.
-- **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo.
+- **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
 
 ### Security & Reliability
 
