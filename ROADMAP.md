@@ -21,21 +21,16 @@
 
 - **`/history` command** — View and search the current conversation without scrolling. Support filtering by role or keyword.
 - **`/undo` command** — Remove the last user/assistant exchange and retry. Useful when a response goes off track.
-- **Resumable model downloads** — Use HTTP range requests so interrupted GGUF/MLX pulls resume instead of restarting from zero.
-- **`/model` update UI** - Right now there's a lot of models - consider making UI horizontal when terminal window is wider
 - **`/model` search** - Add model search capability
-- **Auto-compaction confirmation** — Currently silent at 80% threshold. A brief notice or opt-in preview would reduce surprise.
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
 - **AICTL.md entry file** - create fallback, so when there's no AICTL.md/configured file, then fallback to `CLAUDE.md` and then to `AGENTS.md`
 
 ### Provider & Model
 
 - **Provider health check** — A `/ping` or `/provider status` command that validates API keys and tests connectivity for all configured providers.
-- **Automatic model fallback** — If the primary model returns a rate-limit or outage error, optionally fall back to a configured secondary.
 
 ### Agent & Workflow
 
-- **Agent chaining / pipelines** — Run multiple agents in sequence where each agent's output feeds the next (e.g., research agent → summarize agent → write agent).
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize.
 
 ### Developer Experience
@@ -44,19 +39,11 @@
 - **Unit tests for `agents.rs`, `session.rs`, `keys.rs`** — These critical modules currently have zero test coverage.
 - **Config schema / example file** — Ship a `.aictl/config.example` so users know what keys exist without reading documentation.
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo.
-- **Per-tool output size limits** — Replace the global 10K char truncation with per-tool configuration.
 
 ### Security & Reliability
 
 - **Symlink-aware path validation** — Add regression tests for path traversal via symlinks to harden the CWD jail.
-- **Per-tool execution timeouts** — Different tools have different expected runtimes; allow per-tool timeout configuration instead of a single global 30s timeout.
 - **Audit log** — Optionally log all tool executions (command, args, result summary) to a file for post-hoc review, separate from session history.
-
-### Platform & Distribution
-
-- **Homebrew formula** — `brew install aictl` to lower the installation barrier on macOS.
-- **Shell completions** — Generate bash/zsh/fish completions from the clap definitions and ship them.
-- **Man page** — Auto-generate from clap's help text for `man aictl`.
 
 ---
 
