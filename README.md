@@ -140,6 +140,7 @@ The interactive REPL supports slash commands:
 | `/agent` | Manage agents (create manually, create with AI, view/load/delete, unload) |
 | `/clear` | Clear conversation context |
 | `/compact` | Summarize conversation into a compact context |
+| `/retry` | Remove the last user/assistant exchange and retry with the same prompt (useful when a response goes off track) |
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |

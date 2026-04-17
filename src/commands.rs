@@ -26,6 +26,7 @@ mod memory;
 mod menu;
 mod mlx;
 mod model;
+mod retry;
 mod security;
 mod session;
 mod stats;
@@ -44,6 +45,7 @@ pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unl
 pub use memory::{MemoryMode, select_memory};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
+pub use retry::retry_last_exchange;
 pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
 pub use stats::run_stats_menu;
@@ -69,6 +71,7 @@ pub const COMMANDS: &[&str] = &[
     "memory",
     "mlx",
     "model",
+    "retry",
     "security",
     "session",
     "stats",
@@ -121,6 +124,8 @@ pub enum CommandResult {
     Config,
     /// Open the usage statistics menu (view/clear).
     Stats,
+    /// Remove the last user/assistant exchange and retry it.
+    Retry,
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -154,6 +159,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "session" => CommandResult::Session,
         "gguf" => CommandResult::Gguf,
         "mlx" => CommandResult::Mlx,
+        "retry" => CommandResult::Retry,
         "copy" => {
             clipboard::copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -251,6 +257,14 @@ mod tests {
         assert!(matches!(
             handle("/memory", "", &noop_error),
             CommandResult::Memory
+        ));
+    }
+
+    #[test]
+    fn cmd_retry() {
+        assert!(matches!(
+            handle("/retry", "", &noop_error),
+            CommandResult::Retry
         ));
     }
 

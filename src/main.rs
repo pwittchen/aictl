@@ -702,6 +702,9 @@ enum ReplAction {
     Continue,
     Break,
     RunAgentTurn,
+    /// Run an agent turn with this message instead of the typed input
+    /// (used by `/retry` to re-submit the previous user prompt).
+    RunAgentTurnWith(String),
 }
 
 /// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
@@ -832,6 +835,32 @@ async fn handle_repl_input(
             let _ = rl.add_history_entry(input);
             commands::run_stats_menu(&|msg| ui.show_error(msg));
             return ReplAction::Continue;
+        }
+        commands::CommandResult::Retry => {
+            let _ = rl.add_history_entry(input);
+            let Some(prompt) = commands::retry_last_exchange(messages) else {
+                ui.show_error("nothing to retry");
+                return ReplAction::Continue;
+            };
+            tools::clear_call_history();
+            last_answer.clear();
+            *last_input_tokens = 0;
+            let preview: String = prompt.chars().take(80).collect();
+            let ellipsis = if prompt.chars().count() > 80 {
+                "…"
+            } else {
+                ""
+            };
+            println!();
+            println!(
+                "  {} retry — resending: {}{}",
+                "↩".with(Color::Yellow),
+                preview.replace('\n', " ").with(Color::DarkGrey),
+                ellipsis.with(Color::DarkGrey),
+            );
+            println!();
+            session::save_current(messages);
+            return ReplAction::RunAgentTurnWith(prompt);
         }
         commands::CommandResult::Config => {
             let _ = rl.add_history_entry(input);
@@ -1193,7 +1222,7 @@ async fn run_interactive(
             Ok(input) => {
                 let input = input.trim().to_string();
 
-                match handle_repl_input(
+                let retry_input = match handle_repl_input(
                     &input,
                     &mut last_answer,
                     &ui,
@@ -1211,15 +1240,17 @@ async fn run_interactive(
                 {
                     ReplAction::Continue => continue,
                     ReplAction::Break => break,
-                    ReplAction::RunAgentTurn => {}
-                }
+                    ReplAction::RunAgentTurn => None,
+                    ReplAction::RunAgentTurnWith(s) => Some(s),
+                };
 
+                let turn_input = retry_input.as_deref().unwrap_or(input.as_str());
                 run_and_display_turn(
                     &provider,
                     &api_key,
                     &model,
                     &mut messages,
-                    &input,
+                    turn_input,
                     &mut auto,
                     &ui,
                     &mut last_answer,

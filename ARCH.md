@@ -6,7 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /info, /keys, /memory, /mlx, /model, /security, /session, /stats, /tools, /uninstall, /update, /version)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
  ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, info, keys, memory, menu, mlx, model, security, session, stats, tools, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
@@ -316,7 +316,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /info (Info), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /update (Update), /uninstall (Uninstall), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version)
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -347,6 +347,10 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
    Model       → select new model/provider, persist to ~/.aictl/config, continue
    Behavior    → switch auto/human-in-the-loop behavior, continue
    Memory      → switch memory mode (long-term/short-term), persist to ~/.aictl/config, continue
+   Retry       → remove the last user/assistant exchange (skipping tool-result /
+                 Tool-call-denied messages when locating the boundary), clear tool
+                 call history and last_answer, save session, re-submit the removed
+                 prompt via ReplAction::RunAgentTurnWith so the agent tries again
    Continue    → command handled, continue
    NotACommand → pass input to agent loop (session saved after turn)
 ```
