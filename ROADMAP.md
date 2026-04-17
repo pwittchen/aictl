@@ -6,10 +6,6 @@
 
 ### New tools
 
-#### File & Content
-
-- **checksum** — Compute SHA-256/MD5 of a file. Useful for verifying downloads or file integrity.
-
 #### Productivity
 
 - **clipboard** — Read from or write to the system clipboard. The agent could stage results for the user without writing files.

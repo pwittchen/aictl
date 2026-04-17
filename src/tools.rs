@@ -21,6 +21,7 @@ use crate::ImageData;
 mod archive;
 mod calculate;
 mod check_port;
+mod checksum;
 mod csv_query;
 mod datetime;
 mod diff;
@@ -104,7 +105,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 28;
+pub const TOOL_COUNT: usize = 29;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -216,6 +217,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "check_port" => check_port::tool_check_port(input).await,
         "system_info" => system_info::tool_system_info(input).await,
         "archive" => archive::tool_archive(input).await,
+        "checksum" => checksum::tool_checksum(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

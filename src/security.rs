@@ -346,6 +346,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
             check_dir(base_dir).map(|_| ())
         }
         "archive" => check_archive(input),
+        "checksum" => check_checksum(input),
         _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
     }
 }
@@ -397,6 +398,33 @@ fn check_archive(input: &str) -> Result<(), String> {
         }
         _ => Ok(()),
     }
+}
+
+/// Validate the path referenced by the `checksum` tool. The first line is
+/// either a bare path or `<algo> <path>`; we strip a recognized algorithm
+/// prefix and CWD-validate whatever remains as a read.
+fn check_checksum(input: &str) -> Result<(), String> {
+    let first_line = input.trim().lines().next().unwrap_or("").trim();
+    if first_line.is_empty() {
+        return Ok(()); // tool surfaces a clearer "Invalid input" error
+    }
+    let path = if let Some((head, tail)) = first_line.split_once(char::is_whitespace) {
+        let head_lower = head.to_ascii_lowercase();
+        if matches!(
+            head_lower.as_str(),
+            "sha256" | "sha-256" | "md5" | "both" | "all"
+        ) {
+            tail.trim()
+        } else {
+            first_line
+        }
+    } else {
+        first_line
+    };
+    if path.is_empty() {
+        return Ok(());
+    }
+    check_path_read(path).map(|_| ())
 }
 
 /// For tools whose input is `<header line>\n<inline data or @path>`,
