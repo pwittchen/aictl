@@ -109,6 +109,7 @@ async fn run_jq(filter: &str, json: &[u8]) -> String {
 
     if let Some(mut stdin) = child.stdin.take()
         && let Err(e) = stdin.write_all(json).await
+        && e.kind() != std::io::ErrorKind::BrokenPipe
     {
         return format!("Error piping JSON to jq: {e}");
     }
