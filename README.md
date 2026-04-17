@@ -751,6 +751,3 @@ Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
 
 This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free to use for non-commercial purposes, including personal use, research, education, and use by non-profit organizations. For commercial use, please contact [piotr@wittchen.io](mailto:piotr@wittchen.io).
 
-## A note on how this was built
-
-This project was built with AI assistance (Claude Code). The architecture, feature set, security model, provider coverage, and overall direction were designed and guided by me; the code itself was largely written by the model under that direction. I'm sharing it openly because I think the result is useful, and being transparent about how it was made matters more than pretending otherwise.
