@@ -282,8 +282,10 @@ pub struct Message {
 /// Build the full system prompt, appending the project prompt file and loaded agent if present.
 fn build_system_prompt() -> String {
     let mut prompt = SYSTEM_PROMPT.to_string();
-    if let Some(content) = load_prompt_file() {
-        prompt.push_str("\n\n# Project prompt file\n\n");
+    if let Some((name, content)) = load_prompt_file() {
+        prompt.push_str("\n\n# Project prompt file (");
+        prompt.push_str(&name);
+        prompt.push_str(")\n\n");
         prompt.push_str(&content);
     }
     if let Some((name, agent_prompt)) = agents::loaded_agent() {

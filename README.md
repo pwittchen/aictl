@@ -225,7 +225,7 @@ Agent names may contain only letters, numbers, underscores, and dashes. When an 
 
 Configuration is loaded from `~/.aictl/config`. This is a single global config file.
 
-Additionally, aictl loads a project prompt file from the current working directory (default: `AICTL.md`). If present, its contents are appended to the system prompt, allowing per-project instructions for the agent. The filename can be customized via `AICTL_PROMPT_FILE` in `~/.aictl/config`.
+Additionally, aictl loads a project prompt file from the current working directory (default: `AICTL.md`). If present, its contents are appended to the system prompt, allowing per-project instructions for the agent. The filename can be customized via `AICTL_PROMPT_FILE` in `~/.aictl/config`. When the configured/default file is missing, aictl falls back to `CLAUDE.md` and then `AGENTS.md` so existing project instructions for other tools are reused automatically; the fallback chain can be disabled with `AICTL_PROMPT_FALLBACK=false`.
 
 The quickest way to get started is the interactive wizard:
 
@@ -246,6 +246,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_MEMORY` | Memory mode: `long-term` (all messages, default) or `short-term` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
 | `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
+| `AICTL_PROMPT_FALLBACK` | When the primary prompt file is missing, fall back to `CLAUDE.md` then `AGENTS.md`. Accepts `true` or `false` (default: `true`) |
 | `AICTL_TOOLS_ENABLED` | Enable or disable all tool calls. When `false`, the LLM can only respond with plain text (default: `true`) |
 | `AICTL_AUTO_COMPACT_THRESHOLD` | Context usage percentage at which the REPL auto-compacts the conversation. Accepts an integer in `1..=100` (default: `80`) |
 | `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |

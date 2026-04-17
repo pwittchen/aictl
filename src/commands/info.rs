@@ -82,13 +82,19 @@ pub fn print_info(
         format!("{max_iter} (default)")
     };
     println!("  {} {max_iter_display}", "max iter: ".with(Color::Cyan));
-    let prompt_file = crate::config::load_prompt_file();
-    let prompt_file_name =
-        crate::config::config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
-    let prompt_info = if prompt_file.is_some() {
-        format!("{prompt_file_name} (loaded)")
-    } else {
-        format!("{prompt_file_name} (not found)")
+    let primary_prompt_name = crate::config::config_get("AICTL_PROMPT_FILE")
+        .unwrap_or_else(|| crate::config::DEFAULT_PROMPT_FILE.to_string());
+    let prompt_info = match crate::config::load_prompt_file() {
+        Some((name, _)) if name == primary_prompt_name => format!("{name} (loaded)"),
+        Some((name, _)) => format!("{name} (loaded as fallback for {primary_prompt_name})"),
+        None => {
+            let fallback_status = if crate::config::prompt_fallback_enabled() {
+                "fallback enabled"
+            } else {
+                "fallback disabled"
+            };
+            format!("{primary_prompt_name} (not found, {fallback_status})")
+        }
     };
 
     println!("  {} {os}/{arch}", "os:       ".with(Color::Cyan));

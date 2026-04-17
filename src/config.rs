@@ -204,13 +204,64 @@ pub fn config_get(key: &str) -> Option<String> {
         .and_then(|m| m.get(key).cloned())
 }
 
+/// Default primary prompt file name when `AICTL_PROMPT_FILE` is unset.
+pub const DEFAULT_PROMPT_FILE: &str = "AICTL.md";
+
+/// Fallback prompt file names tried (in order) when the primary file is
+/// missing and `AICTL_PROMPT_FALLBACK` is not `false`.
+pub const PROMPT_FALLBACK_FILES: &[&str] = &["CLAUDE.md", "AGENTS.md"];
+
+/// Return whether prompt-file fallback is enabled.
+///
+/// Read from `AICTL_PROMPT_FALLBACK` in `~/.aictl/config`. The key is absent
+/// by default (fallback enabled); `false` / `0` disables it.
+pub fn prompt_fallback_enabled() -> bool {
+    config_get("AICTL_PROMPT_FALLBACK").is_none_or(|v| v != "false" && v != "0")
+}
+
+/// Pure resolution logic split out from [`load_prompt_file`] so it can be
+/// unit-tested without touching the filesystem or the global config.
+fn resolve_prompt_file<F>(
+    primary: &str,
+    fallback_enabled: bool,
+    mut reader: F,
+) -> Option<(String, String)>
+where
+    F: FnMut(&str) -> Option<String>,
+{
+    if let Some(content) = reader(primary) {
+        return Some((primary.to_string(), content));
+    }
+    if !fallback_enabled {
+        return None;
+    }
+    for candidate in PROMPT_FALLBACK_FILES {
+        if *candidate == primary {
+            continue;
+        }
+        if let Some(content) = reader(candidate) {
+            return Some(((*candidate).to_string(), content));
+        }
+    }
+    None
+}
+
 /// Load the project prompt file from the current working directory.
-/// The filename defaults to `AICTL.md` but can be overridden via `AICTL_PROMPT_FILE` in config.
-/// Returns `None` if the file does not exist or cannot be read.
-pub fn load_prompt_file() -> Option<String> {
-    let filename = config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| "AICTL.md".to_string());
-    let path = std::path::Path::new(&filename);
-    std::fs::read_to_string(path).ok()
+///
+/// Resolution order:
+/// 1. `AICTL_PROMPT_FILE` (or `AICTL.md` if unset).
+/// 2. If that file is missing and `AICTL_PROMPT_FALLBACK` is enabled
+///    (the default), try `CLAUDE.md`, then `AGENTS.md`.
+///
+/// Returns `Some((filename, content))` for the first candidate that exists
+/// and reads successfully. Returns `None` when nothing is found or fallback
+/// is disabled and the primary is missing.
+pub fn load_prompt_file() -> Option<(String, String)> {
+    let primary =
+        config_get("AICTL_PROMPT_FILE").unwrap_or_else(|| DEFAULT_PROMPT_FILE.to_string());
+    resolve_prompt_file(&primary, prompt_fallback_enabled(), |name| {
+        std::fs::read_to_string(name).ok()
+    })
 }
 
 /// Check whether a config line declares the given key.
@@ -346,6 +397,71 @@ mod tests {
         let map = parse_config(input);
         assert_eq!(map.len(), 1);
         assert_eq!(map.get("KEY").unwrap(), "val");
+    }
+
+    fn reader_with<'a>(files: &'a [(&'a str, &'a str)]) -> impl FnMut(&str) -> Option<String> + 'a {
+        move |name: &str| {
+            files
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, c)| (*c).to_string())
+        }
+    }
+
+    #[test]
+    fn resolve_prompt_primary_wins() {
+        let files = [
+            ("AICTL.md", "primary"),
+            ("CLAUDE.md", "claude"),
+            ("AGENTS.md", "agents"),
+        ];
+        let got = resolve_prompt_file("AICTL.md", true, reader_with(&files));
+        assert_eq!(got, Some(("AICTL.md".to_string(), "primary".to_string())));
+    }
+
+    #[test]
+    fn resolve_prompt_falls_back_to_claude() {
+        let files = [("CLAUDE.md", "claude"), ("AGENTS.md", "agents")];
+        let got = resolve_prompt_file("AICTL.md", true, reader_with(&files));
+        assert_eq!(got, Some(("CLAUDE.md".to_string(), "claude".to_string())));
+    }
+
+    #[test]
+    fn resolve_prompt_falls_back_to_agents_when_claude_missing() {
+        let files = [("AGENTS.md", "agents")];
+        let got = resolve_prompt_file("AICTL.md", true, reader_with(&files));
+        assert_eq!(got, Some(("AGENTS.md".to_string(), "agents".to_string())));
+    }
+
+    #[test]
+    fn resolve_prompt_no_fallback_returns_none_when_primary_missing() {
+        let files = [("CLAUDE.md", "claude"), ("AGENTS.md", "agents")];
+        let got = resolve_prompt_file("AICTL.md", false, reader_with(&files));
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn resolve_prompt_returns_none_when_nothing_exists() {
+        let files: [(&str, &str); 0] = [];
+        let got = resolve_prompt_file("AICTL.md", true, reader_with(&files));
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn resolve_prompt_custom_primary_still_falls_back() {
+        let files = [("CLAUDE.md", "claude")];
+        let got = resolve_prompt_file("MY_PROMPT.md", true, reader_with(&files));
+        assert_eq!(got, Some(("CLAUDE.md".to_string(), "claude".to_string())));
+    }
+
+    #[test]
+    fn resolve_prompt_primary_equal_to_fallback_name_is_not_reread() {
+        // Only AGENTS.md exists. Primary is set to CLAUDE.md, so the
+        // fallback loop should skip re-reading CLAUDE.md and drop straight
+        // to AGENTS.md.
+        let files = [("AGENTS.md", "agents")];
+        let got = resolve_prompt_file("CLAUDE.md", true, reader_with(&files));
+        assert_eq!(got, Some(("AGENTS.md".to_string(), "agents".to_string())));
     }
 
     #[test]

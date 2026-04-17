@@ -24,6 +24,11 @@
 # Project prompt file loaded from the current directory (default: AICTL.md)
 # AICTL_PROMPT_FILE=AICTL.md
 
+# Fallback chain for the project prompt file: when the file above is missing
+# and this flag is enabled, aictl falls back to CLAUDE.md and then AGENTS.md
+# (default: true). Accepted values: true, false.
+# AICTL_PROMPT_FALLBACK=true
+
 # Tools switch: when set to false, all tool calls are disabled and the LLM
 # can only respond with plain text (default: true). Accepted values: true, false.
 # AICTL_TOOLS_ENABLED=true
