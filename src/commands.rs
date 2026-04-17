@@ -26,6 +26,7 @@ mod memory;
 mod menu;
 mod mlx;
 mod model;
+mod ping;
 mod retry;
 mod security;
 mod session;
@@ -45,6 +46,7 @@ pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unl
 pub use memory::{MemoryMode, select_memory};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
+pub use ping::run_ping;
 pub use retry::retry_last_exchange;
 pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
@@ -71,6 +73,7 @@ pub const COMMANDS: &[&str] = &[
     "memory",
     "mlx",
     "model",
+    "ping",
     "retry",
     "security",
     "session",
@@ -120,6 +123,8 @@ pub enum CommandResult {
     Mlx,
     /// Open the API key management menu (lock/unlock/clear).
     Keys,
+    /// Check connectivity and API key validity for all providers.
+    Ping,
     /// Re-run the interactive configuration wizard.
     Config,
     /// Open the usage statistics menu (view/clear).
@@ -159,6 +164,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "session" => CommandResult::Session,
         "gguf" => CommandResult::Gguf,
         "mlx" => CommandResult::Mlx,
+        "ping" => CommandResult::Ping,
         "retry" => CommandResult::Retry,
         "copy" => {
             clipboard::copy_to_clipboard(last_answer, show_error);
@@ -257,6 +263,14 @@ mod tests {
         assert!(matches!(
             handle("/memory", "", &noop_error),
             CommandResult::Memory
+        ));
+    }
+
+    #[test]
+    fn cmd_ping() {
+        assert!(matches!(
+            handle("/ping", "", &noop_error),
+            CommandResult::Ping
         ));
     }
 

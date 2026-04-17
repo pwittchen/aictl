@@ -18,6 +18,7 @@ pub(super) fn print_help() {
         ),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
         ("/model", "switch model and provider"),
+        ("/ping", "validate API keys and probe provider connectivity"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
         ("/stats", "view and manage usage statistics"),

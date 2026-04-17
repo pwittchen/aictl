@@ -8,10 +8,6 @@
 
 - **Streaming output** — Stream LLM responses token-by-token instead of waiting for the full response. Significantly improves perceived latency.
 
-### Provider & Model
-
-- **Provider health check** — A `/ping` or `/provider status` command that validates API keys and tests connectivity for all configured providers.
-
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.
