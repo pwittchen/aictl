@@ -32,6 +32,7 @@
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize.
+- **Skills** — Markdown playbooks invoked on demand via `/<skill-name>` that inject instructions for a single turn (unlike agents, which persist for the session). See [.claude/plans/skills.md](.claude/plans/skills.md) for the development plan.
 
 ### Developer Experience
 
