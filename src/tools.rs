@@ -34,6 +34,7 @@ mod image;
 mod json_query;
 mod lint;
 mod list_processes;
+mod notify;
 mod run_code;
 mod shell;
 mod system_info;
@@ -106,7 +107,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 30;
+pub const TOOL_COUNT: usize = 31;
 
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
@@ -220,6 +221,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "archive" => archive::tool_archive(input).await,
         "checksum" => checksum::tool_checksum(input).await,
         "clipboard" => clipboard::tool_clipboard(input).await,
+        "notify" => notify::tool_notify(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
     ToolOutput::text(crate::security::sanitize_output(&result))

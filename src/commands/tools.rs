@@ -82,6 +82,10 @@ const TOOLS: &[(&str, &str)] = &[
         "clipboard",
         "read from or write to the system clipboard (pbcopy/wl-copy/xclip)",
     ),
+    (
+        "notify",
+        "send a desktop notification (osascript on macOS, notify-send on Linux)",
+    ),
 ];
 
 pub(super) fn print_tools() {

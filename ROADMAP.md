@@ -4,12 +4,6 @@
 
 ## General
 
-### New tools
-
-#### Productivity
-
-- **notify** — Send a desktop notification (useful for long-running tasks in `--auto` mode).
-
 ### UX & Interactivity
 
 - **`/history` command** — View and search the current conversation without scrolling. Support filtering by role or keyword.
