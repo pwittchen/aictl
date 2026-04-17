@@ -9,6 +9,8 @@
 ################################
 
 # Default provider and model (used when --provider / --model are not passed)
+# Accepted providers: openai, anthropic, gemini, grok, mistral, deepseek,
+# kimi, zai, ollama, gguf, mlx
 # AICTL_PROVIDER=anthropic
 # AICTL_MODEL=claude-sonnet-4-20250514
 
@@ -29,6 +31,14 @@
 # Auto-compact threshold: context usage percentage at which the REPL
 # automatically compacts the conversation (default: 80). Accepts 1..=100.
 # AICTL_AUTO_COMPACT_THRESHOLD=80
+
+# Per-call LLM timeout in seconds, applied uniformly to every provider
+# (remote HTTP APIs, Ollama, native GGUF/MLX). Default: 30. Use 0 to disable.
+# AICTL_LLM_TIMEOUT=30
+
+# Maximum number of LLM calls allowed in a single agent turn before the loop
+# terminates to prevent runaway tool-call cycles (default: 20, minimum: 1).
+# AICTL_MAX_ITERATIONS=20
 
 ################################
 #    API KEYS + OLLAMA HOST    #
@@ -90,8 +100,11 @@
 
 # Comma-separated tool names to disable (e.g. exec_shell,search_web)
 # Available tools: exec_shell, read_file, write_file, remove_file, create_directory,
-# edit_file, list_directory, search_files, find_files, search_web, fetch_url,
-# extract_website, fetch_datetime, fetch_geolocation
+# list_directory, search_files, edit_file, diff_files, find_files, search_web,
+# fetch_url, extract_website, fetch_datetime, fetch_geolocation, read_image,
+# generate_image, read_document, git, run_code, lint_file, json_query, calculate,
+# csv_query, list_processes, check_port, system_info, archive, checksum, clipboard,
+# notify
 # AICTL_SECURITY_DISABLED_TOOLS=
 
 # Comma-separated additional env vars to scrub from shell subprocesses
