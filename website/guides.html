@@ -582,7 +582,7 @@
     <section class="section section--alt" id="tools-ref">
       <div class="container">
         <header class="section__head">
-          <span class="section__kicker">// 26 tools</span>
+          <span class="section__kicker">// 31 tools</span>
           <h2 class="section__title">Tools the agent can use</h2>
           <p class="section__lead">
             Every tool call is validated by the security policy and
@@ -600,6 +600,9 @@
               <li><code>remove_file</code> · <code>create_directory</code></li>
               <li><code>list_directory</code> · <code>find_files</code></li>
               <li><code>search_files</code> — grep across the tree</li>
+              <li><code>diff_files</code> — unified diff, 3 lines of context, in-process</li>
+              <li><code>archive</code> — create, extract, list tar.gz / tgz / tar / zip</li>
+              <li><code>checksum</code> — streaming SHA-256 / MD5 digests</li>
               <li><code>git</code> — restricted status / diff / log / blame / commit</li>
             </ul>
           </div>
@@ -630,6 +633,8 @@
               <li><code>list_processes</code> — structured `ps` with filters (name/user/pid/%cpu/%mem/port)</li>
               <li><code>check_port</code> — TCP reachability probe (host:port, DNS + URL forms)</li>
               <li><code>system_info</code> — OS, CPU, memory, disk info (macOS + Linux)</li>
+              <li><code>clipboard</code> — read / write the system clipboard (pbcopy, wl-copy, xclip)</li>
+              <li><code>notify</code> — desktop notifications (osascript / notify-send)</li>
             </ul>
           </div>
         </div>

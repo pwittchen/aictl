@@ -12,8 +12,8 @@ src/
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
- ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT
- ├── tools/             One submodule per tool (calculate, check_port, csv_query, datetime, document, filesystem, geo, git, image, json_query, lint, list_processes, run_code, shell, system_info, util, web)
+ ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (31)
+ ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, notify, run_code, shell, system_info, util, web)
  ├── ui.rs              AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
  ├── llm.rs             TokenUsage type, cost estimation (price_per_million), MODELS list, context_limit, cache_read_multiplier
  ├── llm/               One submodule per provider
@@ -144,6 +144,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ remove_file         │ tokio::fs::remove_file    │      │
  │  │ create_directory    │ tokio::fs::create_dir_all │      │
  │  │ edit_file           │ read + replacen + write   │      │
+ │  │ diff_files          │ in-process LCS unified    │      │
  │  │ list_directory      │ tokio::fs::read_dir       │      │
  │  │ search_files        │ glob + string match       │      │
  │  │ find_files          │ glob::glob                │      │
@@ -164,6 +165,10 @@ Both single-shot and REPL modes share the same loop:
  │  │ list_processes      │ ps subprocess + parse     │      │
  │  │ check_port          │ tokio TcpStream::connect  │      │
  │  │ system_info         │ sysctl/vm_stat/df+/proc/* │      │
+ │  │ archive             │ tar+flate2 / zip in-proc  │      │
+ │  │ checksum            │ sha2/md-5 streaming digest│      │
+ │  │ clipboard           │ pbcopy/wl-copy/xclip read │      │
+ │  │ notify              │ osascript / notify-send   │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -212,6 +217,22 @@ Both single-shot and REPL modes share the same loop:
  │    macOS via sysctl + vm_stat + sw_vers + uname + df;     │
  │    Linux via /proc/cpuinfo + /proc/meminfo +              │
  │    /etc/os-release + df. Sections are filterable          │
+ │  - diff_files computes an in-process LCS unified diff     │
+ │    (3 lines of context) between two paths — no `diff`     │
+ │    subprocess. Refuses files > 2000 lines each            │
+ │  - archive create/extract/list handles tar.gz / tgz /     │
+ │    tar / zip fully in-process via `tar`+`flate2`+`zip`.   │
+ │    Extraction enforces a zip-slip / tar-slip guard and    │
+ │    the CWD jail on every entry                            │
+ │  - checksum streams the file through `sha2::Sha256` +     │
+ │    `md-5::Md5` in chunks — arbitrary size, constant       │
+ │    memory. `sha256 <path>` / `md5 <path>` picks one       │
+ │  - clipboard picks a backend at runtime: pbcopy/pbpaste   │
+ │    on macOS; wl-copy/wl-paste then xclip/xsel on Linux.   │
+ │    Content piped on stdin; write capped at 1 MB           │
+ │  - notify shells out to `osascript` on macOS or           │
+ │    `notify-send` on Linux. Title required (≤256 B), body  │
+ │    optional (≤4096 B). Useful for --auto completion pings │
  └───────────────────────────────────────────────────────────┘
 ```
 

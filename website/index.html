@@ -71,7 +71,7 @@
         <div class="grid grid--3">
           <article class="card">
             <h3>Agent loop</h3>
-            <p>Interactive REPL and one-shot mode. 26 built-in tools for shell, files, web, documents, images, code execution, math, queries, and host probing. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
+            <p>Interactive REPL and one-shot mode. 31 built-in tools for shell, files, archives, checksums, clipboard, notifications, web, documents, images, code execution, math, queries, and host probing. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
           </article>
           <article class="card">
             <h3>Sessions</h3>
@@ -145,6 +145,9 @@
               <li><code>remove_file</code> · <code>create_directory</code></li>
               <li><code>list_directory</code> · <code>find_files</code></li>
               <li><code>search_files</code> — grep across the tree</li>
+              <li><code>diff_files</code> — unified diff between two files</li>
+              <li><code>archive</code> — tar.gz / tgz / tar / zip create, extract, list</li>
+              <li><code>checksum</code> — streaming SHA-256 / MD5 digests</li>
               <li><code>git</code> — restricted status / diff / log / blame / commit</li>
             </ul>
           </div>
@@ -175,6 +178,8 @@
               <li><code>list_processes</code> — structured `ps` with filters</li>
               <li><code>check_port</code> — TCP reachability probe</li>
               <li><code>system_info</code> — OS, CPU, memory, disk</li>
+              <li><code>clipboard</code> — read / write the system clipboard</li>
+              <li><code>notify</code> — desktop notifications (macOS, Linux)</li>
             </ul>
           </div>
         </div>
