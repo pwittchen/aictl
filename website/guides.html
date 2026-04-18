@@ -30,8 +30,30 @@
         <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
       </nav>
       <a class="btn btn--primary nav__cta" href="index.html#install">Install</a>
+      <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
+        <span class="nav__toggle-lines" aria-hidden="true"><span></span></span>
+      </button>
     </div>
   </header>
+
+  <div class="nav__backdrop" data-nav-backdrop hidden></div>
+  <aside class="nav__drawer" id="nav-drawer" aria-hidden="true" aria-label="Mobile menu">
+    <div class="nav__drawer-head">
+      <span class="nav__drawer-brand">aictl<span class="nav__caret">_</span></span>
+      <button class="nav__close" type="button" aria-label="Close menu" data-nav-close>&times;</button>
+    </div>
+    <nav class="nav__drawer-links" aria-label="Mobile primary">
+      <a href="index.html#features" data-nav-link>Features</a>
+      <a href="index.html#providers" data-nav-link>Providers</a>
+      <a href="index.html#tools" data-nav-link>Tools</a>
+      <a href="index.html#compare" data-nav-link>Compare</a>
+      <a href="index.html#install" data-nav-link>Install</a>
+      <a href="guides.html" data-nav-link>Guides</a>
+      <a href="index.html#license" data-nav-link>License</a>
+      <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener" data-nav-link>Source</a>
+    </nav>
+    <a class="btn btn--primary nav__drawer-cta" href="index.html#install" data-nav-link>Install</a>
+  </aside>
 
   <main>
     <section class="hero">
@@ -191,7 +213,7 @@
           Example <code>~/.aictl/config</code>:
         </p>
         <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
-          <code id="g-cmd-example-config" style="white-space: pre;">AICTL_PROVIDER=anthropic&#10;AICTL_MODEL=claude-sonnet-4-20250514&#10;LLM_ANTHROPIC_API_KEY=sk-ant-...</code>
+          <code id="g-cmd-example-config" style="white-space: pre-wrap;">AICTL_PROVIDER=anthropic&#10;AICTL_MODEL=claude-sonnet-4-20250514&#10;LLM_ANTHROPIC_API_KEY=sk-ant-...</code>
           <button class="cmd__copy" type="button" data-copy="#g-cmd-example-config" aria-label="Copy config example">Copy</button>
         </div>
       </div>
