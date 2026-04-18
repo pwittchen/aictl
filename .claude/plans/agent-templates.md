@@ -26,15 +26,15 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 1. **`code-reviewer`** — reviews staged/unstaged changes. Leans on `git diff`, `read_file`, `lint_file`, `diff_files`. Focus: correctness, security, style; flags issues, doesn't rewrite unless asked.
 
-2. **`commit-bot`** — reads `git diff --cached` and writes a short, imperative commit message following the repo's conventions. No AI attribution lines.
+2. **`commit-writer`** — reads `git diff --cached` and writes a short, imperative commit message following the repo's conventions. No AI attribution lines.
 
 3. **`researcher`** — answers questions with citations. Uses `search_web`, `fetch_url`, `extract_website`. Always includes source URLs.
 
 4. **`data-analyst`** — works over CSV/JSON with `csv_query`, `json_query`, `calculate`. Returns a table plus a one-line takeaway.
 
-5. **`shell-helper`** — explains or composes shell commands before running them. Prefers dry-runs; uses `system_info` / `list_processes` / `check_port` for diagnostics.
+5. **`shell-expert`** — explains or composes shell commands before running them. Prefers dry-runs; uses `system_info` / `list_processes` / `check_port` for diagnostics.
 
-6. **`image-assistant`** — analyzes or generates images. Uses `read_image` for vision (screenshots, diagrams, OCR-style transcription, alt-text) and `generate_image` for quick illustrations or mockups.
+6. **`image-specialist`** — analyzes or generates images. Uses `read_image` for vision (screenshots, diagrams, OCR-style transcription, alt-text) and `generate_image` for quick illustrations or mockups.
 
 7. **`test-writer`** — generates unit/integration tests for a target file and runs them via `run_code` or `exec_shell`.
 
@@ -42,9 +42,9 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 9. **`docs-writer`** — updates README / inline docs / project docs from the current code. Uses `read_document` for PDF/DOCX inputs.
 
-10. **`debugger`** — reproduces a bug, narrows it down with prints/logs, proposes a minimal fix. Leans on `run_code`, `exec_shell`, `search_files`.
+10. **`bug-hunter`** — reproduces a bug, narrows it down with prints/logs, proposes a minimal fix. Leans on `run_code`, `exec_shell`, `search_files`.
 
-11. **`regex-helper`** — builds and explains regex patterns. Tests candidates against sample inputs via `run_code` before handing the final pattern back.
+11. **`regex-expert`** — builds and explains regex patterns. Tests candidates against sample inputs via `run_code` before handing the final pattern back.
 
 12. **`changelog-writer`** — generates CHANGELOG entries from `git log` between two refs. Groups changes by type (features / fixes / breaking) and skips noise (merge commits, version bumps).
 
@@ -54,11 +54,11 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 15. **`api-tester`** — pokes REST endpoints with `fetch_url` and filters responses through `json_query`. Uses `check_port` to sanity-check reachability before sending requests.
 
-16. **`sql-helper`** — writes and explains SQL across dialects (PostgreSQL, MySQL, SQLite). Tests candidate queries against a throwaway sqlite database via `run_code` before handing them back; flags `EXPLAIN` gotchas and obvious performance traps (missing indexes, N+1 shapes, accidental cross joins).
+16. **`sql-expert`** — writes and explains SQL across dialects (PostgreSQL, MySQL, SQLite). Tests candidate queries against a throwaway sqlite database via `run_code` before handing them back; flags `EXPLAIN` gotchas and obvious performance traps (missing indexes, N+1 shapes, accidental cross joins).
 
-17. **`git-archaeologist`** — uses `git log`, `git blame`, and `git diff` to explain why code exists, who wrote it, what issue or PR it fixed, and how it evolved. Useful when inheriting a codebase or untangling a tricky bug. Natural pair with `debugger`.
+17. **`git-archaeologist`** — uses `git log`, `git blame`, and `git diff` to explain why code exists, who wrote it, what issue or PR it fixed, and how it evolved. Useful when inheriting a codebase or untangling a tricky bug. Natural pair with `bug-hunter`.
 
-18. **`error-decoder`** — takes a stack trace, panic, or compiler error and locates the relevant frames via `search_files` + `read_file`, then proposes a minimal fix. Works with Rust panics, Python tracebacks, JS stacks, Go errors, and typed-language compiler output.
+18. **`error-investigator`** — takes a stack trace, panic, or compiler error and locates the relevant frames via `search_files` + `read_file`, then proposes a minimal fix. Works with Rust panics, Python tracebacks, JS stacks, Go errors, and typed-language compiler output.
 
 ### Ops
 
@@ -68,9 +68,9 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 21. **`docker-operator`** — manages Docker containers, images, and Compose stacks via `exec_shell` (`docker ps`, `docker images`, `docker build`, `docker compose up/down/logs`). Reads and edits Dockerfiles and `docker-compose.yml`; uses `check_port` to verify published ports and `list_processes` to spot host-side conflicts. Prefers dry-runs and explains destructive commands (`rm`, `prune`, `down -v`) before running them.
 
-22. **`cert-checker`** — inspects TLS/SSL certificates for expiry, chain validity, SNI issues, and weak ciphers. Uses `fetch_url` for the HTTPS handshake and `check_port` to confirm reachability first. Flags anything expiring within 30 days.
+22. **`cert-inspector`** — inspects TLS/SSL certificates for expiry, chain validity, SNI issues, and weak ciphers. Uses `fetch_url` for the HTTPS handshake and `check_port` to confirm reachability first. Flags anything expiring within 30 days.
 
-23. **`disk-cleaner`** — read-only disk usage diagnostician. Uses `exec_shell` (`du`, `find`) to locate the biggest directories and oldest files; suggests (but never runs) cleanup commands. Honors the CWD jail so it cannot probe outside the working directory.
+23. **`disk-inspector`** — read-only disk usage diagnostician. Uses `exec_shell` (`du`, `find`) to locate the biggest directories and oldest files; suggests (but never runs) cleanup commands. Honors the CWD jail so it cannot probe outside the working directory.
 
 24. **`kubernetes-operator`** — manages Kubernetes resources via `kubectl` through `exec_shell`. Reads and edits YAML manifests, inspects pods/services/deployments, tails logs, and explains destructive commands (`delete`, `scale 0`, `drain`) before running them. Cluster-level analogue of `docker-operator`.
 
@@ -98,13 +98,13 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 33. **`copywriter`** — writes marketing and product copy (taglines, landing-page sections, ad copy, release notes) from a brief. Tunes voice and length to the channel; offers a few variants when asked.
 
-34. **`meeting-notes`** — turns a meeting transcript into a structured summary with decisions and action items (owner + due date when stated). Pairs `read_document` with `clipboard`.
+34. **`meeting-scribe`** — turns a meeting transcript into a structured summary with decisions and action items (owner + due date when stated). Pairs `read_document` with `clipboard`.
 
 35. **`email-writer`** — drafts emails with tone and length targeting (short / formal / follow-up / cold outreach / reply). Asks for the goal and recipient context before writing.
 
 ### Data & diagrams
 
-36. **`spreadsheet-helper`** — reads Excel/ODS/CSV via `read_document` + `csv_query`, suggests formulas, cleans messy data, and pivots results into a quick summary table.
+36. **`spreadsheet-analyst`** — reads Excel/ODS/CSV via `read_document` + `csv_query`, suggests formulas, cleans messy data, and pivots results into a quick summary table.
 
 37. **`mermaid-drawer`** — produces mermaid diagrams (flowcharts, sequence, ER, state, gantt) from a description or from source code it reads with `read_file`. Hands output back via `clipboard` ready to paste into GitHub / Notion / Obsidian.
 
@@ -120,7 +120,7 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 42. **`travel-planner`** — drafts itineraries from a destination, dates, and budget. Uses `search_web` and `extract_website` for up-to-date info on venues, transit, and opening hours.
 
-43. **`budget-helper`** — analyzes bank/card CSV exports via `csv_query`, categorizes spending, and surfaces patterns (subscription creep, recurring overruns) alongside realistic saving targets. Strong fit for the data-query tool cluster.
+43. **`budget-advisor`** — analyzes bank/card CSV exports via `csv_query`, categorizes spending, and surfaces patterns (subscription creep, recurring overruns) alongside realistic saving targets. Strong fit for the data-query tool cluster.
 
 44. **`book-recommender`** — recommendations based on what you've loved or bounced off, with a one-line "why this fits you" per pick. Uses `search_web` + `extract_website` when you want reviews or current availability.
 
@@ -134,7 +134,7 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 ### Thinking & habits
 
-49. **`decision-helper`** — applies structured frameworks (pro/con, weighted-criteria, regret-minimization) to a concrete choice. Surfaces assumptions and what would change the answer.
+49. **`decision-advisor`** — applies structured frameworks (pro/con, weighted-criteria, regret-minimization) to a concrete choice. Surfaces assumptions and what would change the answer.
 
 50. **`habit-coach`** — helps design a small, trackable habit with a cue, routine, reward, and check-in cadence. Keeps it modest on purpose — one habit at a time.
 
@@ -142,11 +142,11 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 52. **`devils-advocate`** — only argues the opposing position, however reasonable your proposal sounds. Narrower and more mechanical than `critic`: instead of "is this right?", it asks "if this is wrong, why?" — useful for red-teaming a decision or plan before committing to it.
 
-53. **`pre-mortem`** — imagines the current plan or project has failed six months from now and works backward to identify what went wrong. Surfaces risks earlier than a "what could go wrong?" prompt because it grants the failure and asks for causes. Complements `decision-helper` and `devils-advocate`.
+53. **`pre-mortem-facilitator`** — imagines the current plan or project has failed six months from now and works backward to identify what went wrong. Surfaces risks earlier than a "what could go wrong?" prompt because it grants the failure and asks for causes. Complements `decision-advisor` and `devils-advocate`.
 
 54. **`steelman`** — builds the strongest possible case for a position, including ones you disagree with. Mirror image of `devils-advocate`: useful for understanding opposing views fairly, preparing for debate, or checking whether your own view survives contact with its best counterargument.
 
-55. **`first-principles`** — breaks a problem, belief, or design down to its fundamentals and rebuilds from the ground up. Distinct from `decision-helper`'s framework-matching: instead of applying a shape, it asks what you actually know and what you're merely inheriting.
+55. **`first-principles-thinker`** — breaks a problem, belief, or design down to its fundamentals and rebuilds from the ground up. Distinct from `decision-advisor`'s framework-matching: instead of applying a shape, it asks what you actually know and what you're merely inheriting.
 
 56. **`mental-model-coach`** — picks a relevant mental model (second-order effects, Bayesian updating, Occam's razor, inversion, game theory, regret minimization) and applies it to the situation at hand. Explains why the model fits before using it.
 
