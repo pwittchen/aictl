@@ -30,6 +30,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Fetch the version from the remote Cargo.toml on GitHub.
 /// Returns `Some(version_string)` on success, `None` on failure.
+/// On success the result is also written to the `~/.aictl/version`
+/// cache so subsequent startups (and the next TTL window) see it.
 pub(crate) async fn fetch_remote_version() -> Option<String> {
     let url = "https://raw.githubusercontent.com/pwittchen/aictl/refs/heads/master/Cargo.toml";
     let client = config::http_client();
@@ -42,11 +44,13 @@ pub(crate) async fn fetch_remote_version() -> Option<String> {
         .text()
         .await
         .ok()?;
-    body.lines().find_map(|line| {
+    let version = body.lines().find_map(|line| {
         let rest = line.strip_prefix("version")?;
         let (_, val) = rest.split_once('=')?;
         Some(val.trim().trim_matches('"').to_string())
-    })
+    })?;
+    version_cache::save(&version);
+    Some(version)
 }
 
 /// Format a version status string from a remote version check result.

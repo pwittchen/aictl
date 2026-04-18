@@ -500,19 +500,13 @@ pub(crate) async fn run_interactive(
     // timestamp is less than 24h old, we already know the latest upstream
     // version and skip the network call entirely. On a miss (or stale entry)
     // we kick the remote fetch off on another worker so startup (config,
-    // session init, file I/O) proceeds in parallel; the background task
+    // session init, file I/O) proceeds in parallel; `fetch_remote_version`
     // writes the result back into the cache so the *next* run shows the
     // banner notice instantly even if this launch's fetch didn't complete
     // before banner render.
     let cached_version = version_cache::cached_fresh();
     let version_fetch = if cached_version.is_none() {
-        Some(tokio::spawn(async {
-            let remote = fetch_remote_version().await;
-            if let Some(ref v) = remote {
-                version_cache::save(v);
-            }
-            remote
-        }))
+        Some(tokio::spawn(async { fetch_remote_version().await }))
     } else {
         None
     };
