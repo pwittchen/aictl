@@ -111,6 +111,14 @@ pub trait AgentUI {
     /// no-op so providers don't need to special-case UIs that don't render
     /// progressively.
     fn stream_chunk(&self, _text: &str) {}
+    /// Called once when the streaming state machine has confirmed the start
+    /// of a tool call (the `<tool name="…">` prefix matched). The
+    /// interactive UI uses this hook to flush any word-wrap buffer — so the
+    /// last word of the reasoning appears immediately instead of hanging
+    /// until `stream_end` — and to start a "preparing tool call…" spinner
+    /// that fills the otherwise-silent gap while the model streams the
+    /// (hidden) tool XML. No-op by default.
+    fn stream_suspend(&self) {}
     /// End a streamed response — called once after the stream completes
     /// (whether or not a tool call was detected). Draws the bottom frame
     /// in the interactive UI; no-op in plain UI.
@@ -261,6 +269,10 @@ pub struct InteractiveUI {
     /// alongside `stream_word` so they can either ride along with the next
     /// word on the same line or be dropped after a wrap.
     stream_spaces: Cell<usize>,
+    /// `true` while a "preparing tool call…" spinner started by
+    /// `stream_suspend` is still running. `stream_end` reads this to know
+    /// whether to stop a spinner (and reset to `false`).
+    suspend_spinner: Cell<bool>,
 }
 
 impl InteractiveUI {
@@ -273,6 +285,7 @@ impl InteractiveUI {
             stream_col: Cell::new(0),
             stream_word: RefCell::new(String::new()),
             stream_spaces: Cell::new(0),
+            suspend_spinner: Cell::new(false),
         }
     }
 
@@ -828,6 +841,29 @@ impl AgentUI for InteractiveUI {
         let _ = out.flush();
     }
 
+    fn stream_suspend(&self) {
+        // The state machine just confirmed a tool call. Flush whatever is
+        // still buffered in the word-wrap tail so the last word of the
+        // reasoning reaches the screen now — otherwise it'd hang until the
+        // whole (hidden) tool-XML body finishes streaming. Then drop to a
+        // fresh line and start a spinner so the user sees progress instead
+        // of a silent terminal while the model emits tool args.
+        let mut out = std::io::stderr();
+        self.flush_stream_word(&mut out, max_content_width());
+        if !self.at_line_start.get() {
+            let _ = write!(out, "\r\n");
+            self.at_line_start.set(true);
+            self.stream_col.set(0);
+            self.stream_spaces.set(0);
+        }
+        let _ = out.flush();
+        // The streamed body is PAD-indented, so the spinner that follows
+        // should be too — clear first_spinner so start_spinner emits the PAD.
+        self.first_spinner.set(false);
+        self.start_spinner("preparing tool call...");
+        self.suspend_spinner.set(true);
+    }
+
     fn stream_end(&self) {
         // Flush any half-emitted word still pending from the last chunk,
         // then make sure we leave the cursor at column 0 of a fresh line so
@@ -839,6 +875,9 @@ impl AgentUI for InteractiveUI {
         // keeps the rule+status pair together for both streamed final
         // answers and tool-call iterations where show_token_usage runs
         // after the tool output.
+        if self.suspend_spinner.replace(false) {
+            self.stop_spinner();
+        }
         let mut out = std::io::stderr();
         self.flush_stream_word(&mut out, max_content_width());
         if !self.at_line_start.get() {

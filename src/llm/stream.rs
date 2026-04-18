@@ -47,11 +47,9 @@ pub struct Accepted {
     /// holding the tail to decide tool-prefix vs. ordinary prose.
     pub emit: String,
     /// `true` exactly once — on the delta that completed the match against
-    /// [`TOOL_PREFIX`]. Currently consumed only by the unit tests; kept on
-    /// the API so a future "switch spinner to 'preparing tool call…'" UX
-    /// tweak in the agent loop can opt in without revisiting the state
-    /// machine.
-    #[allow(dead_code)]
+    /// [`TOOL_PREFIX`]. The agent loop uses this to signal the UI to flush
+    /// any buffered word-wrap tail and show a "preparing tool call…"
+    /// spinner during the (otherwise invisible) tool-XML stream.
     pub became_suspended: bool,
 }
 

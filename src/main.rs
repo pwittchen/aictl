@@ -313,6 +313,17 @@ fn build_system_prompt() -> String {
 
 // --- Streaming plumbing ---
 
+/// One event the streaming sink hands to the UI-drain loop.
+///
+/// `Delta` carries a chunk of model-visible prose; `Suspend` is a single
+/// marker emitted on the delta that completes the `<tool name="…">` prefix
+/// match, so the UI can flush any buffered word-wrap tail and swap in a
+/// "preparing tool call…" spinner before the (hidden) tool-XML stream.
+enum StreamEvent {
+    Delta(String),
+    Suspend,
+}
+
 /// Build the [`TokenSink`] callback the agent loop hands to a provider when
 /// streaming is on, plus the [`tokio::sync::mpsc::UnboundedReceiver`] the
 /// caller drains in lock-step.
@@ -321,7 +332,11 @@ fn build_system_prompt() -> String {
 ///   * Feeds every delta through [`StreamState::accept`], which holds back any
 ///     pending tail that could grow into the `<tool name="…">` prefix.
 ///   * For deltas the state machine has cleared as not-tool-markup, sends
-///     them on the channel so the agent loop can forward them to the UI.
+///     them on the channel as [`StreamEvent::Delta`] so the agent loop can
+///     forward them to the UI.
+///   * On the delta that completes the prefix match, sends
+///     [`StreamEvent::Suspend`] (after any final visible emit) so the UI
+///     can flush its word-wrap buffer and show a tool-call spinner.
 ///   * Drops everything once the prefix has matched (stream is suspended).
 ///
 /// The state is also handed back to the caller so it can grab `state.full`
@@ -330,10 +345,10 @@ fn build_system_prompt() -> String {
 /// string.
 fn build_stream_sink() -> (
     TokenSink,
-    tokio::sync::mpsc::UnboundedReceiver<String>,
+    tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
     Arc<Mutex<StreamState>>,
 ) {
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<StreamEvent>();
     let state = Arc::new(Mutex::new(StreamState::new()));
     let state_for_sink = state.clone();
     let sink: TokenSink = Arc::new(move |delta: &str| {
@@ -342,7 +357,10 @@ fn build_stream_sink() -> (
         };
         let result = s.accept(delta);
         if !result.emit.is_empty() {
-            let _ = tx.send(result.emit);
+            let _ = tx.send(StreamEvent::Delta(result.emit));
+        }
+        if result.became_suspended {
+            let _ = tx.send(StreamEvent::Suspend);
         }
     });
     (sink, rx, state)
@@ -357,7 +375,7 @@ fn build_stream_sink() -> (
 /// underneath an active spinner.
 async fn run_with_streaming<F, T>(
     llm_future: F,
-    rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    rx: &mut tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
     ui: &dyn AgentUI,
 ) -> (T, bool)
 where
@@ -365,13 +383,24 @@ where
 {
     tokio::pin!(llm_future);
     let mut began = false;
-    let emit = |chunk: &str, began: &mut bool, ui: &dyn AgentUI| {
-        if !*began {
-            ui.stop_spinner();
-            ui.stream_begin();
-            *began = true;
+    let handle = |event: StreamEvent, began: &mut bool, ui: &dyn AgentUI| match event {
+        StreamEvent::Delta(chunk) => {
+            if !*began {
+                ui.stop_spinner();
+                ui.stream_begin();
+                *began = true;
+            }
+            ui.stream_chunk(&chunk);
         }
-        ui.stream_chunk(chunk);
+        StreamEvent::Suspend => {
+            // Only meaningful once we've started streaming visible prose —
+            // otherwise the tool call arrived before any reasoning and the
+            // original "thinking..." spinner is still on screen, which is
+            // exactly what we'd show here anyway.
+            if *began {
+                ui.stream_suspend();
+            }
+        }
     };
 
     let result = loop {
@@ -381,15 +410,15 @@ where
             // is otherwise fair, which would leave unread chunks in `rx`.)
             biased;
             r = &mut llm_future => break r,
-            Some(chunk) = rx.recv() => {
-                emit(&chunk, &mut began, ui);
+            Some(event) = rx.recv() => {
+                handle(event, &mut began, ui);
             }
         }
     };
     // Drain anything the sink pushed after the future resolved but before
     // we got back here.
-    while let Ok(chunk) = rx.try_recv() {
-        emit(&chunk, &mut began, ui);
+    while let Ok(event) = rx.try_recv() {
+        handle(event, &mut began, ui);
     }
     if began {
         ui.stream_end();
@@ -404,7 +433,7 @@ where
 /// the duplicate `show_answer` / `show_reasoning` re-renders downstream).
 async fn run_provider_call<F, T>(
     llm_future: F,
-    rx: Option<&mut tokio::sync::mpsc::UnboundedReceiver<String>>,
+    rx: Option<&mut tokio::sync::mpsc::UnboundedReceiver<StreamEvent>>,
     ui: &dyn AgentUI,
 ) -> (Result<T, Interrupted>, bool)
 where
@@ -553,7 +582,7 @@ async fn run_agent_turn(
         // is enabled. Each iteration gets fresh state — the suspend buffer
         // must reset every LLM call.
         let mut stream_ctx: Option<(
-            tokio::sync::mpsc::UnboundedReceiver<String>,
+            tokio::sync::mpsc::UnboundedReceiver<StreamEvent>,
             Arc<Mutex<StreamState>>,
         )> = None;
         let sink: Option<TokenSink> = if streaming {
