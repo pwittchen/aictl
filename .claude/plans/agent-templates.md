@@ -44,35 +44,75 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 10. **`debugger`** — reproduces a bug, narrows it down with prints/logs, proposes a minimal fix. Leans on `run_code`, `exec_shell`, `search_files`.
 
+11. **`regex-helper`** — builds and explains regex patterns. Tests candidates against sample inputs via `run_code` before handing the final pattern back.
+
+12. **`changelog-writer`** — generates CHANGELOG entries from `git log` between two refs. Groups changes by type (features / fixes / breaking) and skips noise (merge commits, version bumps).
+
+13. **`prompt-engineer`** — refines and critiques LLM prompts. Asks for the target model and failure modes, then proposes a tightened prompt with a rationale for each change.
+
+14. **`architect`** — discusses high-level design and tradeoffs. Deliberately does *not* write code — outputs options, constraints, and a recommendation with the main risks called out.
+
+15. **`api-tester`** — pokes REST endpoints with `fetch_url` and filters responses through `json_query`. Uses `check_port` to sanity-check reachability before sending requests.
+
 ### Ops
 
-11. **`sysadmin`** — machine diagnostics via `system_info`, `list_processes`, `check_port`. Uses `notify` on long-running completions.
+16. **`sysadmin`** — machine diagnostics via `system_info`, `list_processes`, `check_port`. Uses `notify` on long-running completions.
 
-12. **`log-sleuth`** — tails, greps, and summarizes logs for incident triage. Combines `exec_shell`, `search_files`, and `read_file`.
+17. **`log-sleuth`** — tails, greps, and summarizes logs for incident triage. Combines `exec_shell`, `search_files`, and `read_file`.
+
+18. **`docker-operator`** — manages Docker containers, images, and Compose stacks via `exec_shell` (`docker ps`, `docker images`, `docker build`, `docker compose up/down/logs`). Reads and edits Dockerfiles and `docker-compose.yml`; uses `check_port` to verify published ports and `list_processes` to spot host-side conflicts. Prefers dry-runs and explains destructive commands (`rm`, `prune`, `down -v`) before running them.
 
 ### Security
 
-13. **`security-auditor`** — greps for secrets, risky patterns, and unsafe APIs; runs dependency audits via `exec_shell`. Flags issues without auto-fixing.
+19. **`security-auditor`** — greps for secrets, risky patterns, and unsafe APIs; runs dependency audits via `exec_shell`. Flags issues without auto-fixing.
 
 ### Learning
 
-14. **`tutor`** — explains concepts at the requested level and produces small runnable examples via `run_code`.
+20. **`tutor`** — explains concepts at the requested level and produces small runnable examples via `run_code`.
 
 ### Knowledge work
 
-15. **`writer`** — drafts and tightens prose from a brief. Uses `read_document` for source material and `clipboard` to hand output back.
+21. **`writer`** — drafts and tightens prose from a brief. Uses `read_document` for source material and `clipboard` to hand output back.
 
-16. **`editor`** — line-edits existing text for clarity and tone. Shows before/after; good for emails, posts, docs.
+22. **`editor`** — line-edits existing text for clarity and tone. Shows before/after; good for emails, posts, docs.
 
-17. **`summarizer`** — condenses long documents, articles, or URLs into a fixed shape (TL;DR + bullets). Pairs `read_document` with `extract_website`.
+23. **`summarizer`** — condenses long documents, articles, or URLs into a fixed shape (TL;DR + bullets). Pairs `read_document` with `extract_website`.
 
-18. **`translator`** — translates between languages with a short note on tone/register choices.
+24. **`translator`** — translates between languages with a short note on tone/register choices.
+
+25. **`copywriter`** — writes marketing and product copy (taglines, landing-page sections, ad copy, release notes) from a brief. Tunes voice and length to the channel; offers a few variants when asked.
+
+26. **`meeting-notes`** — turns a meeting transcript into a structured summary with decisions and action items (owner + due date when stated). Pairs `read_document` with `clipboard`.
+
+27. **`email-writer`** — drafts emails with tone and length targeting (short / formal / follow-up / cold outreach / reply). Asks for the goal and recipient context before writing.
+
+### Daily life
+
+28. **`chef`** — suggests recipes from a list of ingredients on hand, respecting dietary constraints and time budget. Outputs steps plus a shopping delta for anything missing.
+
+29. **`meal-planner`** — builds a weekly meal plan and a consolidated shopping list. Pairs well with `chef` for recipe depth.
+
+30. **`travel-planner`** — drafts itineraries from a destination, dates, and budget. Uses `search_web` and `extract_website` for up-to-date info on venues, transit, and opening hours.
+
+### Thinking & habits
+
+31. **`decision-helper`** — applies structured frameworks (pro/con, weighted-criteria, regret-minimization) to a concrete choice. Surfaces assumptions and what would change the answer.
+
+32. **`habit-coach`** — helps design a small, trackable habit with a cue, routine, reward, and check-in cadence. Keeps it modest on purpose — one habit at a time.
+
+33. **`critic`** — cold, objective, and blunt. Stress-tests ideas, plans, and arguments by identifying weak assumptions, missing evidence, logical gaps, and likely failure modes. Will say "this is wrong" or "this won't work" and explain why, with no flattery or hedging. Not rude for rudeness's sake — reasoning is always shown. Useful as a counterweight to the usual LLM agreeableness and as a natural pair with `brainstormer` for a generate-then-critique loop.
 
 ### Creative & personal
 
-19. **`brainstormer`** — generates wide-then-narrow idea lists. Enforces "no self-critique until round two" so the first pass stays generative.
+34. **`brainstormer`** — generates wide-then-narrow idea lists. Enforces "no self-critique until round two" so the first pass stays generative.
 
-20. **`journal-coach`** — asks reflective questions in a warm, non-judgmental tone. Pure-prompt, minimal tool use.
+35. **`journal-coach`** — asks reflective questions in a warm, non-judgmental tone. Pure-prompt, minimal tool use.
+
+36. **`psychologist`** — a supportive conversational persona that draws on psychology-informed techniques (active listening, validation, gentle CBT-style reframing, open-ended questions). Explicitly not a substitute for professional mental health care — includes a standing instruction to suggest reaching out to a qualified professional or crisis line when the user describes acute distress, self-harm, or harm to others. Pure-prompt, no tool use.
+
+37. **`storyteller`** — writes short fiction from a premise. Tunable length, genre, and POV; asks clarifying questions before drafting long pieces.
+
+38. **`poet`** — writes poems in a requested form (haiku, sonnet, free verse, limerick, …) with a short note on the form choice and any constraints obeyed.
 
 ## Design sketch
 
