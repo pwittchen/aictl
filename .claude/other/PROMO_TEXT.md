@@ -6,6 +6,8 @@ Comes with 30+ tools built in ⚡ — shell, file edits, git, web search, vision
 
 Interactive REPL or one-shot mode for scripting.
 
+Free for non-commercial use. For commercial use, reach out to me for a separate commercial license.
+
 Give it a spin and let me know what you think — feedback, stars, and PRs all welcome 🙌
 
 👉 https://aictl.app
