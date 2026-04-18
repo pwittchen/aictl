@@ -311,14 +311,21 @@ impl InteractiveUI {
         // a tiny S-curl). Each row is 6 chars wide so the rest of the banner
         // content stays aligned.
         const SLEEPY_SPIRAL: [&str; 3] = [" z    ", "z     ", " z    "];
-        let local_hour = std::process::Command::new("date")
-            .arg("+%H")
+        const CREAM_CAKE_FAN: [&str; 2] = ["[x_x] ", " |_|  "];
+        let now_str = std::process::Command::new("date")
+            .arg("+%H:%M")
             .output()
             .ok()
             .and_then(|o| String::from_utf8(o.stdout).ok())
-            .and_then(|s| s.trim().parse::<u32>().ok());
+            .unwrap_or_default();
+        let (hour_str, minute_str) = now_str.trim().split_once(':').unwrap_or(("", ""));
+        let local_hour = hour_str.parse::<u32>().ok();
+        let local_minute = minute_str.parse::<u32>().ok();
         let sleepy = matches!(local_hour, Some(h) if !(6..22).contains(&h));
-        let face = if sleepy {
+        let eol = local_hour == Some(21) && local_minute == Some(37);
+        let face = if eol {
+            CREAM_CAKE_FAN
+        } else if sleepy {
             SLEEPY
         } else {
             let pick = std::time::SystemTime::now()
@@ -327,6 +334,8 @@ impl InteractiveUI {
                 % MASCOTS.len();
             MASCOTS[pick]
         };
+        let face_color = if eol { Color::Yellow } else { Color::Cyan };
+        let body_color = if eol { Color::White } else { Color::Cyan };
         let m = if sleepy {
             [
                 face[0],
@@ -360,7 +369,7 @@ impl InteractiveUI {
             eprintln!(
                 "{PAD}{} {}{} {} {}",
                 PIPE.with(Color::DarkGrey),
-                m[0].with(Color::Cyan),
+                m[0].with(face_color),
                 "aictl".with(Color::Cyan).attribute(Attribute::Bold),
                 crate::VERSION.with(Color::DarkGrey),
                 "— AI agent in your terminal".with(Color::DarkGrey),
@@ -369,7 +378,7 @@ impl InteractiveUI {
             eprintln!(
                 "{PAD}{} {}{} {} {} {}",
                 PIPE.with(Color::DarkGrey),
-                m[0].with(Color::Cyan),
+                m[0].with(face_color),
                 "aictl".with(Color::Cyan).attribute(Attribute::Bold),
                 crate::VERSION.with(Color::DarkGrey),
                 version_info.with(version_color),
@@ -381,7 +390,7 @@ impl InteractiveUI {
         eprintln!(
             "{PAD}{} {}{} {} {}",
             PIPE.with(Color::DarkGrey),
-            m[1].with(Color::Cyan),
+            m[1].with(body_color),
             provider.with(Color::Green),
             "·".with(Color::DarkGrey),
             model.with(Color::Yellow),
