@@ -1337,6 +1337,11 @@ async fn run_and_display_turn(
                     turn.elapsed,
                     cp,
                 );
+            } else {
+                // First LLM response was the final answer — no summary will
+                // run to add the trailing blank line, so emit one here so the
+                // next prompt isn't glued to the status line.
+                eprintln!();
             }
         }
         Err(e) => {

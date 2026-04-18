@@ -4,10 +4,6 @@
 
 ## General
 
-### Bugs/Improvements
-
-- when first response from the LLM is also the last/final, then add empty line after the status line
-
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.
