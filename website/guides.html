@@ -683,6 +683,10 @@
             <p>User prompts containing instruction-override phrases or forged role / tool tags are blocked before reaching the LLM. Disable with <code>AICTL_SECURITY_INJECTION_GUARD=false</code>.</p>
           </article>
           <article class="card">
+            <h3>Audit log</h3>
+            <p>Every tool invocation appends one JSON line to <code>~/.aictl/audit/&lt;session-id&gt;</code> &mdash; timestamp, tool, input, and outcome (executed, denied by policy / user, disabled, duplicate). Filename mirrors the session file. Observability-only, so <code>--unrestricted</code> leaves it on. Disable with <code>AICTL_SECURITY_AUDIT_LOG=false</code>.</p>
+          </article>
+          <article class="card">
             <h3>Tunable</h3>
             <p>Every setting is configurable via <code>AICTL_SECURITY_*</code> keys. Disable individual tools with <code>AICTL_SECURITY_DISABLED_TOOLS</code>. Bypass everything with <code>--unrestricted</code>.</p>
           </article>
@@ -704,6 +708,7 @@
               <li><code>AICTL_SECURITY_MAX_WRITE</code> — max file write size in bytes (default <code>1048576</code> = 1 MB)</li>
               <li><code>AICTL_SECURITY_DISABLED_TOOLS</code> — comma-separated list of tool names to disable; e.g. <code>exec_shell,search_web</code></li>
               <li><code>AICTL_SECURITY_BLOCKED_ENV</code> — comma-separated list of extra env vars to scrub from shell subprocesses; e.g. <code>GITHUB_TOKEN,AWS_SESSION_TOKEN</code></li>
+              <li><code>AICTL_SECURITY_AUDIT_LOG</code> — append one JSON line per tool invocation to <code>~/.aictl/audit/&lt;session-id&gt;</code> (default <code>true</code>); skipped in incognito and single-shot runs</li>
             </ul>
           </div>
         </div>

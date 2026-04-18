@@ -115,3 +115,12 @@
 # Comma-separated additional env vars to scrub from shell subprocesses
 # (vars matching *_KEY, *_SECRET, *_TOKEN, *_PASSWORD are always scrubbed)
 # AICTL_SECURITY_BLOCKED_ENV=
+
+# Audit log: append one JSON line per tool invocation to
+# ~/.aictl/audit/<session-id> (JSONL) with timestamp, tool, truncated input,
+# and an outcome tag (executed / denied_by_policy / denied_by_user /
+# disabled / duplicate). The filename mirrors the session file under
+# ~/.aictl/sessions/. Skipped in incognito mode and single-shot runs.
+# Observability-only, so --unrestricted leaves it on (default: true).
+# Accepted values: true, false.
+# AICTL_SECURITY_AUDIT_LOG=true

@@ -324,6 +324,7 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_SECURITY_MAX_WRITE` | Max file write size in bytes (default: `1048576` = 1 MB) |
 | `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web`) |
 | `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
+| `AICTL_SECURITY_AUDIT_LOG` | Append one JSON line per tool invocation to `~/.aictl/audit/<session-id>` (default: `true`) |
 
 Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 
@@ -684,8 +685,9 @@ All tool calls pass through a configurable security policy (`src/security.rs`) b
 - **Write size limit**: file writes are capped at 1 MB (configurable).
 - **Output sanitization**: tool results are sanitized to prevent prompt injection via `<tool>` tags.
 - **Injection guard**: user prompts are scanned before being sent to the LLM. Inputs containing instruction-override phrases ("ignore previous instructions", "disable security", etc.) or forged role/tool tags (`<tool …>`, `<|system|>`, `### System:`, etc.) are blocked with a clear error. Disable with `AICTL_SECURITY_INJECTION_GUARD=false`.
+- **Audit log**: every tool invocation appends one JSON line to `~/.aictl/audit/<session-id>` (JSONL) with timestamp, tool name, truncated input, and an outcome tag (`executed` + `result_summary`, `denied_by_policy` + `reason`, `denied_by_user`, `disabled`, `duplicate`) — separate from session history so a reviewer can reconstruct exactly what the model ran. The filename mirrors the session file under `~/.aictl/sessions/`. Skipped in incognito mode and single-shot runs. Disable with `AICTL_SECURITY_AUDIT_LOG=false`.
 
-Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`.
+Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`. The audit log is observability, not enforcement, so `--unrestricted` leaves it running unless the config key turns it off.
 
 ### Examples
 

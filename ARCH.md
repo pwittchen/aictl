@@ -6,6 +6,7 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
+ ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle
  ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
  ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, stats, tools, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
@@ -173,6 +174,9 @@ Both single-shot and REPL modes share the same loop:
  │                                                           │
  │                                                           │
  │  3. sanitize_output() ── escape <tool> tags in results    │
+ │  4. audit::log_tool() ── append JSONL entry to            │
+ │     ~/.aictl/audit/<session-id> (executed, denied by      │
+ │     policy/user, disabled, or duplicate)                  │
  │  All outputs truncated at 10,000 chars                    │
  │                                                           │
  │  Notes:                                                   │
@@ -470,7 +474,7 @@ Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`)
-- **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), etc. (see `security.rs`)
+- **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 
 ### API key storage (`src/keys.rs`)
 
@@ -502,6 +506,10 @@ API keys can live in two places: the plain-text `~/.aictl/config` file (the lega
 - `clear_key(name)` removes the entry from both stores. Exposed via `/keys → clear keys` (wrapped with a y/N confirmation) and `--clear-keys` (no confirmation; the explicit flag is treated as the user's consent).
 
 The keyring backend is selected at compile time via Cargo features: `apple-native` on macOS, `sync-secret-service` on Linux. **Without explicit features the `keyring` v3 crate silently uses an in-memory mock store** that pretends writes succeed but never persists — `Cargo.toml` enables both platform backends to avoid this trap. `backend_available()` probes the active backend at runtime so headless Linux systems with no Secret Service daemon transparently fall back to plain-text storage and the welcome banner shows `keys: plain text` in yellow.
+
+### `~/.aictl/audit/<session-id>`
+
+JSONL audit log — one JSON object per line, appended on every tool invocation. The filename mirrors the corresponding session file under `~/.aictl/sessions/` so a reviewer can read both together. Each entry carries `timestamp` (UTC, ISO-8601 seconds precision), `tool`, `input` (truncated), and an `outcome` of `executed` (with `result_summary`), `denied_by_policy` (with `reason`), `denied_by_user`, `disabled`, or `duplicate`. Written by `src/audit.rs::log_tool`, called from `tools::execute_tool` for the policy / duplicate / disabled / executed outcomes and from `run::handle_tool_call` for the user-denial outcome. Skipped entirely in incognito mode and in single-shot (`--message`) runs where no session id exists. Toggled via `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (default `true`); observability-only, so `--unrestricted` does not disable it.
 
 ### `~/.aictl/history`
 
