@@ -4,6 +4,11 @@
 
 ## General
 
+### Bugs/Improvements
+
+- In the reasoning before the tool call, last word is cut and user have to wait. Do not cut this last word, and show loading indicator after reasoning and before the tool call
+- when first response from the LLM is also the last/final, then add empty line after the status line
+
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.
