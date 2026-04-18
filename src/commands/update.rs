@@ -1,6 +1,6 @@
 use crossterm::style::{Color, Stylize};
 
-const UPDATE_CMD: &str = "curl -sSf https://aictl.app/install.sh | sh";
+pub const UPDATE_CMD: &str = "curl -sSf https://aictl.app/install.sh | sh";
 
 /// Check the current version against the latest available (REPL `/version`).
 pub async fn run_version(show_error: &dyn Fn(&str)) {

@@ -14,6 +14,7 @@ mod session;
 mod stats;
 mod tools;
 mod ui;
+mod version_cache;
 
 use clap::Parser;
 

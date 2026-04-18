@@ -52,7 +52,7 @@ pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
 pub use stats::run_stats_menu;
 pub use uninstall::{run_uninstall_cli, run_uninstall_repl};
-pub use update::{run_update, run_update_cli, run_version};
+pub use update::{UPDATE_CMD, run_update, run_update_cli, run_version};
 
 /// All slash command names (without `/`), sorted alphabetically.
 /// Used by the REPL tab completer.

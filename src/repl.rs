@@ -23,7 +23,8 @@ use crate::message::{Message, Role};
 use crate::run::{Interrupted, Provider, run_agent_turn, stdout_is_tty};
 use crate::ui::{AgentUI, InteractiveUI};
 use crate::{
-    agents, fetch_remote_version, keys, llm, security, session, stats, tools, version_info_string,
+    agents, fetch_remote_version, keys, llm, security, session, stats, tools, version_cache,
+    version_info_string,
 };
 
 // --- Slash command tab completion ---
@@ -495,12 +496,26 @@ pub(crate) async fn run_interactive(
     auto: bool,
     session_key: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Kick off the remote version check before anything else so it runs on
-    // another worker while the rest of startup (config, session init, file I/O)
-    // proceeds. At banner time we only consume the result if it's already
-    // ready — we never block the banner on the network call. This replaces a
-    // previous pattern that stalled the REPL for up to 3s on every launch.
-    let version_fetch = tokio::spawn(fetch_remote_version());
+    // Check the local cache first. If `~/.aictl/version` exists and its
+    // timestamp is less than 24h old, we already know the latest upstream
+    // version and skip the network call entirely. On a miss (or stale entry)
+    // we kick the remote fetch off on another worker so startup (config,
+    // session init, file I/O) proceeds in parallel; the background task
+    // writes the result back into the cache so the *next* run shows the
+    // banner notice instantly even if this launch's fetch didn't complete
+    // before banner render.
+    let cached_version = version_cache::cached_fresh();
+    let version_fetch = if cached_version.is_none() {
+        Some(tokio::spawn(async {
+            let remote = fetch_remote_version().await;
+            if let Some(ref v) = remote {
+                version_cache::save(v);
+            }
+            remote
+        }))
+    } else {
+        None
+    };
 
     let mut auto = auto;
     let mut memory = match config_get("AICTL_MEMORY").as_deref() {
@@ -554,13 +569,20 @@ pub(crate) async fn run_interactive(
     }
     session::save_current(&messages);
 
-    // Only display the remote-version notice if the background fetch has
-    // already completed. Otherwise drop the handle and show an empty string
-    // so the banner prints immediately.
-    let version_info = if version_fetch.is_finished() {
-        match version_fetch.await {
-            Ok(remote) => version_info_string(remote.as_deref()),
-            Err(_) => String::new(),
+    // Prefer the cached result if we had one; otherwise consume the live
+    // fetch if it's already completed. If neither is ready, fall back to an
+    // empty string so the banner prints immediately — the background task
+    // still runs to completion and populates the cache for the next launch.
+    let version_info = if let Some(cached) = cached_version.as_deref() {
+        version_info_string(Some(cached))
+    } else if let Some(fetch) = version_fetch {
+        if fetch.is_finished() {
+            match fetch.await {
+                Ok(remote) => version_info_string(remote.as_deref()),
+                Err(_) => String::new(),
+            }
+        } else {
+            String::new()
         }
     } else {
         String::new()
