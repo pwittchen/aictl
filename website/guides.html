@@ -684,7 +684,7 @@
           </article>
           <article class="card">
             <h3>Audit log</h3>
-            <p>Every tool invocation appends one JSON line to <code>~/.aictl/audit/&lt;session-id&gt;</code> &mdash; timestamp, tool, input, and outcome (executed, denied by policy / user, disabled, duplicate). Filename mirrors the session file. Observability-only, so <code>--unrestricted</code> leaves it on. Disable with <code>AICTL_SECURITY_AUDIT_LOG=false</code>.</p>
+            <p>Every tool call appends one JSON line to <code>~/.aictl/audit/&lt;session-id&gt;</code> &mdash; timestamp, tool, input, outcome. Observability-only, so <code>--unrestricted</code> leaves it on. Disable with <code>AICTL_SECURITY_AUDIT_LOG=false</code>.</p>
           </article>
         </div>
 
