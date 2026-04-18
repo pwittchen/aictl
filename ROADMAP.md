@@ -6,7 +6,6 @@
 
 ### Bugs/Improvements
 
-- In the reasoning before the tool call, last word is cut and user have to wait. Do not cut this last word, and show loading indicator after reasoning and before the tool call
 - when first response from the LLM is also the last/final, then add empty line after the status line
 
 ### Agent & Workflow
