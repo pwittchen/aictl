@@ -520,20 +520,13 @@ impl InteractiveUI {
         );
         next += 1;
 
-        // Optional update hint + installation instructions
+        // Optional update hint
         if version_info.contains("available") {
             eprintln!(
                 "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
                 m[next].with(Color::Cyan),
-                "Run /update or aictl --update to upgrade, or install manually:"
-                    .with(Color::Yellow),
-            );
-            eprintln!(
-                "{PAD}{} {}{}",
-                PIPE.with(Color::DarkGrey),
-                BLANK.with(Color::Cyan),
-                format!("  {}", crate::commands::UPDATE_CMD).with(Color::Yellow),
+                "Run /update or aictl --update to upgrade".with(Color::Yellow),
             );
         }
         eprintln!(
