@@ -93,18 +93,23 @@ pub fn get_secret(name: &str) -> Option<String> {
     config_get(name)
 }
 
-/// Return the storage location for a single key.
-pub fn location(name: &str) -> KeyLocation {
-    let in_config = config_get(name).filter(|v| !v.is_empty()).is_some();
-    let in_keyring = keyring::Entry::new(SERVICE_NAME, name)
-        .and_then(|e| e.get_password())
-        .is_ok();
+/// Pure mapping from `(in_config, in_keyring)` to a `KeyLocation`.
+fn derive_location(in_config: bool, in_keyring: bool) -> KeyLocation {
     match (in_config, in_keyring) {
         (false, false) => KeyLocation::None,
         (true, false) => KeyLocation::Config,
         (false, true) => KeyLocation::Keyring,
         (true, true) => KeyLocation::Both,
     }
+}
+
+/// Return the storage location for a single key.
+pub fn location(name: &str) -> KeyLocation {
+    let in_config = config_get(name).filter(|v| !v.is_empty()).is_some();
+    let in_keyring = keyring::Entry::new(SERVICE_NAME, name)
+        .and_then(|e| e.get_password())
+        .is_ok();
+    derive_location(in_config, in_keyring)
 }
 
 /// Return `(name, location)` pairs for every known API key.
@@ -223,14 +228,16 @@ pub fn clear_key(name: &str) -> ClearOutcome {
     }
 }
 
-/// Count how many known keys currently live in the keyring vs. plain-text config.
-/// Returns `(locked, plain, both, unset)`.
-pub fn counts() -> (usize, usize, usize, usize) {
+/// Pure tally over `(name, location)` pairs. Returns `(locked, plain, both, unset)`.
+fn count_locations<I, N>(iter: I) -> (usize, usize, usize, usize)
+where
+    I: IntoIterator<Item = (N, KeyLocation)>,
+{
     let mut locked = 0;
     let mut plain = 0;
     let mut both = 0;
     let mut unset = 0;
-    for (_, loc) in all_locations() {
+    for (_, loc) in iter {
         match loc {
             KeyLocation::Keyring => locked += 1,
             KeyLocation::Config => plain += 1,
@@ -239,4 +246,95 @@ pub fn counts() -> (usize, usize, usize, usize) {
         }
     }
     (locked, plain, both, unset)
+}
+
+/// Count how many known keys currently live in the keyring vs. plain-text config.
+/// Returns `(locked, plain, both, unset)`.
+pub fn counts() -> (usize, usize, usize, usize) {
+    count_locations(all_locations())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_location_labels() {
+        assert_eq!(KeyLocation::None.label(), "unset");
+        assert_eq!(KeyLocation::Config.label(), "plain");
+        assert_eq!(KeyLocation::Keyring.label(), "keyring");
+        assert_eq!(KeyLocation::Both.label(), "both");
+    }
+
+    #[test]
+    fn derive_location_maps_presence_pairs() {
+        assert_eq!(derive_location(false, false), KeyLocation::None);
+        assert_eq!(derive_location(true, false), KeyLocation::Config);
+        assert_eq!(derive_location(false, true), KeyLocation::Keyring);
+        assert_eq!(derive_location(true, true), KeyLocation::Both);
+    }
+
+    #[test]
+    fn count_locations_tallies_each_bucket() {
+        let pairs = [
+            ("a", KeyLocation::Keyring),
+            ("b", KeyLocation::Keyring),
+            ("c", KeyLocation::Config),
+            ("d", KeyLocation::Both),
+            ("e", KeyLocation::Both),
+            ("f", KeyLocation::None),
+            ("g", KeyLocation::None),
+            ("h", KeyLocation::None),
+        ];
+        assert_eq!(count_locations(pairs), (2, 1, 2, 3));
+    }
+
+    #[test]
+    fn count_locations_empty_returns_all_zero() {
+        let empty: [(&str, KeyLocation); 0] = [];
+        assert_eq!(count_locations(empty), (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn key_names_not_empty_and_unique() {
+        assert!(!KEY_NAMES.is_empty());
+        let mut seen = std::collections::HashSet::new();
+        for name in KEY_NAMES {
+            assert!(seen.insert(*name), "duplicate key name: {name}");
+        }
+    }
+
+    #[test]
+    fn key_names_are_well_formed() {
+        for name in KEY_NAMES {
+            assert!(!name.is_empty());
+            // All-caps ASCII with underscores — matches env-style names used
+            // everywhere else in the config and avoids shell-hostile chars.
+            assert!(
+                name.chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
+                "key name `{name}` contains unexpected characters"
+            );
+        }
+    }
+
+    #[test]
+    fn key_names_covers_known_providers() {
+        for expected in [
+            "LLM_ANTHROPIC_API_KEY",
+            "LLM_OPENAI_API_KEY",
+            "LLM_GEMINI_API_KEY",
+            "LLM_GROK_API_KEY",
+            "LLM_MISTRAL_API_KEY",
+            "LLM_DEEPSEEK_API_KEY",
+            "LLM_KIMI_API_KEY",
+            "LLM_ZAI_API_KEY",
+            "FIRECRAWL_API_KEY",
+        ] {
+            assert!(
+                KEY_NAMES.contains(&expected),
+                "missing expected key: {expected}"
+            );
+        }
+    }
 }
