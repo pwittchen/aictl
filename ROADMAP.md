@@ -17,7 +17,6 @@
 
 ### Security & Reliability
 
-- **Symlink-aware path validation** — Add regression tests for path traversal via symlinks to harden the CWD jail.
 - **Audit log** — Optionally log all tool executions (command, args, result summary) to a file for post-hoc review, separate from session history.
 
 ---

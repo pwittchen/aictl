@@ -691,8 +691,12 @@ fn check_dir(path: &str) -> Result<PathBuf, String> {
 }
 
 fn check_path(path_str: &str, is_write: bool) -> Result<PathBuf, String> {
-    let pol = &policy().paths;
+    check_path_with(path_str, is_write, &policy().paths)
+}
 
+/// Policy-parameterized variant of `check_path` used by the tests so they can
+/// exercise the CWD jail without touching the global policy.
+fn check_path_with(path_str: &str, is_write: bool, pol: &PathPolicy) -> Result<PathBuf, String> {
     // Reject null bytes
     if path_str.contains('\0') {
         return Err("path contains null byte".to_string());
@@ -1440,5 +1444,167 @@ mod tests {
         assert!(detect_prompt_injection("Can you ignore case when searching?").is_ok());
         assert!(detect_prompt_injection("I forgot to commit the file").is_ok());
         assert!(detect_prompt_injection("This function overrides the default").is_ok());
+    }
+
+    // --- Symlink-aware CWD jail regression tests ---
+    //
+    // The CWD jail depends on `fs::canonicalize()` resolving symlinks before
+    // the `starts_with(cwd)` check. These tests exist to lock in that
+    // behavior so a future refactor that swaps canonicalization for a
+    // symlink-unaware normalization would fail loudly.
+
+    #[cfg(unix)]
+    mod symlink_jail {
+        use super::*;
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+        /// Create a fresh, canonicalized scratch directory. Canonicalization
+        /// matters on macOS where `/tmp` is itself a symlink to `/private/tmp`
+        /// — without it the jail check would reject every path inside CWD.
+        fn scratch(label: &str) -> PathBuf {
+            let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let dir = std::env::temp_dir().join(format!(
+                "aictl_symlink_{label}_{}_{id}_{nanos}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).expect("create scratch dir");
+            dir.canonicalize().expect("canonicalize scratch dir")
+        }
+
+        fn policy_for(cwd: &Path, blocked: Vec<PathBuf>) -> PathPolicy {
+            PathPolicy {
+                working_dir: cwd.to_path_buf(),
+                restrict_to_cwd: true,
+                blocked_paths: blocked,
+                allowed_paths: vec![],
+            }
+        }
+
+        #[test]
+        fn symlink_escaping_cwd_is_rejected_for_read() {
+            let cwd = scratch("esc_read");
+            let outside = scratch("esc_read_out");
+            std::fs::write(outside.join("secret.txt"), b"shh").unwrap();
+            symlink(&outside, cwd.join("escape")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let err = check_path_with("escape/secret.txt", false, &pol).unwrap_err();
+            assert!(
+                err.contains("outside the working directory"),
+                "expected jail rejection, got: {err}"
+            );
+        }
+
+        #[test]
+        fn symlink_escaping_cwd_is_rejected_for_write_to_new_file() {
+            // Writes to a non-existent file canonicalize the parent. If the
+            // parent is a symlink escaping CWD, we must still reject.
+            let cwd = scratch("esc_write");
+            let outside = scratch("esc_write_out");
+            symlink(&outside, cwd.join("escape")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let err = check_path_with("escape/new.txt", true, &pol).unwrap_err();
+            assert!(
+                err.contains("outside the working directory"),
+                "expected jail rejection for write through symlinked dir, got: {err}"
+            );
+        }
+
+        #[test]
+        fn symlink_escaping_cwd_is_rejected_when_overwriting_existing_target() {
+            // Direct symlink file (not a directory). Canonicalize should
+            // resolve it to the outside target and the jail must catch it.
+            let cwd = scratch("esc_overwrite");
+            let outside = scratch("esc_overwrite_out");
+            let target = outside.join("target.txt");
+            std::fs::write(&target, b"original").unwrap();
+            symlink(&target, cwd.join("link.txt")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let err = check_path_with("link.txt", true, &pol).unwrap_err();
+            assert!(
+                err.contains("outside the working directory"),
+                "expected jail rejection when writing through symlink, got: {err}"
+            );
+        }
+
+        #[test]
+        fn chained_symlinks_escaping_cwd_are_rejected() {
+            // a -> b -> outside/ ensures the jail follows the whole chain.
+            let cwd = scratch("chain");
+            let outside = scratch("chain_out");
+            std::fs::write(outside.join("final.txt"), b"x").unwrap();
+            symlink(&outside, cwd.join("hop2")).unwrap();
+            symlink(cwd.join("hop2"), cwd.join("hop1")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let err = check_path_with("hop1/final.txt", false, &pol).unwrap_err();
+            assert!(
+                err.contains("outside the working directory"),
+                "expected jail rejection for chained symlink, got: {err}"
+            );
+        }
+
+        #[test]
+        fn symlink_pointing_into_blocked_path_is_rejected() {
+            // A symlink inside CWD that points at a blocked path must trip
+            // the blocked_paths check even though its literal location is
+            // inside CWD.
+            let cwd = scratch("blocked");
+            let blocked_host = scratch("blocked_host");
+            let blocked_file = blocked_host.join("shadow");
+            std::fs::write(&blocked_file, b"root:*:0:0").unwrap();
+            symlink(&blocked_file, cwd.join("shadow-link")).unwrap();
+
+            let pol = policy_for(&cwd, vec![blocked_host.clone()]);
+            let err = check_path_with("shadow-link", false, &pol).unwrap_err();
+            assert!(
+                err.contains("blocked by security policy"),
+                "expected blocked-path rejection, got: {err}"
+            );
+        }
+
+        #[test]
+        fn symlink_staying_inside_cwd_is_allowed() {
+            // Control: a symlink whose target resolves inside CWD must
+            // still be accepted — otherwise the jail is over-broad.
+            let cwd = scratch("inside");
+            std::fs::create_dir(cwd.join("sub")).unwrap();
+            std::fs::write(cwd.join("sub/file.txt"), b"ok").unwrap();
+            symlink(cwd.join("sub/file.txt"), cwd.join("shortcut")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let canon = check_path_with("shortcut", false, &pol)
+                .expect("in-CWD symlink must be allowed");
+            let expected = cwd.join("sub/file.txt").canonicalize().unwrap();
+            assert_eq!(canon, expected);
+        }
+
+        #[test]
+        fn relative_symlink_escaping_cwd_via_dotdot_is_rejected() {
+            // Relative symlink `../<out>/secret.txt` resolves via the
+            // canonical parent — must still be caught by the jail.
+            let cwd = scratch("rel");
+            let outside = scratch("rel_out");
+            std::fs::write(outside.join("secret.txt"), b"shh").unwrap();
+            // symlink target is resolved relative to the symlink's dir
+            let rel_target = PathBuf::from("..").join(outside.file_name().unwrap());
+            symlink(rel_target, cwd.join("escape")).unwrap();
+
+            let pol = policy_for(&cwd, vec![]);
+            let err = check_path_with("escape/secret.txt", false, &pol).unwrap_err();
+            assert!(
+                err.contains("outside the working directory"),
+                "expected jail rejection for relative escaping symlink, got: {err}"
+            );
+        }
     }
 }
