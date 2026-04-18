@@ -1039,6 +1039,15 @@ pub fn policy_summary() -> Vec<(String, String)> {
     ));
 
     lines.push((
+        "audit log".to_string(),
+        if crate::audit::enabled() {
+            "on (~/.aictl/audit/<session>)".to_string()
+        } else {
+            "off".to_string()
+        },
+    ));
+
+    lines.push((
         "blocked paths".to_string(),
         format!("{} entries", pol.paths.blocked_paths.len()),
     ));
@@ -1582,8 +1591,8 @@ mod tests {
             symlink(cwd.join("sub/file.txt"), cwd.join("shortcut")).unwrap();
 
             let pol = policy_for(&cwd, vec![]);
-            let canon = check_path_with("shortcut", false, &pol)
-                .expect("in-CWD symlink must be allowed");
+            let canon =
+                check_path_with("shortcut", false, &pol).expect("in-CWD symlink must be allowed");
             let expected = cwd.join("sub/file.txt").canonicalize().unwrap();
             assert_eq!(canon, expected);
         }

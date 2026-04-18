@@ -15,10 +15,6 @@
 - **Unit tests for `agents.rs`, `session.rs`, `keys.rs`** — These critical modules currently have zero test coverage.
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
 
-### Security & Reliability
-
-- **Audit log** — Optionally log all tool executions (command, args, result summary) to a file for post-hoc review, separate from session history.
-
 ---
 
 ## Desktop

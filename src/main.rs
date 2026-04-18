@@ -1,4 +1,5 @@
 mod agents;
+mod audit;
 mod commands;
 mod config;
 mod keys;

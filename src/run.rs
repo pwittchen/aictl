@@ -336,6 +336,7 @@ async fn handle_tool_call(
         });
         Ok(ToolAction::Executed)
     } else {
+        crate::audit::log_tool(tool_call, crate::audit::Outcome::DeniedByUser);
         messages.push(Message {
             role: Role::User,
             content: "Tool call denied by user. Try a different approach or answer without tools."

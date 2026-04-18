@@ -156,6 +156,7 @@ pub fn tools_enabled() -> bool {
 pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     // Global tools switch
     if !tools_enabled() {
+        crate::audit::log_tool(tool_call, crate::audit::Outcome::DisabledGlobally);
         return ToolOutput::text(
             "All tools are disabled (AICTL_TOOLS_ENABLED=false in config)".to_string(),
         );
@@ -169,6 +170,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     {
         let mut history = call_history().lock().expect("tool call history poisoned");
         if history.contains(&call_key) {
+            crate::audit::log_tool(tool_call, crate::audit::Outcome::DuplicateCall);
             return ToolOutput::text(format!(
                 "You already called the tool `{}` with this input earlier in the session, and its result is already in the conversation above. Do not repeat the same tool call. Answer now with your final response based on the information you already have, or call a different tool with a meaningfully different input.",
                 tool_call.name
@@ -179,6 +181,10 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
 
     // Security gate
     if let Err(reason) = crate::security::validate_tool(tool_call) {
+        crate::audit::log_tool(
+            tool_call,
+            crate::audit::Outcome::DeniedByPolicy { reason: &reason },
+        );
         return ToolOutput::text(format!("Security policy denied: {reason}"));
     }
 
@@ -188,6 +194,12 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     if tool_call.name == "read_image" {
         let mut output = image::tool_read_image(input).await;
         output.text = crate::security::sanitize_output(&output.text);
+        crate::audit::log_tool(
+            tool_call,
+            crate::audit::Outcome::Executed {
+                result: &output.text,
+            },
+        );
         return output;
     }
 
@@ -224,7 +236,12 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "notify" => notify::tool_notify(input).await,
         _ => format!("Unknown tool: {}", tool_call.name),
     };
-    ToolOutput::text(crate::security::sanitize_output(&result))
+    let sanitized = crate::security::sanitize_output(&result);
+    crate::audit::log_tool(
+        tool_call,
+        crate::audit::Outcome::Executed { result: &sanitized },
+    );
+    ToolOutput::text(sanitized)
 }
 
 pub fn confirm_tool_call(tool_call: &ToolCall) -> bool {
