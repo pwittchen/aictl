@@ -613,18 +613,18 @@ impl InteractiveUI {
 impl AgentUI for InteractiveUI {
     fn start_spinner(&self, msg: &str) {
         let pb = ProgressBar::new_spinner();
+        let template = if self.first_spinner.get() {
+            self.first_spinner.set(false);
+            String::from("{spinner} {msg}")
+        } else {
+            format!("{PAD}{{spinner}} {{msg}}")
+        };
         pb.set_style(
-            ProgressStyle::with_template("{spinner} {msg}")
+            ProgressStyle::with_template(&template)
                 .unwrap()
                 .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ "),
         );
-        let prefix = if self.first_spinner.get() {
-            self.first_spinner.set(false);
-            ""
-        } else {
-            PAD
-        };
-        pb.set_message(format!("{prefix}{}", msg.with(Color::DarkGrey)));
+        pb.set_message(format!("{}", msg.with(Color::DarkGrey)));
         pb.enable_steady_tick(Duration::from_millis(80));
         *self.spinner.borrow_mut() = pb;
     }
