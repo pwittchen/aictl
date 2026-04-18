@@ -6,6 +6,8 @@ pub mod grok;
 pub mod kimi;
 pub mod mistral;
 pub mod mlx;
+#[cfg(test)]
+pub mod mock;
 pub mod ollama;
 pub mod openai;
 pub mod stream;

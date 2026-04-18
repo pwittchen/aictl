@@ -261,6 +261,7 @@ async fn create_agent_with_ai(
             ))
             .await
         }
+        Provider::Mock => unreachable!("Provider::Mock is test-only and never selected at runtime"),
     };
 
     ui.stop_spinner();

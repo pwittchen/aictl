@@ -2,6 +2,8 @@ mod agents;
 mod audit;
 mod commands;
 mod config;
+#[cfg(test)]
+mod integration_tests;
 mod keys;
 mod llm;
 mod message;
@@ -362,7 +364,10 @@ async fn main() {
         })
     });
 
-    let api_key = if matches!(provider, Provider::Ollama | Provider::Gguf | Provider::Mlx) {
+    let api_key = if matches!(
+        provider,
+        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
+    ) {
         String::new()
     } else {
         let key_name = match provider {
@@ -374,7 +379,7 @@ async fn main() {
             Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
             Provider::Kimi => "LLM_KIMI_API_KEY",
             Provider::Zai => "LLM_ZAI_API_KEY",
-            Provider::Ollama | Provider::Gguf | Provider::Mlx => unreachable!(),
+            Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
         };
         keys::get_secret(key_name).unwrap_or_else(|| {
             eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config");

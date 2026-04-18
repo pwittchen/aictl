@@ -19,6 +19,7 @@ use std::io::IsTerminal;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::OnceLock;
+#[cfg(not(test))]
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::ValueEnum;
@@ -44,6 +45,7 @@ pub(crate) fn stdout_is_tty() -> bool {
 }
 
 /// Result of a single agent turn.
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct TurnResult {
     pub answer: String,
     pub usage: TokenUsage,
@@ -66,6 +68,12 @@ pub(crate) enum Provider {
     Ollama,
     Gguf,
     Mlx,
+    /// Scripted provider used by the integration tests. Hidden from the CLI
+    /// via `#[value(skip)]` so users can never select it; the actual dispatch
+    /// in `run_agent_turn` is cfg-gated so non-test builds can't route here.
+    #[value(skip)]
+    #[allow(dead_code)]
+    Mock,
 }
 
 // --- Esc key interrupt support ---
@@ -88,11 +96,33 @@ impl std::error::Error for Interrupted {}
 /// a blocking listener that polls for Esc key events. Returns
 /// `Ok(value)` on normal completion or `Err(Interrupted)` if the user
 /// pressed Esc.
+///
+/// Skipped entirely in two cases:
+///   * Under `#[cfg(test)]` — `cargo test` inherits the shell's TTY on FD 1,
+///     so `is_terminal()` still returns `true`, but no test presses Esc. If
+///     the listener ran, it would flip the terminal into raw mode and bare
+///     `\n` in the test harness output (run concurrently by parallel tests)
+///     would stop resetting the cursor to column 0, producing staircase
+///     margins and run-together lines in `cargo test` output.
+///   * When stdout is not a TTY (piped output, pager) — raw mode and a
+///     keyboard poller serve no purpose there either.
+#[cfg(test)]
+pub(crate) async fn with_esc_cancel<F: std::future::Future>(
+    future: F,
+) -> Result<F::Output, Interrupted> {
+    Ok(future.await)
+}
+
+#[cfg(not(test))]
 pub(crate) async fn with_esc_cancel<F: std::future::Future>(
     future: F,
 ) -> Result<F::Output, Interrupted> {
     use crossterm::event::{self, Event, KeyCode, KeyEventKind};
     use tokio::sync::oneshot;
+
+    if !stdout_is_tty() {
+        return Ok(future.await);
+    }
 
     let (tx, rx) = oneshot::channel::<()>();
     let stop = Arc::new(AtomicBool::new(false));
@@ -553,6 +583,25 @@ pub(crate) async fn run_agent_turn(
                     ui,
                 )
                 .await
+            }
+            Provider::Mock => {
+                #[cfg(test)]
+                {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::mock::call_mock(model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                #[cfg(not(test))]
+                {
+                    let _ = (llm_timeout, llm_messages, sink, rx_opt);
+                    unreachable!("Provider::Mock is test-only and never selected at runtime")
+                }
             }
         };
         let call_elapsed = call_start.elapsed();

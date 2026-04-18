@@ -275,7 +275,10 @@ async fn handle_repl_input(
             if let Some(new_model) = config_get("AICTL_MODEL") {
                 *model = new_model;
             }
-            if matches!(provider, Provider::Ollama | Provider::Gguf | Provider::Mlx) {
+            if matches!(
+                provider,
+                Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
+            ) {
                 *api_key = String::new();
             } else {
                 let key_name = match provider {
@@ -287,7 +290,9 @@ async fn handle_repl_input(
                     Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
                     Provider::Kimi => "LLM_KIMI_API_KEY",
                     Provider::Zai => "LLM_ZAI_API_KEY",
-                    Provider::Ollama | Provider::Gguf | Provider::Mlx => unreachable!(),
+                    Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => {
+                        unreachable!()
+                    }
                 };
                 if let Some(k) = keys::get_secret(key_name) {
                     *api_key = k;

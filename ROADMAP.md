@@ -11,7 +11,6 @@
 
 ### Developer Experience
 
-- **Integration tests with a mock LLM** — End-to-end tests exercising the full agent loop with a mock provider.
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
 
 ---
