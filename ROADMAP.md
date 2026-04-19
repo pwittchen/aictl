@@ -8,6 +8,7 @@
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.
 - **Skills** — Markdown playbooks invoked on demand via `/<skill-name>` that inject instructions for a single turn (unlike agents, which persist for the session). See [.claude/plans/skills.md](.claude/plans/skills.md) for the development plan.
+- **Remote skills catalogue** — Browse and pull official skills on demand from the project's GitHub repo via `/skills`, with an `[official]` badge to distinguish them from user-authored ones and an update indicator for re-pulls. Layers on top of the core skills feature, not bundled into the binary. See [.claude/plans/skills-remote-catalogue.md](.claude/plans/skills-remote-catalogue.md) for the development plan.
 
 ### Developer Experience
 
