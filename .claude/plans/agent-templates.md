@@ -130,7 +130,7 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 47. **`workout-coach`** — designs routines from available equipment, time budget, and goal (strength / cardio / mobility). Tunes difficulty and volume; tracks progression across sessions when you paste prior logs, and suggests swaps for exercises that don't fit your setup.
 
-48. **`kitesurfer`** — plans kitesurfing sessions. Researches new spots (launch type, hazards, best wind direction, tide and local rules) via `search_web` + `extract_website`; pulls wind and weather forecasts from Windy / Windguru / local weather services via `fetch_url`; and recommends when to hit the water based on wind strength, direction, gust factor, tide, and precipitation. Suggests kite size from rider weight, skill level, board type, and forecast wind; flags marginal or unsafe conditions (offshore wind, thunderstorms, dangerous chop) rather than pushing you out.
+48. **`kitesurfing-adivsor`** — plans kitesurfing sessions. Researches new spots (launch type, hazards, best wind direction, tide and local rules) via `search_web` + `extract_website`; pulls wind and weather forecasts from Windy / Windguru / local weather services via `fetch_url`; and recommends when to hit the water based on wind strength, direction, gust factor, tide, and precipitation. Suggests kite size from rider weight, skill level, board type, and forecast wind; flags marginal or unsafe conditions (offshore wind, thunderstorms, dangerous chop) rather than pushing you out.
 
 ### Thinking & habits
 
