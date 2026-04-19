@@ -13,6 +13,7 @@ Skills fill that gap: markdown playbooks stored on disk, invoked explicitly via 
 - Scope a skill invocation to **one turn**, not the whole session. That's the key differentiator from agents.
 - Mirror the existing `/agent` UX patterns so users already familiar with agents pick this up instantly.
 - Support both interactive (`/<skill-name>` in REPL) and single-shot (`--skill <name>`) invocation.
+- Ship a curated, first-party set of official skills that users can browse and pull on demand from the project's GitHub repo. The catalog is *not* bundled into the binary, so it can grow without a release.
 
 **Non-goals**
 - No automatic / context-sensitive skill invocation in v1 (the LLM deciding which skill to load based on the user's message). Explicit invocation only — easier to debug, no magic.
@@ -60,6 +61,8 @@ The directory form (rather than a single `~/.aictl/skills/<name>.md` file) is a 
 ---
 name: commit
 description: Commit staged changes with a clear, project-style message.
+source: aictl-official
+category: dev
 ---
 
 When the user asks you to commit:
@@ -71,8 +74,10 @@ When the user asks you to commit:
 Fields:
 - `name` — must match the directory name, re-validated at load.
 - `description` — one-line summary shown in `/skills` listings. Becomes the auto-invocation hook if we add it later; for now it's purely informational.
+- `source` — `aictl-official` for skills pulled from the project's GitHub repo; omitted (or `user`) for user-authored skills. The REPL and `--list-skills` render an `[official]` badge on rows whose frontmatter has `source: aictl-official`, so users can tell at a glance which skills came from the app and which they wrote themselves.
+- `category` — optional grouping key (`dev`, `ops`, `security`, …). Used by the browse/list UIs for drill-down.
 
-Frontmatter parsing: a simple hand-rolled YAML subset parser (key-value lines between `---` fences) keeps us off the `serde_yaml` dependency. Only `name` and `description` are recognized in v1.
+Frontmatter parsing: a simple hand-rolled YAML subset parser (key-value lines between `---` fences) keeps us off the `serde_yaml` dependency. Only `name`, `description`, `source`, and `category` are recognized in v1; unknown fields are silently ignored so the format can grow without breaking older clients.
 
 ### 3. Invocation
 
@@ -100,13 +105,32 @@ Key property: the skill message is **not persisted into session history**. Sessi
 
 Only the current turn's LLM call sees the skill content. Subsequent turns in the same session revert to the plain system prompt unless the user invokes the skill again.
 
-### 5. Creation UX (`/skills` menu)
+### 5. UX: create, browse, pull (`/skills` menu)
 
-Four entries, mirroring `/agent`:
+Five entries:
 1. **Create manually** — prompts for name, description, then multi-line markdown body. Writes `SKILL.md`.
 2. **Create with AI** — prompts for a one-line goal; the LLM drafts a full skill markdown (frontmatter + body). Reuse the AI-drafting helper from `/agent create with AI`.
-3. **View all** — arrow-key list; selecting a skill offers view / delete / invoke now.
-4. **Cancel**.
+3. **Browse official skills** — fetches the skills directory listing from the project's GitHub repo dynamically; selecting a row pulls its `SKILL.md` to disk.
+4. **View all** — arrow-key list of locally installed skills; selecting one offers view / delete / invoke now. Rows with `source: aictl-official` in frontmatter get an `[official]` badge.
+5. **Cancel**.
+
+**Source of truth for official skills**: they live in the project git repo under `skills/<name>/SKILL.md`, one directory per skill — same layout as `~/.aictl/skills/` on disk. **Not** compiled into the binary: no `include_str!`, no bundled assets. The browse list is fetched at runtime so new skills can ship without cutting a release.
+
+**Browse & pull mechanics**: selecting "Browse official skills" fetches the directory listing from GitHub at request time — no hardcoded manifest. Two fetch paths, in order:
+
+1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/contents/skills?ref=master` returns one entry per subdirectory; a single `git_trees` call with `?recursive=1` is preferred to avoid N+1 requests when fetching each skill's frontmatter.
+2. Fallback: raw `https://raw.githubusercontent.com/<owner>/<repo>/master/skills/<name>/SKILL.md` for individual pulls.
+
+The repo coordinates (`owner`, `repo`, `branch`) are constants in the binary — the *list* is dynamic, the *source location* is fixed. No API key is required for public-repo reads; rate limits (60/hr unauthenticated) are acceptable for this browse-then-pull flow.
+
+**Pull flow**: selecting a skill in the browser downloads its `SKILL.md` to `~/.aictl/skills/<name>/SKILL.md`, creating the directory if needed. If a `SKILL.md` with that name already exists, the REPL prompts `Skill <name> already exists. Overwrite? [y/N]` before writing. A `--pull-skill <name>` CLI flag mirrors the menu for non-interactive use; `--pull-skill <name> --force` skips the prompt. v1 pulls only `SKILL.md` — when bundled resources land (see Open questions), the pull flow fetches the whole directory tree.
+
+**Update indicator**: the browse UI tags each row with state:
+- `[ ]` — not yet pulled
+- `[✓]` — already on disk, matches upstream
+- `[↑]` — already on disk, upstream is newer (differing content)
+
+Pulling an `[↑]` row re-downloads and overwrites (still prompts unless the user opts into a session-wide "update all" action). Detection is content-hash based: SHA-256 of the local `SKILL.md` against the upstream blob SHA; fall back to byte-for-byte diff if needed.
 
 ### 6. Slash-command collision handling
 
@@ -136,12 +160,14 @@ No master on/off — if the user doesn't want skills, they don't create any, and
 
 | File | Change |
 |------|--------|
-| `src/skills.rs` | **New** — CRUD + frontmatter parsing + global invocation state (minimal; see §10) |
+| `src/skills.rs` | **New** — CRUD + frontmatter parsing (including `source`, `category`) + global invocation state (minimal; see §10) |
 | `src/commands.rs` | Route unrecognized slashes through `skills::find`; add `/skills` command |
-| `src/commands/skills.rs` | **New** — menu (create manually / with AI / view / delete) |
-| `src/main.rs` | `--skill <name>`, `--list-skills`; wire skill body into `run_agent_turn` as a one-shot system message |
+| `src/commands/skills.rs` | **New** — menu (create manually / with AI / browse / view / delete) |
+| `src/skills/remote.rs` | **New** — GitHub directory listing + raw pull with overwrite prompt; returns `Vec<RemoteSkill>` with `name`, `description`, `category`, upstream blob SHA, and local `State::{NotPulled, UpToDate, UpstreamNewer}` |
+| `src/main.rs` | `--skill <name>`, `--list-skills`, `--pull-skill <name>`, `--force`; wire skill body into `run_agent_turn` as a one-shot system message |
 | `src/config.rs` | Add `AICTL_SKILLS_DIR` reader |
 | `src/session.rs` | Optionally record skill name in session metadata (annotation only, not body) |
+| `skills/` | **New in-repo directory** — one subdirectory per official skill, each containing `SKILL.md` with frontmatter including `source: aictl-official` |
 | `CLAUDE.md` | One-paragraph addition describing `src/skills.rs` and how skills differ from agents |
 | `ROADMAP.md` | Remove the corresponding entry once shipped |
 
@@ -185,11 +211,12 @@ pub fn delete(name) -> io::Result<()>;
 
 ## Rollout phases
 
-1. **Phase 1** — `src/skills.rs` + frontmatter parsing + slash-command fall-through + `--skill` / `--list-skills` flags. Skill body injected into `run_agent_turn`.
+1. **Phase 1** — `src/skills.rs` + frontmatter parsing (including `source`, `category`) + slash-command fall-through + `--skill` / `--list-skills` flags. Skill body injected into `run_agent_turn`.
 2. **Phase 2** — `/skills` interactive menu (create manually, view, delete).
 3. **Phase 3** — "Create with AI" entry reusing the agent AI-drafting helper.
-4. **Phase 4** — Docs, examples, session-metadata annotation.
-5. **Phase 5 (future, optional)** — Auto-invocation: inject skill *descriptions* (not bodies) into the system prompt, let the LLM request a skill body via a dedicated tool call. Deferred until there's a concrete demand; the magic-to-value ratio is high.
+4. **Phase 4** — Browse & pull: `src/skills/remote.rs`, "Browse official skills" menu entry, `--pull-skill` CLI flag, update indicators, and seeding the in-repo `skills/` directory with an initial official set.
+5. **Phase 5** — Docs, examples, session-metadata annotation.
+6. **Phase 6 (future, optional)** — Auto-invocation: inject skill *descriptions* (not bodies) into the system prompt, let the LLM request a skill body via a dedicated tool call. Deferred until there's a concrete demand; the magic-to-value ratio is high.
 
 ## Verification
 
@@ -203,9 +230,20 @@ pub fn delete(name) -> io::Result<()>;
    - Create skill with reserved name `help` — rejected with clear error.
    - Delete skill via menu; confirm `/commit` now yields "unknown command."
    - Load a pre-existing session that used a skill; confirm replay has no skill body.
+   - Open **Browse official skills**; confirm the list reflects the live contents of `skills/` in the repo (add a skill in a branch, re-open, confirm it appears).
+   - Pull an official skill; confirm `~/.aictl/skills/<name>/SKILL.md` lands on disk with `source: aictl-official` preserved.
+   - Pull again over an existing skill; confirm the overwrite prompt fires — `No` preserves local edits, `Yes` replaces.
+   - Edit a pulled skill locally; confirm the browse row switches to `[↑]` when upstream differs.
+   - Non-interactive pull: `aictl --pull-skill commit` and `aictl --pull-skill commit --force`.
+   - `/skills` → View all: confirm `[official]` badge on pulled skills and no badge on hand-authored ones.
 
 ## Open questions
 
 - Should skill bodies go through `termimad` rendering when viewed in the `/skills` menu? Small polish; yes, cheap to add.
 - Should the `description` field be required or optional? Lean required — forces users to articulate the skill's purpose, and it's the hook for future auto-invocation.
-- Claude Code skills support bundled resources alongside `SKILL.md` (scripts, templates). We're deferring that — revisit after launch if users ask. When we do add it, the directory layout we're choosing in v1 accommodates it cleanly.
+- Claude Code skills support bundled resources alongside `SKILL.md` (scripts, templates). We're deferring that — revisit after launch if users ask. When we do add it, the directory layout we're choosing in v1 accommodates it cleanly, and the pull flow will need to switch from single-file to whole-directory fetches.
+- GitHub API (metadata-rich but rate-limited at 60/hr unauthenticated) vs. raw CDN (unlimited but no directory listing). A hybrid — list via API, fetch via raw — keeps most of both, but what happens when the API rate limit is exhausted mid-browse? Show cached list from last successful fetch?
+- Should the browser cache the remote listing to disk (e.g. `~/.aictl/skills/.remote-cache.json` with a short TTL) so repeat opens don't re-hit GitHub, or always fetch fresh? Fresh is simpler; cached is friendlier to flaky connections.
+- Update check trigger: on-demand (user opens Browse) or periodic (background refresh on REPL startup)? On-demand is simpler and respects the no-surprise-network-calls principle.
+- Is the `[↑]` upstream-newer detection worth the extra fetch per row, or should we just show `[✓]` and let the user re-pull if they want the latest? Defer until there's real feedback.
+- Signature verification on pulled skill bodies? We trust the repo the same way we trust the binary. Probably not worth it for v1.
