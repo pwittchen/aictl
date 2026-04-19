@@ -17,14 +17,13 @@ These templates are **starting points**, not sacred. Users can load, view, and m
 - No framework for third-party template distribution in v1.
 - No per-provider or per-model tuning — templates are plain text prompts.
 - No enforced tool subsets per template; tool access stays global.
+- No single-turn procedures. Agents are session-long personas (`rust-expert`, `tech-writer`); single-turn procedures (`review`, `summarize-logs`, `inspect-cert`) live in `skill-templates.md`.
 
 ## Initial set
 
 Chosen to cover distinct workflows and exercise different tool clusters.
 
 ### Dev & workflow
-
-- **`code-reviewer`** — reviews staged/unstaged changes. Leans on `git diff`, `read_file`, `lint_file`, `diff_files`. Focus: correctness, security, style; flags issues, doesn't rewrite unless asked.
 
 - **`researcher`** — answers questions with citations. Uses `search_web`, `fetch_url`, `extract_website`. Always includes source URLs.
 
@@ -34,15 +33,9 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 - **`image-specialist`** — analyzes or generates images. Uses `read_image` for vision (screenshots, diagrams, OCR-style transcription, alt-text) and `generate_image` for quick illustrations or mockups.
 
-- **`test-writer`** — generates unit/integration tests for a target file and runs them via `run_code` or `exec_shell`.
-
-- **`docs-writer`** — updates README / inline docs / project docs from the current code. Uses `read_document` for PDF/DOCX inputs.
-
 - **`bug-hunter`** — reproduces a bug, narrows it down with prints/logs, proposes a minimal fix. Leans on `run_code`, `exec_shell`, `search_files`.
 
 - **`regex-expert`** — builds and explains regex patterns. Tests candidates against sample inputs via `run_code` before handing the final pattern back.
-
-- **`changelog-writer`** — generates CHANGELOG entries from `git log` between two refs. Groups changes by type (features / fixes / breaking) and skips noise (merge commits, version bumps).
 
 - **`prompt-engineer`** — refines and critiques LLM prompts. Asks for the target model and failure modes, then proposes a tightened prompt with a rationale for each change.
 
@@ -54,49 +47,19 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 - **`git-archaeologist`** — uses `git log`, `git blame`, and `git diff` to explain why code exists, who wrote it, what issue or PR it fixed, and how it evolved. Useful when inheriting a codebase or untangling a tricky bug. Natural pair with `bug-hunter`.
 
-- **`error-investigator`** — takes a stack trace, panic, or compiler error and locates the relevant frames via `search_files` + `read_file`, then proposes a minimal fix. Works with Rust panics, Python tracebacks, JS stacks, Go errors, and typed-language compiler output.
-
 ### Ops
 
 - **`sysadmin`** — machine diagnostics via `system_info`, `list_processes`, `check_port`. Uses `notify` on long-running completions.
 
-- **`log-sleuth`** — tails, greps, and summarizes logs for incident triage. Combines `exec_shell`, `search_files`, and `read_file`.
-
 - **`docker-operator`** — manages Docker containers, images, and Compose stacks via `exec_shell` (`docker ps`, `docker images`, `docker build`, `docker compose up/down/logs`). Reads and edits Dockerfiles and `docker-compose.yml`; uses `check_port` to verify published ports and `list_processes` to spot host-side conflicts. Prefers dry-runs and explains destructive commands (`rm`, `prune`, `down -v`) before running them.
 
-- **`cert-inspector`** — inspects TLS/SSL certificates for expiry, chain validity, SNI issues, and weak ciphers. Uses `fetch_url` for the HTTPS handshake and `check_port` to confirm reachability first. Flags anything expiring within 30 days.
-
-- **`disk-inspector`** — read-only disk usage diagnostician. Uses `exec_shell` (`du`, `find`) to locate the biggest directories and oldest files; suggests (but never runs) cleanup commands. Honors the CWD jail so it cannot probe outside the working directory.
-
 - **`kubernetes-operator`** — manages Kubernetes resources via `kubectl` through `exec_shell`. Reads and edits YAML manifests, inspects pods/services/deployments, tails logs, and explains destructive commands (`delete`, `scale 0`, `drain`) before running them. Cluster-level analogue of `docker-operator`.
-
-### Network
-
-- **`http-inspector`** — analyzes HTTP responses via `fetch_url`: status, redirect chains, headers (security — CSP, HSTS, CORS, cookie flags, `X-Frame-Options`; caching; compression). Useful for web-perf and security posture sweeps.
-
-- **`dns-inspector`** — DNS resolution across record types (A/AAAA/MX/TXT/CNAME/NS/CAA), DNSSEC validation, and propagation checks via `dig` / `host` through `exec_shell`.
-
-- **`network-diagnostician`** — connectivity and latency diagnosis via `ping` / `traceroute` / `mtr` through `exec_shell`. Broader than `check_port` — catches MTU issues, asymmetric routing, and packet loss. Natural pair with `sysadmin`.
-
-- **`socket-inspector`** — lists open ports, listeners, and established connections via `ss` / `lsof` / `netstat` through `exec_shell`. Deeper than `check_port` — catches what's actually bound on the host, not just whether a remote endpoint answers.
-
-- **`bandwidth-tester`** — throughput and latency measurement via `speedtest-cli` / `iperf3` / `ping` through `exec_shell`. Useful for isolating "is my connection slow" from app-level issues.
-
-- **`wifi-scanner`** — lists nearby SSIDs, channels, signal strength, and security modes via `airport -s` on macOS or `iw dev … scan` / `nmcli` on Linux through `exec_shell`. Suggests the least-congested 2.4 / 5 GHz channel from the scan.
-
-- **`wifi-security-auditor`** — audits your own network: WPA version, password strength guidance, guest-network isolation, WPS status, and rogue AP detection from a scan. Explicitly read-only — no deauth or cracking tooling.
 
 ### Security
 
 - **`security-auditor`** — greps for secrets, risky patterns, and unsafe APIs; runs dependency audits via `exec_shell`. Flags issues without auto-fixing.
 
-- **`dependency-auditor`** — narrower cousin of `security-auditor`: runs `cargo audit` / `npm audit` / `pip-audit` / `bundle-audit` via `exec_shell` and summarizes findings by severity. Cross-references CVE IDs and highlights transitive dependencies that are hardest to update.
-
-- **`secret-scanner`** — narrower than `security-auditor`: runs `gitleaks` / `trufflehog` via `exec_shell` and walks `git log -p` for secrets already committed to history, not just the working tree. Useful before open-sourcing a repo or rotating keys after a suspected leak.
-
 - **`threat-modeler`** — applies STRIDE or attack-tree modeling to a described system. Pure-prompt, no tool use. Outputs threats grouped by category, mitigations, and residual risk; asks clarifying questions about trust boundaries and assets before modeling.
-
-- **`cve-researcher`** — cross-references lockfiles (`Cargo.lock`, `package-lock.json`, `poetry.lock`, `Gemfile.lock`, `go.sum`) against CVE databases via `search_web` + `fetch_url`. More current than `dependency-auditor`'s tool-based summary when the local advisory DB is stale; flags exploitability and fix availability.
 
 ### Learning
 
@@ -108,37 +71,17 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 - **`editor`** — line-edits existing text for clarity and tone. Shows before/after; good for emails, posts, docs.
 
-- **`summarizer`** — condenses long documents, articles, or URLs into a fixed shape (TL;DR + bullets). Pairs `read_document` with `extract_website`.
-
-- **`translator`** — translates between languages with a short note on tone/register choices.
-
 - **`copywriter`** — writes marketing and product copy (taglines, landing-page sections, ad copy, release notes) from a brief. Tunes voice and length to the channel; offers a few variants when asked.
 
-- **`meeting-scribe`** — turns a meeting transcript into a structured summary with decisions and action items (owner + due date when stated). Pairs `read_document` with `clipboard`.
-
-- **`email-writer`** — drafts emails with tone and length targeting (short / formal / follow-up / cold outreach / reply). Asks for the goal and recipient context before writing.
-
-### Data & diagrams
+### Data
 
 - **`spreadsheet-analyst`** — reads Excel/ODS/CSV via `read_document` + `csv_query`, suggests formulas, cleans messy data, and pivots results into a quick summary table.
 
-- **`diagram-drawer`** — produces diagrams from a description or from source code it reads with `read_file`. Renders as mermaid (flowcharts, sequence, ER, state, gantt) for GitHub / Notion / Obsidian, or as ASCII box-and-line for READMEs and code comments where mermaid isn't rendered (kept under 80 columns). Hands output back via `clipboard` ready to paste.
-
-- **`diagram-reader`** — pairs `read_image` with transcription: takes a screenshot or photo of an architecture, flow, or whiteboard diagram and produces a text or mermaid transcription plus a short summary. Natural pair with `diagram-drawer` for round-tripping hand-drawn sketches.
-
 ### Daily life
-
-- **`chef`** — suggests recipes from a list of ingredients on hand, respecting dietary constraints and time budget. Outputs steps plus a shopping delta for anything missing.
-
-- **`meal-planner`** — builds a weekly meal plan and a consolidated shopping list. Pairs well with `chef` for recipe depth.
 
 - **`travel-planner`** — drafts itineraries from a destination, dates, and budget. Uses `search_web` and `extract_website` for up-to-date info on venues, transit, and opening hours.
 
 - **`budget-advisor`** — analyzes bank/card CSV exports via `csv_query`, categorizes spending, and surfaces patterns (subscription creep, recurring overruns) alongside realistic saving targets. Strong fit for the data-query tool cluster.
-
-- **`book-recommender`** — recommendations based on what you've loved or bounced off, with a one-line "why this fits you" per pick. Uses `search_web` + `extract_website` when you want reviews or current availability.
-
-- **`mindfulness-coach`** — short guided breathing or grounding exercises on demand (1-minute, 5-minute, 10-minute). Pure-prompt, no tool use. Keeps instructions concrete and paced.
 
 - **`sleep-coach`** — runs a brief sleep hygiene audit from a short questionnaire and suggests one or two concrete changes rather than a full overhaul. Flags patterns worth raising with a doctor rather than self-fixing.
 
@@ -154,17 +97,9 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 - **`critic`** — cold, objective, and blunt. Stress-tests ideas, plans, and arguments by identifying weak assumptions, missing evidence, logical gaps, and likely failure modes. Will say "this is wrong" or "this won't work" and explain why, with no flattery or hedging. Not rude for rudeness's sake — reasoning is always shown. Useful as a counterweight to the usual LLM agreeableness and as a natural pair with `brainstormer` for a generate-then-critique loop.
 
-- **`devils-advocate`** — only argues the opposing position, however reasonable your proposal sounds. Narrower and more mechanical than `critic`: instead of "is this right?", it asks "if this is wrong, why?" — useful for red-teaming a decision or plan before committing to it.
-
-- **`pre-mortem-facilitator`** — imagines the current plan or project has failed six months from now and works backward to identify what went wrong. Surfaces risks earlier than a "what could go wrong?" prompt because it grants the failure and asks for causes. Complements `decision-advisor` and `devils-advocate`.
-
-- **`steelman`** — builds the strongest possible case for a position, including ones you disagree with. Mirror image of `devils-advocate`: useful for understanding opposing views fairly, preparing for debate, or checking whether your own view survives contact with its best counterargument.
-
 - **`first-principles-thinker`** — breaks a problem, belief, or design down to its fundamentals and rebuilds from the ground up. Distinct from `decision-advisor`'s framework-matching: instead of applying a shape, it asks what you actually know and what you're merely inheriting.
 
 - **`mental-model-coach`** — picks a relevant mental model (second-order effects, Bayesian updating, Occam's razor, inversion, game theory, regret minimization) and applies it to the situation at hand. Explains why the model fits before using it.
-
-- **`weekly-reviewer`** — GTD-style weekly review prompter: inbox, projects, waiting-for, someday/maybe, calendar. Pure-prompt, ritualized. Good as a scheduled Friday check-in.
 
 ### Creative & personal
 
@@ -175,8 +110,6 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 - **`psychologist`** — a supportive conversational persona that draws on psychology-informed techniques (active listening, validation, gentle CBT-style reframing, open-ended questions). Explicitly not a substitute for professional mental health care — includes a standing instruction to suggest reaching out to a qualified professional or crisis line when the user describes acute distress, self-harm, or harm to others. Pure-prompt, no tool use.
 
 - **`storyteller`** — writes short fiction from a premise. Tunable length, genre, and POV; asks clarifying questions before drafting long pieces.
-
-- **`poet`** — writes poems in a requested form (haiku, sonnet, free verse, limerick, …) with a short note on the form choice and any constraints obeyed.
 
 ## Design sketch
 
