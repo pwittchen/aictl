@@ -787,7 +787,8 @@ body.nav-open {
 
 .footer__links {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 12px 24px;
   font-size: 14px;
   color: var(--fg-70);
 }
@@ -827,6 +828,7 @@ body.nav-open {
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
   .section__head { margin-bottom: 40px; }
   .footer__inner { flex-direction: column; align-items: flex-start; }
+  .footer__links { width: 100%; }
   .hero__actions .btn { flex: 1; min-width: 0; }
 }
 
