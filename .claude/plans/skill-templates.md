@@ -94,6 +94,8 @@ Chosen to cover distinct workflows and exercise different tool clusters. Categor
 
 - **`recommend-books`** — recommendations based on what you've loved or bounced off, with a one-line "why this fits you" per pick. Uses `search_web` + `extract_website` when you want reviews or current availability.
 
+- **`news-brief`** — fetches the latest world news via `search_web` + `fetch_url` + `extract_website` and returns a structured brief: top headlines grouped by category (world, politics, tech, business, science, sports — configurable), each with a one-line summary and a source link. Accepts optional filters (e.g. `region=eu`, `topic=tech`, `since=24h`) and dedupes near-identical stories across outlets. When the user names a country (e.g. "Poland", "Japan") or a city (e.g. "Berlin", "San Francisco"), the skill narrows the search to local and regional sources for that place and prefers national / city-level outlets over global aggregators. Always cites sources and notes publication dates so stale results are visible.
+
 - **`mindfulness`** — short guided breathing or grounding exercise on demand (1-minute, 5-minute, 10-minute). Pure-prompt, no tool use. Keeps instructions concrete and paced.
 
 ### Thinking & habits
