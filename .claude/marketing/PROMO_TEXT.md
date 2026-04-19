@@ -11,3 +11,7 @@ Free for non-commercial use. For commercial use, reach out to me for a separate 
 Give it a spin and let me know what you think — feedback, stars, and PRs all welcome 🙌
 
 👉 https://aictl.app
+
+---
+
+#Rust #RustLang #AI #LLM #LocalAI #CLI #OpenSource #GenerativeAI #Ollama #AppleSilicon
