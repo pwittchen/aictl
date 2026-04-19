@@ -180,26 +180,59 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 ## Design sketch
 
-**Storage**: templates live in-tree under `assets/agents/*.md` (or similar), compiled into the binary via `include_str!`.
+**Storage**: templates live in the project git repo under `agents/*.md`, one file per agent. **Not** compiled into the binary — no `include_str!`, no bundled assets. The list is served from the GitHub repo at runtime so new templates can be added without a release.
 
-**Installation**: on first run, if `~/.aictl/agents/` is empty (or missing), write the bundled templates to disk. Skip any filename that already exists so user customizations are never overwritten. A `--install-agent-templates` CLI flag (and maybe a `/agent install-templates` menu entry) forces a re-copy, also skipping existing names.
+**Frontmatter**: every bundled template starts with a YAML frontmatter block that marks it as app-provided and carries metadata. Example:
 
-**Discovery**: the existing `/agent` view-all menu already lists everything in `~/.aictl/agents/`, so templates appear automatically with no UI changes. The `--list-agents` flag lists them too.
+```markdown
+---
+name: code-reviewer
+category: dev
+source: aictl-official
+description: Reviews staged/unstaged changes for correctness, security, style.
+---
 
-**Categories**: agents carry an optional category (e.g. `dev`, `ops`, `security`, `learning`, `knowledge-work`, `creative`). For bundled templates the category is fixed in the asset's frontmatter; for user-authored agents it's an optional field editable from `/agent`. Agents without a category fall into an `uncategorized` bucket. In the interactive `/agent` browse view the user can pick **All** to see every agent in one flat list (current behavior) or drill into a specific category first. The category browser lists categories with a count next to each (e.g. `dev (10)`, `ops (2)`) and opens into the same row UI used today. The `--list-agents` CLI flag gains an optional `--category <name>` filter.
+You are a code reviewer. …
+```
 
-**Removal**: user deletes like any other agent via `/agent` or `rm`.
+The `source: aictl-official` key is the distinguishing marker — user-authored agents omit it (or set `source: user`), so the REPL and `--list-agents` can render a badge (e.g. `[official]`) next to bundled ones. `category` and `description` are used by the browse/list UIs.
+
+**Browse & pull**: the `/agent` menu gains a **Browse agents** entry that fetches the directory listing from the GitHub repo at request time — no hardcoded manifest. Two fetch paths, in order:
+
+1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/contents/agents?ref=master` returns a JSON array of files; for each `.md` entry the browser shows `name`, `category`, `description` parsed from frontmatter after a second fetch of `download_url` (or a single `git_trees` call with `?recursive=1` to avoid N+1 requests).
+2. Fallback: raw `https://raw.githubusercontent.com/<owner>/<repo>/master/agents/<file>.md` for individual pulls.
+
+The repo coordinates (`owner`, `repo`, `branch`) are constants in the binary — the *list* is dynamic, the *source location* is fixed. No API key is required for public-repo reads; rate limits (60/hr unauthenticated) are acceptable for this browse-then-pull flow.
+
+**Pull flow**: selecting an agent in the browser downloads its `.md` to `~/.aictl/agents/<name>`. If a file with that name already exists, the REPL prompts `Agent <name> already exists. Overwrite? [y/N]` before writing. A single `--pull-agent <name>` CLI flag mirrors the menu for non-interactive use; `--pull-agent <name> --force` skips the prompt.
+
+**Update indicator**: the browse UI tags each row with state:
+
+- `[ ]` — not yet pulled
+- `[✓]` — already on disk, frontmatter matches upstream
+- `[↑]` — already on disk, upstream is newer (differing content or later commit SHA)
+
+Pulling an `[↑]` row re-downloads and overwrites (still prompts unless the user opts into a session-wide "update all" action). Detection is content-hash based: compute SHA-256 of the local file and compare against the upstream blob SHA; fall back to byte-for-byte diff if needed.
+
+**Discovery of installed agents**: the existing `/agent` view-all menu continues to list everything in `~/.aictl/agents/` exactly as today. The only UI change is the `[official]` badge on rows whose frontmatter has `source: aictl-official`. `--list-agents` adds the same badge.
+
+**Categories**: agents carry a `category` field in frontmatter (e.g. `dev`, `ops`, `network`, `security`, `learning`, `knowledge-work`, `data-diagrams`, `daily-life`, `thinking-habits`, `creative`). Agents without a category fall into an `uncategorized` bucket. In the interactive `/agent` browse view (both local and remote) the user can pick **All** to see every agent in one flat list or drill into a specific category first. The category browser lists categories with a count next to each (e.g. `dev (10)`, `ops (2)`) and opens into the same row UI used today. The `--list-agents` CLI flag gains an optional `--category <name>` filter.
+
+**Removal**: user deletes like any other agent via `/agent` or `rm ~/.aictl/agents/<name>`. Deletion works regardless of whether the agent was app-provided or user-authored — there's nothing sacred about official agents on disk.
 
 ## Open questions
 
-- Should templates be marked (e.g. a `# Built-in template` header comment) so users can tell ours apart from their own?
-- Do we want a single manifest file listing the bundled templates, or is globbing `assets/agents/*.md` at build time enough?
-- Should `--install-agent-templates` prompt before overwriting, or always skip existing?
-- How is the category stored on user-authored agents? Options: frontmatter at the top of the prompt file, a sidecar `<name>.meta` file, or a single `~/.aictl/agents/.categories` index. Frontmatter is closest to the plain-text ethos but means the prompt file is no longer "just the prompt."
-- Fixed category list vs. free-form? A fixed list keeps the browser tidy; free-form gives users more room. Compromise: ship a fixed set for built-ins, allow free-form on user agents, and group unknown values under "Other."
+- YAML frontmatter vs. a sidecar `<name>.meta` file vs. a single `~/.aictl/agents/.index`. Frontmatter is closest to the plain-text ethos but means the prompt file is no longer "just the prompt." Current leaning: frontmatter, because it round-trips cleanly when pulled from GitHub and doesn't require a parallel file per agent.
+- GitHub API (metadata-rich but rate-limited) vs. raw CDN (unlimited but no directory listing). A hybrid — list via API, fetch via raw — keeps most of both, but what happens when the API rate limit is exhausted mid-browse? Show cached list from last successful fetch?
+- Should the browser cache the remote listing to disk (e.g. `~/.aictl/agents/.remote-cache.json` with a short TTL) so repeat opens don't re-hit GitHub, or always fetch fresh? Fresh is simpler; cached is friendlier to flaky connections.
+- Update check trigger: on-demand (user opens Browse) or periodic (background refresh on REPL startup)? On-demand is simpler and respects the no-surprise-network-calls principle.
+- Is the `[↑]` upstream-newer detection worth the extra fetch per row, or should we just show `[✓]` and let the user re-pull if they want the latest? Defer until there's real feedback.
+- Fixed category list vs. free-form? A fixed list keeps the browser tidy; free-form gives users more room. Compromise: define a fixed set for official agents, allow free-form on user agents, and group unknown values under "Other."
 
 ## Out of scope for v1
 
-- Community template registry / remote install.
-- Per-template metadata (tags, description, recommended model).
-- Template versioning / upgrade flow.
+- Community template registry — only the official `aictl` repo's `agents/` dir is browsable. No arbitrary URL or third-party source support.
+- Authenticated GitHub access (token-based higher rate limits).
+- Signature verification on pulled agents — we trust the repo the same way we trust the binary.
+- Background auto-updates of already-pulled agents.
+- Template versioning beyond "pull overwrites" — no rollback, no history.
