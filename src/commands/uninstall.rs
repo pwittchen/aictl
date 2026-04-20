@@ -4,25 +4,34 @@ use super::menu::confirm_yn;
 
 /// Build the list of install locations to check / remove. Mirrors the
 /// directories used by `install.sh` and a `cargo install` build, plus
-/// `$AICTL_INSTALL_DIR` if the env var is set (deduplicated).
+/// `$AICTL_INSTALL_DIR` if the env var is set (deduplicated). For each
+/// directory we also include the sibling `mlx.metallib` that the macOS
+/// aarch64 release tarball ships next to the binary.
 fn uninstall_candidates() -> Vec<std::path::PathBuf> {
     let home = std::env::var("HOME").unwrap_or_default();
-    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
 
     if !home.is_empty() {
-        candidates.push(std::path::PathBuf::from(format!("{home}/.cargo/bin/aictl")));
-        candidates.push(std::path::PathBuf::from(format!("{home}/.local/bin/aictl")));
+        dirs.push(std::path::PathBuf::from(format!("{home}/.cargo/bin")));
+        dirs.push(std::path::PathBuf::from(format!("{home}/.local/bin")));
     }
 
     if let Ok(custom) = std::env::var("AICTL_INSTALL_DIR")
         && !custom.is_empty()
     {
-        let path = std::path::PathBuf::from(custom).join("aictl");
-        if !candidates.contains(&path) {
-            candidates.push(path);
+        let dir = std::path::PathBuf::from(custom);
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
         }
     }
 
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    for dir in &dirs {
+        candidates.push(dir.join("aictl"));
+    }
+    for dir in &dirs {
+        candidates.push(dir.join("mlx.metallib"));
+    }
     candidates
 }
 
@@ -65,6 +74,7 @@ fn print_uninstall_footer(candidates: &[std::path::PathBuf], removed: u32, error
             "•".with(Color::Yellow),
             candidates
                 .iter()
+                .filter(|p| p.file_name().and_then(|n| n.to_str()) == Some("aictl"))
                 .map(|p| p.display().to_string())
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -113,6 +123,7 @@ pub fn run_uninstall_repl(show_error: &dyn Fn(&str)) -> bool {
             "•".with(Color::Yellow),
             candidates
                 .iter()
+                .filter(|p| p.file_name().and_then(|n| n.to_str()) == Some("aictl"))
                 .map(|p| p.display().to_string())
                 .collect::<Vec<_>>()
                 .join(", ")
