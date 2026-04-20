@@ -69,7 +69,7 @@ jobs:
             artifact: aictl-darwin-x86_64
             features: gguf
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15
             artifact: aictl-darwin-aarch64
             features: gguf mlx
     runs-on: ${{ matrix.os }}
