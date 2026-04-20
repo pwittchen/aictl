@@ -6,12 +6,14 @@
 src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle
+ ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; also log_redaction() for the redaction layer's events
  ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
  ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, stats, tools, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
+ ├── security/redaction.rs        Outbound-message redactor. RedactionPolicy (off/redact/block), Layer A regex detectors (API keys, AWS, JWT, PEM private keys, connection strings, email, phone, credit cards via Luhn, IBAN via mod-97), Layer B Shannon-entropy scanner for opaque tokens, user-defined AICTL_REDACTION_EXTRA_PATTERNS, AICTL_REDACTION_ALLOW allowlist, overlap merging by priority.
+ ├── security/redaction/ner.rs    [optional, redaction-ner feature] Layer C — gline-rs-backed NER model manager + inference. Management paths (list/remove/download_model, spec parsing, status) always compiled; GLiNER loading and span-mode inference gated behind the feature. Specs: owner/repo or hf:owner/repo (default: onnx-community/gliner_small-v2.1). Models live under ~/.aictl/models/ner/<name>/{tokenizer.json,onnx/model.onnx}.
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (31)
  ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, notify, run_code, shell, system_info, util, web)
@@ -52,6 +54,10 @@ src/
  │        --list-mlx-models /    (use llm::mlx::download_model / list /     │
  │        --remove-mlx-model /   remove_model / clear_models)               │
  │        --clear-mlx-models                                                │
+ │  2c''''. --pull-ner-model /   NER model management helpers, exit         │
+ │         --list-ner-models /   (use security::redaction::ner::...)        │
+ │         --remove-ner-model /                                             │
+ │         --clear-ner-models                                               │
  │  2d. --config                run_config_wizard() and exit                │
  │  3. resolve provider         flag > AICTL_PROVIDER config > error        │
  │  4. resolve model            flag > AICTL_MODEL config > error           │
@@ -84,6 +90,20 @@ Both single-shot and REPL modes share the same loop:
  │  Append user message to Vec<Message>                    │
  │                                                         │
  │  for _ in 0..MAX_ITERATIONS (20) {                      │
+ │      │                                                  │
+ │      ▼                                                  │
+ │  ┌──────────────────────────────────────────────┐       │
+ │  │ redact_outbound() — at the network boundary, │       │
+ │  │ just before the provider call. Clones the    │       │
+ │  │ message slice only when a credential / PII   │       │
+ │  │ match is found; persisted history untouched. │       │
+ │  │ Off by default (AICTL_SECURITY_REDACTION=    │       │
+ │  │ off|redact|block); local providers bypass    │       │
+ │  │ unless AICTL_SECURITY_REDACTION_LOCAL=true.  │       │
+ │  │ Layer A regex + Layer B entropy + Layer C    │       │
+ │  │ NER (optional `redaction-ner` feature).      │       │
+ │  │ Block mode aborts the turn.                  │       │
+ │  └──────────────────────────────────────────────┘       │
  │      │                                                  │
  │      ▼                                                  │
  │  ┌──────────────────┐                                   │
@@ -475,6 +495,7 @@ Recognized keys include:
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
+- **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.
 
 ### API key storage (`src/keys.rs`)
 
@@ -510,6 +531,8 @@ The keyring backend is selected at compile time via Cargo features: `apple-nativ
 ### `~/.aictl/audit/<session-id>`
 
 JSONL audit log — one JSON object per line, appended on every tool invocation. The filename mirrors the corresponding session file under `~/.aictl/sessions/` so a reviewer can read both together. Each entry carries `timestamp` (UTC, ISO-8601 seconds precision), `tool`, `input` (truncated), and an `outcome` of `executed` (with `result_summary`), `denied_by_policy` (with `reason`), `denied_by_user`, `disabled`, or `duplicate`. Written by `src/audit.rs::log_tool`, called from `tools::execute_tool` for the policy / duplicate / disabled / executed outcomes and from `run::handle_tool_call` for the user-denial outcome. Skipped entirely in incognito mode and in single-shot (`--message`) runs where no session id exists. Toggled via `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (default `true`); observability-only, so `--unrestricted` does not disable it.
+
+The same file also carries redaction events when the redaction layer is active. These lines are written by `src/audit.rs::log_redaction` and carry `event: "redaction"`, `mode` (`redact` / `block`), `direction` (`outbound` / `inbound`), `source` (`system_prompt` / `user_message` / `assistant_message` / `tool_result`), and a `matches` array — one entry per detected span with `kind` (the placeholder label: `API_KEY`, `AWS_KEY`, `JWT`, `PRIVATE_KEY`, `CONNECTION_STRING`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `HIGH_ENTROPY`, `PERSON`, `LOCATION`, `ORGANIZATION`, or a user-defined name), byte `range`, `confidence`, and a scrubbed `snippet` (placeholder plus a few bytes of surrounding context — never the original secret). Same skip rules apply; toggle via the same `AICTL_SECURITY_AUDIT_LOG` key.
 
 ### `~/.aictl/history`
 

@@ -4,6 +4,8 @@ use std::sync::OnceLock;
 use crate::config::config_get;
 use crate::tools::ToolCall;
 
+pub mod redaction;
+
 static POLICY: OnceLock<SecurityPolicy> = OnceLock::new();
 
 // --- Default blocked commands ---
@@ -91,6 +93,10 @@ pub struct EnvPolicy {
 
 /// Initialize the security policy. Call once at startup after `load_config()`.
 pub fn init(unrestricted: bool) {
+    // The redaction layer is a privacy control, not a restriction —
+    // `--unrestricted` leaves it running if the user has configured it,
+    // consistent with how the audit log behaves.
+    redaction::init();
     let policy = if unrestricted {
         SecurityPolicy {
             enabled: false,
@@ -1046,6 +1052,11 @@ pub fn policy_summary() -> Vec<(String, String)> {
             "off".to_string()
         },
     ));
+
+    // The `redaction:` row is emitted separately by
+    // `commands::security::print_security` after `disabled tools`, so
+    // the reader sees it at the bottom of the block with an optional
+    // blank-line gap when the layer is active.
 
     lines.push((
         "blocked paths".to_string(),

@@ -23,6 +23,7 @@ use std::path::PathBuf;
 use serde_json::{Value, json};
 
 use crate::config::config_get;
+use crate::security::redaction::{Match, RedactionDirection, RedactionMode, RedactionSource};
 use crate::session;
 use crate::tools::ToolCall;
 
@@ -114,6 +115,89 @@ pub fn log_tool(tool_call: &ToolCall, outcome: Outcome<'_>) {
     if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
         let _ = writeln!(f, "{line}");
     }
+}
+
+/// Record a redaction or block event. Mirrors [`log_tool`] in shape:
+/// one JSON line per event appended to `~/.aictl/audit/<session-id>`.
+/// No-ops outside a session (single-shot `--message` runs), in
+/// incognito mode, or when audit logging is disabled.
+///
+/// The per-match `snippet` embedded in the log is the placeholder plus
+/// a few characters of surrounding context — never the original secret.
+pub fn log_redaction(
+    direction: RedactionDirection,
+    source: RedactionSource,
+    mode: RedactionMode,
+    text: &str,
+    matches: &[Match],
+) {
+    if !enabled() {
+        return;
+    }
+    if session::is_incognito() {
+        return;
+    }
+    let Some(path) = audit_file() else {
+        return;
+    };
+    if matches.is_empty() {
+        return;
+    }
+
+    let mode_str = match mode {
+        RedactionMode::Off => "off",
+        RedactionMode::Redact => "redact",
+        RedactionMode::Block => "block",
+    };
+
+    let mut match_entries = Vec::with_capacity(matches.len());
+    for m in matches {
+        let placeholder = m.kind.placeholder();
+        let ctx_start = backward_boundary(text, m.range.start.saturating_sub(12));
+        let ctx_end = forward_boundary(text, (m.range.end + 12).min(text.len()));
+        let before = &text[ctx_start..m.range.start];
+        let after = &text[m.range.end..ctx_end];
+        let snippet = format!("…{before}[REDACTED:{placeholder}]{after}…");
+        match_entries.push(json!({
+            "kind": placeholder,
+            "range": [m.range.start, m.range.end],
+            "confidence": m.confidence,
+            "snippet": truncate(&snippet, 120),
+        }));
+    }
+
+    let entry = json!({
+        "timestamp": timestamp(),
+        "event": "redaction",
+        "mode": mode_str,
+        "direction": direction.as_str(),
+        "source": source.as_str(),
+        "matches": match_entries,
+    });
+
+    let Ok(line) = serde_json::to_string(&entry) else {
+        return;
+    };
+
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
+fn backward_boundary(s: &str, mut idx: usize) -> usize {
+    idx = idx.min(s.len());
+    while idx > 0 && !s.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
+}
+
+fn forward_boundary(s: &str, mut idx: usize) -> usize {
+    idx = idx.min(s.len());
+    while idx < s.len() && !s.is_char_boundary(idx) {
+        idx += 1;
+    }
+    idx
 }
 
 fn timestamp() -> String {

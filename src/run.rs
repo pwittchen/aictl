@@ -30,8 +30,11 @@ use crate::config::{
     max_iterations,
 };
 use crate::message::{Message, Role};
+use crate::security::redaction::{
+    self, RedactionDirection, RedactionMode, RedactionPolicy, RedactionResult, RedactionSource,
+};
 use crate::ui::{self, AgentUI, PlainUI};
-use crate::{agents, llm, security, stats, tools};
+use crate::{agents, audit, llm, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
 
 /// Cached "is stdout a TTY?" check. Computed once at startup to avoid repeated
@@ -316,6 +319,73 @@ where
     }
 }
 
+// --- Redaction seams ---
+
+/// Produce a provider-bound view of the message slice with each
+/// message's content run through the redactor. Returns `None` when no
+/// message needed rewriting (so the caller can pass the original slice
+/// straight through without cloning). Returns `Err` if any message
+/// tripped a `Blocked` result and the policy is `block`.
+///
+/// The persisted `messages: &[Message]` in the agent loop is never
+/// mutated — we only clone when something actually changed, keeping
+/// the common "no secrets detected" path zero-alloc.
+pub(crate) fn redact_outbound(
+    messages: &[Message],
+    pol: &RedactionPolicy,
+    provider: &Provider,
+) -> Result<Option<Vec<Message>>, String> {
+    if matches!(pol.mode, RedactionMode::Off) {
+        return Ok(None);
+    }
+    if pol.skip_local && matches!(provider, Provider::Ollama | Provider::Gguf | Provider::Mlx) {
+        return Ok(None);
+    }
+
+    let mut rewritten: Option<Vec<Message>> = None;
+    for (i, msg) in messages.iter().enumerate() {
+        let source = match msg.role {
+            Role::System => RedactionSource::SystemPrompt,
+            Role::User => {
+                // Tool-result turns are stuffed under Role::User in
+                // this agent loop; distinguish them by the wrapper tag
+                // so audit entries are accurately labeled.
+                if msg.content.starts_with("<tool_result>") {
+                    RedactionSource::ToolResult
+                } else {
+                    RedactionSource::UserMessage
+                }
+            }
+            Role::Assistant => RedactionSource::AssistantMessage,
+        };
+        match redaction::redact(&msg.content, pol) {
+            RedactionResult::Clean => {}
+            RedactionResult::Redacted { text, matches } => {
+                audit::log_redaction(
+                    RedactionDirection::Outbound,
+                    source,
+                    pol.mode,
+                    &msg.content,
+                    &matches,
+                );
+                let buf = rewritten.get_or_insert_with(|| messages.to_vec());
+                buf[i].content = text;
+            }
+            RedactionResult::Blocked { matches } => {
+                audit::log_redaction(
+                    RedactionDirection::Outbound,
+                    source,
+                    pol.mode,
+                    &msg.content,
+                    &matches,
+                );
+                return Err(redaction::describe_matches(&msg.content, &matches));
+            }
+        }
+    }
+    Ok(rewritten)
+}
+
 // --- Agent loop ---
 
 enum ToolAction {
@@ -359,9 +429,40 @@ async fn handle_tool_call(
         let output = with_esc_cancel(tools::execute_tool(tool_call)).await?;
         ui.stop_spinner();
         ui.show_tool_result(&output.text);
+
+        // Seam 2: tool result about to join history. Only `Block` mode
+        // needs to intercept here — for `Redact`, the outbound seam on
+        // the next iteration rewrites the tool result before it leaves
+        // for the provider, and the persisted history keeps the
+        // original (plan §6). For `Off`, this is a no-op.
+        let pol = redaction::policy();
+        let mut result_content = output.text.clone();
+        if matches!(pol.mode, RedactionMode::Block)
+            && let RedactionResult::Blocked { matches } = redaction::redact(&output.text, pol)
+        {
+            audit::log_redaction(
+                RedactionDirection::Inbound,
+                RedactionSource::ToolResult,
+                pol.mode,
+                &output.text,
+                &matches,
+            );
+            let desc = redaction::describe_matches(&output.text, &matches);
+            ui.show_reasoning(&format!(
+                "(tool result blocked by redaction policy: {desc})"
+            ));
+            // Hand the model a stub so the turn can continue without
+            // giving it anything sensitive. It keeps looping limits
+            // honest — the model sees the stub and should pivot.
+            result_content = format!(
+                "[tool result blocked by redaction policy — {} matches detected]",
+                matches.len()
+            );
+        }
+
         messages.push(Message {
             role: Role::User,
-            content: format!("<tool_result>\n{}\n</tool_result>", output.text),
+            content: format!("<tool_result>\n{result_content}\n</tool_result>"),
             images: output.images,
         });
         Ok(ToolAction::Executed)
@@ -435,13 +536,34 @@ pub(crate) async fn run_agent_turn(
         // still materializes a windowed Vec, but `short_term_buf` owns it only
         // when that branch runs.
         let short_term_buf;
-        let llm_messages: &[Message] = match memory {
+        let base_messages: &[Message] = match memory {
             MemoryMode::LongTerm => messages.as_slice(),
             MemoryMode::ShortTerm => {
                 short_term_buf = windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW);
                 &short_term_buf
             }
         };
+
+        // Seam 1: redaction at the network boundary. When the policy
+        // is `off`, or the provider is local and `skip_local` is on,
+        // this is a zero-cost no-op (`redacted_buf` stays None and we
+        // pass the original slice straight through). Only when a
+        // match is actually found do we clone the slice and rewrite
+        // the hit message content. The persisted `messages` Vec is
+        // never mutated — redaction is a transient, per-call
+        // transformation.
+        let redaction_pol = redaction::policy();
+        let redacted_buf = match redact_outbound(base_messages, redaction_pol, provider) {
+            Ok(buf) => buf,
+            Err(reason) => {
+                ui.stop_spinner();
+                return Err(format!(
+                    "blocked: outbound message contains sensitive data ({reason})"
+                )
+                .into());
+            }
+        };
+        let llm_messages: &[Message] = redacted_buf.as_deref().unwrap_or(base_messages);
 
         let call_start = std::time::Instant::now();
         let llm_timeout = config::llm_timeout();

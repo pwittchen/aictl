@@ -531,6 +531,13 @@
               <li><code>--list-mlx-models</code> · <code>--remove-mlx-model &lt;name&gt;</code> · <code>--clear-mlx-models</code></li>
             </ul>
           </div>
+          <div class="tools" style="grid-column: 1 / -1;">
+            <h3>Redaction NER models</h3>
+            <ul>
+              <li><code>--pull-ner-model &lt;spec&gt;</code> — e.g. <code>onnx-community/gliner_small-v2.1</code></li>
+              <li><code>--list-ner-models</code> · <code>--remove-ner-model &lt;name&gt;</code> · <code>--clear-ner-models</code></li>
+            </ul>
+          </div>
         </div>
 
         <p class="section__note">
@@ -708,11 +715,19 @@
             <h3>Audit log</h3>
             <p>Every tool call appends one JSON line to <code>~/.aictl/audit/&lt;session-id&gt;</code> &mdash; timestamp, tool, input, outcome. Observability-only, so <code>--unrestricted</code> leaves it on. Disable with <code>AICTL_SECURITY_AUDIT_LOG=false</code>.</p>
           </article>
+          <article class="card">
+            <h3>Sensitive-data redaction</h3>
+            <p>Outbound messages can be screened at the network boundary for credentials (API keys, AWS / GitHub / Stripe tokens, JWTs, PEM private keys, DB connection strings) and PII (emails, phones, credit cards via Luhn, IBANs via mod-97, high-entropy tokens). Enable with <code>AICTL_SECURITY_REDACTION=redact</code> to swap each hit for <code>[REDACTED:&lt;KIND&gt;]</code>, or <code>=block</code> to abort the turn. Off by default. Optional NER pass (person / location / organization) via the <code>redaction-ner</code> cargo feature.</p>
+          </article>
+          <article class="card">
+            <h3>Customization</h3>
+            <p>Every setting is configurable via <code>AICTL_SECURITY_*</code> keys. Disable individual tools with <code>AICTL_SECURITY_DISABLED_TOOLS</code>. Bypass everything with <code>--unrestricted</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Review in REPL</h3>
+            <p>Run <code>/security</code> inside the interactive REPL to print the live policy &mdash; blocked commands, CWD jail status, timeouts, env scrubbing, injection guard, audit log, redaction mode with its detector / custom pattern / allowlist / NER breakdown, and per-key storage locations. Useful to confirm a config change actually took effect.</p>
+          </article>
         </div>
-
-        <p class="section__note" style="margin-top: 32px;">
-          Every setting is configurable via <code>AICTL_SECURITY_*</code> keys. Disable individual tools with <code>AICTL_SECURITY_DISABLED_TOOLS</code>. Bypass everything with <code>--unrestricted</code>.
-        </p>
 
         <div style="margin-top: 32px;">
           <div class="tools">
@@ -730,8 +745,60 @@
               <li><code>AICTL_SECURITY_MAX_WRITE</code> — max file write size in bytes (default <code>1048576</code> = 1 MB)</li>
               <li><code>AICTL_SECURITY_DISABLED_TOOLS</code> — comma-separated list of tool names to disable; e.g. <code>exec_shell,search_web</code></li>
               <li><code>AICTL_SECURITY_BLOCKED_ENV</code> — comma-separated list of extra env vars to scrub from shell subprocesses; e.g. <code>GITHUB_TOKEN,AWS_SESSION_TOKEN</code></li>
-              <li><code>AICTL_SECURITY_AUDIT_LOG</code> — log tool calls to <code>~/.aictl/audit/</code> (default <code>true</code>)</li>
+              <li><code>AICTL_SECURITY_AUDIT_LOG</code> — log tool calls and redaction events to <code>~/.aictl/audit/</code> (default <code>true</code>)</li>
             </ul>
+          </div>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <div class="tools">
+            <h3>Redaction config keys</h3>
+            <ul>
+              <li><code>AICTL_SECURITY_REDACTION</code> — outbound redaction mode: <code>off</code> (default), <code>redact</code>, or <code>block</code></li>
+              <li><code>AICTL_SECURITY_REDACTION_LOCAL</code> — also redact when sending to Ollama / GGUF / MLX (default <code>false</code> — local traffic never leaves the machine)</li>
+              <li><code>AICTL_REDACTION_DETECTORS</code> — comma-separated subset of built-ins (empty = all): <code>api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy</code></li>
+              <li><code>AICTL_REDACTION_EXTRA_PATTERNS</code> — semicolon-separated <code>NAME=REGEX</code> pairs; each match becomes <code>[REDACTED:NAME]</code>. Example: <code>CUSTOMER_ID=CUST-\d{8};TICKET=JIRA-\d{4,}</code></li>
+              <li><code>AICTL_REDACTION_ALLOW</code> — semicolon-separated regexes whose matches suppress any overlapping detection (e.g. documentation examples or known-good hashes)</li>
+              <li><code>AICTL_REDACTION_NER</code> — enable optional Layer-C NER (person / location / organization). Requires the <code>redaction-ner</code> cargo feature and a pulled model (default <code>false</code>)</li>
+              <li><code>AICTL_REDACTION_NER_MODEL</code> — NER model spec <code>owner/repo</code> (default <code>onnx-community/gliner_small-v2.1</code>)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <p class="section__note">
+            Pull an NER model (management works on every build):
+          </p>
+          <div class="cmd" style="margin-top: 12px;">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-ner-pull">aictl --pull-ner-model onnx-community/gliner_small-v2.1</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-ner-pull" aria-label="Copy NER pull command">Copy</button>
+          </div>
+          <p class="section__note" style="margin-top: 16px;">
+            Manage existing models:
+          </p>
+          <div class="cmd" style="margin-top: 12px;">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-ner-list">aictl --list-ner-models</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-ner-list" aria-label="Copy NER list command">Copy</button>
+          </div>
+          <div class="cmd" style="margin-top: 12px;">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-ner-remove">aictl --remove-ner-model &lt;name&gt;</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-ner-remove" aria-label="Copy NER remove command">Copy</button>
+          </div>
+          <div class="cmd" style="margin-top: 12px;">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-ner-clear">aictl --clear-ner-models</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-ner-clear" aria-label="Copy NER clear command">Copy</button>
+          </div>
+          <p class="section__note" style="margin-top: 16px;">
+            Running inference requires building with the <code>redaction-ner</code> cargo feature:
+          </p>
+          <div class="cmd" style="margin-top: 12px;">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-ner-build">cargo build --features redaction-ner</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-ner-build" aria-label="Copy NER build command">Copy</button>
           </div>
         </div>
       </div>

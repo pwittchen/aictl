@@ -124,3 +124,62 @@
 # Observability-only, so --unrestricted leaves it on (default: true).
 # Accepted values: true, false.
 # AICTL_SECURITY_AUDIT_LOG=true
+
+################################
+#  REDACTION (OPTIONAL, OFF)   #
+################################
+
+# Sensitive-data redaction at the network boundary. Inspects every
+# outbound message (and tool result on its way back through) for
+# credentials and PII before it reaches a remote provider. The
+# persisted session file under ~/.aictl/sessions/ always keeps the
+# original text — redaction is a wire-level control, not a storage
+# one. Every redaction / block event is recorded to the per-session
+# audit log alongside tool calls.
+#
+# Mode: off (default — pure pass-through), redact (swap each match
+# for [REDACTED:<KIND>] on the wire), or block (abort the turn with
+# a scrubbed error naming the detected kinds).
+# AICTL_SECURITY_REDACTION=off
+
+# Also redact when sending to local providers (ollama, gguf, mlx).
+# Default false — data never leaves the machine for these, so
+# there's no privacy gain, just latency. Flip to true if you want
+# to smoke-test your config against a local model before switching
+# to a remote one. Accepted values: true, false.
+# AICTL_SECURITY_REDACTION_LOCAL=false
+
+# Subset of built-in detectors to run. Empty/unset = all of them.
+# Slugs: api_key, aws, jwt, private_key, connection_string,
+#        credit_card, iban, email, phone, high_entropy
+# AICTL_REDACTION_DETECTORS=api_key,aws,jwt,private_key,connection_string
+
+# User-defined patterns as NAME=REGEX pairs, semicolon-separated.
+# NAME becomes the placeholder suffix: [REDACTED:CUSTOMER_ID].
+# Bad regexes print a warning at startup and are skipped.
+# AICTL_REDACTION_EXTRA_PATTERNS=CUSTOMER_ID=CUST-\d{8};TICKET=JIRA-\d{4,}
+
+# Allowlist — semicolon-separated regexes. Any detection whose span
+# is covered by an allowlist hit is dropped before redaction or
+# blocking. Useful for documentation examples, known-good hashes,
+# or internal identifiers that trip the entropy scanner.
+# AICTL_REDACTION_ALLOW=AKIAIOSFODNN7EXAMPLE;example\.com
+
+# Optional Layer-C Named Entity Recognition (NER) pass for person
+# names, locations, and organizations. Requires:
+#   1. a build with the `redaction-ner` cargo feature
+#      (`cargo build --features redaction-ner`), and
+#   2. a pulled NER model at ~/.aictl/models/ner/<name>/.
+# Without (1), aictl prints a startup warning and falls back to
+# Layers A + B. Pull a model with:
+#   aictl --pull-ner-model onnx-community/gliner_small-v2.1
+# List, remove, or clear models with --list-ner-models,
+# --remove-ner-model <NAME>, --clear-ner-models.
+# Accepted values: true, false.
+# AICTL_REDACTION_NER=false
+
+# Name of the NER model to use when AICTL_REDACTION_NER=true.
+# Default: onnx-community/gliner_small-v2.1. The local name is
+# derived from the repo segment, so the model loads from
+# ~/.aictl/models/ner/gliner_small-v2.1/.
+# AICTL_REDACTION_NER_MODEL=onnx-community/gliner_small-v2.1

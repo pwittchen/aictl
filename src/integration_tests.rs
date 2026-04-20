@@ -9,11 +9,14 @@
 
 use std::cell::Cell;
 
+use regex::Regex;
+
 use crate::commands::MemoryMode;
 use crate::llm::TokenUsage;
 use crate::llm::mock::MockGuard;
 use crate::message::{Message, Role};
-use crate::run::{Provider, run_agent_turn};
+use crate::run::{Provider, redact_outbound, run_agent_turn};
+use crate::security::redaction::{DetectorKind, RedactionMode, RedactionPolicy, RedactionResult};
 use crate::tools::ToolCall;
 use crate::ui::{AgentUI, PlainUI, ToolApproval};
 
@@ -618,4 +621,210 @@ async fn provider_error_propagates_out_of_the_turn() {
     .expect_err("provider error should surface");
 
     assert!(err.to_string().contains("fake upstream error"));
+}
+
+// --- Redaction: outbound seam (Seam 1) integration ---
+
+fn build_redact_policy(mode: RedactionMode) -> RedactionPolicy {
+    RedactionPolicy {
+        mode,
+        skip_local: true,
+        enabled_detectors: vec![],
+        extra_patterns: vec![],
+        allowlist: vec![],
+        ner_requested: false,
+    }
+}
+
+fn sample_history(user_text: &str) -> Vec<Message> {
+    vec![
+        Message {
+            role: Role::System,
+            content: "You are a test assistant.".to_string(),
+            images: vec![],
+        },
+        Message {
+            role: Role::User,
+            content: user_text.to_string(),
+            images: vec![],
+        },
+    ]
+}
+
+#[test]
+fn outbound_redact_clones_only_affected_messages() {
+    // The canonical assertion: the persisted history the caller owns
+    // is never mutated. `redact_outbound` returns a new owned slice
+    // only when redaction was actually needed.
+    let pol = build_redact_policy(RedactionMode::Redact);
+    let messages =
+        sample_history("my key is sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb, help");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock)
+        .expect("redact should succeed")
+        .expect("redact should clone when there is a match");
+    assert!(rewritten[1].content.contains("[REDACTED:API_KEY]"));
+    assert!(!rewritten[1].content.contains("sk-proj-aaaaa"));
+    // Caller's slice is untouched.
+    assert!(messages[1].content.contains("sk-proj-aaaaa"));
+}
+
+#[test]
+fn outbound_clean_history_returns_none() {
+    let pol = build_redact_policy(RedactionMode::Redact);
+    let messages = sample_history("hello there, nothing sensitive here");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock).unwrap();
+    assert!(rewritten.is_none(), "no matches = no clone");
+}
+
+#[test]
+fn outbound_off_mode_is_zero_cost_noop() {
+    let pol = build_redact_policy(RedactionMode::Off);
+    let messages = sample_history("sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock).unwrap();
+    assert!(rewritten.is_none(), "off mode never clones");
+}
+
+#[test]
+fn outbound_block_returns_err_with_kind_label() {
+    let pol = build_redact_policy(RedactionMode::Block);
+    let messages =
+        sample_history("pls use sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb for the job");
+    let err =
+        redact_outbound(&messages, &pol, &Provider::Mock).expect_err("block should abort the turn");
+    assert!(err.contains("API_KEY"));
+    assert!(!err.contains("sk-proj-aaaaa"));
+}
+
+#[test]
+fn outbound_skips_local_provider_by_default() {
+    let pol = build_redact_policy(RedactionMode::Redact);
+    let messages = sample_history("sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb");
+    // Ollama is local; skip_local is true by default => no-op.
+    for provider in [Provider::Ollama, Provider::Gguf, Provider::Mlx] {
+        let rewritten = redact_outbound(&messages, &pol, &provider).unwrap();
+        assert!(
+            rewritten.is_none(),
+            "local provider {provider:?} must bypass redaction by default"
+        );
+    }
+}
+
+#[test]
+fn outbound_local_bypass_can_be_disabled() {
+    let mut pol = build_redact_policy(RedactionMode::Redact);
+    pol.skip_local = false;
+    let messages = sample_history("sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Ollama)
+        .unwrap()
+        .expect("skip_local=false must redact for Ollama");
+    assert!(rewritten[1].content.contains("[REDACTED:API_KEY]"));
+}
+
+#[test]
+fn outbound_custom_pattern_produces_named_placeholder() {
+    let mut pol = build_redact_policy(RedactionMode::Redact);
+    pol.extra_patterns.push((
+        "CUSTOMER_ID".to_string(),
+        Regex::new(r"CUST-\d{8}").unwrap(),
+    ));
+    let messages = sample_history("please look up CUST-12345678 for me");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock)
+        .unwrap()
+        .expect("custom pattern must trigger rewrite");
+    assert!(rewritten[1].content.contains("[REDACTED:CUSTOMER_ID]"));
+}
+
+#[test]
+fn outbound_allowlist_drops_known_good_match() {
+    let mut pol = build_redact_policy(RedactionMode::Redact);
+    pol.allowlist
+        .push(Regex::new(r"AKIAIOSFODNN7EXAMPLE").unwrap());
+    let messages = sample_history("docs example: AKIAIOSFODNN7EXAMPLE (test key)");
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock).unwrap();
+    assert!(
+        rewritten.is_none(),
+        "allowlisted span must not trigger a rewrite"
+    );
+}
+
+#[test]
+fn outbound_preserves_unaffected_messages_identity() {
+    let pol = build_redact_policy(RedactionMode::Redact);
+    let mut messages = sample_history("plain system-level content");
+    // Add a second user turn with a key; first user turn stays clean.
+    messages.push(Message {
+        role: Role::User,
+        content: "also here is sk-ant-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+        images: vec![],
+    });
+    let rewritten = redact_outbound(&messages, &pol, &Provider::Mock)
+        .unwrap()
+        .expect("expected rewrite");
+    // Clean turns retain their original content verbatim.
+    assert_eq!(rewritten[0].content, messages[0].content);
+    assert_eq!(rewritten[1].content, messages[1].content);
+    assert!(rewritten[2].content.contains("[REDACTED:API_KEY]"));
+}
+
+// --- Redaction: end-to-end via Mock provider ---
+
+#[tokio::test]
+async fn mock_sees_original_in_off_mode() {
+    // With the global redaction policy at its default (off), the Mock
+    // provider sees the user's original text — proves off-mode is a
+    // pure pass-through even through the full agent loop.
+    let guard = MockGuard::new();
+    guard.push_response("ack");
+
+    let mut messages = make_system_messages();
+    let mut auto = true;
+    let ui = quiet_ui();
+
+    let user_msg = "please remember this url postgres://admin:pw@db.ex.com/p";
+    run_agent_turn(
+        &Provider::Mock,
+        "",
+        "mock-model",
+        &mut messages,
+        user_msg,
+        &mut auto,
+        &ui,
+        MemoryMode::LongTerm,
+        false,
+    )
+    .await
+    .unwrap();
+
+    let first_call = &guard.calls()[0];
+    assert!(
+        first_call
+            .iter()
+            .any(|m| m.content.contains("postgres://admin:pw@db.ex.com/p")),
+        "with default (off) policy, Mock must see the original credential"
+    );
+}
+
+// --- Describe / Match integrity ---
+
+#[test]
+fn redact_result_block_variant_matches_expected_kind() {
+    let pol = build_redact_policy(RedactionMode::Block);
+    let messages = sample_history("bearer AKIAIOSFODNN7EXAMPLE plus prose");
+    let err = redact_outbound(&messages, &pol, &Provider::Mock).unwrap_err();
+    assert!(err.contains("AWS_KEY"));
+}
+
+#[test]
+fn low_level_redact_match_kinds_match_plan_spec() {
+    // Direct unit-level check mirroring plan §2 placeholder scheme.
+    let pol = build_redact_policy(RedactionMode::Redact);
+    let RedactionResult::Redacted { matches, .. } = crate::security::redaction::redact(
+        "sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb and foo@bar.com",
+        &pol,
+    ) else {
+        panic!("expected redacted");
+    };
+    let kinds: std::collections::HashSet<_> = matches.iter().map(|m| m.kind.clone()).collect();
+    assert!(kinds.contains(&DetectorKind::ApiKey));
+    assert!(kinds.contains(&DetectorKind::Email));
 }

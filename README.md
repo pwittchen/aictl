@@ -68,6 +68,7 @@ Native local-model inference is gated behind cargo features so a plain `cargo bu
 |---------|-----------------|----------|-------------------------------|
 | `gguf` | Native GGUF inference via `llama-cpp-2` | All | `cmake` + a working C/C++ compiler (Xcode Command Line Tools on macOS, `build-essential` on Debian/Ubuntu) |
 | `mlx`  | Native MLX inference via `mlx-rs` (Apple's MLX framework) | macOS + Apple Silicon only | Full Xcode (not just CLT) with the Metal Toolchain installed |
+| `redaction-ner` | Layer-C Named Entity Recognition for the redaction pipeline via `gline-rs` (GLiNER ONNX models through the `ort` crate; bundled ONNX Runtime binary, no system install) | All | None |
 
 Examples:
 
@@ -80,12 +81,12 @@ cargo install --path . --features gguf
 cargo build --release --features mlx
 cargo install --path . --features mlx
 
-# Both at the same time
-cargo build --release --features "gguf mlx"
-cargo install --path . --features "gguf mlx"
+# All three (GGUF + MLX + NER-backed redaction)
+cargo build --release --features "gguf mlx redaction-ner"
+cargo install --path . --features "gguf mlx redaction-ner"
 ```
 
-Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model prints a clear error telling you which feature to rebuild with.
+Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, `--pull-ner-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model or enable NER-backed redaction prints a clear error telling you which feature to rebuild with.
 
 The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it. The macOS Apple Silicon (`aarch64`) release additionally ships with `--features mlx` and includes a sibling `mlx.metallib` file alongside the binary (MLX needs the Metal library at runtime); every other platform's release contains just the `aictl` binary.
 
@@ -198,6 +199,10 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--list-mlx-models` | Print all downloaded native MLX models and exit |
 | `--remove-mlx-model` | Remove a downloaded native MLX model by name and exit |
 | `--clear-mlx-models` | Remove every downloaded native MLX model and exit |
+| `--pull-ner-model` | Download a redaction NER model (spec: `owner/repo` or `hf:owner/repo`; default shape: `onnx-community/gliner_small-v2.1`). Saved under `~/.aictl/models/ner/<name>/` and exits. Inference requires the `redaction-ner` cargo feature; management works on every build |
+| `--list-ner-models` | Print all downloaded NER models and exit |
+| `--remove-ner-model` | Remove a downloaded NER model by name and exit |
+| `--clear-ner-models` | Remove every downloaded NER model and exit |
 
 CLI flags take priority over config file values.
 
@@ -325,6 +330,13 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web`) |
 | `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
 | `AICTL_SECURITY_AUDIT_LOG` | Append one JSON line per tool invocation to `~/.aictl/audit/<session-id>` (default: `true`) |
+| `AICTL_SECURITY_REDACTION` | Outbound-message redaction mode: `off` (default), `redact`, or `block`. In `redact` mode each credential/PII match is swapped for `[REDACTED:<KIND>]` on the wire; in `block` mode the turn aborts with a scrubbed error. |
+| `AICTL_SECURITY_REDACTION_LOCAL` | Also redact when sending to local providers (Ollama / GGUF / MLX). Default `false` — data never leaves the machine for these, so there's no privacy gain. |
+| `AICTL_REDACTION_DETECTORS` | Comma-separated subset of built-in detectors (empty = all): `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`. |
+| `AICTL_REDACTION_EXTRA_PATTERNS` | Semicolon-separated `NAME=REGEX` pairs. Each match is replaced with `[REDACTED:NAME]` (e.g. `CUSTOMER_ID=CUST-\d{8};TICKET=JIRA-\d{4,}`). |
+| `AICTL_REDACTION_ALLOW` | Semicolon-separated regexes; any detection whose span is covered by an allowlist hit is dropped. Useful for documentation examples or internal IDs that trip the entropy scanner. |
+| `AICTL_REDACTION_NER` | Enable the optional Layer-C NER pass (person / location / organization). Requires the `redaction-ner` cargo feature and a pulled model. Default `false`. |
+| `AICTL_REDACTION_NER_MODEL` | NER model spec (`owner/repo` or `hf:owner/repo`). Default: `onnx-community/gliner_small-v2.1`. |
 
 Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 
@@ -686,8 +698,9 @@ All tool calls pass through a configurable security policy (`src/security.rs`) b
 - **Output sanitization**: tool results are sanitized to prevent prompt injection via `<tool>` tags.
 - **Injection guard**: user prompts are scanned before being sent to the LLM. Inputs containing instruction-override phrases ("ignore previous instructions", "disable security", etc.) or forged role/tool tags (`<tool …>`, `<|system|>`, `### System:`, etc.) are blocked with a clear error. Disable with `AICTL_SECURITY_INJECTION_GUARD=false`.
 - **Audit log**: every tool invocation appends one JSON line to `~/.aictl/audit/<session-id>` (JSONL) with timestamp, tool name, truncated input, and an outcome tag (`executed` + `result_summary`, `denied_by_policy` + `reason`, `denied_by_user`, `disabled`, `duplicate`) — separate from session history so a reviewer can reconstruct exactly what the model ran. The filename mirrors the session file under `~/.aictl/sessions/`. Skipped in incognito mode and single-shot runs. Disable with `AICTL_SECURITY_AUDIT_LOG=false`.
+- **Sensitive-data redaction** (opt-in): every outbound message body can be screened for credentials and PII before it reaches a remote provider. Enable with `AICTL_SECURITY_REDACTION=redact` to swap matches for `[REDACTED:<KIND>]` on the wire, or `=block` to abort the turn on any hit. Layer A: regex detectors for API keys (OpenAI / Anthropic / Google / GitHub / Stripe / Slack / HuggingFace / Groq), AWS access keys, JWTs (with base64-header sanity check), PEM private keys, DB/AMQP connection strings, emails, context-gated phones, credit cards (Luhn), IBANs (mod-97). Layer B: Shannon-entropy scanner for opaque tokens. Layer C (optional `redaction-ner` cargo feature + pulled GLiNER model): person / location / organization detection. User-supplied `AICTL_REDACTION_EXTRA_PATTERNS` and `AICTL_REDACTION_ALLOW` tune the detectors. Local providers (Ollama / GGUF / MLX) bypass by default. Every redaction event lands in the audit log; the persisted session file always keeps the user's original text.
 
-Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`. The audit log is observability, not enforcement, so `--unrestricted` leaves it running unless the config key turns it off.
+Security denials are returned to the LLM as tool results (displayed in red) so it can adapt. Use `--unrestricted` to disable all security checks. Individual settings are configurable via `AICTL_SECURITY_*` keys in `~/.aictl/config`. The audit log and redaction layer are observability and privacy controls, not tool-call enforcement, so `--unrestricted` leaves them running unless the config key turns them off.
 
 ### Examples
 

@@ -176,6 +176,26 @@ struct Cli {
     /// [experimental] Remove every downloaded MLX model and exit.
     #[arg(long = "clear-mlx-models")]
     clear_mlx_models: bool,
+
+    /// Download a Named Entity Recognition model for the redaction
+    /// layer (spec: `owner/repo` or `hf:owner/repo`; default shape is
+    /// `onnx-community/gliner_small-v2.1`). Saved under
+    /// `~/.aictl/models/ner/<repo>/`. Management commands always work;
+    /// running inference requires the `redaction-ner` cargo feature.
+    #[arg(long = "pull-ner-model", value_name = "SPEC")]
+    pull_ner_model: Option<String>,
+
+    /// List all downloaded NER models and exit.
+    #[arg(long = "list-ner-models")]
+    list_ner_models: bool,
+
+    /// Remove a downloaded NER model by name and exit.
+    #[arg(long = "remove-ner-model", value_name = "NAME")]
+    remove_ner_model: Option<String>,
+
+    /// Remove every downloaded NER model and exit.
+    #[arg(long = "clear-ner-models")]
+    clear_ner_models: bool,
 }
 
 #[tokio::main]
@@ -330,6 +350,63 @@ async fn main() {
     if cli.clear_mlx_models {
         match llm::mlx::clear_models() {
             Ok(n) => println!("removed {n} MLX model(s)"),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if let Some(spec) = cli.pull_ner_model.as_deref() {
+        match security::redaction::ner::download_model(spec, None).await {
+            Ok(name) => {
+                println!("downloaded NER model: {name}");
+                if !security::redaction::ner::is_available() {
+                    eprintln!(
+                        "note: this build lacks the `redaction-ner` feature, so the \
+                         pulled model cannot be used for inference yet. Rebuild with \
+                         `cargo build --features redaction-ner`."
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if cli.list_ner_models {
+        let models = security::redaction::ner::list_models();
+        if models.is_empty() {
+            println!(
+                "No NER models downloaded. Use `aictl --pull-ner-model {}` to fetch one.",
+                security::redaction::ner::DEFAULT_NER_MODEL
+            );
+        } else {
+            for m in models {
+                println!("{m}");
+            }
+        }
+        return;
+    }
+
+    if let Some(name) = cli.remove_ner_model.as_deref() {
+        match security::redaction::ner::remove_model(name) {
+            Ok(()) => println!("removed NER model: {name}"),
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if cli.clear_ner_models {
+        match security::redaction::ner::clear_models() {
+            Ok(n) => println!("removed {n} NER model(s)"),
             Err(e) => {
                 eprintln!("Error: {e}");
                 std::process::exit(1);
