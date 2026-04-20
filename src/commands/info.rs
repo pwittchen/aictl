@@ -169,6 +169,19 @@ pub fn print_info(
     );
     println!("  {} {mlx_info}", "mlx:      ".with(Color::Cyan));
 
+    if mlx_host_ok {
+        let metallib = current_exe
+            .as_ref()
+            .and_then(|p| p.parent())
+            .map(|d| d.join("mlx.metallib"));
+        let metallib_info = match metallib {
+            Some(p) if p.exists() => p.display().to_string(),
+            Some(p) => format!("(not found at {})", p.display()),
+            None => "(unknown)".to_string(),
+        };
+        println!("  {} {metallib_info}", "metallib: ".with(Color::Cyan));
+    }
+
     let total_models = model_count + ollama_models.len() + gguf_models.len() + mlx_models.len();
     println!(
         "  {} {total_models} ({model_count} cataloged, {} ollama, {} gguf, {} mlx)",
