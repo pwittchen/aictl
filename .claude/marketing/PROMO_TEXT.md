@@ -2,7 +2,7 @@ Been working on **aictl** 🦀 — a single-binary Rust CLI for talking to LLMs 
 
 Supports OpenAI, Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, plus native GGUF and MLX inference for running models fully local on Apple Silicon 🧠 One config, swap providers whenever.
 
-Comes with 30+ tools built in ⚡ — shell, file edits, git, web search, vision, image generation, PDF/DOCX/CSV/JSON parsing. Security-first. Sandboxed by default 🔒 (CWD jail, command allowlists, env scrubbing, prompt-injection guard), plus outbound **redaction** 🕵️ that scrubs secrets, keys, and PII at the network boundary before prompts reach remote providers (regex + entropy + optional NER; skipped for local models). Sessions, reusable agents, and system-keyring-backed API keys.
+Comes with 30+ tools built in ⚡ — shell, file edits, git, web search, vision, image generation, PDF/DOCX/CSV/JSON parsing. Security-first. Sandboxed by default 🔒 (CWD jail, command allowlists, env scrubbing, prompt-injection guard), plus outbound **redaction** 🕵️ that scrubs secrets, keys, and PII at the network boundary before prompts reach remote providers (regex + entropy + optional NER; skipped for local models). Sessions, reusable agents, skills, and system-keyring-backed API keys.
 
 Interactive REPL or one-shot mode for scripting.
 
