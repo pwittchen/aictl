@@ -95,7 +95,15 @@
         <div class="grid grid--3">
           <article class="card">
             <h3>Agent loop</h3>
-            <p>Interactive REPL and one-shot mode. 31 built-in tools for shell, files, archives, checksums, clipboard, notifications, web, documents, images, code execution, math, queries, and host probing. Up to 20 tool iterations per turn with confirmation or autonomous execution.</p>
+            <p>Interactive REPL and one-shot mode. Up to 20 tool iterations per turn with confirmation or autonomous execution via <code>--auto</code>. Press <kbd>Esc</kbd> to cancel any in-flight call and roll back the turn.</p>
+          </article>
+          <article class="card">
+            <h3>Tools</h3>
+            <p>31 built-in tools spanning shell, files, archives, checksums, clipboard, notifications, web, documents, images, code execution, math, JSON / CSV queries, and host probing. Every call is gated by the security policy. Review with <code>/tools</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Context</h3>
+            <p>Long-term or short-term memory via <code>/memory</code>. <code>/context</code> shows live token and message usage vs. model limits; <code>/compact</code> summarizes the conversation on demand, and the REPL auto-compacts above <code>AICTL_AUTO_COMPACT_THRESHOLD</code> (default 80%).</p>
           </article>
           <article class="card">
             <h3>Sessions</h3>
@@ -104,6 +112,10 @@
           <article class="card">
             <h3>Agents</h3>
             <p>Reusable system prompts as plain text. Create manually, or generate them with an LLM via <code>/agent</code>. Load on startup with<br><code>--agent &lt;name&gt;</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Skills</h3>
+            <p>One-turn markdown playbooks under <code>~/.aictl/skills/</code>. Invoke with <code>/&lt;skill-name&gt;</code> or <code>--skill &lt;name&gt;</code> &mdash; the body drives a single turn, then evaporates. Manage via <code>/skills</code>.</p>
           </article>
           <article class="card">
             <h3>Security first</h3>

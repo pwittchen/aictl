@@ -7,14 +7,15 @@ src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; also log_redaction() for the redaction layer's events
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /stats, /tools, /uninstall, /update, /version)
- ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, stats, tools, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /skills, /stats, /tools, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
+ ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, skills, stats, tools, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
  ├── security/redaction.rs        Outbound-message redactor. RedactionPolicy (off/redact/block), Layer A regex detectors (API keys, AWS, JWT, PEM private keys, connection strings, email, phone, credit cards via Luhn, IBAN via mod-97), Layer B Shannon-entropy scanner for opaque tokens, user-defined AICTL_REDACTION_EXTRA_PATTERNS, AICTL_REDACTION_ALLOW allowlist, overlap merging by priority.
  ├── security/redaction/ner.rs    [optional, redaction-ner feature] Layer C — gline-rs-backed NER model manager + inference. Management paths (list/remove/download_model, spec parsing, status) always compiled; GLiNER loading and span-mode inference gated behind the feature. Specs: owner/repo or hf:owner/repo (default: onnx-community/gliner_small-v2.1). Models live under ~/.aictl/models/ner/<name>/{tokenizer.json,onnx/model.onnx}.
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
+ ├── skills.rs          Skill storage (~/.aictl/skills/<name>/SKILL.md), frontmatter (name/description) parsing, CRUD, reserved-name guard, AICTL_SKILLS_DIR override. Skills are single-turn markdown playbooks merged into the base system prompt for one run_agent_turn call and never persisted into session history
  ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (31)
  ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, notify, run_code, shell, system_info, util, web)
  ├── ui.rs              AgentUI trait, PlainUI & InteractiveUI implementations (welcome banner shows key storage backend)
@@ -340,7 +341,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version)
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -353,6 +354,16 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
    Security    → show security policy + per-key storage location, continue
    Session     → open session menu (current info / set name / view saved / clear all);
                  disabled in incognito mode; continue
+   Skills      → open skills menu (create manually / create with AI / view all →
+                 invoke / view / delete); on "invoke now" returns InvokeSkill so
+                 the REPL loads the body and drives the next turn with it
+   InvokeSkill → returned for /<skill-name> (or the menu's invoke action). The
+                 REPL calls skills::find, passes Option<&Skill> into
+                 run_agent_turn for exactly one turn, and reverts afterwards.
+                 Task from "/<name> <task>" becomes the user message; when
+                 absent, a default trigger ("Run the <name> skill.") fires so
+                 the skill body alone drives the turn. Never persisted into
+                 session history.
    Gguf        → open GGUF model menu (view downloaded / pull / remove / clear all);
                  downloads GGUF files to ~/.aictl/models/gguf/ with a progress bar; continue
    Mlx         → open MLX model menu (view downloaded / pull / remove / clear all);
@@ -425,6 +436,14 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       │          │    │ delete/list  │
       │          │    └──────────────┘
       │          │    ┌──────────────┐
+      │          │───>│ skills.rs    │
+      │          │    │ find/list/   │
+      │          │    │ save/delete, │
+      │          │    │ frontmatter, │
+      │          │    │ reserved     │
+      │          │    │ name guard   │
+      │          │    └──────────────┘
+      │          │    ┌──────────────┐
       │          │───>│ session.rs   │
       │          │    │ save_current │
       │          │    │ load/list/   │
@@ -473,6 +492,10 @@ All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and n
   ├── agents/             saved agent prompts — one plain-text file per agent
   │   ├── <name>          full system-prompt extension text; filename == agent name
   │   └── ...             (names validated: ASCII alphanumerics, `_`, `-`)
+  ├── skills/             saved skills — one directory per skill, each with a SKILL.md
+  │   ├── <name>/         directory name == skill name (ASCII alphanumerics, `_`, `-`)
+  │   │   └── SKILL.md    YAML frontmatter (name, description) + markdown body
+  │   └── ...             reserved names (built-in slash commands) are rejected at save time
   ├── models/             downloaded native local models, partitioned by backend
   │   ├── gguf/           GGUF files for the Local (llama.cpp) provider
   │   │   ├── <name>.gguf model file; filename stem is the local name shown in /model
@@ -493,7 +516,7 @@ Plain text, one `key=value` per line. Comments start with `#`; blank lines are i
 Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
-- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`)
+- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`), `AICTL_SKILLS_DIR` (override the default `~/.aictl/skills/` location)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 - **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.
 
@@ -546,6 +569,17 @@ Each file is a plain-text agent prompt — the body that gets appended to the ba
 - `list_agents()` — enumerates regular files whose names pass validation, sorted alphabetically (invalid filenames are silently skipped)
 
 A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+
+### `~/.aictl/skills/<name>/SKILL.md`
+
+Each skill lives in its own directory so future bundled resources (scripts, templates) can sit alongside the markdown without a layout migration. The file begins with YAML-ish frontmatter (`name`, `description`) followed by the markdown body — the procedure the LLM should follow when the skill is invoked. Managed entirely through `src/skills.rs`:
+
+- `find(name)` — load one skill (directory name is authoritative; entries whose frontmatter `name` disagrees are skipped to avoid silent drift)
+- `list()` — enumerate directories that contain a parseable `SKILL.md`, sorted alphabetically; each entry carries the name + one-line description for the menu
+- `save(name, description, body)` — validates the name, rejects reserved slash-command names (e.g. `help`, `exit`, `agent`), creates the directory, writes `SKILL.md` with a regenerated frontmatter block
+- `delete(name)` — recursive removal of the skill directory
+
+The skills directory defaults to `~/.aictl/skills/` and can be redirected with `AICTL_SKILLS_DIR`. **Skills are never persisted into session history.** Invocation (via `/<skill-name>`, the menu's "invoke now", or `--skill <name>`) hands `Option<&Skill>` to `run_agent_turn`, which for that single call concatenates `# Skill: <name>\n\n<body>` onto `messages[0].content` (the base system prompt). This keeps the tool catalog intact: Anthropic and Gemini accept only a single top-level `system` field and overwrite on each `Role::System` they see, so injecting the skill as a separate system message would silently replace the tool rules. The persisted `Vec<Message>` the REPL saves to `~/.aictl/sessions/<uuid>` is untouched, so reloading a session later never replays a stale skill body.
 
 ### `~/.aictl/models/gguf/<name>.gguf`
 

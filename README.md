@@ -127,7 +127,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--skill <NAME>] [--list-skills] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -151,6 +151,7 @@ The interactive REPL supports slash commands:
 | `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
+| `/skills` | Manage skills (create manually, create with AI, view/invoke/delete) — one-turn markdown playbooks |
 | `/stats` | Manage usage statistics — view today/month/overall (sessions, calls, tokens, estimated cost) or clear all |
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
@@ -162,6 +163,8 @@ The interactive REPL supports slash commands:
 | `/uninstall` | Remove the aictl binary from `~/.cargo/bin/` and `~/.local/bin/` (asks for confirmation) |
 | `/version` | Check current version against the latest available |
 | `/exit` | Exit the REPL |
+
+Any unrecognized `/<name>` that matches a saved skill (see [Skills](#skills) below) runs that skill for the next turn: `/<skill-name>` runs it with a default trigger, `/<skill-name> <task>` routes `<task>` as the user message.
 
 Press **Esc** during any LLM call or tool execution to interrupt the operation and return to the prompt. Conversation history is rolled back so the interrupted turn has no effect.
 
@@ -181,6 +184,8 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--message` | Message to send (omit for interactive mode) |
 | `--agent` | Load a saved agent by name (works in both single-shot and interactive modes) |
 | `--list-agents` | Print saved agents from `~/.aictl/agents/` and exit |
+| `--skill` | Invoke a saved skill by name for a single turn. In single-shot mode the skill body is injected as a transient system prompt for the `--message` call only; in REPL mode it applies to the first user turn, then the REPL reverts to normal |
+| `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--unrestricted` | Disable all security restrictions (use with caution) |
@@ -227,6 +232,33 @@ Agents can also be loaded from the command line with `--agent <name>`, which wor
 
 Agent names may contain only letters, numbers, underscores, and dashes. When an agent is loaded, its prompt is appended to the system prompt and the agent name appears in magenta brackets before the input prompt (e.g. `[my-agent] ❯`).
 
+### Skills
+
+Skills are markdown playbooks invoked on demand for a **single turn** — unlike agents, which persist for the whole session. A skill encodes a repeatable procedure ("run the commit workflow", "review the pending diff") that the LLM should follow this one time; after the turn completes, the skill is gone. Skills live under `~/.aictl/skills/<name>/SKILL.md` (overridable via `AICTL_SKILLS_DIR`).
+
+Each `SKILL.md` starts with YAML frontmatter (`name`, `description`) followed by the markdown body:
+
+```markdown
+---
+name: commit
+description: Commit staged changes with a clear, project-style message.
+---
+
+When the user asks you to commit:
+1. Run `git status` and `git diff --cached` to see what's staged.
+2. ...
+```
+
+Use `/skills` to open the skill menu:
+
+- **Create skill manually** — enter a name and description, then type or paste the body
+- **Create skill with AI** — provide a name and one-line description; the LLM drafts the body
+- **View all skills** — browse saved skills with view / invoke / delete actions
+
+Invoke a skill directly by typing `/<skill-name>` at the REPL prompt. `/commit` runs the skill with a default trigger so the body alone drives the turn; `/commit review the staged diff` routes the trailing text as the user message. `--skill <name>` works the same way in single-shot and REPL modes. `--list-skills` prints saved skills and exits.
+
+Skill names may contain only letters, numbers, underscores, and dashes and must not collide with a built-in slash command (e.g. `help`, `exit`, `agent`) — such names are rejected at save time. The skill body is merged into the base system prompt for the turn (rather than sent as a separate system message) so every provider, including those that accept only a single top-level `system` field, sees the skill alongside the tool catalog.
+
 ### Configuration
 
 Configuration is loaded from `~/.aictl/config`. This is a single global config file.
@@ -257,6 +289,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_AUTO_COMPACT_THRESHOLD` | Context usage percentage at which the REPL auto-compacts the conversation. Accepts an integer in `1..=100` (default: `80`) |
 | `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
+| `AICTL_SKILLS_DIR` | Override the location of the skills directory (default: `~/.aictl/skills`) |
 
 #### API keys
 

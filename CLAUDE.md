@@ -29,7 +29,7 @@ Single-binary async Rust CLI. Top-level modules under `src/`, plus three submodu
 - `security.rs` — `SecurityPolicy`: shell/path validation, CWD jail, env scrub, output sanitization, prompt-injection guard
 - `security/redaction.rs` (+ `redaction/ner.rs`) — network-boundary redactor (A: regex, B: entropy, C: optional NER)
 - `session.rs` — session persistence + incognito toggle
-- `skills.rs` — `~/.aictl/skills/<name>/SKILL.md` CRUD + frontmatter parse. Skills are one-turn-scoped markdown playbooks: injected as a transient system message in `run::run_agent_turn` for a single turn, never written into session history. Invoked via `/<skill-name>`, `--skill <name>`, or the `/skills` menu.
+- `skills.rs` — `~/.aictl/skills/<name>/SKILL.md` CRUD + frontmatter parse. Skills are one-turn-scoped markdown playbooks: for one `run::run_agent_turn` call the skill body is concatenated onto `messages[0].content` (not inserted as a separate System message — Anthropic/Gemini only keep the last System they see) and never written into session history. Invoked via `/<skill-name>`, `--skill <name>`, or the `/skills` menu. `AICTL_SKILLS_DIR` overrides the default directory.
 - `stats.rs` — usage stats under `~/.aictl/stats`
 - `tools.rs` + `tools/` — XML parsing, dispatch, duplicate guard, per-tool impls (31 tools)
 - `ui.rs` — `AgentUI` trait: `PlainUI` (single-shot) + `InteractiveUI` (REPL)

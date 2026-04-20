@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>aictl — guides</title>
-  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, sessions, and tools." />
+  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, sessions, and tools." />
   <meta name="theme-color" content="#1f2228" />
   <meta property="og:title" content="aictl — guides" />
   <meta property="og:description" content="How to install, configure, and use aictl — the single-binary AI agent CLI." />
@@ -88,6 +88,7 @@
           <li><a href="#repl">REPL commands</a></li>
           <li><a href="#flags">CLI flags</a></li>
           <li><a href="#agents">Agents</a></li>
+          <li><a href="#skills">Skills</a></li>
           <li><a href="#sessions">Sessions</a></li>
           <li><a href="#tools-ref">Tools</a></li>
           <li><a href="#security">Security</a></li>
@@ -442,6 +443,7 @@
               <li><code>/model</code> — switch provider and model live</li>
               <li><code>/behavior</code> — toggle auto / human-in-the-loop</li>
               <li><code>/agent</code> — manage agents (create, load, delete)</li>
+              <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
               <li><code>/security</code> — show current security policy</li>
@@ -498,10 +500,12 @@
             </ul>
           </div>
           <div class="tools">
-            <h3>Agents &amp; sessions</h3>
+            <h3>Agents, skills &amp; sessions</h3>
             <ul>
               <li><code>--agent &lt;name&gt;</code> — load a saved agent</li>
               <li><code>--list-agents</code> — print saved agents and exit</li>
+              <li><code>--skill &lt;name&gt;</code> — invoke a saved skill for one turn</li>
+              <li><code>--list-skills</code> — print saved skills and exit</li>
               <li><code>--session &lt;id|name&gt;</code> — resume a session</li>
               <li><code>--list-sessions</code> — print saved sessions and exit</li>
               <li><code>--clear-sessions</code> — delete all saved sessions</li>
@@ -581,10 +585,48 @@
       </div>
     </section>
 
-    <section class="section" id="sessions">
+    <section class="section" id="skills">
       <div class="container">
         <header class="section__head">
-          <span class="section__kicker">// 10 sessions</span>
+          <span class="section__kicker">// 10 skills</span>
+          <h2 class="section__title">Skills</h2>
+          <p class="section__lead">
+            Skills are markdown playbooks invoked on demand for a
+            <strong>single turn</strong> &mdash; unlike agents, which
+            persist for the whole session. A skill encodes a
+            repeatable procedure (&ldquo;run the commit
+            workflow&rdquo;, &ldquo;review the pending diff&rdquo;)
+            that vanishes once the turn completes. Skills live under
+            <code>~/.aictl/skills/&lt;name&gt;/SKILL.md</code>;
+            override the location with <code>AICTL_SKILLS_DIR</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Create</h3>
+            <p>Open <code>/skills</code> in the REPL. <em>Create manually</em> asks for a name, a one-line description, and the markdown body. <em>Create with AI</em> has the current model draft the body from a short description.</p>
+          </article>
+          <article class="card">
+            <h3>Invoke</h3>
+            <p>Type <code>/&lt;skill-name&gt;</code> to run the skill with a default trigger, or <code>/&lt;skill-name&gt; &lt;task&gt;</code> to pass a task as the user message. Outside the REPL, use <code>--skill &lt;name&gt;</code> &mdash; works with or without <code>--message</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Format</h3>
+            <p>Each <code>SKILL.md</code> starts with YAML frontmatter (<code>name</code>, <code>description</code>) followed by the markdown procedure. Unknown frontmatter fields are ignored so forward-compatible additions don&rsquo;t break older clients.</p>
+          </article>
+          <article class="card">
+            <h3>Scope &amp; safety</h3>
+            <p>The body is merged into the base system prompt for one turn only and is never saved into session history. Names collide-checked against built-in slash commands (<code>help</code>, <code>exit</code>, <code>agent</code>, &hellip;) at save time so a skill can&rsquo;t shadow a command. <code>--list-skills</code> prints every saved skill.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="sessions">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 11 sessions</span>
           <h2 class="section__title">Sessions</h2>
           <p class="section__lead">
             Every REPL run is a session. A new UUID is generated at
@@ -610,7 +652,7 @@
       </div>
     </section>
 
-    <section class="section section--alt" id="tools-ref">
+    <section class="section" id="tools-ref">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 31 tools</span>
@@ -679,7 +721,7 @@
       </div>
     </section>
 
-    <section class="section" id="security">
+    <section class="section section--alt" id="security">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 12 security</span>
@@ -804,7 +846,7 @@
       </div>
     </section>
 
-    <section class="section section--alt" id="local-models">
+    <section class="section" id="local-models">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 13 local models</span>
@@ -849,7 +891,7 @@
       </div>
     </section>
 
-    <section class="section" id="examples">
+    <section class="section section--alt" id="examples">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 14 examples</span>
@@ -941,7 +983,7 @@
       </div>
     </section>
 
-    <section class="section section--alt" id="uninstall">
+    <section class="section" id="uninstall">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 15 update &amp; uninstall</span>
