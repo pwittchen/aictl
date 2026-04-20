@@ -82,7 +82,9 @@ detect_artifact() {
     Darwin)
       case "$arch" in
         x86_64|amd64) echo "aictl-darwin-x86_64" ;;
-        arm64|aarch64) echo "aictl-darwin-aarch64" ;;
+        # macOS aarch64 ships as a tarball containing aictl + mlx.metallib
+        # (MLX needs the metallib next to the binary at runtime).
+        arm64|aarch64) echo "aictl-darwin-aarch64.tar.gz" ;;
         *) return 1 ;;
       esac
       ;;
@@ -99,25 +101,54 @@ install_from_release() {
     return 1
   fi
 
-  tmp=$(mktemp 2>/dev/null || mktemp -t aictl)
-  trap 'rm -f "$tmp"' EXIT INT TERM
+  tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t aictl)
+  trap 'rm -rf "$tmp_dir"' EXIT INT TERM
+
+  archive="$tmp_dir/$artifact"
 
   step "Downloading ${artifact}..."
   info "${url}"
-  if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$tmp"; then
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$archive"; then
     err "Download failed."
-    rm -f "$tmp"
-    trap - EXIT INT TERM
     return 1
   fi
 
-  chmod +x "$tmp"
-  if ! mv "$tmp" "$INSTALL_DIR/aictl"; then
-    err "Could not install binary to ${INSTALL_DIR}/aictl."
-    rm -f "$tmp"
-    trap - EXIT INT TERM
-    return 1
-  fi
+  case "$artifact" in
+    *.tar.gz)
+      if ! command -v tar >/dev/null 2>&1; then
+        err "tar is required to unpack ${artifact} but was not found."
+        return 1
+      fi
+      extract_dir="$tmp_dir/extract"
+      mkdir -p "$extract_dir"
+      if ! tar -xzf "$archive" -C "$extract_dir"; then
+        err "Extraction failed."
+        return 1
+      fi
+      if [ ! -f "$extract_dir/aictl" ]; then
+        err "Archive did not contain an 'aictl' binary."
+        return 1
+      fi
+      chmod +x "$extract_dir/aictl"
+      for f in "$extract_dir"/*; do
+        [ -f "$f" ] || continue
+        name=$(basename "$f")
+        if ! mv -f "$f" "$INSTALL_DIR/$name"; then
+          err "Could not install $name to $INSTALL_DIR."
+          return 1
+        fi
+      done
+      ;;
+    *)
+      chmod +x "$archive"
+      if ! mv "$archive" "$INSTALL_DIR/aictl"; then
+        err "Could not install binary to ${INSTALL_DIR}/aictl."
+        return 1
+      fi
+      ;;
+  esac
+
+  rm -rf "$tmp_dir"
   trap - EXIT INT TERM
 
   printf "${GREEN}>>>${RESET} Installed to ${DIM}${INSTALL_DIR}/aictl${RESET}\n"

@@ -102,14 +102,36 @@ jobs:
       - name: Build
         run: cargo build --release --features "${{ matrix.features }}" --target ${{ matrix.target }}
 
-      - name: Rename binary
-        run: cp target/${{ matrix.target }}/release/aictl ${{ matrix.artifact }}
+      - name: Package
+        shell: bash
+        run: |
+          bin_src="target/${{ matrix.target }}/release/aictl"
+          if [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            # MLX bakes an absolute METAL_PATH into the binary at compile time
+            # pointing to the CI runner's build dir. That path vanishes when the
+            # runner exits, so we ship mlx.metallib next to the binary — MLX's
+            # first runtime fallback is <exec_dir>/mlx.metallib.
+            metallib=$(find "target/${{ matrix.target }}/release/build" -type f -name mlx.metallib -print -quit)
+            if [ -z "$metallib" ]; then
+              echo "ERROR: mlx.metallib not found in build output"
+              find "target/${{ matrix.target }}/release/build" -type d -name kernels
+              exit 1
+            fi
+            stage=$(mktemp -d)
+            cp "$bin_src" "$stage/aictl"
+            cp "$metallib" "$stage/mlx.metallib"
+            tar -C "$stage" -czf "${{ matrix.artifact }}.tar.gz" aictl mlx.metallib
+            echo "asset=${{ matrix.artifact }}.tar.gz" >> "$GITHUB_ENV"
+          else
+            cp "$bin_src" "${{ matrix.artifact }}"
+            echo "asset=${{ matrix.artifact }}" >> "$GITHUB_ENV"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          path: ${{ env.asset }}
 
   release:
     needs: build
