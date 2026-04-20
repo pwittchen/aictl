@@ -4,6 +4,10 @@
 
 ## General
 
+### Bugs
+
+- **MLX support on CI** - MLX feature is not correctly built on the CI. Right now, it works only locally while building from source
+
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.

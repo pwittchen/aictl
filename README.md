@@ -87,7 +87,10 @@ cargo install --path . --features "gguf mlx"
 
 Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model prints a clear error telling you which feature to rebuild with.
 
-The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform, and additionally `--features "gguf mlx"` on the macOS aarch64 build — so one-liner installs get native inference out of the box where the platform supports it.
+The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it.
+
+> [!WARNING]
+> **MLX prebuilt binary is currently broken on CI.** The macOS aarch64 prebuilt binary does **not** include `--features mlx` right now. If you want to use native MLX inference, you must build from source on the latest macOS with full **Xcode** installed (the Metal Toolchain is required). See the [Native MLX](#native-mlx-apple-silicon--experimental) section below for build instructions.
 
 ## Uninstall
 
@@ -538,9 +541,10 @@ The following models have been verified end-to-end (download, load, inference, t
 
 aictl can run MLX models in-process via [`mlx-rs`](https://crates.io/crates/mlx-rs) — no Python, no `mlx_lm`, no separate server. Quantized 4-bit weights from the [`mlx-community`](https://huggingface.co/mlx-community) Hugging Face organization are loaded directly via `safetensors`. By default no local MLX models are available; they must be downloaded explicitly by the user into `~/.aictl/models/mlx/<name>/`.
 
-Native inference is gated behind the `mlx` cargo feature. **Prebuilt binaries published on GitHub Releases include `--features mlx` on the macOS aarch64 build** in addition to `--features gguf`, so the one-liner installs get native MLX out of the box on Apple Silicon.
+> [!WARNING]
+> **MLX build is currently broken on CI**, so the prebuilt binary on GitHub Releases ships **without** `--features mlx`. To use native MLX inference today, you must build from source on the latest macOS with full **Xcode** installed (the Metal Toolchain is required — Command Line Tools alone are not enough). Running an MLX model on a binary built without the feature prints a clear error telling you to rebuild.
 
-When building from source, the `mlx` feature is **off by default**. Opt in explicitly (Apple Silicon only):
+Native inference is gated behind the `mlx` cargo feature. When building from source, the `mlx` feature is **off by default**. Opt in explicitly (Apple Silicon only):
 
 ```bash
 cargo install --path . --features mlx
