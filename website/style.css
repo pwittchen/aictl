@@ -666,6 +666,7 @@ body.nav-open {
 
 .install__hint {
   margin: 0;
+  padding-top: 32px;
   font-size: 13px;
   color: var(--fg-50);
   line-height: 1.55;
