@@ -59,19 +59,19 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: aictl-linux-x86_64
-            features: gguf
+            features: gguf redaction-ner
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             artifact: aictl-linux-aarch64
-            features: gguf
+            features: gguf redaction-ner
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: aictl-darwin-x86_64
-            features: gguf
+            features: gguf redaction-ner
           - target: aarch64-apple-darwin
             os: macos-15
             artifact: aictl-darwin-aarch64
-            features: gguf mlx
+            features: gguf mlx redaction-ner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
