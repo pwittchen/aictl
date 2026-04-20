@@ -113,6 +113,7 @@ async fn plain_final_answer_no_tool_calls() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .expect("turn should succeed");
@@ -166,6 +167,7 @@ async fn token_usage_accumulates_across_turn() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -201,6 +203,7 @@ async fn tool_call_executes_and_result_is_injected() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -247,6 +250,7 @@ async fn tool_call_denied_by_user_continues_loop_with_denial_message() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -294,6 +298,7 @@ async fn auto_accept_flips_auto_mode_for_rest_of_turn() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -327,6 +332,7 @@ async fn duplicate_tool_call_aborts_turn_with_clear_error() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .expect_err("duplicate tool call should abort the turn");
@@ -361,6 +367,7 @@ async fn malformed_tool_call_triggers_retry_prompt_then_recovers() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -401,6 +408,7 @@ async fn unknown_tool_returns_message_and_keeps_looping() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -453,6 +461,7 @@ async fn short_term_memory_windows_the_history() {
         &ui,
         MemoryMode::ShortTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -502,6 +511,7 @@ async fn long_term_memory_keeps_full_history() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();
@@ -547,6 +557,7 @@ async fn max_iterations_cap_terminates_the_loop() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await;
 
@@ -588,6 +599,7 @@ async fn streaming_flag_is_wired_through_to_the_mock() {
         &ui,
         MemoryMode::LongTerm,
         true, // streaming on
+        None,
     )
     .await
     .unwrap();
@@ -616,6 +628,7 @@ async fn provider_error_propagates_out_of_the_turn() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .expect_err("provider error should surface");
@@ -791,6 +804,7 @@ async fn mock_sees_original_in_off_mode() {
         &ui,
         MemoryMode::LongTerm,
         false,
+        None,
     )
     .await
     .unwrap();

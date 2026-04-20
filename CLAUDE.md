@@ -23,12 +23,13 @@ Single-binary async Rust CLI. Top-level modules under `src/`, plus three submodu
 - `run.rs` — `run_agent_turn` loop, tool-call dispatch, outbound redaction, stream suspend wiring
 - `agents.rs` — agent prompts in `~/.aictl/agents/`; loaded agent appended to system prompt
 - `audit.rs` — per-session JSONL tool-call log under `~/.aictl/audit/<session-id>`
-- `commands.rs` + `commands/` — slash commands (`/agent`, `/behavior`, `/clear`, `/compact`, `/config`, `/context`, `/copy`, `/exit`, `/gguf`, `/help`, `/history`, `/info`, `/keys`, `/memory`, `/mlx`, `/model`, `/ping`, `/retry`, `/security`, `/session`, `/stats`, `/tools`, `/uninstall`, `/update`, `/version`)
+- `commands.rs` + `commands/` — slash commands (`/agent`, `/behavior`, `/clear`, `/compact`, `/config`, `/context`, `/copy`, `/exit`, `/gguf`, `/help`, `/history`, `/info`, `/keys`, `/memory`, `/mlx`, `/model`, `/ping`, `/retry`, `/security`, `/session`, `/skills`, `/stats`, `/tools`, `/uninstall`, `/update`, `/version`); any other `/<name>` falls through to a user-defined skill lookup.
 - `config.rs` — `~/.aictl/config` loader (`OnceLock<RwLock<HashMap>>`), constants, `load_prompt_file`
 - `keys.rs` — keyring-backed API key storage with plain-text fallback; use `get_secret(name)` not `config_get` for keys
 - `security.rs` — `SecurityPolicy`: shell/path validation, CWD jail, env scrub, output sanitization, prompt-injection guard
 - `security/redaction.rs` (+ `redaction/ner.rs`) — network-boundary redactor (A: regex, B: entropy, C: optional NER)
 - `session.rs` — session persistence + incognito toggle
+- `skills.rs` — `~/.aictl/skills/<name>/SKILL.md` CRUD + frontmatter parse. Skills are one-turn-scoped markdown playbooks: injected as a transient system message in `run::run_agent_turn` for a single turn, never written into session history. Invoked via `/<skill-name>`, `--skill <name>`, or the `/skills` menu.
 - `stats.rs` — usage stats under `~/.aictl/stats`
 - `tools.rs` + `tools/` — XML parsing, dispatch, duplicate guard, per-tool impls (31 tools)
 - `ui.rs` — `AgentUI` trait: `PlainUI` (single-shot) + `InteractiveUI` (REPL)

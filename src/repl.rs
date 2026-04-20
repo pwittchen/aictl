@@ -22,9 +22,10 @@ use crate::config::{self, MAX_MESSAGES, auto_compact_threshold, config_get, conf
 use crate::message::{Message, Role};
 use crate::run::{Interrupted, Provider, run_agent_turn, stdout_is_tty};
 use crate::ui::{AgentUI, InteractiveUI};
+use crate::skills::Skill;
 use crate::{
-    agents, fetch_remote_version, keys, llm, security, session, stats, tools, version_cache,
-    version_info_string,
+    agents, fetch_remote_version, keys, llm, security, session, skills, stats, tools,
+    version_cache, version_info_string,
 };
 
 // --- Slash command tab completion ---
@@ -88,6 +89,9 @@ enum ReplAction {
     /// Run an agent turn with this message instead of the typed input
     /// (used by `/retry` to re-submit the previous user prompt).
     RunAgentTurnWith(String),
+    /// Invoke a skill with the given task as the user message. The skill
+    /// body is injected for this turn only and then dropped.
+    InvokeSkill { skill: Skill, task: String },
 }
 
 /// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
@@ -170,6 +174,35 @@ async fn handle_repl_input(
             })
             .await;
             return ReplAction::Continue;
+        }
+        commands::CommandResult::Skills => {
+            let _ = rl.add_history_entry(input);
+            match commands::run_skills_menu(provider, api_key, model, ui, &|msg| {
+                ui.show_error(msg);
+            })
+            .await
+            {
+                commands::SkillsMenuOutcome::Nothing => {}
+                commands::SkillsMenuOutcome::Invoke { name, task } => {
+                    let Some(skill) = skills::find(&name) else {
+                        ui.show_error(&format!("Skill '{name}' not found"));
+                        return ReplAction::Continue;
+                    };
+                    return ReplAction::InvokeSkill { skill, task };
+                }
+            }
+            return ReplAction::Continue;
+        }
+        commands::CommandResult::InvokeSkill { name, task } => {
+            let _ = rl.add_history_entry(input);
+            let Some(skill) = skills::find(&name) else {
+                ui.show_error(&format!("Skill '{name}' not found"));
+                return ReplAction::Continue;
+            };
+            // Task is optional. When absent, the skill body alone drives the
+            // turn via a minimal trigger message the LLM sees as the user
+            // saying "run this skill."
+            return ReplAction::InvokeSkill { skill, task };
         }
         commands::CommandResult::Gguf => {
             let _ = rl.add_history_entry(input);
@@ -443,12 +476,13 @@ async fn run_and_display_turn(
     last_answer: &mut String,
     last_input_tokens: &mut u64,
     memory: MemoryMode,
+    skill: Option<&Skill>,
 ) {
     let msg_len_before = messages.len();
     // Interactive REPL is always a TTY; honor user's AICTL_STREAMING preference.
     let streaming = stdout_is_tty() && config::streaming_enabled();
     match run_agent_turn(
-        provider, api_key, model, messages, input, auto, ui, memory, streaming,
+        provider, api_key, model, messages, input, auto, ui, memory, streaming, skill,
     )
     .await
     {
@@ -488,13 +522,18 @@ async fn run_and_display_turn(
 }
 
 /// Interactive REPL mode: multi-turn conversation with persistent history.
-#[allow(clippy::too_many_lines)]
+///
+/// `initial_skill`, when `Some`, applies to the first user turn only — one-turn
+/// scope is the defining property of skills, so CLI `--skill` in REPL mode is
+/// treated as "run the next turn with this skill, then revert."
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 pub(crate) async fn run_interactive(
     mut provider: Provider,
     mut api_key: String,
     mut model: String,
     auto: bool,
     session_key: Option<String>,
+    initial_skill: Option<Skill>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Check the local cache first. If `~/.aictl/version` exists and its
     // timestamp is less than 24h old, we already know the latest upstream
@@ -602,6 +641,9 @@ pub(crate) async fn run_interactive(
 
     let mut last_answer = String::new();
     let mut last_input_tokens: u64 = 0;
+    // `--skill` in REPL mode applies to the first user turn only. After
+    // consuming it once the REPL reverts to normal behavior.
+    let mut pending_skill: Option<Skill> = initial_skill;
 
     loop {
         let unrestricted = !security::policy().enabled;
@@ -634,27 +676,42 @@ pub(crate) async fn run_interactive(
             Ok(input) => {
                 let input = input.trim().to_string();
 
-                let retry_input = match handle_repl_input(
-                    &input,
-                    &mut last_answer,
-                    &ui,
-                    &mut rl,
-                    &mut messages,
-                    &mut last_input_tokens,
-                    &mut provider,
-                    &mut api_key,
-                    &mut model,
-                    &mut auto,
-                    &mut memory,
-                    &version_info,
-                )
-                .await
-                {
-                    ReplAction::Continue => continue,
-                    ReplAction::Break => break,
-                    ReplAction::RunAgentTurn => None,
-                    ReplAction::RunAgentTurnWith(s) => Some(s),
-                };
+                let (retry_input, turn_skill): (Option<String>, Option<Skill>) =
+                    match handle_repl_input(
+                        &input,
+                        &mut last_answer,
+                        &ui,
+                        &mut rl,
+                        &mut messages,
+                        &mut last_input_tokens,
+                        &mut provider,
+                        &mut api_key,
+                        &mut model,
+                        &mut auto,
+                        &mut memory,
+                        &version_info,
+                    )
+                    .await
+                    {
+                        ReplAction::Continue => continue,
+                        ReplAction::Break => break,
+                        ReplAction::RunAgentTurn => (None, pending_skill.take()),
+                        ReplAction::RunAgentTurnWith(s) => (Some(s), pending_skill.take()),
+                        // A skill invocation wins over any pending `--skill`;
+                        // the latter is dropped so it doesn't leak into the
+                        // next turn either. When the inline task is empty,
+                        // fall back to a generic trigger so the skill body
+                        // alone drives the turn.
+                        ReplAction::InvokeSkill { skill, task } => {
+                            pending_skill = None;
+                            let message = if task.is_empty() {
+                                format!("Run the \"{}\" skill.", skill.name)
+                            } else {
+                                task
+                            };
+                            (Some(message), Some(skill))
+                        }
+                    };
 
                 let turn_input = retry_input.as_deref().unwrap_or(input.as_str());
                 run_and_display_turn(
@@ -668,6 +725,7 @@ pub(crate) async fn run_interactive(
                     &mut last_answer,
                     &mut last_input_tokens,
                     memory,
+                    turn_skill.as_ref(),
                 )
                 .await;
                 session::save_current(&messages);

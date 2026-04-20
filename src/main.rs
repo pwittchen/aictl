@@ -11,6 +11,7 @@ mod repl;
 mod run;
 mod security;
 mod session;
+mod skills;
 mod stats;
 mod tools;
 mod ui;
@@ -126,6 +127,16 @@ struct Cli {
     /// List all saved agents and exit
     #[arg(long = "list-agents")]
     list_agents: bool,
+
+    /// Invoke a saved skill by name for this turn (single-shot or REPL).
+    /// In single-shot mode the skill body is injected as a transient system
+    /// message for the `--message` call only; it is never persisted.
+    #[arg(long = "skill")]
+    skill: Option<String>,
+
+    /// List all saved skills and exit
+    #[arg(long = "list-skills")]
+    list_skills: bool,
 
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(long = "config")]
@@ -243,6 +254,11 @@ async fn main() {
 
     if cli.list_agents {
         commands::print_agents_cli();
+        return;
+    }
+
+    if cli.list_skills {
+        commands::print_skills_cli();
         return;
     }
 
@@ -491,12 +507,36 @@ async fn main() {
         }
     }
 
+    let loaded_skill = cli.skill.as_deref().map(|name| {
+        skills::find(name).unwrap_or_else(|| {
+            eprintln!("Error: skill '{name}' not found");
+            std::process::exit(1);
+        })
+    });
+
     let result = match cli.message {
         Some(ref msg) => {
-            run::run_agent_single(&provider, &api_key, &model, msg, cli.auto, cli.quiet).await
+            run::run_agent_single(
+                &provider,
+                &api_key,
+                &model,
+                msg,
+                cli.auto,
+                cli.quiet,
+                loaded_skill.as_ref(),
+            )
+            .await
         }
         None => {
-            repl::run_interactive(provider, api_key, model, cli.auto, cli.session.clone()).await
+            repl::run_interactive(
+                provider,
+                api_key,
+                model,
+                cli.auto,
+                cli.session.clone(),
+                loaded_skill,
+            )
+            .await
         }
     };
 

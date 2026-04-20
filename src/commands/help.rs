@@ -21,6 +21,7 @@ pub(super) fn print_help() {
         ("/ping", "validate API keys and probe provider connectivity"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
+        ("/skills", "manage skills (one-turn markdown playbooks)"),
         ("/stats", "view and manage usage statistics"),
         ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),

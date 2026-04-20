@@ -33,6 +33,7 @@ use crate::message::{Message, Role};
 use crate::security::redaction::{
     self, RedactionDirection, RedactionMode, RedactionPolicy, RedactionResult, RedactionSource,
 };
+use crate::skills::Skill;
 use crate::ui::{self, AgentUI, PlainUI};
 use crate::{agents, audit, llm, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
@@ -491,6 +492,12 @@ fn windowed_messages(messages: &[Message], window: usize) -> Vec<Message> {
 
 /// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
+///
+/// `skill`, when `Some`, is injected as a transient system message at index 1
+/// of the provider-bound view — right after the base system prompt — for
+/// every LLM call in this turn. It is never written into `messages`, so the
+/// persisted session history contains only the user message and the final
+/// assistant reply; the skill body vanishes once the turn completes.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(crate) async fn run_agent_turn(
     provider: &Provider,
@@ -502,6 +509,7 @@ pub(crate) async fn run_agent_turn(
     ui: &dyn AgentUI,
     memory: MemoryMode,
     streaming: bool,
+    skill: Option<&Skill>,
 ) -> Result<TurnResult, Box<dyn std::error::Error>> {
     if security::policy().enabled
         && security::policy().injection_guard
@@ -536,13 +544,41 @@ pub(crate) async fn run_agent_turn(
         // still materializes a windowed Vec, but `short_term_buf` owns it only
         // when that branch runs.
         let short_term_buf;
-        let base_messages: &[Message] = match memory {
+        let raw_slice: &[Message] = match memory {
             MemoryMode::LongTerm => messages.as_slice(),
             MemoryMode::ShortTerm => {
                 short_term_buf = windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW);
                 &short_term_buf
             }
         };
+
+        // Merge the skill body into the base system prompt for this call
+        // only. Anthropic and Gemini keep just the last System message they
+        // see, so a second system block would *replace* the tool catalog
+        // rather than add to it — a bug that makes the LLM hallucinate
+        // around random projects instead of using tools on the real CWD.
+        // Concatenation is portable across every provider and keeps the
+        // persisted `messages` Vec untouched.
+        let skill_buf: Option<Vec<Message>> = skill.map(|s| {
+            let mut buf = raw_slice.to_vec();
+            let skill_block = format!("\n\n# Skill: {}\n\n{}", s.name, s.body);
+            if let Some(first) = buf.first_mut()
+                && matches!(first.role, Role::System)
+            {
+                first.content.push_str(&skill_block);
+            } else {
+                buf.insert(
+                    0,
+                    Message {
+                        role: Role::System,
+                        content: skill_block.trim_start().to_string(),
+                        images: vec![],
+                    },
+                );
+            }
+            buf
+        });
+        let base_messages: &[Message] = skill_buf.as_deref().unwrap_or(raw_slice);
 
         // Seam 1: redaction at the network boundary. When the policy
         // is `off`, or the provider is local and `skip_local` is on,
@@ -862,6 +898,7 @@ pub(crate) async fn run_agent_single(
     user_message: &str,
     auto: bool,
     quiet: bool,
+    skill: Option<&Skill>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::cell::Cell;
 
@@ -890,6 +927,7 @@ pub(crate) async fn run_agent_single(
         &ui,
         MemoryMode::LongTerm,
         streaming,
+        skill,
     )
     .await?;
     stats::record(model, turn.llm_calls, turn.tool_calls, &turn.usage);

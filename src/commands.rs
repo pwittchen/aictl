@@ -30,6 +30,7 @@ mod ping;
 mod retry;
 mod security;
 mod session;
+mod skills;
 mod stats;
 mod tools;
 mod uninstall;
@@ -50,6 +51,7 @@ pub use ping::run_ping;
 pub use retry::retry_last_exchange;
 pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
+pub use skills::{SkillsMenuOutcome, print_skills_cli, run_skills_menu};
 pub use stats::run_stats_menu;
 pub use uninstall::{run_uninstall_cli, run_uninstall_repl};
 pub use update::{run_update, run_update_cli, run_version};
@@ -77,6 +79,7 @@ pub const COMMANDS: &[&str] = &[
     "retry",
     "security",
     "session",
+    "skills",
     "stats",
     "tools",
     "uninstall",
@@ -115,6 +118,13 @@ pub enum CommandResult {
     Version,
     /// Open the agent management menu.
     Agent,
+    /// Open the skills management menu.
+    Skills,
+    /// Invoke a skill by name. `task` is the inline argument (may be empty —
+    /// the REPL will prompt for a task in that case). The REPL looks up the
+    /// skill body via [`crate::skills::find`] before handing it to
+    /// [`crate::run::run_agent_turn`].
+    InvokeSkill { name: String, task: String },
     /// Open the session management menu.
     Session,
     /// Open the native GGUF model management menu.
@@ -181,7 +191,17 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "keys" => CommandResult::Keys,
         "config" => CommandResult::Config,
         "stats" => CommandResult::Stats,
+        "skills" => CommandResult::Skills,
         _ => {
+            // Fall through to a user-defined skill with this name. The
+            // dispatcher only checks whether the SKILL.md exists — the REPL
+            // reloads the body before the turn so edits take effect live.
+            if crate::skills::find(cmd).is_some() {
+                return CommandResult::InvokeSkill {
+                    name: cmd.to_string(),
+                    task: args.to_string(),
+                };
+            }
             show_error("Unknown command. Type /help for available commands.");
             CommandResult::Continue
         }
