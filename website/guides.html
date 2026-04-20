@@ -360,7 +360,7 @@
           </article>
           <article class="card">
             <h3>Native MLX (local)</h3>
-            <p>MLX 4-bit models on Apple Silicon, in-process — no Python. Managed under <code>/mlx</code>. Experimental. <strong>Note:</strong> MLX build is currently broken on CI, so the prebuilt binary ships without it — build from source on the latest macOS with Xcode installed to enable MLX inference.</p>
+            <p>MLX 4-bit models on Apple Silicon, in-process — no Python. Managed under <code>/mlx</code>. Experimental. The macOS aarch64 release ships with <code>mlx.metallib</code> placed next to the binary at install time; other platform releases contain only the <code>aictl</code> binary.</p>
           </article>
           <article class="card">
             <h3>Cost meter</h3>
@@ -767,11 +767,12 @@
 
         <p class="section__note">
           Prebuilt binaries from the install script ship with GGUF
-          support on every platform. <strong>MLX is currently broken on
-          CI</strong>, so the prebuilt binary does not include it &mdash;
-          to use native MLX inference, build from source on the latest
-          macOS with full <strong>Xcode</strong> installed (the Metal
-          Toolchain is required):
+          support on every platform. The macOS Apple Silicon release
+          additionally ships with <code>--features mlx</code> enabled
+          and includes a sibling <code>mlx.metallib</code> next to the
+          binary (MLX needs the Metal library at runtime); every other
+          platform's release contains just the <code>aictl</code>
+          binary. To rebuild from source with both features enabled:
         </p>
         <div class="cmd">
           <span class="cmd__prompt">$</span>

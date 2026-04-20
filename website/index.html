@@ -244,7 +244,7 @@
           </article>
           <article class="card">
             <h3>Local inference built in</h3>
-            <p>Native GGUF via llama.cpp is compiled into the binary. No Python, no Ollama server (unless you want it), no sidecar &mdash; just the model file and aictl. ChatGPT, Copilot, and Codex have no local path at all. Native MLX on Apple Silicon is supported too, but the prebuilt binary is currently broken on CI &mdash; build from source on the latest macOS with Xcode installed to enable it.</p>
+            <p>Native GGUF via llama.cpp is compiled into the binary. No Python, no Ollama server (unless you want it), no sidecar &mdash; just the model file and aictl. ChatGPT, Copilot, and Codex have no local path at all. Native MLX on Apple Silicon is supported too &mdash; the macOS aarch64 release ships with <code>mlx.metallib</code> placed next to the binary; every other platform's release contains just the <code>aictl</code> binary.</p>
           </article>
           <article class="card">
             <h3>Single binary, zero runtime</h3>
@@ -335,11 +335,11 @@
             <button class="cmd__copy" type="button" data-copy="#install-cmd-5" aria-label="Copy cargo command">Copy</button>
           </div>
           <p class="install__hint">
-            <strong>Note:</strong> the MLX build is currently broken on CI,
-            so the prebuilt binary does not include MLX support. To use
-            native MLX inference on Apple Silicon, build from source
-            on the latest macOS with full <strong>Xcode</strong> installed
-            (the Metal Toolchain is required).
+            <strong>Note:</strong> the macOS Apple Silicon release
+            ships with <code>--features mlx</code> enabled and includes
+            a sibling <code>mlx.metallib</code> next to the binary (MLX
+            needs the Metal library at runtime). Other platform
+            releases contain just the <code>aictl</code> binary.
           </p>
         </div>
 
