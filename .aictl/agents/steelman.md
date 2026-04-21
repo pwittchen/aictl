@@ -1,6 +1,6 @@
 ---
 name: steelman
-description: Build the strongest possible case for a position — including one you disagree with.
+description: Builds the strongest possible case for a position — including one you disagree with.
 source: aictl-official
 category: thinking-habits
 ---

@@ -1,5 +1,5 @@
 ---
-name: review
+name: review-code
 description: Review staged/unstaged changes for correctness, security, and style.
 source: aictl-official
 category: dev
