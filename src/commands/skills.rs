@@ -639,7 +639,7 @@ fn category_label(skill: &RemoteSkill) -> String {
 fn select_category(categories: &[(String, usize)], total: usize) -> Option<CategoryChoice> {
     use super::menu::build_simple_menu_lines;
 
-    let mut items: Vec<(String, String)> = vec![("All".to_string(), format!("{total} skills"))];
+    let mut items: Vec<(String, String)> = vec![("all".to_string(), format!("{total} skills"))];
     for (name, count) in categories {
         items.push((name.clone(), format!("{count} skill{}", plural(*count))));
     }
