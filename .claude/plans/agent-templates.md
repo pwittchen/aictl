@@ -2,26 +2,29 @@
 
 ## Context
 
-aictl ships with an `/agent` system for creating and loading persistent system-prompt extensions, but the built-in set is empty — every user starts from a blank slate. A small, curated collection of starter agents would give new users immediate value and illustrate the idiom (narrow persona + tool-surface guidance) so they can author their own.
+aictl's `/agent` system lets users create and load persistent system-prompt extensions, but the built-in set is empty — every user starts from a blank slate. The remote catalogue (see `agents-remote-catalogue.md`) ships the browse-and-pull machinery: `/agent` can list official agents from the project's GitHub repo and write them to `~/.aictl/agents/<name>` on demand.
 
-These templates are **starting points**, not sacred. Users can load, view, and modify them like any other agent; they live in `~/.aictl/agents/<name>` alongside user-authored ones.
+That plan covers *how*. This one covers *what*: the initial curated set of official agents that lands in `agents/` in the repo so the catalogue has real content worth browsing on day one.
+
+These templates are **starting points**, not sacred. Users can pull, view, modify, re-pull, and delete them like any other agent. They're distinguishable from user-authored agents only by the `source: aictl-official` frontmatter key.
 
 ## Goals & Non-goals
 
 **Goals**
-- Ship a small, curated set of broadly useful agents that exercise different parts of the tool surface.
-- Each template should be short (under ~30 lines), opinionated, and self-contained.
-- Installation should be a first-run convenience, not a lock-in — users can delete or overwrite any template.
+- Ship a curated set of broadly useful official agents that exercise different parts of the tool surface.
+- Each agent should be short (under ~30 lines), opinionated, and self-contained.
+- Favor agents that are genuinely session-shaped: a persona you want to keep loaded for a whole conversation.
+- Keep agent names noun-phrase role names (`bug-hunter`, `software-architect`, `journal-coach`) so the loaded-persona UX reads naturally.
 
 **Non-goals**
-- No framework for third-party template distribution in v1.
+- No new delivery mechanism. `agents-remote-catalogue.md` owns the browse/pull flow; this plan just seeds `agents/` in the repo.
 - No per-provider or per-model tuning — templates are plain text prompts.
 - No enforced tool subsets per template; tool access stays global.
-- No single-turn procedures. Agents are session-long personas (`rust-expert`, `tech-writer`); single-turn procedures (`review`, `summarize-logs`, `inspect-cert`) live in `skill-templates.md`.
+- Nothing one-shot or procedure-shaped. Single-turn procedures (`review`, `summarize-logs`, `inspect-cert`) live in `skill-templates.md`.
 
 ## Initial set
 
-Chosen to cover distinct workflows and exercise different tool clusters.
+Chosen to cover distinct workflows and exercise different tool clusters. Categories mirror the set used in `skill-templates.md` so the browse UI feels consistent across both content types.
 
 ### Dev & workflow
 
@@ -113,59 +116,40 @@ Chosen to cover distinct workflows and exercise different tool clusters.
 
 ## Design sketch
 
-**Storage**: templates live in the project git repo under `agents/*.md`, one file per agent. **Not** compiled into the binary — no `include_str!`, no bundled assets. The list is served from the GitHub repo at runtime so new templates can be added without a release.
+**Storage**: each agent lives in the project git repo under `agents/<name>.md`, one file per agent. Same layout as `~/.aictl/agents/` on disk so pulls are a straight copy.
 
-**Frontmatter**: every bundled template starts with a YAML frontmatter block that marks it as app-provided and carries metadata. Example:
+**Frontmatter**: every bundled agent carries the official marker and category:
 
 ```markdown
 ---
-name: code-reviewer
-category: dev
+name: bug-hunter
+description: Reproduces a bug, narrows it down, proposes a minimal fix.
 source: aictl-official
-description: Reviews staged/unstaged changes for correctness, security, style.
+category: dev
 ---
 
-You are a code reviewer. …
+You are a bug hunter...
 ```
 
-The `source: aictl-official` key is the distinguishing marker — user-authored agents omit it (or set `source: user`), so the REPL and `--list-agents` can render a badge (e.g. `[official]`) next to bundled ones. `category` and `description` are used by the browse/list UIs.
+The `source: aictl-official` key is what the REPL uses to render an `[official]` badge next to pulled agents. `category` drives the browse-UI drill-down. Both fields are already specified in `agents-remote-catalogue.md` — this plan just populates them.
 
-**Browse & pull**: the `/agent` menu gains a **Browse agents** entry that fetches the directory listing from the GitHub repo at request time — no hardcoded manifest. Two fetch paths, in order:
+**Delivery**: nothing new to build. The browse-and-pull machinery in `agents-remote-catalogue.md` picks these files up automatically once they land in `agents/` — the browser reads whatever is in the repo at request time, so adding an agent is a PR, not a release.
 
-1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/contents/agents?ref=master` returns a JSON array of files; for each `.md` entry the browser shows `name`, `category`, `description` parsed from frontmatter after a second fetch of `download_url` (or a single `git_trees` call with `?recursive=1` to avoid N+1 requests).
-2. Fallback: raw `https://raw.githubusercontent.com/<owner>/<repo>/master/agents/<file>.md` for individual pulls.
+**Naming convention**: agent names are noun-phrase role names that describe *who you're talking to* (`bug-hunter`, `software-architect`, `journal-coach`). This matches the loaded-persona UX (the name appears in the REPL prompt as `[bug-hunter] ❯`) and keeps agents clearly distinct from skill names, which are imperative-ish action verbs (`review`, `write-tests`, `inspect-cert` — see `skill-templates.md`).
 
-The repo coordinates (`owner`, `repo`, `branch`) are constants in the binary — the *list* is dynamic, the *source location* is fixed. No API key is required for public-repo reads; rate limits (60/hr unauthenticated) are acceptable for this browse-then-pull flow.
-
-**Pull flow**: selecting an agent in the browser downloads its `.md` to `~/.aictl/agents/<name>`. If a file with that name already exists, the REPL prompts `Agent <name> already exists. Overwrite? [y/N]` before writing. A single `--pull-agent <name>` CLI flag mirrors the menu for non-interactive use; `--pull-agent <name> --force` skips the prompt.
-
-**Update indicator**: the browse UI tags each row with state:
-
-- `[ ]` — not yet pulled
-- `[✓]` — already on disk, frontmatter matches upstream
-- `[↑]` — already on disk, upstream is newer (differing content or later commit SHA)
-
-Pulling an `[↑]` row re-downloads and overwrites (still prompts unless the user opts into a session-wide "update all" action). Detection is content-hash based: compute SHA-256 of the local file and compare against the upstream blob SHA; fall back to byte-for-byte diff if needed.
-
-**Discovery of installed agents**: the existing `/agent` view-all menu continues to list everything in `~/.aictl/agents/` exactly as today. The only UI change is the `[official]` badge on rows whose frontmatter has `source: aictl-official`. `--list-agents` adds the same badge.
-
-**Categories**: agents carry a `category` field in frontmatter (e.g. `dev`, `ops`, `network`, `security`, `learning`, `knowledge-work`, `data-diagrams`, `daily-life`, `thinking-habits`, `creative`). Agents without a category fall into an `uncategorized` bucket. In the interactive `/agent` browse view (both local and remote) the user can pick **All** to see every agent in one flat list or drill into a specific category first. The category browser lists categories with a count next to each (e.g. `dev (10)`, `ops (2)`) and opens into the same row UI used today. The `--list-agents` CLI flag gains an optional `--category <name>` filter.
-
-**Removal**: user deletes like any other agent via `/agent` or `rm ~/.aictl/agents/<name>`. Deletion works regardless of whether the agent was app-provided or user-authored — there's nothing sacred about official agents on disk.
+**Categories**: re-use the same category set as `skill-templates.md` so the browse UI looks consistent across agents and skills. Empty or thin categories (e.g. `learning` with just `tutor`) are acceptable — they'll fill in as the curated set grows.
 
 ## Open questions
 
-- YAML frontmatter vs. a sidecar `<name>.meta` file vs. a single `~/.aictl/agents/.index`. Frontmatter is closest to the plain-text ethos but means the prompt file is no longer "just the prompt." Current leaning: frontmatter, because it round-trips cleanly when pulled from GitHub and doesn't require a parallel file per agent.
-- GitHub API (metadata-rich but rate-limited) vs. raw CDN (unlimited but no directory listing). A hybrid — list via API, fetch via raw — keeps most of both, but what happens when the API rate limit is exhausted mid-browse? Show cached list from last successful fetch?
-- Should the browser cache the remote listing to disk (e.g. `~/.aictl/agents/.remote-cache.json` with a short TTL) so repeat opens don't re-hit GitHub, or always fetch fresh? Fresh is simpler; cached is friendlier to flaky connections.
-- Update check trigger: on-demand (user opens Browse) or periodic (background refresh on REPL startup)? On-demand is simpler and respects the no-surprise-network-calls principle.
-- Is the `[↑]` upstream-newer detection worth the extra fetch per row, or should we just show `[✓]` and let the user re-pull if they want the latest? Defer until there's real feedback.
 - Fixed category list vs. free-form? A fixed list keeps the browser tidy; free-form gives users more room. Compromise: define a fixed set for official agents, allow free-form on user agents, and group unknown values under "Other."
+- Some agents overlap heavily with skills a user might invoke (`writer` vs `/scribe-meeting`, `security-auditor` vs `/audit-deps`). That's intentional — session persona vs single-turn procedure — but the browse UIs for agents and skills should make the distinction visible so users pick the right shape for their need.
+- Should `kitesurfing-adivsor` keep its typo (pre-existing in the repo) or land corrected as `kitesurfing-advisor`? Lean toward corrected when the template first ships, since pull overwrites would propagate the typo into every user's `~/.aictl/agents/`.
+- Should pure-prompt agents (`threat-modeler`, `journal-coach`, `psychologist`) be marked in frontmatter as `tools: none` so the REPL can skip tool-approval plumbing for them? Nice polish, not load-bearing for v1.
+- Which categories should appear in the Browse UI when nothing is pulled yet — show with zero counts or hide? Defer until there's real feedback.
 
 ## Out of scope for v1
 
-- Community template registry — only the official `aictl` repo's `agents/` dir is browsable. No arbitrary URL or third-party source support.
-- Authenticated GitHub access (token-based higher rate limits).
-- Signature verification on pulled agents — we trust the repo the same way we trust the binary.
-- Background auto-updates of already-pulled agents.
-- Template versioning beyond "pull overwrites" — no rollback, no history.
+- Agents that need bundled resources (e.g. a `rust-expert` with accompanying reference sheets or cheat-sheets alongside the main prompt). Revisit when the core layout lifts the single-file restriction.
+- Cross-agent composition (loading two agents at once, or one agent deferring to another). Users can describe handoffs inside the prompt.
+- Per-language or per-framework variants (e.g. `rust-expert` vs `python-expert` vs `go-expert`). Start with `tutor` and domain-agnostic experts; fork into language-specific agents only if demand shows up.
+- Community catalogue of third-party agents. Same stance as `agents-remote-catalogue.md` — only the official aictl repo is browsable in v1.
