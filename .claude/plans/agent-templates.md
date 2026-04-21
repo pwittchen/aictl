@@ -17,6 +17,7 @@ These templates are **starting points**, not sacred. Users can pull, view, modif
 - Keep agent names noun-phrase role names (`bug-hunter`, `software-architect`, `journal-coach`) so the loaded-persona UX reads naturally.
 
 **Non-goals**
+- No code changes. This plan is content-only: new files under `agents/` in the repo, nothing else. No changes to `src/`, `Cargo.toml`, or build scripts. If implementing a template reveals a missing capability, that's a separate plan.
 - No new delivery mechanism. `agents-remote-catalogue.md` owns the browse/pull flow; this plan just seeds `agents/` in the repo.
 - No per-provider or per-model tuning — templates are plain text prompts.
 - No enforced tool subsets per template; tool access stays global.
@@ -133,7 +134,7 @@ You are a bug hunter...
 
 The `source: aictl-official` key is what the REPL uses to render an `[official]` badge next to pulled agents. `category` drives the browse-UI drill-down. Both fields are already specified in `agents-remote-catalogue.md` — this plan just populates them.
 
-**Delivery**: nothing new to build. The browse-and-pull machinery in `agents-remote-catalogue.md` picks these files up automatically once they land in `agents/` — the browser reads whatever is in the repo at request time, so adding an agent is a PR, not a release.
+**Delivery**: nothing new to build, no code to touch. The browse-and-pull machinery in `agents-remote-catalogue.md` picks these files up automatically once they land in `agents/` — the browser reads whatever is in the repo at request time, so adding an agent is a content-only PR (new files under `agents/`), not a release.
 
 **Naming convention**: agent names are noun-phrase role names that describe *who you're talking to* (`bug-hunter`, `software-architect`, `journal-coach`). This matches the loaded-persona UX (the name appears in the REPL prompt as `[bug-hunter] ❯`) and keeps agents clearly distinct from skill names, which are imperative-ish action verbs (`review`, `write-tests`, `inspect-cert` — see `skill-templates.md`).
 

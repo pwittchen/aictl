@@ -17,6 +17,7 @@ These templates are **starting points**, not sacred. Users can pull, view, modif
 - Keep skill names short and action-shaped (imperative verbs or verb-noun pairs) so `/<skill-name>` reads like a command.
 
 **Non-goals**
+- No code changes. This plan is content-only: new `SKILL.md` files under `skills/<name>/` in the repo, nothing else. No changes to `src/`, `Cargo.toml`, or build scripts. If implementing a template reveals a missing capability, that's a separate plan.
 - No new delivery mechanism. `skills-remote-catalogue.md` owns the browse/pull flow; this plan just seeds `skills/` in the repo.
 - No bundled resources (scripts, templates) alongside each `SKILL.md`. Deferred with the rest of the core plan.
 - No per-provider or per-model tuning — skills are plain markdown.
@@ -131,7 +132,7 @@ When the user asks you to review...
 
 The `source: aictl-official` key is what the REPL uses to render an `[official]` badge next to pulled skills. `category` drives the browse-UI drill-down. Both fields are already specified in `skills-remote-catalogue.md` — this plan just populates them.
 
-**Delivery**: nothing new to build. The browse-and-pull machinery in `skills-remote-catalogue.md` picks these files up automatically once they land in `skills/` — the browser reads whatever is in the repo at request time, so adding a skill is a PR, not a release.
+**Delivery**: nothing new to build, no code to touch. The browse-and-pull machinery in `skills-remote-catalogue.md` picks these files up automatically once they land in `skills/` — the browser reads whatever is in the repo at request time, so adding a skill is a content-only PR (new `SKILL.md` files under `skills/<name>/`), not a release.
 
 **Naming convention**: skill names are short, imperative-ish, and describe the *action* the skill performs (`review`, `write-tests`, `inspect-cert`). This matches the canonical examples from the core skills plan (`commit`, `review`, `summarize-logs`) and keeps invocation at the REPL feeling like a command (`/review`, `/write-tests <path>`). This is the main visible difference from `agent-templates.md` entries, which keep noun-phrase role names (`bug-hunter`, `software-architect`, `journal-coach`).
 
