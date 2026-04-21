@@ -7,6 +7,7 @@
 ### Agent & Workflow
 
 - **Agent templates** — Ship built-in agents (code reviewer, technical writer, shell expert) as starting points users can customize. See [.claude/plans/agent-templates.md](.claude/plans/agent-templates.md) for the development plan.
+- **Remote agents catalogue** — Browse and pull official agents on demand from the project's GitHub repo via `/agent`, with an `[official]` badge to distinguish them from user-authored ones and an update indicator for re-pulls. Layers on top of the core agent system, not bundled into the binary. See [.claude/plans/agents-remote-catalogue.md](.claude/plans/agents-remote-catalogue.md) for the development plan.
 - **Remote skills catalogue** — Browse and pull official skills on demand from the project's GitHub repo via `/skills`, with an `[official]` badge to distinguish them from user-authored ones and an update indicator for re-pulls. Layers on top of the core skills feature, not bundled into the binary. See [.claude/plans/skills-remote-catalogue.md](.claude/plans/skills-remote-catalogue.md) for the development plan.
 - **Skill templates** — Ship a curated set of built-in skills (review, summarize, inspect-cert, audit-deps, scan-wifi, …) via the remote catalogue so `/skills` → Browse has real content on day one. Action-shaped counterpart to agent templates — single-turn procedures rather than session-long personas. See [.claude/plans/skill-templates.md](.claude/plans/skill-templates.md) for the development plan.
 
@@ -144,5 +145,3 @@ Before reporting a task as done, the agent should automatically review its own c
 - `list_directory` should show file sizes and support recursive tree view (depth-limited).
 - Tool output truncation at 10KB is too aggressive for large files — consider 50-100KB with smart truncation (keep first/last N lines, summarize middle).
 - Per-tool output size limits instead of a single global cap.
-
-
