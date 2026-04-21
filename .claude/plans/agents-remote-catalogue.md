@@ -4,21 +4,21 @@
 
 The core `/agent` system lets users create, load, and manage session-long personas as plain markdown files under `~/.aictl/agents/<name>` — but every agent has to be written by the user. Discovery and sharing are manual: copy-paste from a README, retype from memory, or scrape someone else's dotfiles. The built-in set is empty, so new users start from a blank slate.
 
-This plan extends the `/agent` system with a first-party catalogue: aictl ships with a curated set of **official agents** that live in the project's GitHub repo and can be browsed and pulled on demand from the REPL, without being compiled into the binary. New agents land in the catalogue the moment they're merged to master — users pick them up on the next Browse open, no release needed.
+This plan extends the `/agent` system with a first-party catalogue: aictl ships with a curated set of **official agents** that live in the project's GitHub repo under `.aictl/agents/` and can be browsed and pulled on demand from the REPL, without being compiled into the binary. New agents land in the catalogue the moment they're merged to master — users pick them up on the next Browse open, no release needed.
 
 Prerequisite: the core `/agent` system (see `src/agents.rs`, `src/commands/agent.rs`, `--agent` / `--list-agents` flags) exists and is stable. This plan layers onto it — nothing below requires changing how agents are loaded, only how they arrive on disk.
 
 ## Goals & Non-goals
 
 **Goals**
-- Ship a curated, first-party set of official agents (e.g. `bug-hunter`, `software-architect`, `researcher`) maintained in the project git repo under `agents/<name>.md`.
+- Ship a curated, first-party set of official agents (e.g. `bug-hunter`, `software-architect`, `researcher`) maintained in the project git repo under `.aictl/agents/<name>.md`.
 - **Do not** bundle the catalogue into the binary. The list is fetched dynamically from GitHub so new agents can ship without a release.
 - Let users browse the catalogue from `/agent`, see which agents are already pulled, pull new ones, and re-pull to update.
 - Make it obvious whether an agent on disk came from the official catalogue or was user-authored — a visible `[official]` badge.
 - Work without a GitHub token. Public-repo reads only; 60/hr unauthenticated is enough for browse-then-pull.
 
 **Non-goals**
-- Community / third-party catalogues. Only the official aictl repo's `agents/` directory is browsable. No arbitrary URLs, no additional sources.
+- Community / third-party catalogues. Only the official aictl repo's `.aictl/agents/` directory is browsable. No arbitrary URLs, no additional sources.
 - Signature verification on pulled agent bodies — we trust the repo the same way we trust the binary.
 - Background auto-updates of already-pulled agents. Updates are user-initiated.
 - Agent versioning beyond "pull overwrites" — no rollback, no history, no pinning.
@@ -28,7 +28,7 @@ Prerequisite: the core `/agent` system (see `src/agents.rs`, `src/commands/agent
 
 ### 1. Source of truth
 
-Official agents live in the project git repo under `agents/<name>.md`, one file per agent — same layout as `~/.aictl/agents/` on disk so pulls are a straight copy. **Not** compiled into the binary: no `include_str!`, no bundled assets.
+Official agents live in the project git repo under `.aictl/agents/<name>.md`, one file per agent — same layout as `~/.aictl/agents/` on disk so pulls are a straight copy. **Not** compiled into the binary: no `include_str!`, no bundled assets.
 
 Repo coordinates (`owner`, `repo`, `branch`) are compile-time constants — the *list* of agents is dynamic, the *source location* is fixed. This keeps the catalogue reachable from every build without baking its contents into any specific release.
 
@@ -66,8 +66,8 @@ Selecting it opens the remote browser.
 
 Opening Browse fetches the agents directory listing from GitHub at request time — no hardcoded manifest. Two fetch paths, in order:
 
-1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/git/trees/<branch>?recursive=1` returns every file in the repo; filter entries under `agents/` to get the list. Using a single `git_trees` call (rather than `/contents/agents` then one request per file) avoids N+1 requests.
-2. For each agent's frontmatter, fetch the raw `.md` via `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/agents/<name>.md` and parse.
+1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/git/trees/<branch>?recursive=1` returns every file in the repo; filter entries under `.aictl/agents/` to get the list. Using a single `git_trees` call (rather than `/contents/.aictl/agents` then one request per file) avoids N+1 requests.
+2. For each agent's frontmatter, fetch the raw `.md` via `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/.aictl/agents/<name>.md` and parse.
 
 No API key is required for public-repo reads; rate limits (60/hr unauthenticated) are acceptable for this browse-then-pull flow.
 
@@ -106,7 +106,7 @@ Unchanged from the core `/agent` flow. User deletes like any other agent via `/a
 | `src/agents/remote.rs` | **New** — GitHub trees listing + raw pull with overwrite prompt; returns `Vec<RemoteAgent>` with `name`, `description`, `category`, upstream blob SHA, and local `State::{NotPulled, UpToDate, UpstreamNewer}` |
 | `src/commands/agent.rs` | Add "Browse official agents" entry; wire into the browse UI; add category drill-down |
 | `src/main.rs` | Add `--pull-agent <name>` + `--force` flags; `--list-agents --category <name>` filter |
-| `agents/` | **New in-repo directory** — one `.md` per official agent, each with frontmatter including `source: aictl-official` (populated by `agent-templates.md`) |
+| `.aictl/agents/` | **New in-repo directory** — one `.md` per official agent, each with frontmatter including `source: aictl-official` (populated by `agent-templates.md`) |
 | `CLAUDE.md` | Short addition describing the remote catalogue and how the `source: aictl-official` marker works |
 | `ROADMAP.md` | Remove the corresponding entry once shipped |
 
@@ -115,7 +115,7 @@ Unchanged from the core `/agent` flow. User deletes like any other agent via `/a
 1. **Phase 1** — Extend frontmatter parser (`source`, `category`); add `[official]` badge to `/agent` View all and `--list-agents`. No network yet.
 2. **Phase 2** — `src/agents/remote.rs` with GitHub trees listing + raw pull; `--pull-agent` + `--force` flags so the feature is verifiable end-to-end without the browse UI.
 3. **Phase 3** — "Browse official agents" menu entry with update indicators and category drill-down.
-4. **Phase 4** — Seed `agents/` in the repo with the initial official set from `agent-templates.md`.
+4. **Phase 4** — Seed `.aictl/agents/` in the repo with the initial official set from `agent-templates.md`.
 5. **Phase 5** — Docs: update README and `docs/agents.md` with the pull flow; short walkthrough / screenshot of the browse UI.
 
 ## Verification
@@ -124,7 +124,7 @@ Unchanged from the core `/agent` flow. User deletes like any other agent via `/a
 2. `cargo lint` — no warnings.
 3. `cargo test` — frontmatter parser recognizes `source` + `category`; remote listing + pull integration tests pass (against a mocked GitHub response).
 4. Manual:
-   - Open **Browse official agents**; confirm the list reflects the live contents of `agents/` in the repo (add an agent in a branch, re-open, confirm it appears).
+   - Open **Browse official agents**; confirm the list reflects the live contents of `.aictl/agents/` in the repo (add an agent in a branch, re-open, confirm it appears).
    - Drill into a category; confirm the counts match the flat-list total.
    - Pull an official agent; confirm `~/.aictl/agents/<name>` lands on disk with `source: aictl-official` preserved.
    - Pull again over an existing agent; confirm the overwrite prompt fires — `No` preserves local edits, `Yes` replaces.

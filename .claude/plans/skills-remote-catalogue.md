@@ -4,21 +4,21 @@
 
 The core skills feature (see `skills.md`) lets users codify and invoke repeatable markdown procedures on demand — but every skill has to be written by the user. Discovery and sharing are manual: copy-paste from a README, retype from memory, or scrape someone else's dotfiles.
 
-This plan extends skills with a first-party catalogue: aictl ships with a curated set of **official skills** that live in the project's GitHub repo and can be browsed and pulled on demand from the REPL, without being compiled into the binary. New skills land in the catalogue the moment they're merged to master — users pick them up on the next Browse open, no release needed.
+This plan extends skills with a first-party catalogue: aictl ships with a curated set of **official skills** that live in the project's GitHub repo under `.aictl/skills/` and can be browsed and pulled on demand from the REPL, without being compiled into the binary. New skills land in the catalogue the moment they're merged to master — users pick them up on the next Browse open, no release needed.
 
 Prerequisite: the core skills feature from `skills.md` is shipped. Every assumption below — directory layout, frontmatter parser, `/skills` menu, `src/skills.rs` module, `--skill` / `--list-skills` flags — exists and is stable.
 
 ## Goals & Non-goals
 
 **Goals**
-- Ship a curated, first-party set of official skills (e.g. `commit`, `review`, `summarize-logs`) maintained in the project git repo under `skills/<name>/SKILL.md`.
+- Ship a curated, first-party set of official skills (e.g. `commit`, `review`, `summarize-logs`) maintained in the project git repo under `.aictl/skills/<name>/SKILL.md`.
 - **Do not** bundle the catalogue into the binary. The list is fetched dynamically from GitHub so new skills can ship without a release.
 - Let users browse the catalogue from `/skills`, see which skills are already pulled, pull new ones, and re-pull to update.
 - Make it obvious whether a skill on disk came from the official catalogue or was user-authored — a visible `[official]` badge.
 - Work without a GitHub token. Public-repo reads only; 60/hr unauthenticated is enough for browse-then-pull.
 
 **Non-goals**
-- Community / third-party catalogues. Only the official aictl repo's `skills/` directory is browsable. No arbitrary URLs, no additional sources.
+- Community / third-party catalogues. Only the official aictl repo's `.aictl/skills/` directory is browsable. No arbitrary URLs, no additional sources.
 - Signature verification on pulled skill bodies — we trust the repo the same way we trust the binary.
 - Background auto-updates of already-pulled skills. Updates are user-initiated.
 - Skill versioning beyond "pull overwrites" — no rollback, no history, no pinning.
@@ -28,7 +28,7 @@ Prerequisite: the core skills feature from `skills.md` is shipped. Every assumpt
 
 ### 1. Source of truth
 
-Official skills live in the project git repo under `skills/<name>/SKILL.md`, one directory per skill — same layout as `~/.aictl/skills/` on disk so pulls are a straight copy. **Not** compiled into the binary: no `include_str!`, no bundled assets.
+Official skills live in the project git repo under `.aictl/skills/<name>/SKILL.md`, one directory per skill — same layout as `~/.aictl/skills/` on disk so pulls are a straight copy. **Not** compiled into the binary: no `include_str!`, no bundled assets.
 
 Repo coordinates (`owner`, `repo`, `branch`) are compile-time constants — the *list* of skills is dynamic, the *source location* is fixed. This keeps the catalogue reachable from every build without baking its contents into any specific release.
 
@@ -64,8 +64,8 @@ Selecting it opens the remote browser.
 
 Opening Browse fetches the skills directory listing from GitHub at request time — no hardcoded manifest. Two fetch paths, in order:
 
-1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/git/trees/<branch>?recursive=1` returns every file in the repo; filter entries under `skills/` to get the list. Using a single `git_trees` call (rather than `/contents/skills` then one request per subdirectory) avoids N+1 requests.
-2. For each skill's frontmatter, fetch the raw `SKILL.md` via `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/skills/<name>/SKILL.md` and parse.
+1. GitHub REST: `GET https://api.github.com/repos/<owner>/<repo>/git/trees/<branch>?recursive=1` returns every file in the repo; filter entries under `.aictl/skills/` to get the list. Using a single `git_trees` call (rather than `/contents/.aictl/skills` then one request per subdirectory) avoids N+1 requests.
+2. For each skill's frontmatter, fetch the raw `SKILL.md` via `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/.aictl/skills/<name>/SKILL.md` and parse.
 
 No API key is required for public-repo reads; rate limits (60/hr unauthenticated) are acceptable for this browse-then-pull flow.
 
@@ -102,7 +102,7 @@ Unchanged from the core plan. User deletes like any other skill via `/skills` or
 | `src/skills/remote.rs` | **New** — GitHub trees listing + raw pull with overwrite prompt; returns `Vec<RemoteSkill>` with `name`, `description`, `category`, upstream blob SHA, and local `State::{NotPulled, UpToDate, UpstreamNewer}` |
 | `src/commands/skills.rs` | Add "Browse official skills" entry; wire into the browse UI |
 | `src/main.rs` | Add `--pull-skill <name>` + `--force` flags |
-| `skills/` | **New in-repo directory** — one subdirectory per official skill, each containing `SKILL.md` with frontmatter including `source: aictl-official` |
+| `.aictl/skills/` | **New in-repo directory** — one subdirectory per official skill, each containing `SKILL.md` with frontmatter including `source: aictl-official` |
 | `CLAUDE.md` | Short addition describing the remote catalogue and how the `source: aictl-official` marker works |
 | `ROADMAP.md` | Remove the corresponding entry once shipped |
 
@@ -111,7 +111,7 @@ Unchanged from the core plan. User deletes like any other skill via `/skills` or
 1. **Phase 1** — Extend frontmatter parser (`source`, `category`); add `[official]` badge to `/skills` View all and `--list-skills`. No network yet.
 2. **Phase 2** — `src/skills/remote.rs` with GitHub trees listing + raw pull; `--pull-skill` + `--force` flags so the feature is verifiable end-to-end without the browse UI.
 3. **Phase 3** — "Browse official skills" menu entry with update indicators.
-4. **Phase 4** — Seed `skills/` in the repo with an initial official set (candidates: `commit`, `review`, `summarize-logs`, plus any from `.claude/skills/` worth promoting).
+4. **Phase 4** — Seed `.aictl/skills/` in the repo with an initial official set (candidates: `commit`, `review`, `summarize-logs`, plus any from `.claude/skills/` worth promoting).
 5. **Phase 5** — Docs: update README and `docs/skills.md` with the pull flow; short walkthrough / screenshot of the browse UI.
 
 ## Verification
@@ -120,7 +120,7 @@ Unchanged from the core plan. User deletes like any other skill via `/skills` or
 2. `cargo lint` — no warnings.
 3. `cargo test` — frontmatter parser recognizes `source` + `category`; remote listing + pull integration tests pass (against a mocked GitHub response).
 4. Manual:
-   - Open **Browse official skills**; confirm the list reflects the live contents of `skills/` in the repo (add a skill in a branch, re-open, confirm it appears).
+   - Open **Browse official skills**; confirm the list reflects the live contents of `.aictl/skills/` in the repo (add a skill in a branch, re-open, confirm it appears).
    - Pull an official skill; confirm `~/.aictl/skills/<name>/SKILL.md` lands on disk with `source: aictl-official` preserved.
    - Pull again over an existing skill; confirm the overwrite prompt fires — `No` preserves local edits, `Yes` replaces.
    - Edit a pulled skill locally; confirm the browse row switches to `[↑]` when upstream differs.
