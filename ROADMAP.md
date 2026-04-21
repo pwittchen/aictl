@@ -13,6 +13,7 @@
 ### Developer Experience
 
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
+- **Inter-instance messaging** — When two or more `aictl` instances run on the same machine, let them exchange messages so one instance can send a prompt, note, or context snippet to another and vice-versa. Likely implementation: a local transport (Unix domain socket or named pipe under `~/.aictl/ipc/`) where each instance registers with its session id, a `/send <session-id> <message>` slash command to dispatch, and an inbox surfaced in the receiving REPL (either interrupting the prompt or queued until the next turn). Needs to decide whether incoming messages feed into the conversation automatically or require the user to accept them, and how this interacts with `--unrestricted` and the security policy.
 
 ---
 
