@@ -128,9 +128,10 @@ struct Cli {
     #[arg(long = "list-agents")]
     list_agents: bool,
 
-    /// When used with `--list-agents`, show only agents whose frontmatter has
-    /// a matching `category:` value (case-insensitive, e.g. `dev`, `ops`).
-    #[arg(long = "category", value_name = "NAME", requires = "list_agents")]
+    /// When used with `--list-agents` or `--list-skills`, show only entries
+    /// whose frontmatter has a matching `category:` value (case-insensitive,
+    /// e.g. `dev`, `ops`).
+    #[arg(long = "category", value_name = "NAME")]
     category: Option<String>,
 
     /// Download an official agent from the aictl repo into ~/.aictl/agents/.
@@ -138,9 +139,9 @@ struct Cli {
     #[arg(long = "pull-agent", value_name = "NAME")]
     pull_agent: Option<String>,
 
-    /// With `--pull-agent`, skip the overwrite prompt and replace any existing
-    /// agent file with the upstream version.
-    #[arg(long = "force", requires = "pull_agent")]
+    /// With `--pull-agent` or `--pull-skill`, skip the overwrite prompt and
+    /// replace any existing file with the upstream version.
+    #[arg(long = "force")]
     force: bool,
 
     /// Invoke a saved skill by name for this turn (single-shot or REPL).
@@ -152,6 +153,12 @@ struct Cli {
     /// List all saved skills and exit
     #[arg(long = "list-skills")]
     list_skills: bool,
+
+    /// Download an official skill from the aictl repo into
+    /// ~/.aictl/skills/<name>/SKILL.md. Prompts before overwriting unless
+    /// `--force` is set.
+    #[arg(long = "pull-skill", value_name = "NAME")]
+    pull_skill: Option<String>,
 
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(long = "config")]
@@ -302,7 +309,34 @@ async fn main() {
     }
 
     if cli.list_skills {
-        commands::print_skills_cli();
+        commands::print_skills_cli(cli.category.as_deref());
+        return;
+    }
+
+    if let Some(name) = cli.pull_skill.as_deref() {
+        let outcome = skills::remote::pull(name, || {
+            if cli.force {
+                return true;
+            }
+            eprintln!("Error: skill '{name}' already exists. Re-run with --force to overwrite.");
+            false
+        })
+        .await;
+        match outcome {
+            Ok(skills::remote::PullOutcome::Installed) => {
+                println!("pulled official skill: {name}");
+            }
+            Ok(skills::remote::PullOutcome::Overwritten) => {
+                println!("updated official skill: {name}");
+            }
+            Ok(skills::remote::PullOutcome::SkippedExisting) => {
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
 

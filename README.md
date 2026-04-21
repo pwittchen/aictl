@@ -127,7 +127,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--skill <NAME>] [--list-skills] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -187,6 +187,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--pull-agent` | Download an official agent from the aictl repo into `~/.aictl/agents/`. Combine with `--force` to skip the overwrite prompt |
 | `--skill` | Invoke a saved skill by name for a single turn. In single-shot mode the skill body is injected as a transient system prompt for the `--message` call only; in REPL mode it applies to the first user turn, then the REPL reverts to normal |
 | `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit |
+| `--pull-skill` | Download an official skill from the aictl repo into `~/.aictl/skills/<name>/SKILL.md`. Combine with `--force` to skip the overwrite prompt |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--unrestricted` | Disable all security restrictions (use with caution) |
@@ -266,11 +267,23 @@ Use `/skills` to open the skill menu:
 
 - **Create skill manually** — enter a name and description, then type or paste the body
 - **Create skill with AI** — provide a name and one-line description; the LLM drafts the body
+- **Browse official skills** — browse the live catalogue of curated skills shipped in the aictl repo (see "Official catalogue" below), preview them, and pull the ones you want to `~/.aictl/skills/<name>/SKILL.md`
 - **View all skills** — browse saved skills with view / invoke / delete actions
 
 Invoke a skill directly by typing `/<skill-name>` at the REPL prompt. `/commit` runs the skill with a default trigger so the body alone drives the turn; `/commit review the staged diff` routes the trailing text as the user message. `--skill <name>` works the same way in single-shot and REPL modes. `--list-skills` prints saved skills and exits.
 
 Skill names may contain only letters, numbers, underscores, and dashes and must not collide with a built-in slash command (e.g. `help`, `exit`, `agent`) — such names are rejected at save time. The skill body is merged into the base system prompt for the turn (rather than sent as a separate system message) so every provider, including those that accept only a single top-level `system` field, sees the skill alongside the tool catalog.
+
+#### Official catalogue
+
+aictl ships with a curated set of first-party skills that live in the project's GitHub repo under [`.aictl/skills/`](./.aictl/skills/) — **not** bundled into the binary. New catalogue skills are available the moment they land on `master`, no release needed.
+
+Pull skills from the catalogue in two ways:
+
+- From the REPL, `/skills` → **Browse official skills**. Skills are grouped by category; each row shows `[ ]` (not pulled), `[✓]` (matches upstream), or `[↑]` (upstream differs). Press `v` to preview a skill's body before pulling, `p` / Enter to pull.
+- From the shell, `aictl --pull-skill <name>` downloads a single skill. Add `--force` to overwrite an existing local file without prompting.
+
+Catalogue skills carry `source: aictl-official` in their frontmatter; both `/skills` and `--list-skills` render an `[official]` badge so you can tell at a glance which skills came from the catalogue and which you wrote yourself. Users can edit or delete pulled skills freely — there is nothing special about them on disk. Public-repo reads are unauthenticated (≈60 requests/hour), which is plenty for browse-then-pull; errors are reported in the REPL without crashing the session.
 
 ### Configuration
 

@@ -461,9 +461,11 @@ fn select_agent_from_list(entries: &[agents::AgentEntry]) -> AgentListAction {
         rendered = lines.len() + 2;
     };
 
+    // +1 consumes the leading `\r\n` written before the first render so the
+    // menu leaves the cursor where it started rather than one row down.
     let _ = execute!(
         stdout,
-        cursor::MoveUp(rendered as u16),
+        cursor::MoveUp((rendered + 1) as u16),
         terminal::Clear(ClearType::FromCursorDown),
         cursor::Show,
     );
@@ -947,9 +949,11 @@ fn select_remote_agent(entries: &[&RemoteAgent], initial: usize) -> Option<Remot
         rendered = lines.len() + 2;
     };
 
+    // +1 consumes the leading `\r\n` written before the first render so the
+    // menu leaves the cursor where it started rather than one row down.
     let _ = execute!(
         stdout,
-        cursor::MoveUp(rendered as u16),
+        cursor::MoveUp((rendered + 1) as u16),
         terminal::Clear(ClearType::FromCursorDown),
         cursor::Show,
     );

@@ -4,14 +4,23 @@
 //! in-flight LLM call(s) and is never persisted into session history.
 //!
 //! Each skill lives at `~/.aictl/skills/<name>/SKILL.md` (overridable via
-//! `AICTL_SKILLS_DIR`) with YAML-ish frontmatter (`name`, `description`) and
-//! a markdown body describing the procedure. This module only handles
-//! parsing, CRUD, and name validation — the runtime injection happens in
-//! [`crate::run::run_agent_turn`].
+//! `AICTL_SKILLS_DIR`) with YAML-ish frontmatter (`name`, `description`,
+//! optional `source` and `category`) and a markdown body describing the
+//! procedure. This module only handles parsing, CRUD, and name validation —
+//! the runtime injection happens in [`crate::run::run_agent_turn`].
 
 use std::path::{Path, PathBuf};
 
 use crate::config::config_get;
+
+pub mod remote;
+
+/// Frontmatter value marking a skill as sourced from the first-party
+/// catalogue at <https://github.com/pwittchen/aictl/tree/master/.aictl/skills>.
+/// Badged as `[official]` in the REPL and `--list-skills` output. Anything
+/// else (missing, `user`, or a user-supplied string) renders without the
+/// badge.
+pub const OFFICIAL_SOURCE: &str = "aictl-official";
 
 /// A loaded skill, ready to be injected as a transient system message.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +34,15 @@ pub struct Skill {
 pub struct SkillEntry {
     pub name: String,
     pub description: String,
+    pub source: Option<String>,
+    pub category: Option<String>,
+}
+
+impl SkillEntry {
+    /// True if this skill was pulled from the first-party catalogue.
+    pub fn is_official(&self) -> bool {
+        self.source.as_deref() == Some(OFFICIAL_SOURCE)
+    }
 }
 
 /// Validate a skill name: only letters, numbers, underscore, dash. Matches
@@ -91,19 +109,23 @@ fn skill_file(dir: &Path, name: &str) -> PathBuf {
 }
 
 /// Parsed frontmatter + body.
-struct Parsed {
-    name: Option<String>,
-    description: Option<String>,
-    body: String,
+pub(crate) struct Parsed {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub source: Option<String>,
+    pub category: Option<String>,
+    pub body: String,
 }
 
-/// Parse a SKILL.md. Recognizes `name` and `description`; unknown fields are
-/// silently ignored so forward-compatible additions don't break older
-/// clients. If there is no frontmatter fence at the start of the file the
-/// entire content is treated as the body.
-fn parse(contents: &str) -> Parsed {
+/// Parse a SKILL.md. Recognizes `name`, `description`, `source`, `category`;
+/// unknown fields are silently ignored so forward-compatible additions don't
+/// break older clients. If there is no frontmatter fence at the start of the
+/// file the entire content is treated as the body.
+pub(crate) fn parse(contents: &str) -> Parsed {
     let mut name = None;
     let mut description = None;
+    let mut source = None;
+    let mut category = None;
     let trimmed = contents.strip_prefix('\u{feff}').unwrap_or(contents);
     let Some(after_open) = trimmed
         .strip_prefix("---\n")
@@ -112,6 +134,8 @@ fn parse(contents: &str) -> Parsed {
         return Parsed {
             name,
             description,
+            source,
+            category,
             body: contents.to_string(),
         };
     };
@@ -130,6 +154,8 @@ fn parse(contents: &str) -> Parsed {
             match key {
                 "name" => name = Some(value.to_string()),
                 "description" => description = Some(value.to_string()),
+                "source" => source = Some(value.to_string()),
+                "category" => category = Some(value.to_string()),
                 _ => {}
             }
         }
@@ -140,6 +166,8 @@ fn parse(contents: &str) -> Parsed {
         return Parsed {
             name: None,
             description: None,
+            source: None,
+            category: None,
             body: contents.to_string(),
         };
     };
@@ -149,6 +177,8 @@ fn parse(contents: &str) -> Parsed {
     Parsed {
         name,
         description,
+        source,
+        category,
         body,
     }
 }
@@ -181,7 +211,9 @@ fn find_in(dir: &Path, name: &str) -> Option<Skill> {
     })
 }
 
-/// List valid skill directories in `dir`, sorted alphabetically.
+/// List valid skill directories in `dir`, sorted alphabetically. Each entry
+/// has its frontmatter parsed so callers can render the `[official]` badge
+/// or filter by category without re-reading every file.
 fn list_in(dir: &Path) -> Vec<SkillEntry> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -196,10 +228,19 @@ fn list_in(dir: &Path) -> Vec<SkillEntry> {
             if !is_valid_name(&name) {
                 return None;
             }
-            let skill = find_in(dir, &name)?;
+            let contents = std::fs::read_to_string(skill_file(dir, &name)).ok()?;
+            let parsed = parse(&contents);
+            // Directory name is authoritative — skip on identity drift.
+            if let Some(fm_name) = parsed.name.as_deref()
+                && fm_name != name
+            {
+                return None;
+            }
             Some(SkillEntry {
-                name: skill.name,
-                description: skill.description,
+                name,
+                description: parsed.description.unwrap_or_default(),
+                source: parsed.source,
+                category: parsed.category,
             })
         })
         .collect();
@@ -299,11 +340,24 @@ mod tests {
     }
 
     #[test]
-    fn parse_ignores_unknown_fields() {
-        let src = "---\nname: x\ndescription: y\ncategory: official\nsource: github\n---\n\nB\n";
+    fn parse_reads_source_and_category() {
+        let src = "---\nname: x\ndescription: y\nsource: aictl-official\ncategory: dev\n---\n\nB\n";
         let p = parse(src);
         assert_eq!(p.name.as_deref(), Some("x"));
         assert_eq!(p.description.as_deref(), Some("y"));
+        assert_eq!(p.source.as_deref(), Some("aictl-official"));
+        assert_eq!(p.category.as_deref(), Some("dev"));
+        assert_eq!(p.body, "B\n");
+    }
+
+    #[test]
+    fn parse_ignores_unknown_fields() {
+        let src = "---\nname: x\ndescription: y\nextra: ignored\n---\n\nB\n";
+        let p = parse(src);
+        assert_eq!(p.name.as_deref(), Some("x"));
+        assert_eq!(p.description.as_deref(), Some("y"));
+        assert_eq!(p.source, None);
+        assert_eq!(p.category, None);
         assert_eq!(p.body, "B\n");
     }
 
@@ -313,6 +367,8 @@ mod tests {
         let p = parse(src);
         assert_eq!(p.name, None);
         assert_eq!(p.description, None);
+        assert_eq!(p.source, None);
+        assert_eq!(p.category, None);
         assert_eq!(p.body, src);
     }
 
@@ -330,6 +386,7 @@ mod tests {
         let src = "---\nname: x\nno closing fence here\n";
         let p = parse(src);
         assert!(p.name.is_none());
+        assert!(p.source.is_none());
         assert_eq!(p.body, src);
     }
 
@@ -380,6 +437,32 @@ mod tests {
         std::fs::create_dir(dir.join("empty")).unwrap();
         let names: Vec<_> = list_in(&dir).into_iter().map(|e| e.name).collect();
         assert_eq!(names, vec!["alpha", "mango", "zebra"]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_populates_frontmatter_fields() {
+        let dir = unique_temp_dir("list-meta");
+        let pulled_dir = dir.join("pulled");
+        std::fs::create_dir_all(&pulled_dir).unwrap();
+        std::fs::write(
+            pulled_dir.join("SKILL.md"),
+            "---\nname: pulled\ndescription: official one\nsource: aictl-official\ncategory: dev\n---\n\nBody.\n",
+        )
+        .unwrap();
+        save_in(&dir, "plain", "hand written", "Body.").unwrap();
+
+        let entries = list_in(&dir);
+        let pulled = entries.iter().find(|e| e.name == "pulled").unwrap();
+        assert_eq!(pulled.description, "official one");
+        assert_eq!(pulled.category.as_deref(), Some("dev"));
+        assert!(pulled.is_official());
+
+        let plain = entries.iter().find(|e| e.name == "plain").unwrap();
+        assert_eq!(plain.description, "hand written");
+        assert!(plain.category.is_none());
+        assert!(!plain.is_official());
+
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -161,9 +161,12 @@ where
                     }
                 }
                 KeyCode::Enter => {
+                    // +1 consumes the leading `\r\n` written before the first
+                    // render so the menu leaves the cursor where it started
+                    // rather than one row down.
                     let _ = execute!(
                         stdout,
-                        cursor::MoveUp(total_rendered_lines as u16),
+                        cursor::MoveUp((total_rendered_lines + 1) as u16),
                         terminal::Clear(ClearType::FromCursorDown),
                         cursor::Show,
                     );
@@ -173,7 +176,7 @@ where
                 KeyCode::Esc => {
                     let _ = execute!(
                         stdout,
-                        cursor::MoveUp(total_rendered_lines as u16),
+                        cursor::MoveUp((total_rendered_lines + 1) as u16),
                         terminal::Clear(ClearType::FromCursorDown),
                         cursor::Show,
                     );

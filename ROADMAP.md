@@ -4,10 +4,6 @@
 
 ## General
 
-### Agent & Workflow
-
-- **Remote skills catalogue** — Browse and pull official skills on demand from the project's GitHub repo via `/skills`, with an `[official]` badge to distinguish them from user-authored ones and an update indicator for re-pulls. Layers on top of the core skills feature, not bundled into the binary. See [.claude/plans/skills-remote-catalogue.md](.claude/plans/skills-remote-catalogue.md) for the development plan.
-
 ### Developer Experience
 
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
