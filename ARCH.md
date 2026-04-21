@@ -47,6 +47,9 @@ src/
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
+ │       (+ --category <name> filter)                                       │
+ │       --pull-agent <name>    pull official agent via agents::remote,     │
+ │       (+ --force)            exit                                        │
  │  2c''. --pull-gguf-model /    GGUF model management helpers, exit        │
  │       --list-gguf-models /    (use llm::gguf::download_model / list /    │
  │       --remove-gguf-model /   remove_model / clear_models)               │
@@ -563,12 +566,18 @@ Plain text REPL input history managed by `rustyline`. Written on REPL exit; load
 
 ### `~/.aictl/agents/<name>`
 
-Each file is a plain-text agent prompt — the body that gets appended to the base system prompt under `# Agent: <name>` when the agent is loaded. Filenames are the agent names themselves (no extension), validated by `agents::is_valid_name` to contain only ASCII letters, digits, `_`, or `-`. Managed entirely through `src/agents.rs`:
-- `save_agent(name, prompt)` — creates `~/.aictl/agents/` if needed and writes the file
-- `read_agent(name)` / `delete_agent(name)` — load/remove a single agent
-- `list_agents()` — enumerates regular files whose names pass validation, sorted alphabetically (invalid filenames are silently skipped)
+Each file is an agent prompt — either pure prose or a markdown document that opens with a YAML frontmatter block (`name`, `description`, `source`, `category`). When an agent is loaded, the frontmatter is stripped and only the body is appended to the base system prompt under `# Agent: <name>`, so pulled catalogue agents don't leak their metadata to the LLM. Filenames are the agent names themselves (no extension), validated by `agents::is_valid_name` to contain only ASCII letters, digits, `_`, or `-`. Managed through `src/agents.rs`:
+- `save_agent(name, prompt)` — creates `~/.aictl/agents/` if needed and writes the file verbatim
+- `read_agent(name)` — raw file contents (frontmatter included) for edit round-trips
+- `read_agent_meta(name)` — parsed `AgentMeta` (body + optional frontmatter fields)
+- `delete_agent(name)` — remove the file
+- `list_agents()` — enumerates regular files whose names pass validation, parses each one's frontmatter, and returns entries with `name`, `description`, `source`, `category` (sorted alphabetically; invalid filenames silently skipped)
 
-A global `Mutex<Option<(name, prompt)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+Entries with `source: aictl-official` render an `[official]` badge in both the `/agent` REPL menu and `--list-agents` output. Users can edit or remove the marker freely — there is nothing enforcing it beyond the badge.
+
+A global `Mutex<Option<(name, body)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
+
+The sibling `src/agents/remote.rs` module fetches the first-party catalogue on demand from the project repo under `.aictl/agents/*.md` via GitHub's trees API (+ raw.githubusercontent.com for bodies), with no API key required. Consumed by the REPL's `/agent → Browse official agents` entry and by `--pull-agent <name>` (add `--force` to overwrite). Pulls write a single `.md` file straight to `~/.aictl/agents/<name>` (stripping the extension); the catalogue itself is never bundled into the binary, so adding an agent to the repo is the full release.
 
 ### `~/.aictl/skills/<name>/SKILL.md`
 

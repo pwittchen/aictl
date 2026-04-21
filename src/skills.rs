@@ -105,7 +105,10 @@ fn parse(contents: &str) -> Parsed {
     let mut name = None;
     let mut description = None;
     let trimmed = contents.strip_prefix('\u{feff}').unwrap_or(contents);
-    let Some(after_open) = trimmed.strip_prefix("---\n").or_else(|| trimmed.strip_prefix("---\r\n")) else {
+    let Some(after_open) = trimmed
+        .strip_prefix("---\n")
+        .or_else(|| trimmed.strip_prefix("---\r\n"))
+    else {
         return Parsed {
             name,
             description,
@@ -140,7 +143,9 @@ fn parse(contents: &str) -> Parsed {
             body: contents.to_string(),
         };
     };
-    let body = after_open[start..].trim_start_matches(['\n', '\r']).to_string();
+    let body = after_open[start..]
+        .trim_start_matches(['\n', '\r'])
+        .to_string();
     Parsed {
         name,
         description,
@@ -206,7 +211,10 @@ fn list_in(dir: &Path) -> Vec<SkillEntry> {
 fn save_in(dir: &Path, name: &str, description: &str, body: &str) -> std::io::Result<()> {
     let skill_dir = dir.join(name);
     std::fs::create_dir_all(&skill_dir)?;
-    std::fs::write(skill_dir.join("SKILL.md"), serialize(name, description, body))
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        serialize(name, description, body),
+    )
 }
 
 /// Delete a skill directory from `dir`.

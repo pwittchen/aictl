@@ -503,7 +503,8 @@
             <h3>Agents, skills &amp; sessions</h3>
             <ul>
               <li><code>--agent &lt;name&gt;</code> — load a saved agent</li>
-              <li><code>--list-agents</code> — print saved agents and exit</li>
+              <li><code>--list-agents</code> — print saved agents and exit (add <code>--category &lt;name&gt;</code> to filter)</li>
+              <li><code>--pull-agent &lt;name&gt;</code> — pull an official agent from the aictl repo (add <code>--force</code> to overwrite)</li>
               <li><code>--skill &lt;name&gt;</code> — invoke a saved skill for one turn</li>
               <li><code>--list-skills</code> — print saved skills and exit</li>
               <li><code>--session &lt;id|name&gt;</code> — resume a session</li>
@@ -570,8 +571,12 @@
             <p>Use <code>/agent</code> in the REPL. Pick <em>Create manually</em> to paste your own prompt, or <em>Create with AI</em> to have the current model draft one from a short description.</p>
           </article>
           <article class="card">
+            <h3>Browse official</h3>
+            <p>Pick <em>Browse official agents</em> to pull curated agents (e.g. <code>researcher</code>, <code>software-architect</code>, <code>critic</code>) from the aictl repo. Agents are grouped by category; rows show <code>[ ]</code>, <code>[✓]</code>, or <code>[↑]</code> to reflect pull state. Non-interactive equivalent: <code>--pull-agent &lt;name&gt;</code> (add <code>--force</code> to overwrite).</p>
+          </article>
+          <article class="card">
             <h3>Load</h3>
-            <p>Via <code>/agent</code> &rarr; <em>View all</em>, or pass <code>--agent &lt;name&gt;</code> on the command line. Works in both single-shot and REPL modes.</p>
+            <p>Via <code>/agent</code> &rarr; <em>View all</em>, or pass <code>--agent &lt;name&gt;</code> on the command line. Works in both single-shot and REPL modes. Agents pulled from the catalogue carry an <code>[official]</code> badge in the list.</p>
           </article>
           <article class="card">
             <h3>Naming</h3>

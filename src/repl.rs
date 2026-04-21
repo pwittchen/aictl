@@ -21,8 +21,8 @@ use crate::commands::{self, MemoryMode};
 use crate::config::{self, MAX_MESSAGES, auto_compact_threshold, config_get, config_set};
 use crate::message::{Message, Role};
 use crate::run::{Interrupted, Provider, run_agent_turn, stdout_is_tty};
-use crate::ui::{AgentUI, InteractiveUI};
 use crate::skills::Skill;
+use crate::ui::{AgentUI, InteractiveUI};
 use crate::{
     agents, fetch_remote_version, keys, llm, security, session, skills, stats, tools,
     version_cache, version_info_string,
@@ -91,7 +91,10 @@ enum ReplAction {
     RunAgentTurnWith(String),
     /// Invoke a skill with the given task as the user message. The skill
     /// body is injected for this turn only and then dropped.
-    InvokeSkill { skill: Skill, task: String },
+    InvokeSkill {
+        skill: Skill,
+        task: String,
+    },
 }
 
 /// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.

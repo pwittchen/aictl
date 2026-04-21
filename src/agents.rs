@@ -1,12 +1,24 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-/// Global state for the currently loaded agent: (name, prompt content).
+pub mod remote;
+
+/// Frontmatter value marking an agent as sourced from the first-party
+/// catalogue at <https://github.com/pwittchen/aictl/tree/master/.aictl/agents>.
+/// Badged as `[official]` in the REPL and `--list-agents` output. Anything else
+/// (missing, `user`, or a user-supplied string) renders without the badge.
+pub const OFFICIAL_SOURCE: &str = "aictl-official";
+
+/// Global state for the currently loaded agent: (name, prompt body).
 static LOADED_AGENT: Mutex<Option<(String, String)>> = Mutex::new(None);
 
-/// Load an agent into the global state.
+/// Load an agent into the global state. `prompt` is the raw file contents;
+/// any YAML frontmatter is stripped before being surfaced in the system
+/// prompt, so pulled catalogue agents don't leak their metadata block into
+/// the LLM.
 pub fn load_agent(name: &str, prompt: &str) {
-    *LOADED_AGENT.lock().unwrap() = Some((name.to_string(), prompt.to_string()));
+    let body = parse(prompt).body;
+    *LOADED_AGENT.lock().unwrap() = Some((name.to_string(), body));
 }
 
 /// Unload the currently loaded agent. Returns true if one was loaded.
@@ -14,7 +26,7 @@ pub fn unload_agent() -> bool {
     LOADED_AGENT.lock().unwrap().take().is_some()
 }
 
-/// Get the currently loaded agent (name, prompt).
+/// Get the currently loaded agent (name, body).
 pub fn loaded_agent() -> Option<(String, String)> {
     LOADED_AGENT.lock().unwrap().clone()
 }
@@ -37,7 +49,7 @@ pub fn is_valid_name(name: &str) -> bool {
 }
 
 /// Return the agents directory path (~/.aictl/agents/).
-fn agents_dir() -> PathBuf {
+pub fn agents_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
     PathBuf::from(format!("{home}/.aictl/agents"))
 }
@@ -48,7 +60,7 @@ fn save_in(dir: &Path, name: &str, prompt: &str) -> std::io::Result<()> {
     std::fs::write(dir.join(name), prompt)
 }
 
-/// Read an agent prompt from `dir`.
+/// Read an agent's raw file contents (including frontmatter) from `dir`.
 fn read_in(dir: &Path, name: &str) -> std::io::Result<String> {
     std::fs::read_to_string(dir.join(name))
 }
@@ -59,6 +71,8 @@ fn delete_in(dir: &Path, name: &str) -> std::io::Result<()> {
 }
 
 /// List entries in `dir` with valid agent names, sorted alphabetically.
+/// Each entry has its frontmatter parsed so the caller can render badges
+/// or filter by category without a second pass.
 fn list_in(dir: &Path) -> Vec<AgentEntry> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -71,25 +85,38 @@ fn list_in(dir: &Path) -> Vec<AgentEntry> {
                 return None;
             }
             let name = e.file_name().to_string_lossy().to_string();
-            if is_valid_name(&name) {
-                Some(AgentEntry { name })
-            } else {
-                None
+            if !is_valid_name(&name) {
+                return None;
             }
+            let contents = std::fs::read_to_string(e.path()).ok().unwrap_or_default();
+            let meta = parse(&contents);
+            Some(AgentEntry {
+                name,
+                description: meta.description,
+                source: meta.source,
+                category: meta.category,
+            })
         })
         .collect();
     agents.sort_by(|a, b| a.name.cmp(&b.name));
     agents
 }
 
-/// Save an agent prompt to disk.
+/// Save an agent file to disk. `prompt` is written verbatim — callers that
+/// want frontmatter must include it themselves.
 pub fn save_agent(name: &str, prompt: &str) -> std::io::Result<()> {
     save_in(&agents_dir(), name, prompt)
 }
 
-/// Read an agent prompt from disk.
+/// Read an agent's raw file contents from disk (frontmatter included).
 pub fn read_agent(name: &str) -> std::io::Result<String> {
     read_in(&agents_dir(), name)
+}
+
+/// Read an agent's parsed metadata + body from disk.
+pub fn read_agent_meta(name: &str) -> std::io::Result<AgentMeta> {
+    let raw = read_in(&agents_dir(), name)?;
+    Ok(parse(&raw))
 }
 
 /// Delete an agent from disk.
@@ -100,9 +127,86 @@ pub fn delete_agent(name: &str) -> std::io::Result<()> {
 /// An entry in the agent listing.
 pub struct AgentEntry {
     pub name: String,
+    pub description: Option<String>,
+    pub source: Option<String>,
+    pub category: Option<String>,
 }
 
-/// List all saved agents, sorted alphabetically.
+impl AgentEntry {
+    /// True if this agent was pulled from the first-party catalogue.
+    pub fn is_official(&self) -> bool {
+        self.source.as_deref() == Some(OFFICIAL_SOURCE)
+    }
+}
+
+/// Parsed agent file: optional frontmatter fields plus the prompt body
+/// (everything after the closing `---` fence, leading whitespace trimmed).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AgentMeta {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub source: Option<String>,
+    pub category: Option<String>,
+    pub body: String,
+}
+
+/// Parse an agent file. Recognizes `name`, `description`, `source`,
+/// `category`; unknown fields are silently ignored so older clients don't
+/// break on forward-compatible additions. Files without a leading `---`
+/// fence are returned as pure body (matches the historical behaviour where
+/// agents were plain prompt text).
+pub fn parse(contents: &str) -> AgentMeta {
+    let mut meta = AgentMeta::default();
+    let trimmed = contents.strip_prefix('\u{feff}').unwrap_or(contents);
+    let Some(after_open) = trimmed
+        .strip_prefix("---\n")
+        .or_else(|| trimmed.strip_prefix("---\r\n"))
+    else {
+        meta.body = contents.to_string();
+        return meta;
+    };
+
+    let mut body_start = None;
+    let mut cursor = 0usize;
+    for line in after_open.split_inclusive('\n') {
+        let line_trimmed = line.trim_end_matches(['\n', '\r']);
+        if line_trimmed == "---" {
+            body_start = Some(cursor + line.len());
+            break;
+        }
+        if let Some((key, value)) = line_trimmed.split_once(':') {
+            let key = key.trim();
+            let value = value.trim().trim_matches(|c| c == '"' || c == '\'');
+            let slot = match key {
+                "name" => &mut meta.name,
+                "description" => &mut meta.description,
+                "source" => &mut meta.source,
+                "category" => &mut meta.category,
+                _ => {
+                    cursor += line.len();
+                    continue;
+                }
+            };
+            *slot = Some(value.to_string());
+        }
+        cursor += line.len();
+    }
+
+    let Some(start) = body_start else {
+        // Unterminated frontmatter → treat whole file as body so we don't
+        // silently drop the prompt.
+        meta = AgentMeta::default();
+        meta.body = contents.to_string();
+        return meta;
+    };
+    meta.body = after_open[start..]
+        .trim_start_matches(['\n', '\r'])
+        .to_string();
+    meta
+}
+
+/// List all saved agents, sorted alphabetically. Each entry has its
+/// frontmatter parsed for badge/category rendering.
 pub fn list_agents() -> Vec<AgentEntry> {
     list_in(&agents_dir())
 }
@@ -163,6 +267,18 @@ mod tests {
         assert!(unload_agent());
         assert_eq!(loaded_agent(), None);
         assert!(!unload_agent());
+    }
+
+    #[test]
+    fn load_agent_strips_frontmatter() {
+        let _guard = LOAD_LOCK.lock().unwrap();
+        let _ = unload_agent();
+        let raw = "---\nname: bug-hunter\nsource: aictl-official\n---\n\nYou are a bug hunter.\n";
+        load_agent("bug-hunter", raw);
+        let (name, body) = loaded_agent().unwrap();
+        assert_eq!(name, "bug-hunter");
+        assert_eq!(body, "You are a bug hunter.\n");
+        let _ = unload_agent();
     }
 
     #[test]
@@ -228,8 +344,68 @@ mod tests {
     }
 
     #[test]
+    fn list_populates_frontmatter_fields() {
+        let dir = unique_temp_dir("list-meta");
+        save_in(
+            &dir,
+            "pulled",
+            "---\nname: pulled\ndescription: official one\nsource: aictl-official\ncategory: dev\n---\n\nBody.\n",
+        )
+        .unwrap();
+        save_in(&dir, "plain", "Just body, no frontmatter").unwrap();
+
+        let entries = list_in(&dir);
+        let pulled = entries.iter().find(|e| e.name == "pulled").unwrap();
+        assert_eq!(pulled.description.as_deref(), Some("official one"));
+        assert_eq!(pulled.category.as_deref(), Some("dev"));
+        assert!(pulled.is_official());
+
+        let plain = entries.iter().find(|e| e.name == "plain").unwrap();
+        assert!(plain.description.is_none());
+        assert!(plain.category.is_none());
+        assert!(!plain.is_official());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn list_missing_dir_returns_empty() {
         let missing = std::env::temp_dir().join("aictl-agents-nonexistent-xyz-12345");
         assert!(list_in(&missing).is_empty());
+    }
+
+    #[test]
+    fn parse_reads_known_fields_and_ignores_unknown() {
+        let src = "---\nname: x\ndescription: d\nsource: aictl-official\ncategory: dev\nextra: ignored\n---\n\nBody here.\n";
+        let m = parse(src);
+        assert_eq!(m.name.as_deref(), Some("x"));
+        assert_eq!(m.description.as_deref(), Some("d"));
+        assert_eq!(m.source.as_deref(), Some("aictl-official"));
+        assert_eq!(m.category.as_deref(), Some("dev"));
+        assert_eq!(m.body, "Body here.\n");
+    }
+
+    #[test]
+    fn parse_without_frontmatter_returns_full_body() {
+        let src = "just a prompt\nsecond line\n";
+        let m = parse(src);
+        assert!(m.name.is_none());
+        assert_eq!(m.body, src);
+    }
+
+    #[test]
+    fn parse_unterminated_frontmatter_falls_back_to_whole_body() {
+        let src = "---\nname: x\nno closing fence\n";
+        let m = parse(src);
+        assert!(m.name.is_none());
+        assert_eq!(m.body, src);
+    }
+
+    #[test]
+    fn parse_handles_quoted_values() {
+        let src = "---\nname: \"quoted\"\ndescription: 'single'\n---\nbody\n";
+        let m = parse(src);
+        assert_eq!(m.name.as_deref(), Some("quoted"));
+        assert_eq!(m.description.as_deref(), Some("single"));
     }
 }

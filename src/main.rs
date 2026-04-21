@@ -128,6 +128,21 @@ struct Cli {
     #[arg(long = "list-agents")]
     list_agents: bool,
 
+    /// When used with `--list-agents`, show only agents whose frontmatter has
+    /// a matching `category:` value (case-insensitive, e.g. `dev`, `ops`).
+    #[arg(long = "category", value_name = "NAME", requires = "list_agents")]
+    category: Option<String>,
+
+    /// Download an official agent from the aictl repo into ~/.aictl/agents/.
+    /// Prompts before overwriting an existing file unless `--force` is set.
+    #[arg(long = "pull-agent", value_name = "NAME")]
+    pull_agent: Option<String>,
+
+    /// With `--pull-agent`, skip the overwrite prompt and replace any existing
+    /// agent file with the upstream version.
+    #[arg(long = "force", requires = "pull_agent")]
+    force: bool,
+
     /// Invoke a saved skill by name for this turn (single-shot or REPL).
     /// In single-shot mode the skill body is injected as a transient system
     /// message for the `--message` call only; it is never persisted.
@@ -253,7 +268,36 @@ async fn main() {
     }
 
     if cli.list_agents {
-        commands::print_agents_cli();
+        commands::print_agents_cli(cli.category.as_deref());
+        return;
+    }
+
+    if let Some(name) = cli.pull_agent.as_deref() {
+        let outcome = agents::remote::pull(name, || {
+            if cli.force {
+                return true;
+            }
+            // Non-interactive CLI: without --force, don't silently clobber.
+            eprintln!("Error: agent '{name}' already exists. Re-run with --force to overwrite.");
+            false
+        })
+        .await;
+        match outcome {
+            Ok(agents::remote::PullOutcome::Installed) => {
+                println!("pulled official agent: {name}");
+            }
+            Ok(agents::remote::PullOutcome::Overwritten) => {
+                println!("updated official agent: {name}");
+            }
+            Ok(agents::remote::PullOutcome::SkippedExisting) => {
+                // Message already printed by the decider above.
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
@@ -499,6 +543,12 @@ async fn main() {
     session::set_incognito(incognito);
 
     if let Some(ref name) = cli.agent {
+        if !agents::is_valid_name(name) {
+            eprintln!(
+                "Error: invalid agent name '{name}' (use only letters, numbers, underscore, or dash)"
+            );
+            std::process::exit(1);
+        }
         if let Ok(prompt) = agents::read_agent(name) {
             agents::load_agent(name, &prompt);
         } else {

@@ -183,7 +183,8 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--model` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | Message to send (omit for interactive mode) |
 | `--agent` | Load a saved agent by name (works in both single-shot and interactive modes) |
-| `--list-agents` | Print saved agents from `~/.aictl/agents/` and exit |
+| `--list-agents` | Print saved agents from `~/.aictl/agents/` and exit. Combine with `--category <name>` to filter |
+| `--pull-agent` | Download an official agent from the aictl repo into `~/.aictl/agents/`. Combine with `--force` to skip the overwrite prompt |
 | `--skill` | Invoke a saved skill by name for a single turn. In single-shot mode the skill body is injected as a transient system prompt for the `--message` call only; in REPL mode it applies to the first user turn, then the REPL reverts to normal |
 | `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
@@ -225,12 +226,24 @@ Use `/agent` to open the agent menu:
 
 - **Create agent manually** — enter a name and type or paste the agent prompt text directly
 - **Create agent with AI** — provide a name and brief description; the LLM generates the full agent prompt
+- **Browse official agents** — browse the live catalogue of curated agents shipped in the aictl repo (see "Official catalogue" below), preview them, and pull the ones you want to `~/.aictl/agents/`
 - **View all agents** — browse saved agents, view their prompt, load an agent, or delete it
 - **Unload agent** — remove the currently loaded agent (only shown when one is loaded)
 
 Agents can also be loaded from the command line with `--agent <name>`, which works in both single-shot and interactive modes.
 
 Agent names may contain only letters, numbers, underscores, and dashes. When an agent is loaded, its prompt is appended to the system prompt and the agent name appears in magenta brackets before the input prompt (e.g. `[my-agent] ❯`).
+
+#### Official catalogue
+
+aictl ships with a curated set of first-party agents (e.g. `researcher`, `software-architect`, `critic`, `security-auditor`, `psychologist`) that live in the project's GitHub repo under [`.aictl/agents/`](./.aictl/agents/) — **not** bundled into the binary. New catalogue agents are available the moment they land on `master`, no release needed.
+
+Pull agents from the catalogue in two ways:
+
+- From the REPL, `/agent` → **Browse official agents**. Agents are grouped by category; each row shows `[ ]` (not pulled), `[✓]` (matches upstream), or `[↑]` (upstream differs). Press `v` to preview an agent's prompt before pulling, `p` / Enter to pull.
+- From the shell, `aictl --pull-agent <name>` downloads a single agent. Add `--force` to overwrite an existing local file without prompting.
+
+Catalogue agents carry `source: aictl-official` in their frontmatter; both `/agent` and `--list-agents` render an `[official]` badge so you can tell at a glance which agents came from the catalogue and which you wrote yourself. Users can edit or delete pulled agents freely — there is nothing special about them on disk. Public-repo reads are unauthenticated (≈60 requests/hour), which is plenty for browse-then-pull; errors are reported in the REPL without crashing the session.
 
 ### Skills
 

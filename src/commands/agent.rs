@@ -44,6 +44,10 @@ fn agent_menu_items(has_loaded: bool) -> Vec<(&'static str, &'static str)> {
     let mut items = vec![
         ("create agent manually", "type or paste agent prompt"),
         ("create agent with AI", "describe what the agent should do"),
+        (
+            "browse official agents",
+            "pull curated agents from the aictl repo",
+        ),
         ("view all agents", "browse, load, or delete agents"),
     ];
     if has_loaded {
@@ -73,6 +77,7 @@ pub async fn run_agent_menu(
         "create agent with AI" => {
             create_agent_with_ai(provider, api_key, model, ui, show_error).await
         }
+        "browse official agents" => browse_official_agents(ui, show_error).await,
         "view all agents" => view_all_agents(messages, show_error),
         "edit agent" => {
             let name = agents::loaded_agent_name().unwrap_or_default();
@@ -328,30 +333,37 @@ fn build_agents_list_lines(
     if entries.is_empty() {
         return vec![format!("  {}", "(no agents found)".with(Color::DarkGrey))];
     }
+    let max_name = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
     let mut lines = Vec::new();
     for (i, e) in entries.iter().enumerate() {
         let is_selected = i == selected;
         let is_loaded = loaded_name == Some(e.name.as_str());
         let marker = if is_loaded { "●" } else { " " };
-        let body = e.name.as_str();
-        let styled = if is_selected {
+        let padded = format!("{:<max_name$}", e.name);
+        let name_styled = if is_selected {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                body.with(Color::White)
+                padded
+                    .with(Color::White)
                     .attribute(crossterm::style::Attribute::Bold)
             )
         } else {
             format!(
                 "{} {}",
                 marker.with(Color::Green),
-                body.with(Color::DarkGrey)
+                padded.with(Color::DarkGrey)
             )
         };
-        let line = if is_selected {
-            format!("  {} {styled}", "›".with(Color::Cyan))
+        let badge = if e.is_official() {
+            format!("  {}", "[official]".with(Color::Cyan))
         } else {
-            format!("    {styled}")
+            String::new()
+        };
+        let line = if is_selected {
+            format!("  {} {name_styled}{badge}", "›".with(Color::Cyan))
+        } else {
+            format!("    {name_styled}{badge}")
         };
         lines.push(line);
     }
@@ -492,18 +504,34 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
             }
             AgentListAction::View(i) => {
                 let entry = &entries[i];
-                let Ok(prompt) = agents::read_agent(&entry.name) else {
+                let Ok(meta) = agents::read_agent_meta(&entry.name) else {
                     show_error("Failed to read agent file.");
                     continue;
                 };
                 println!();
-                println!(
-                    "  {} {}",
-                    "agent:".with(Color::Cyan),
-                    entry.name.as_str().with(Color::Magenta)
-                );
+                let title = if entry.is_official() {
+                    format!(
+                        "  {} {}  {}",
+                        "agent:".with(Color::Cyan),
+                        entry.name.as_str().with(Color::Magenta),
+                        "[official]".with(Color::Cyan)
+                    )
+                } else {
+                    format!(
+                        "  {} {}",
+                        "agent:".with(Color::Cyan),
+                        entry.name.as_str().with(Color::Magenta)
+                    )
+                };
+                println!("{title}");
+                if let Some(desc) = meta.description.as_deref() {
+                    println!("  {} {desc}", "description:".with(Color::Cyan));
+                }
+                if let Some(cat) = meta.category.as_deref() {
+                    println!("  {} {cat}", "category:   ".with(Color::Cyan));
+                }
                 println!();
-                for line in prompt.lines() {
+                for line in meta.body.lines() {
                     println!("  {}", line.with(Color::DarkGrey));
                 }
                 println!();
@@ -616,14 +644,349 @@ fn rebuild_system_prompt(messages: &mut [Message]) {
     messages[0].content = crate::build_system_prompt();
 }
 
-/// Print saved agents in non-interactive mode.
-pub fn print_agents_cli() {
-    let entries = crate::agents::list_agents();
+// --- Remote catalogue browsing ---
+
+use crate::agents::remote::{self, PullOutcome, RemoteAgent, State};
+
+/// Open the remote catalogue browser. Fetches the list, shows categories,
+/// drills into agents, and pulls the selected one to `~/.aictl/agents/`.
+/// Returns `false` because pulling a catalogue agent never loads it — the
+/// user still has to pick it from "view all" to bring it into the session.
+async fn browse_official_agents(ui: &dyn AgentUI, show_error: &dyn Fn(&str)) -> bool {
+    ui.start_spinner("fetching catalogue...");
+    let agents_list = remote::list_agents().await;
+    ui.stop_spinner();
+    let agents_list = match agents_list {
+        Ok(list) if list.is_empty() => {
+            println!();
+            println!(
+                "  {}",
+                "The official catalogue is empty.".with(Color::DarkGrey)
+            );
+            println!();
+            return false;
+        }
+        Ok(list) => list,
+        Err(e) => {
+            show_error(&format!("Failed to fetch catalogue: {e}"));
+            return false;
+        }
+    };
+
+    loop {
+        let categories = group_by_category(&agents_list);
+        let Some(choice) = select_category(&categories, agents_list.len()) else {
+            return false;
+        };
+        let filtered: Vec<&RemoteAgent> = match choice {
+            CategoryChoice::All => agents_list.iter().collect(),
+            CategoryChoice::Named(name) => agents_list
+                .iter()
+                .filter(|a| category_label(a).eq_ignore_ascii_case(&name))
+                .collect(),
+        };
+        if filtered.is_empty() {
+            continue;
+        }
+        pull_from_browse(&filtered, show_error);
+    }
+}
+
+/// What the category picker returns. `All` bypasses category filtering;
+/// `Named` holds the label the user selected (e.g. `"dev"`).
+enum CategoryChoice {
+    All,
+    Named(String),
+}
+
+/// Return `(label, count)` per category, sorted, with entries that lack a
+/// category grouped under `uncategorized` so the browser always renders a
+/// complete picture of what's upstream.
+fn group_by_category(agents: &[RemoteAgent]) -> Vec<(String, usize)> {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for a in agents {
+        *counts.entry(category_label(a)).or_default() += 1;
+    }
+    counts.into_iter().collect()
+}
+
+fn category_label(agent: &RemoteAgent) -> String {
+    agent
+        .category
+        .clone()
+        .unwrap_or_else(|| "uncategorized".to_string())
+}
+
+fn select_category(categories: &[(String, usize)], total: usize) -> Option<CategoryChoice> {
+    use super::menu::build_simple_menu_lines;
+
+    let mut items: Vec<(String, String)> = vec![("All".to_string(), format!("{total} agents"))];
+    for (name, count) in categories {
+        items.push((name.clone(), format!("{count} agent{}", plural(*count))));
+    }
+    let items_ref: Vec<(&str, &str)> = items
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    let sel = select_from_menu(items_ref.len(), 0, |selected| {
+        build_simple_menu_lines(&items_ref, selected)
+    })?;
+    if sel == 0 {
+        Some(CategoryChoice::All)
+    } else {
+        Some(CategoryChoice::Named(items[sel].0.clone()))
+    }
+}
+
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+/// Render the agent list for the selected category and pull whatever the
+/// user picks. Returns when the user presses Esc from the agent list.
+fn pull_from_browse(agents: &[&RemoteAgent], show_error: &dyn Fn(&str)) {
+    let mut selected: usize = 0;
+    loop {
+        let Some(action) = select_remote_agent(agents, selected) else {
+            return;
+        };
+        match action {
+            RemoteListAction::Cancel => return,
+            RemoteListAction::Pull(idx) => {
+                selected = idx;
+                let agent = agents[idx];
+                match pull_remote_agent(agent) {
+                    Ok(PullOutcome::Installed) => {
+                        println!();
+                        println!(
+                            "  {} agent \"{}\" pulled",
+                            "✓".with(Color::Green),
+                            agent.name.as_str().with(Color::Magenta)
+                        );
+                        println!();
+                    }
+                    Ok(PullOutcome::Overwritten) => {
+                        println!();
+                        println!(
+                            "  {} agent \"{}\" updated",
+                            "✓".with(Color::Green),
+                            agent.name.as_str().with(Color::Magenta)
+                        );
+                        println!();
+                    }
+                    Ok(PullOutcome::SkippedExisting) => {
+                        println!();
+                        println!(
+                            "  {} keeping existing \"{}\"",
+                            "·".with(Color::DarkGrey),
+                            agent.name.as_str().with(Color::Magenta)
+                        );
+                        println!();
+                    }
+                    Err(e) => show_error(&format!("Failed to pull agent: {e}")),
+                }
+            }
+            RemoteListAction::View(idx) => {
+                selected = idx;
+                let agent = agents[idx];
+                println!();
+                println!(
+                    "  {} {}  {}",
+                    "agent:".with(Color::Cyan),
+                    agent.name.as_str().with(Color::Magenta),
+                    "[official]".with(Color::Cyan)
+                );
+                if let Some(desc) = agent.description.as_deref() {
+                    println!("  {} {desc}", "description:".with(Color::Cyan));
+                }
+                if let Some(cat) = agent.category.as_deref() {
+                    println!("  {} {cat}", "category:   ".with(Color::Cyan));
+                }
+                println!();
+                let body = crate::agents::parse(&agent.body).body;
+                for line in body.lines() {
+                    println!("  {}", line.with(Color::DarkGrey));
+                }
+                println!();
+            }
+        }
+    }
+}
+
+fn pull_remote_agent(agent: &RemoteAgent) -> Result<PullOutcome, String> {
+    let dir = crate::agents::agents_dir();
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create {}: {e}", dir.display()))?;
+    let path = dir.join(&agent.name);
+    remote::write_with_overwrite(&path, &agent.body, || {
+        confirm_yn(&format!(
+            "agent \"{}\" already exists. Overwrite?",
+            agent.name
+        ))
+    })
+}
+
+enum RemoteListAction {
+    Pull(usize),
+    View(usize),
+    Cancel,
+}
+
+fn state_marker(state: State) -> (&'static str, Color) {
+    match state {
+        State::NotPulled => ("[ ]", Color::DarkGrey),
+        State::UpToDate => ("[✓]", Color::Green),
+        State::UpstreamNewer => ("[↑]", Color::Yellow),
+    }
+}
+
+fn build_remote_agents_list_lines(selected: usize, entries: &[&RemoteAgent]) -> Vec<String> {
     if entries.is_empty() {
-        println!("(no saved agents)");
+        return vec![format!("  {}", "(no agents)".with(Color::DarkGrey))];
+    }
+    let max_name = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
+    let mut lines = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        let is_selected = i == selected;
+        let (mark, mark_color) = state_marker(e.state);
+        let padded = format!("{:<max_name$}", e.name);
+        let name_styled = if is_selected {
+            format!(
+                "{} {}",
+                mark.with(mark_color),
+                padded
+                    .with(Color::White)
+                    .attribute(crossterm::style::Attribute::Bold)
+            )
+        } else {
+            format!("{} {}", mark.with(mark_color), padded.with(Color::DarkGrey))
+        };
+        let desc = e.description.as_deref().unwrap_or("");
+        let desc_styled = format!("  {}", desc.with(Color::DarkGrey));
+        let line = if is_selected {
+            format!("  {} {name_styled}{desc_styled}", "›".with(Color::Cyan))
+        } else {
+            format!("    {name_styled}{desc_styled}")
+        };
+        lines.push(line);
+    }
+    lines
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn select_remote_agent(entries: &[&RemoteAgent], initial: usize) -> Option<RemoteListAction> {
+    use crossterm::{
+        cursor,
+        event::{self, Event, KeyCode, KeyEventKind},
+        execute,
+        terminal::{self, ClearType},
+    };
+
+    let mut selected: usize = initial.min(entries.len().saturating_sub(1));
+    let _ = terminal::enable_raw_mode();
+    let mut stdout = std::io::stdout();
+    let _ = execute!(stdout, cursor::Hide);
+
+    let hint = "↑/↓ navigate · p/enter pull · v view · esc back";
+
+    let mut lines = build_remote_agents_list_lines(selected, entries);
+    let _ = write!(stdout, "\r\n");
+    for line in &lines {
+        let _ = write!(stdout, "{line}\r\n");
+    }
+    let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
+    let _ = stdout.flush();
+    let mut rendered = lines.len() + 2;
+
+    let result = loop {
+        if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
+            continue;
+        }
+        let Ok(ev) = event::read() else {
+            break Some(RemoteListAction::Cancel);
+        };
+        if let Event::Key(key) = ev
+            && key.kind == KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Up => selected = selected.saturating_sub(1),
+                KeyCode::Down => {
+                    if !entries.is_empty() && selected + 1 < entries.len() {
+                        selected += 1;
+                    }
+                }
+                KeyCode::Enter | KeyCode::Char('p' | 'P') => {
+                    if !entries.is_empty() {
+                        break Some(RemoteListAction::Pull(selected));
+                    }
+                }
+                KeyCode::Char('v' | 'V') => {
+                    if !entries.is_empty() {
+                        break Some(RemoteListAction::View(selected));
+                    }
+                }
+                KeyCode::Esc => break Some(RemoteListAction::Cancel),
+                _ => {}
+            }
+        } else {
+            continue;
+        }
+
+        let _ = execute!(
+            stdout,
+            cursor::MoveUp(rendered as u16),
+            terminal::Clear(ClearType::FromCursorDown),
+        );
+        lines = build_remote_agents_list_lines(selected, entries);
+        for line in &lines {
+            let _ = write!(stdout, "{line}\r\n");
+        }
+        let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
+        let _ = stdout.flush();
+        rendered = lines.len() + 2;
+    };
+
+    let _ = execute!(
+        stdout,
+        cursor::MoveUp(rendered as u16),
+        terminal::Clear(ClearType::FromCursorDown),
+        cursor::Show,
+    );
+    let _ = terminal::disable_raw_mode();
+    result
+}
+
+/// Print saved agents in non-interactive mode. When `category` is `Some`,
+/// only agents whose frontmatter carries a matching `category:` value are
+/// shown (case-insensitive).
+pub fn print_agents_cli(category: Option<&str>) {
+    let entries = crate::agents::list_agents();
+    let filtered: Vec<_> = entries
+        .iter()
+        .filter(|e| match category {
+            None => true,
+            Some(want) => e
+                .category
+                .as_deref()
+                .is_some_and(|c| c.eq_ignore_ascii_case(want)),
+        })
+        .collect();
+    if filtered.is_empty() {
+        match category {
+            None => println!("(no saved agents)"),
+            Some(c) => println!("(no saved agents in category '{c}')"),
+        }
         return;
     }
-    for e in &entries {
-        println!("{}", e.name);
+    let max_name = filtered.iter().map(|e| e.name.len()).max().unwrap_or(0);
+    for e in &filtered {
+        let badge = if e.is_official() { " [official]" } else { "" };
+        match e.description.as_deref() {
+            Some(desc) if !desc.is_empty() => {
+                println!("{:<max_name$}{badge}  {desc}", e.name);
+            }
+            _ => println!("{:<max_name$}{badge}", e.name),
+        }
     }
 }

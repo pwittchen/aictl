@@ -21,7 +21,7 @@ Single-binary async Rust CLI. Top-level modules under `src/`, plus three submodu
 
 - `main.rs` — CLI (clap), config + security + session init, agent loop driver, single-shot vs REPL
 - `run.rs` — `run_agent_turn` loop, tool-call dispatch, outbound redaction, stream suspend wiring
-- `agents.rs` — agent prompts in `~/.aictl/agents/`; loaded agent appended to system prompt
+- `agents.rs` (+ `agents/remote.rs`) — agent prompts in `~/.aictl/agents/`; loaded agent appended to system prompt. Optional YAML frontmatter (`name`, `description`, `source`, `category`) — `source: aictl-official` renders an `[official]` badge in `/agent` and `--list-agents`. `agents/remote.rs` fetches the live catalogue from `.aictl/agents/` in the project repo via GitHub's trees API and pulls a single `.md` on demand (REPL browse entry or `--pull-agent <name>` + `--force`). The frontmatter is stripped before the body is injected into the system prompt.
 - `audit.rs` — per-session JSONL tool-call log under `~/.aictl/audit/<session-id>`
 - `commands.rs` + `commands/` — slash commands (`/agent`, `/behavior`, `/clear`, `/compact`, `/config`, `/context`, `/copy`, `/exit`, `/gguf`, `/help`, `/history`, `/info`, `/keys`, `/memory`, `/mlx`, `/model`, `/ping`, `/retry`, `/security`, `/session`, `/skills`, `/stats`, `/tools`, `/uninstall`, `/update`, `/version`); any other `/<name>` falls through to a user-defined skill lookup.
 - `config.rs` — `~/.aictl/config` loader (`OnceLock<RwLock<HashMap>>`), constants, `load_prompt_file`
