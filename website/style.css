@@ -528,6 +528,34 @@ body.nav-open {
 
 .card:hover, .tools:hover { background: var(--surface-hover); }
 
+/* Fill trailing empty grid slots with the card background so a partial last
+   row doesn't read as a dark rectangle. The 1px gap is preserved, so the
+   border between the filler and the last real card stays visible. */
+.grid--2:has(> .card:nth-child(odd):last-child)::after,
+.grid--2:has(> .tools:nth-child(odd):last-child)::after {
+  content: "";
+  background: var(--bg);
+}
+.grid--3:has(> .card:nth-child(3n+1):last-child)::after,
+.grid--3:has(> .tools:nth-child(3n+1):last-child)::after {
+  content: "";
+  background: var(--bg);
+  grid-column: span 2;
+}
+.grid--3:has(> .card:nth-child(3n+2):last-child)::after,
+.grid--3:has(> .tools:nth-child(3n+2):last-child)::after {
+  content: "";
+  background: var(--bg);
+}
+.section--alt .grid--2:has(> .card:nth-child(odd):last-child)::after,
+.section--alt .grid--2:has(> .tools:nth-child(odd):last-child)::after,
+.section--alt .grid--3:has(> .card:nth-child(3n+1):last-child)::after,
+.section--alt .grid--3:has(> .tools:nth-child(3n+1):last-child)::after,
+.section--alt .grid--3:has(> .card:nth-child(3n+2):last-child)::after,
+.section--alt .grid--3:has(> .tools:nth-child(3n+2):last-child)::after {
+  background: var(--bg-alt);
+}
+
 .card h3, .tools h3 {
   margin: 0 0 12px;
   font-size: 20px;
@@ -821,12 +849,36 @@ body.nav-open {
   .nav__links { display: none; }
   .nav__cta { display: none; }
   .nav__toggle { display: inline-flex; }
+
+  /* grid--3 collapses to 2 columns; the 3-col nth-child math no longer fits,
+     so re-derive the filler from "last child in an odd slot". */
+  .grid--3:has(> .card:nth-child(3n+1):last-child)::after,
+  .grid--3:has(> .tools:nth-child(3n+1):last-child)::after,
+  .grid--3:has(> .card:nth-child(3n+2):last-child)::after,
+  .grid--3:has(> .tools:nth-child(3n+2):last-child)::after {
+    grid-column: auto;
+    display: none;
+  }
+  .grid--3:has(> .card:nth-child(odd):last-child)::after,
+  .grid--3:has(> .tools:nth-child(odd):last-child)::after {
+    content: "";
+    background: var(--bg);
+    display: block;
+  }
+  .section--alt .grid--3:has(> .card:nth-child(odd):last-child)::after,
+  .section--alt .grid--3:has(> .tools:nth-child(odd):last-child)::after {
+    background: var(--bg-alt);
+  }
 }
 
 @media (max-width: 720px) {
   .section { padding: 64px 0; }
   .hero { padding: 64px 0 48px; }
   .grid--3, .grid--2 { grid-template-columns: 1fr; }
+
+  /* Single column: every row is full, so no filler is ever needed. */
+  .grid--2::after,
+  .grid--3::after { display: none; }
   .section__head { margin-bottom: 40px; }
   .footer__inner { flex-direction: column; align-items: flex-start; }
   .footer__links { width: 100%; }
