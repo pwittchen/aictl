@@ -623,6 +623,31 @@ fn edit_agent_prompt(
     Some(rebuilt)
 }
 
+/// Load an agent by name directly (bypassing the menu). Used by the REPL
+/// `/agent <name>` shortcut. Returns `true` if the agent was loaded and the
+/// system prompt rebuilt; `false` on error (error is surfaced through
+/// `show_error`).
+pub fn load_agent_by_name(name: &str, messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool {
+    if !agents::is_valid_name(name) {
+        show_error("Invalid agent name. Use only letters, numbers, underscore, or dash.");
+        return false;
+    }
+    let Ok(prompt) = agents::read_agent(name) else {
+        show_error(&format!("Agent '{name}' not found"));
+        return false;
+    };
+    agents::load_agent(name, &prompt);
+    rebuild_system_prompt(messages);
+    println!();
+    println!(
+        "  {} agent \"{}\" loaded",
+        "✓".with(Color::Green),
+        name.with(Color::Magenta)
+    );
+    println!();
+    true
+}
+
 fn unload_agent_action(messages: &mut [Message]) -> bool {
     if agents::unload_agent() {
         rebuild_system_prompt(messages);

@@ -36,7 +36,7 @@ mod tools;
 mod uninstall;
 mod update;
 
-pub use agent::{print_agents_cli, run_agent_menu};
+pub use agent::{load_agent_by_name, print_agents_cli, run_agent_menu};
 pub use behavior::select_behavior;
 pub use compact::{compact, print_context};
 pub use config_wizard::run_config_wizard;
@@ -116,8 +116,11 @@ pub enum CommandResult {
     Uninstall,
     /// Check current version against the latest available.
     Version,
-    /// Open the agent management menu.
-    Agent,
+    /// Open the agent management menu. When the user types `/agent <name>`,
+    /// the parsed name is carried here and the REPL loads that agent directly
+    /// instead of opening the menu. Name validation/existence checks happen
+    /// at dispatch time.
+    Agent(Option<String>),
     /// Open the skills management menu.
     Skills,
     /// Invoke a skill by name. `task` is the inline argument (may be empty —
@@ -163,7 +166,14 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "context" => CommandResult::Context,
         "history" => CommandResult::History(args.to_string()),
         "info" => CommandResult::Info,
-        "agent" => CommandResult::Agent,
+        "agent" => {
+            let name = if args.is_empty() {
+                None
+            } else {
+                Some(args.to_string())
+            };
+            CommandResult::Agent(name)
+        }
         "security" => CommandResult::Security,
         "model" => CommandResult::Model,
         "behavior" => CommandResult::Behavior,
@@ -266,8 +276,16 @@ mod tests {
     fn cmd_agent() {
         assert!(matches!(
             handle("/agent", "", &noop_error),
-            CommandResult::Agent
+            CommandResult::Agent(None)
         ));
+    }
+
+    #[test]
+    fn cmd_agent_with_name_loads_direct() {
+        match handle("/agent reviewer", "", &noop_error) {
+            CommandResult::Agent(Some(name)) => assert_eq!(name, "reviewer"),
+            _ => panic!("expected Agent(Some(_))"),
+        }
     }
 
     #[test]

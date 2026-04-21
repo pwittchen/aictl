@@ -32,6 +32,30 @@ use crate::{
 
 pub(crate) struct SlashCommandHelper;
 
+/// Names completable after `/` with no space yet — the union of built-in
+/// slash commands and user-defined skills. Skills are invoked as
+/// `/<skill-name>` so they belong in the same completion bucket. Returned
+/// sorted with duplicates dropped so a skill can't shadow a built-in in the
+/// list (the dispatcher already prefers the built-in).
+fn slash_completion_names() -> Vec<String> {
+    let mut names: Vec<String> = commands::COMMANDS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    for entry in skills::list() {
+        if !names.iter().any(|n| n == &entry.name) {
+            names.push(entry.name);
+        }
+    }
+    names.sort();
+    names
+}
+
+/// Names completable after `/agent ` — saved agents by name.
+fn agent_completion_names() -> Vec<String> {
+    agents::list_agents().into_iter().map(|e| e.name).collect()
+}
+
 impl rustyline::completion::Completer for SlashCommandHelper {
     type Candidate = rustyline::completion::Pair;
 
@@ -41,19 +65,41 @@ impl rustyline::completion::Completer for SlashCommandHelper {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        if let Some(prefix) = line[..pos].strip_prefix('/') {
-            let matches: Vec<_> = commands::COMMANDS
-                .iter()
-                .filter(|cmd| cmd.starts_with(prefix))
-                .map(|cmd| rustyline::completion::Pair {
-                    display: format!("/{cmd}"),
-                    replacement: format!("/{cmd}"),
+        let head = &line[..pos];
+        let Some(rest) = head.strip_prefix('/') else {
+            return Ok((0, vec![]));
+        };
+
+        // `/agent <prefix>` → complete against saved agent names.
+        if let Some(agent_arg) = rest.strip_prefix("agent ") {
+            let arg_start = pos - agent_arg.len();
+            let matches: Vec<_> = agent_completion_names()
+                .into_iter()
+                .filter(|n| n.starts_with(agent_arg))
+                .map(|n| rustyline::completion::Pair {
+                    display: n.clone(),
+                    replacement: n,
                 })
                 .collect();
-            Ok((0, matches))
-        } else {
-            Ok((0, vec![]))
+            return Ok((arg_start, matches));
         }
+
+        // A space elsewhere means the user is typing command arguments for
+        // which we don't offer completion.
+        if rest.contains(' ') {
+            return Ok((0, vec![]));
+        }
+
+        // `/<prefix>` → commands + skill names.
+        let matches: Vec<_> = slash_completion_names()
+            .into_iter()
+            .filter(|name| name.starts_with(rest))
+            .map(|name| rustyline::completion::Pair {
+                display: format!("/{name}"),
+                replacement: format!("/{name}"),
+            })
+            .collect();
+        Ok((0, matches))
     }
 }
 
@@ -64,14 +110,26 @@ impl rustyline::hint::Hinter for SlashCommandHelper {
         if pos != line.len() {
             return None;
         }
-        let prefix = line.strip_prefix('/')?;
-        if prefix.is_empty() {
+        let rest = line.strip_prefix('/')?;
+        if rest.is_empty() {
             return None;
         }
-        commands::COMMANDS
-            .iter()
-            .find(|cmd| cmd.starts_with(prefix) && **cmd != prefix)
-            .map(|cmd| cmd[prefix.len()..].to_string())
+        if let Some(agent_arg) = rest.strip_prefix("agent ") {
+            if agent_arg.is_empty() {
+                return None;
+            }
+            return agent_completion_names()
+                .into_iter()
+                .find(|n| n.starts_with(agent_arg) && n != agent_arg)
+                .map(|n| n[agent_arg.len()..].to_string());
+        }
+        if rest.contains(' ') {
+            return None;
+        }
+        slash_completion_names()
+            .into_iter()
+            .find(|name| name.starts_with(rest) && name != rest)
+            .map(|name| name[rest.len()..].to_string())
     }
 }
 impl rustyline::highlight::Highlighter for SlashCommandHelper {
@@ -170,12 +228,16 @@ async fn handle_repl_input(
             }
             return ReplAction::Continue;
         }
-        commands::CommandResult::Agent => {
+        commands::CommandResult::Agent(name) => {
             let _ = rl.add_history_entry(input);
-            commands::run_agent_menu(provider, api_key, model, messages, ui, &|msg| {
-                ui.show_error(msg);
-            })
-            .await;
+            if let Some(name) = name {
+                commands::load_agent_by_name(&name, messages, &|msg| ui.show_error(msg));
+            } else {
+                commands::run_agent_menu(provider, api_key, model, messages, ui, &|msg| {
+                    ui.show_error(msg);
+                })
+                .await;
+            }
             return ReplAction::Continue;
         }
         commands::CommandResult::Skills => {
@@ -771,4 +833,100 @@ pub(crate) async fn run_interactive(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustyline::completion::Completer;
+    use rustyline::hint::Hinter;
+    use rustyline::history::DefaultHistory;
+
+    #[test]
+    fn completer_lists_builtin_commands_for_slash_prefix() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        let (start, cands) = helper.complete("/h", 2, &ctx).unwrap();
+        assert_eq!(start, 0);
+        let replacements: Vec<String> = cands.iter().map(|c| c.replacement.clone()).collect();
+        assert!(replacements.iter().any(|r| r == "/help"));
+        assert!(replacements.iter().any(|r| r == "/history"));
+    }
+
+    #[test]
+    fn completer_returns_empty_for_non_slash_input() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        let (_, cands) = helper.complete("hello", 5, &ctx).unwrap();
+        assert!(cands.is_empty());
+    }
+
+    #[test]
+    fn completer_skips_other_command_args() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        // `/history` takes free-form args — we don't try to complete them.
+        let (_, cands) = helper.complete("/history us", 11, &ctx).unwrap();
+        assert!(cands.is_empty());
+    }
+
+    #[test]
+    fn completer_agent_args_replace_at_arg_start() {
+        // Even with no agents on disk the completer must return the correct
+        // `start` position so a tab with no matches leaves the user's cursor
+        // at the right spot.
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        let line = "/agent foo";
+        let (start, _) = helper.complete(line, line.len(), &ctx).unwrap();
+        assert_eq!(start, "/agent ".len());
+    }
+
+    #[test]
+    fn hinter_suggests_completion_suffix() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        // "/he" → "help" → suffix "lp"
+        let hint = helper.hint("/he", 3, &ctx);
+        assert_eq!(hint.as_deref(), Some("lp"));
+    }
+
+    #[test]
+    fn hinter_returns_none_for_exact_match() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        // Exact match of a built-in — nothing to hint.
+        let hint = helper.hint("/help", 5, &ctx);
+        assert!(hint.is_none());
+    }
+
+    #[test]
+    fn hinter_returns_none_mid_line() {
+        let helper = SlashCommandHelper;
+        let history = DefaultHistory::new();
+        let ctx = rustyline::Context::new(&history);
+        // Cursor not at end — no hint.
+        let hint = helper.hint("/help extra", 3, &ctx);
+        assert!(hint.is_none());
+    }
+
+    #[test]
+    fn slash_completion_names_includes_builtins() {
+        let names = slash_completion_names();
+        for required in ["help", "history", "agent", "skills", "exit"] {
+            assert!(
+                names.iter().any(|n| n == required),
+                "expected {required:?} in slash completion names"
+            );
+        }
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(names, sorted);
+    }
 }
