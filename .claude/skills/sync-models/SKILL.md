@@ -1,18 +1,19 @@
 ---
 name: sync-models
-description: Check each provider for newly released models, compare against the supported set, add any missing ones, and update the README accordingly
+description: Check each provider for newly released models, compare against the supported set, add any missing ones, and update the README and website accordingly
 allowed-tools: Bash, Read, Edit, Write, Grep, WebFetch, WebSearch
 ---
 
 ## Purpose
 
-Keep aictl's supported-model catalog in step with what each LLM provider actually offers. This skill discovers newly released models per provider, diffs them against the `MODELS` constant in `src/llm.rs`, and — after user confirmation — adds the new entries and updates `README.md` so the pricing tables and provider sections stay accurate.
+Keep aictl's supported-model catalog in step with what each LLM provider actually offers. This skill discovers newly released models per provider, diffs them against the `MODELS` constant in `src/llm.rs`, and — after user confirmation — adds the new entries and updates `README.md` plus the website (`website/index.html`, `website/guides.html`) so the pricing tables, provider sections, and public landing page stay accurate.
 
 Source of truth:
 
 - **Current supported set** — `MODELS` in `src/llm.rs` (`provider`, `model_name`, `api_key_config_key`).
 - **Per-model pricing** — `price_per_million()` in `src/llm.rs`.
-- **Docs** — `README.md` (per-provider model tables), `LLM_PRICING.md` (overall cost table header mentions the effective date).
+- **Docs** — `README.md` (per-provider model tables + total model count in the tagline), `LLM_PRICING.md` (overall cost table header mentions the effective date).
+- **Website** — `website/index.html` (hero copy + meta tags reference the total cloud-model count), `website/guides.html` (per-provider cards under `#providers` describe each provider's model lineup in prose).
 
 ## Scope of "new model"
 
@@ -85,13 +86,26 @@ For each provider with new additions, edit the corresponding `#### <Provider>` s
 
 - Insert a new `| <model> | $X.XX | $Y.YY |` row. Keep the same ordering the table already uses (newest → oldest, or grouped by tier).
 - If a footnote exists mentioning specific models (e.g. dual-tier pricing, 2M context), extend it if the new model shares that property.
-- Update any count-of-models prose only if the README explicitly states a number per provider (most do not).
+- If new additions change the total cloud-model count, update the tagline near the top of `README.md` (line ~7: `N built-in cloud models across M providers`). Recompute `N` from `MODELS` excluding `ollama` / `gguf` / `mlx`. `M` rarely changes — only bump it if a new provider module landed.
 
 Do **not** edit `LLM_PRICING.md` from this skill — that doc aggregates daily/monthly scenario costs, not per-model rates, and is updated separately.
 
-Do **not** edit the website HTML from this skill. Point the user at `/update-docs` if website sync is needed.
+### 6. Update the website
 
-### 6. Verify
+The website lives in `website/`. Two files reference the model catalog:
+
+- **`website/index.html`** — three places hard-code the cloud-model count (`N`):
+  - `<meta name="description" ...>` near the top of `<head>`
+  - `<meta property="og:description" ...>` next to it
+  - the hero `<p class="hero__subtitle">` block (search for `cloud models across`)
+  Update all three to the new `N` (and `M` provider count if it changed). Keep the surrounding wording verbatim.
+- **`website/guides.html`** — the `#providers` section (search for `<h2 class="section__title">Providers &amp; models</h2>`) has one `<article class="card">` per provider with a one-line prose summary of that provider's models (e.g. "grok-4.20 and grok-4, grok-4-fast / 4.1-fast …"). For each provider with new additions, edit the matching card's `<p>` to mention the new model in the same conversational style. Do not restructure the card or change any other prose. If `M` changed, also update the lead text under the `<h2>` ("Eight remote APIs plus three local backends.") to match.
+
+Don't touch any other files in `website/` (CSS, JS, build config) — model-sync changes are content-only.
+
+If `website/index.html` references a version number in the hero tag (e.g. `v0.31.0`), leave it alone — that is bumped by the release flow, not this skill.
+
+### 7. Verify
 
 Run, in order:
 
@@ -103,28 +117,33 @@ Run, in order:
 
 If any command fails, fix the cause (commonly: a stray comma, an out-of-order `starts_with` branch shadowing a more specific one, or a duplicate tuple) and rerun. Do not proceed with a red build.
 
-Finally, re-read the changed regions of `src/llm.rs` and `README.md` and confirm:
+The website has no test suite or linter — visually inspect the diff for `website/index.html` and `website/guides.html` instead. If `bun` is available locally, optionally run `bun run build` from `website/` to confirm the bundler still produces `dist/` cleanly. Do not commit `dist/` artifacts.
+
+Finally, re-read the changed regions of `src/llm.rs`, `README.md`, `website/index.html`, and `website/guides.html` and confirm:
 
 - Every new `MODELS` tuple has a matching `price_per_million` branch.
 - Every new README row matches a `MODELS` tuple exactly (string equality).
 - No existing row was reordered or deleted.
+- The cloud-model count `N` is identical in `README.md` (tagline), `website/index.html` (meta description, OG description, hero subtitle), and the actual count of non-local entries in `MODELS`.
+- Each `website/guides.html` provider card mentions the new model name(s).
 
-### 7. Report
+### 8. Report
 
 Print a short summary to the user:
 
 - Models added per provider (count + list).
 - Models flagged but skipped, with reason (unknown pricing, non-text, deprecated).
-- Files changed (`src/llm.rs`, `README.md`).
-- Reminder that website docs are out of sync if the change is user-visible — suggest `/update-docs`.
+- Files changed (expect `src/llm.rs`, `README.md`, `website/index.html`, `website/guides.html`).
+- New total cloud-model count if it changed.
 
 Do **not** commit — leave staging to the user (or a follow-up `/commit`).
 
 ## Rules
 
 - Ask before adding a model when pricing is uncertain; never guess prices.
-- Preserve the existing ordering and formatting of `MODELS` and README tables.
+- Preserve the existing ordering and formatting of `MODELS`, README tables, and website prose.
 - Never remove supported models in this skill — additions only.
-- Do not edit the website (`website/`) or `LLM_PRICING.md`; flag them for a separate run.
+- Do not edit `LLM_PRICING.md`; it is updated separately.
+- Within `website/`, only touch `index.html` and `guides.html`. Leave CSS, JS, build scripts, and `dist/` alone.
 - Do not add emoji or `Co-Authored-By` lines.
 - If a provider's docs page is unreachable, report it and continue with the next provider — a partial sync is still useful.
