@@ -47,8 +47,11 @@ async function main() {
   // Copy install.sh from the parent repo so the site can serve it for one-liner installs.
   await copyFile(join(root, "..", "install.sh"), join(dist, "install.sh"));
 
+  // Copy llms.txt for LLM-friendly site metadata (https://llmstxt.org/).
+  await copyFile(join(root, "llms.txt"), join(dist, "llms.txt"));
+
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "guides.html", "style.css", "script.js", "install.sh"]) {
+  for (const f of ["index.html", "guides.html", "style.css", "script.js", "install.sh", "llms.txt"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
