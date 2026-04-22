@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent in your terminal — 53 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
+AI agent in your terminal — 58 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -456,6 +456,7 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 | Model | Input | Output |
 |-------|-------|--------|
 | `gemini-3.1-pro-preview` | $2.00 | $12.00 |
+| `gemini-3-flash-preview` | $0.50 | $3.00 |
 | `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
 | `gemini-2.5-flash` | $0.15 | $0.60 |
@@ -468,13 +469,14 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` | $2.00 | $6.00 |
 | `grok-4` | $3.00 | $15.00 |
 | `grok-4-fast-reasoning` / `grok-4-fast-non-reasoning` | $0.20 | $0.50 |
 | `grok-4-1-fast-reasoning` / `grok-4-1-fast-non-reasoning` | $0.20 | $0.50 |
 | `grok-3` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
-Grok 4 Fast variants ship with a 2M-token context window, the largest available across frontier models.
+Grok 4 Fast and Grok 4.20 ship with a 2M-token context window, the largest available across frontier models.
 
 #### Mistral
 
@@ -502,6 +504,8 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `kimi-k2.6` | $0.60 | $2.50 |
+| `kimi-k2.6-thinking` | $0.60 | $2.50 |
 | `kimi-k2.5` | $0.60 | $2.00 |
 | `kimi-k2-0905-preview` | $0.60 | $2.00 |
 | `kimi-k2-0711-preview` | $0.60 | $2.00 |
@@ -728,7 +732,7 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 | Grok | All models | Grok 2 Image |
 | Mistral | All models | -- |
 | DeepSeek | -- | -- |
-| Kimi | kimi-k2.5 and moonshot-v1 variants | -- |
+| Kimi | kimi-k2.6 / k2.5 and moonshot-v1 variants | -- |
 | Z.ai | -- (requires GLM vision models not in catalog) | -- |
 | Ollama | Model-dependent (e.g. llava, llama3.2-vision) | -- |
 

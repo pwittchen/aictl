@@ -73,6 +73,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "gemini-3.1-flash-lite-preview",
         "LLM_GEMINI_API_KEY",
     ),
+    ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3", "LLM_GROK_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
@@ -80,12 +81,16 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("grok", "grok-4-fast-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4-1-fast-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4-1-fast-non-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
+    ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2.6-thinking", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2-0905-preview", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2-0711-preview", "LLM_KIMI_API_KEY"),
@@ -272,6 +277,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("gemini-3.1-pro") {
         return Some((2.00, 12.00));
     }
+    // Google Gemini — 3 Flash (frontier-class at reduced cost)
+    if model.starts_with("gemini-3-flash") {
+        return Some((0.50, 3.00));
+    }
     // Google Gemini — 2.5
     if model.starts_with("gemini-2.5-pro") {
         return Some((1.25, 10.00));
@@ -283,6 +292,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     // xAI Grok — 4 family (4.x Fast variants share pricing)
     if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
         return Some((0.20, 0.50));
+    }
+    if model.starts_with("grok-4.20") {
+        return Some((2.00, 6.00));
     }
     if model.starts_with("grok-4") {
         return Some((3.00, 15.00));
@@ -318,6 +330,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
 
     // Kimi
+    if model.starts_with("kimi-k2.6") {
+        return Some((0.60, 2.50));
+    }
     if model.starts_with("kimi-k2") || model.starts_with("kimi-k2.5") {
         return Some((0.60, 2.00));
     }
@@ -362,13 +377,19 @@ pub fn context_limit(model: &str) -> u64 {
     if model.contains("claude-") || model.contains("claude") {
         return 200_000;
     }
-    if model.starts_with("gemini-3.1-pro") || model.starts_with("gemini-3.1-flash-lite") {
+    if model.starts_with("gemini-3.1-pro")
+        || model.starts_with("gemini-3.1-flash-lite")
+        || model.starts_with("gemini-3-flash")
+    {
         return 1_000_000;
     }
     if model.starts_with("gemini-") {
         return 200_000;
     }
     if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
+        return 2_000_000;
+    }
+    if model.starts_with("grok-4.20") {
         return 2_000_000;
     }
     if model.starts_with("grok-4") {
@@ -566,6 +587,37 @@ mod tests {
     }
 
     #[test]
+    fn price_grok_4_20() {
+        let (i, o) = price_per_million("grok-4.20-0309-reasoning").unwrap();
+        assert_eq!(i, 2.00);
+        assert_eq!(o, 6.00);
+        let (i, o) = price_per_million("grok-4.20-0309-non-reasoning").unwrap();
+        assert_eq!(i, 2.00);
+        assert_eq!(o, 6.00);
+    }
+
+    #[test]
+    fn price_gemini_3_flash() {
+        let (i, o) = price_per_million("gemini-3-flash-preview").unwrap();
+        assert_eq!(i, 0.50);
+        assert_eq!(o, 3.00);
+    }
+
+    #[test]
+    fn price_kimi_k2_6() {
+        let (i, o) = price_per_million("kimi-k2.6").unwrap();
+        assert_eq!(i, 0.60);
+        assert_eq!(o, 2.50);
+        let (i, o) = price_per_million("kimi-k2.6-thinking").unwrap();
+        assert_eq!(i, 0.60);
+        assert_eq!(o, 2.50);
+        // existing kimi-k2 bucket still matches plain K2.5
+        let (i, o) = price_per_million("kimi-k2.5").unwrap();
+        assert_eq!(i, 0.60);
+        assert_eq!(o, 2.00);
+    }
+
+    #[test]
     fn price_glm_5_1_and_turbo() {
         let (i, o) = price_per_million("glm-5.1").unwrap();
         assert_eq!(i, 1.40);
@@ -753,7 +805,13 @@ mod tests {
         assert_eq!(context_limit("grok-4"), 256_000);
         assert_eq!(context_limit("grok-4-fast-reasoning"), 2_000_000);
         assert_eq!(context_limit("grok-4-1-fast-reasoning"), 2_000_000);
+        assert_eq!(context_limit("grok-4.20-0309-reasoning"), 2_000_000);
         assert_eq!(context_limit("grok-3"), 131_072);
+    }
+
+    #[test]
+    fn context_limit_gemini_3_flash_is_1m() {
+        assert_eq!(context_limit("gemini-3-flash-preview"), 1_000_000);
     }
 
     #[test]
