@@ -823,6 +823,7 @@ This project includes [Claude Code](https://claude.ai/code) skills for common wo
 | `/evaluate-rust-security` | Audit security posture, injection risks, and credential handling |
 | `/evaluate-rust-performance` | Audit performance patterns, allocations, and CLI responsiveness |
 | `/project-stats-report` | Generate a project statistics report (LOC, commit activity, contributors, etc.) |
+| `/sync-models` | Check each provider for newly released models and update the supported set and README |
 
 Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
 
