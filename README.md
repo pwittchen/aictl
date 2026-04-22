@@ -459,7 +459,8 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gemini-3-flash-preview` | $0.50 | $3.00 |
 | `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
-| `gemini-2.5-flash` | $0.15 | $0.60 |
+| `gemini-2.5-flash` | $0.30 | $2.50 |
+| `gemini-2.5-flash-lite` | $0.10 | $0.40 |
 
 Gemini 3.1 Pro uses dual-tier pricing that doubles above a 200K context threshold; the table shows the short-context rates. `gemini-2.0-flash` has been removed from the model list because Google is shutting it down on June 1, 2026.
 
@@ -495,8 +496,8 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `deepseek-chat` | $0.27 | $1.10 |
-| `deepseek-reasoner` | $0.55 | $2.19 |
+| `deepseek-chat` | $0.28 | $0.42 |
+| `deepseek-reasoner` | $0.28 | $0.42 |
 
 #### Kimi
 
@@ -504,17 +505,17 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `kimi-k2.6` | $0.60 | $2.50 |
-| `kimi-k2.6-thinking` | $0.60 | $2.50 |
-| `kimi-k2.5` | $0.60 | $2.00 |
-| `kimi-k2-0905-preview` | $0.60 | $2.00 |
-| `kimi-k2-0711-preview` | $0.60 | $2.00 |
-| `kimi-k2-turbo-preview` | $0.60 | $2.00 |
-| `kimi-k2-thinking` | $0.60 | $2.00 |
-| `kimi-k2-thinking-turbo` | $0.60 | $2.00 |
-| `moonshot-v1-128k` | $0.60 | $2.00 |
-| `moonshot-v1-32k` | $0.60 | $2.00 |
-| `moonshot-v1-8k` | $0.60 | $2.00 |
+| `kimi-k2.6` | $0.95 | $4.00 |
+| `kimi-k2.6-thinking` | $0.95 | $4.00 |
+| `kimi-k2.5` | $0.60 | $3.00 |
+| `kimi-k2-0905-preview` | $0.60 | $2.50 |
+| `kimi-k2-0711-preview` | $0.60 | $2.50 |
+| `kimi-k2-turbo-preview` | $1.15 | $8.00 |
+| `kimi-k2-thinking` | $0.60 | $2.50 |
+| `kimi-k2-thinking-turbo` | $1.15 | $8.00 |
+| `moonshot-v1-128k` | $2.00 | $5.00 |
+| `moonshot-v1-32k` | $1.00 | $3.00 |
+| `moonshot-v1-8k` | $0.20 | $2.00 |
 
 #### Z.ai
 
@@ -525,8 +526,16 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 | `glm-5.1` | $1.40 | $4.40 |
 | `glm-5-turbo` | $1.20 | $4.00 |
 | `glm-5` | $0.72 | $2.30 |
-| `glm-4.7` | $0.39 | $1.75 |
-| `glm-4.7-flash` | $0.06 | $0.40 |
+| `glm-4.7` | $0.60 | $2.20 |
+| `glm-4.7-flashx` | $0.07 | $0.40 |
+| `glm-4.7-flash` | Free | Free |
+| `glm-4.6` | $0.60 | $2.20 |
+| `glm-4.5` | $0.60 | $2.20 |
+| `glm-4.5-x` | $2.20 | $8.90 |
+| `glm-4.5-airx` | $1.10 | $4.50 |
+| `glm-4.5-air` | $0.20 | $1.10 |
+| `glm-4.5-flash` | Free | Free |
+| `glm-4-32b-0414-128k` | $0.10 | $0.10 |
 
 #### Ollama
 

@@ -41,10 +41,25 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "claude-sonnet-4-20250514",
         "LLM_ANTHROPIC_API_KEY",
     ),
+    (
+        "anthropic",
+        "claude-sonnet-4-5-20250929",
+        "LLM_ANTHROPIC_API_KEY",
+    ),
     ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
     (
         "anthropic",
         "claude-opus-4-20250514",
+        "LLM_ANTHROPIC_API_KEY",
+    ),
+    (
+        "anthropic",
+        "claude-opus-4-1-20250805",
+        "LLM_ANTHROPIC_API_KEY",
+    ),
+    (
+        "anthropic",
+        "claude-opus-4-5-20251101",
         "LLM_ANTHROPIC_API_KEY",
     ),
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
@@ -67,6 +82,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "o1", "LLM_OPENAI_API_KEY"),
     ("gemini", "gemini-2.5-pro", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-2.5-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-2.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
     (
         "gemini",
@@ -104,7 +120,15 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.7-flashx", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flash", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.6", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5-x", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5-airx", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5-air", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5-flash", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4-32b-0414-128k", "LLM_ZAI_API_KEY"),
 ];
 
 #[derive(Debug, Clone, Default)]
@@ -285,8 +309,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("gemini-2.5-pro") {
         return Some((1.25, 10.00));
     }
+    if model.starts_with("gemini-2.5-flash-lite") {
+        return Some((0.10, 0.40));
+    }
     if model.starts_with("gemini-2.5-flash") {
-        return Some((0.15, 0.60));
+        return Some((0.30, 2.50));
     }
 
     // xAI Grok — 4 family (4.x Fast variants share pricing)
@@ -321,23 +348,36 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.30, 0.90));
     }
 
-    // DeepSeek
-    if model.starts_with("deepseek-reasoner") {
-        return Some((0.55, 2.19));
-    }
-    if model.starts_with("deepseek-chat") {
-        return Some((0.27, 1.10));
+    // DeepSeek — V3.2 (chat & reasoner share pricing)
+    if model.starts_with("deepseek-reasoner") || model.starts_with("deepseek-chat") {
+        return Some((0.28, 0.42));
     }
 
-    // Kimi
+    // Kimi K2.6
     if model.starts_with("kimi-k2.6") {
+        return Some((0.95, 4.00));
+    }
+    // Kimi K2.5
+    if model.starts_with("kimi-k2.5") {
+        return Some((0.60, 3.00));
+    }
+    // Kimi K2 turbo variants — match BEFORE the general kimi-k2 branch
+    if model.starts_with("kimi-k2-turbo") || model.starts_with("kimi-k2-thinking-turbo") {
+        return Some((1.15, 8.00));
+    }
+    // Kimi K2 standard variants
+    if model.starts_with("kimi-k2") {
         return Some((0.60, 2.50));
     }
-    if model.starts_with("kimi-k2") || model.starts_with("kimi-k2.5") {
-        return Some((0.60, 2.00));
+    // Moonshot V1 — tiered by context window
+    if model.starts_with("moonshot-v1-128k") {
+        return Some((2.00, 5.00));
     }
-    if model.starts_with("moonshot-v1") {
-        return Some((0.60, 2.00));
+    if model.starts_with("moonshot-v1-32k") {
+        return Some((1.00, 3.00));
+    }
+    if model.starts_with("moonshot-v1-8k") {
+        return Some((0.20, 2.00));
     }
 
     // Z.ai — order matters: more specific prefixes first
@@ -350,11 +390,35 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("glm-5") {
         return Some((0.72, 2.30));
     }
+    if model.starts_with("glm-4.7-flashx") {
+        return Some((0.07, 0.40));
+    }
     if model.starts_with("glm-4.7-flash") {
-        return Some((0.06, 0.40));
+        return Some((0.00, 0.00));
     }
     if model.starts_with("glm-4.7") {
-        return Some((0.39, 1.75));
+        return Some((0.60, 2.20));
+    }
+    if model.starts_with("glm-4.6") {
+        return Some((0.60, 2.20));
+    }
+    if model.starts_with("glm-4.5-airx") {
+        return Some((1.10, 4.50));
+    }
+    if model.starts_with("glm-4.5-air") {
+        return Some((0.20, 1.10));
+    }
+    if model.starts_with("glm-4.5-x") {
+        return Some((2.20, 8.90));
+    }
+    if model.starts_with("glm-4.5-flash") {
+        return Some((0.00, 0.00));
+    }
+    if model.starts_with("glm-4.5") {
+        return Some((0.60, 2.20));
+    }
+    if model.starts_with("glm-4-32b") {
+        return Some((0.10, 0.10));
     }
 
     None
@@ -606,15 +670,14 @@ mod tests {
     #[test]
     fn price_kimi_k2_6() {
         let (i, o) = price_per_million("kimi-k2.6").unwrap();
-        assert_eq!(i, 0.60);
-        assert_eq!(o, 2.50);
+        assert_eq!(i, 0.95);
+        assert_eq!(o, 4.00);
         let (i, o) = price_per_million("kimi-k2.6-thinking").unwrap();
-        assert_eq!(i, 0.60);
-        assert_eq!(o, 2.50);
-        // existing kimi-k2 bucket still matches plain K2.5
+        assert_eq!(i, 0.95);
+        assert_eq!(o, 4.00);
         let (i, o) = price_per_million("kimi-k2.5").unwrap();
         assert_eq!(i, 0.60);
-        assert_eq!(o, 2.00);
+        assert_eq!(o, 3.00);
     }
 
     #[test]
@@ -703,7 +766,7 @@ mod tests {
 
     #[test]
     fn estimate_cost_deepseek_cache_read() {
-        // deepseek-chat: $0.27/M input, $1.10/M output, cache read = 25%
+        // deepseek-chat: $0.28/M input, $0.42/M output, cache read = 25%
         let usage = TokenUsage {
             input_tokens: 1_000_000,
             output_tokens: 1_000_000,
@@ -711,13 +774,13 @@ mod tests {
             ..TokenUsage::default()
         };
         let cost = usage.estimate_cost("deepseek-chat").unwrap();
-        // 1M * 0.27 + 1M * 0.27 * 0.25 + 1M * 1.10 = 0.27 + 0.0675 + 1.10 = 1.4375
-        assert!((cost - 1.4375).abs() < 1e-9);
+        // 1M * 0.28 + 1M * 0.28 * 0.25 + 1M * 0.42 = 0.28 + 0.07 + 0.42 = 0.77
+        assert!((cost - 0.77).abs() < 1e-9);
     }
 
     #[test]
     fn estimate_cost_gemini_cache_read() {
-        // gemini-2.5-flash: $0.15/M input, $0.60/M output, cache read = 25%
+        // gemini-2.5-flash: $0.30/M input, $2.50/M output, cache read = 25%
         let usage = TokenUsage {
             input_tokens: 1_000_000,
             output_tokens: 1_000_000,
@@ -725,8 +788,8 @@ mod tests {
             ..TokenUsage::default()
         };
         let cost = usage.estimate_cost("gemini-2.5-flash").unwrap();
-        // 1M * 0.15 + 1M * 0.15 * 0.25 + 1M * 0.60 = 0.15 + 0.0375 + 0.60 = 0.7875
-        assert!((cost - 0.7875).abs() < 1e-9);
+        // 1M * 0.30 + 1M * 0.30 * 0.25 + 1M * 2.50 = 0.30 + 0.075 + 2.50 = 2.875
+        assert!((cost - 2.875).abs() < 1e-9);
     }
 
     #[test]
