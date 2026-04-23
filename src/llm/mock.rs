@@ -13,15 +13,29 @@
 //! each test starts from a clean slate.
 
 use std::collections::VecDeque;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+#[cfg(test)]
+use std::sync::MutexGuard;
+use std::sync::{Mutex, PoisonError};
 
 use crate::Message;
 use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 
+/// Env var for spawned-binary tests (out-of-crate `tests/`): path to a file
+/// where each non-empty line is one scripted response. Consumed lazily on the
+/// first `call_mock` invocation that finds `MOCK_STATE.scripts` empty, so
+/// in-crate `MockGuard`-driven tests are unaffected.
+pub const MOCK_RESPONSES_FILE_ENV: &str = "AICTL_MOCK_RESPONSES_FILE";
+
+/// Marker separator between multi-line responses in the env-driven response
+/// file. A response in the file is everything between markers (or between the
+/// start/end of file and a marker); newlines inside a response are preserved.
+/// Tests can use multi-line responses by placing `---` on its own line.
+const MOCK_FILE_SEPARATOR: &str = "---";
+
 /// Outcome of a single scripted LLM call: either `Ok((response_text, usage))`
 /// or `Err(reason)` to simulate a provider failure.
-pub(crate) type MockResult = Result<(String, TokenUsage), String>;
+type MockResult = Result<(String, TokenUsage), String>;
 
 #[derive(Default)]
 struct MockState {
@@ -40,6 +54,7 @@ static MOCK_STATE: Mutex<MockState> = Mutex::new(MockState {
 /// Process-wide lock held by [`MockGuard`] so only one mock-using test can be
 /// driving the agent loop at a time. Without it, `cargo test`'s parallel
 /// runner would interleave script pops across tests.
+#[cfg(test)]
 static MOCK_LOCK: Mutex<()> = Mutex::new(());
 
 /// RAII guard held for the duration of a mock-using test.
@@ -48,6 +63,7 @@ static MOCK_LOCK: Mutex<()> = Mutex::new(());
 /// response queue / call log, and clears the tool-call history so duplicate
 /// detection from prior tests doesn't leak in. On drop the lock releases and
 /// the next waiting test can proceed.
+#[cfg(test)]
 pub(crate) struct MockGuard {
     _guard: MutexGuard<'static, ()>,
 }
@@ -55,6 +71,7 @@ pub(crate) struct MockGuard {
 // The `&self` receivers on the push/inspect methods below look unused, but they
 // tie method calls to the guard's lifetime — you can't push to the mock queue
 // without first acquiring the guard, which serializes access across tests.
+#[cfg(test)]
 #[allow(clippy::unused_self)]
 impl MockGuard {
     pub fn new() -> Self {
@@ -106,6 +123,62 @@ impl MockGuard {
     }
 }
 
+/// Parse a `MOCK_FILE_SEPARATOR`-delimited response file into a list of
+/// scripted responses. Responses are the text blocks between separator lines
+/// (or between start/end of file and a separator). Leading/trailing whitespace
+/// is trimmed per-response and empty responses are dropped so a trailing
+/// newline in the file doesn't script an extra empty reply.
+fn parse_mock_file(content: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for line in content.lines() {
+        if line.trim() == MOCK_FILE_SEPARATOR {
+            let trimmed = current.trim().to_string();
+            if !trimmed.is_empty() {
+                out.push(trimmed);
+            }
+            current.clear();
+        } else {
+            if !current.is_empty() {
+                current.push('\n');
+            }
+            current.push_str(line);
+        }
+    }
+    let trimmed = current.trim().to_string();
+    if !trimmed.is_empty() {
+        out.push(trimmed);
+    }
+    out
+}
+
+/// Lazily populate `MOCK_STATE.scripts` from the env-driven response file if
+/// it's currently empty. No-op when the env var is unset (the in-crate
+/// `MockGuard` tests path) or when the file cannot be read. Responses already
+/// queued by `MockGuard::push_response` take precedence; this only fills in
+/// on first-miss for spawned-binary tests.
+fn load_scripts_from_env(state: &mut MockState) {
+    if !state.scripts.is_empty() {
+        return;
+    }
+    let Ok(path) = std::env::var(MOCK_RESPONSES_FILE_ENV) else {
+        return;
+    };
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    for response in parse_mock_file(&content) {
+        state.scripts.push_back(Ok((
+            response,
+            TokenUsage {
+                input_tokens: 10,
+                output_tokens: 20,
+                ..TokenUsage::default()
+            },
+        )));
+    }
+}
+
 /// Scripted provider entry point. Matches the signature of real providers
 /// (`&str, &[Message], Option<TokenSink>`) so `run_agent_turn`'s dispatch arm
 /// can call it identically. A single-chunk stream is emitted to the sink when
@@ -123,6 +196,7 @@ pub async fn call_mock(
     let response = {
         let mut st = MOCK_STATE.lock().unwrap_or_else(PoisonError::into_inner);
         st.calls.push(messages.to_vec());
+        load_scripts_from_env(&mut st);
         st.scripts.pop_front().ok_or_else(|| {
             AictlError::Other(
                 "mock script exhausted — no more scripted responses queued".to_string(),

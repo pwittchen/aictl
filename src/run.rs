@@ -744,23 +744,15 @@ pub(crate) async fn run_agent_turn(
                 .await
             }
             Provider::Mock => {
-                #[cfg(test)]
-                {
-                    run_provider_call(
-                        tokio::time::timeout(
-                            llm_timeout,
-                            llm::mock::call_mock(model, llm_messages, sink),
-                        ),
-                        rx_opt,
-                        ui,
-                    )
-                    .await
-                }
-                #[cfg(not(test))]
-                {
-                    let _ = (llm_timeout, llm_messages, sink, rx_opt);
-                    unreachable!("Provider::Mock is test-only and never selected at runtime")
-                }
+                run_provider_call(
+                    tokio::time::timeout(
+                        llm_timeout,
+                        llm::mock::call_mock(model, llm_messages, sink),
+                    ),
+                    rx_opt,
+                    ui,
+                )
+                .await
             }
         };
         let call_elapsed = call_start.elapsed();

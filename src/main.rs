@@ -230,6 +230,13 @@ struct Cli {
     /// Remove every downloaded NER model and exit.
     #[arg(long = "clear-ner-models")]
     clear_ner_models: bool,
+
+    /// Internal: route all LLM calls to the scripted mock provider. Used by
+    /// the end-to-end smoke tests under `tests/`. Scripted responses are read
+    /// from `AICTL_MOCK_RESPONSES_FILE` on first call; hidden from `--help`
+    /// because it is not a user-facing flag.
+    #[arg(long = "mock", hide = true)]
+    mock: bool,
 }
 
 #[tokio::main]
@@ -247,9 +254,20 @@ async fn main() {
         return;
     }
 
-    let provider = resolve_provider(cli.provider.clone());
-    let model = resolve_model(cli.model.clone());
-    let api_key = resolve_api_key(&provider);
+    let (provider, model, api_key) = if cli.mock {
+        (
+            Provider::Mock,
+            cli.model
+                .clone()
+                .unwrap_or_else(|| "mock-model".to_string()),
+            String::new(),
+        )
+    } else {
+        let provider = resolve_provider(cli.provider.clone());
+        let model = resolve_model(cli.model.clone());
+        let api_key = resolve_api_key(&provider);
+        (provider, model, api_key)
+    };
 
     session::set_incognito(resolve_incognito(cli.incognito));
     load_agent_if_requested(cli.agent.as_deref());
