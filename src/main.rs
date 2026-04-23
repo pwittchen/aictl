@@ -232,7 +232,6 @@ struct Cli {
 }
 
 #[tokio::main]
-#[allow(clippy::too_many_lines)]
 async fn main() {
     load_config();
 
@@ -243,360 +242,17 @@ async fn main() {
         eprintln!("Warning: security restrictions disabled (--unrestricted)");
     }
 
-    if cli.version {
-        let version_info = version_info_string(fetch_remote_version().await.as_deref());
-        if version_info.is_empty() {
-            println!("aictl {VERSION}");
-        } else {
-            println!("aictl {VERSION} {version_info}");
-        }
+    if handle_management_flags(&cli).await {
         return;
     }
 
-    if cli.update {
-        commands::run_update_cli().await;
-        return;
-    }
+    let provider = resolve_provider(cli.provider.clone());
+    let model = resolve_model(cli.model.clone());
+    let api_key = resolve_api_key(&provider);
 
-    if cli.uninstall {
-        commands::run_uninstall_cli();
-        return;
-    }
-
-    if cli.list_sessions {
-        commands::print_sessions_cli();
-        return;
-    }
-
-    if cli.clear_sessions {
-        session::clear_all();
-        println!("All saved sessions cleared.");
-        return;
-    }
-
-    if cli.list_agents {
-        commands::print_agents_cli(cli.category.as_deref());
-        return;
-    }
-
-    if let Some(name) = cli.pull_agent.as_deref() {
-        let outcome = agents::remote::pull(name, || {
-            if cli.force {
-                return true;
-            }
-            // Non-interactive CLI: without --force, don't silently clobber.
-            eprintln!("Error: agent '{name}' already exists. Re-run with --force to overwrite.");
-            false
-        })
-        .await;
-        match outcome {
-            Ok(agents::remote::PullOutcome::Installed) => {
-                println!("pulled official agent: {name}");
-            }
-            Ok(agents::remote::PullOutcome::Overwritten) => {
-                println!("updated official agent: {name}");
-            }
-            Ok(agents::remote::PullOutcome::SkippedExisting) => {
-                // Message already printed by the decider above.
-                std::process::exit(1);
-            }
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.list_skills {
-        commands::print_skills_cli(cli.category.as_deref());
-        return;
-    }
-
-    if let Some(name) = cli.pull_skill.as_deref() {
-        let outcome = skills::remote::pull(name, || {
-            if cli.force {
-                return true;
-            }
-            eprintln!("Error: skill '{name}' already exists. Re-run with --force to overwrite.");
-            false
-        })
-        .await;
-        match outcome {
-            Ok(skills::remote::PullOutcome::Installed) => {
-                println!("pulled official skill: {name}");
-            }
-            Ok(skills::remote::PullOutcome::Overwritten) => {
-                println!("updated official skill: {name}");
-            }
-            Ok(skills::remote::PullOutcome::SkippedExisting) => {
-                std::process::exit(1);
-            }
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.config {
-        commands::run_config_wizard(false);
-        return;
-    }
-
-    if cli.lock_keys {
-        commands::run_lock_keys(&|msg| eprintln!("Error: {msg}"));
-        return;
-    }
-
-    if cli.unlock_keys {
-        commands::run_unlock_keys(&|msg| eprintln!("Error: {msg}"));
-        return;
-    }
-
-    if cli.clear_keys {
-        commands::run_clear_keys_unconfirmed();
-        return;
-    }
-
-    if let Some(spec) = cli.pull_gguf_model.as_deref() {
-        match llm::gguf::download_model(spec, None).await {
-            Ok(name) => println!("downloaded GGUF model: {name}"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.list_gguf_models {
-        let models = llm::gguf::list_models();
-        if models.is_empty() {
-            println!(
-                "No GGUF models downloaded. Use `aictl --pull-gguf-model <spec>` to fetch one."
-            );
-        } else {
-            for m in models {
-                println!("{m}");
-            }
-        }
-        return;
-    }
-
-    if let Some(name) = cli.remove_gguf_model.as_deref() {
-        match llm::gguf::remove_model(name) {
-            Ok(()) => println!("removed GGUF model: {name}"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.clear_gguf_models {
-        match llm::gguf::clear_models() {
-            Ok(n) => println!("removed {n} GGUF model(s)"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if let Some(spec) = cli.pull_mlx_model.as_deref() {
-        match llm::mlx::download_model(spec, None).await {
-            Ok(name) => println!("downloaded MLX model: {name}"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.list_mlx_models {
-        let models = llm::mlx::list_models();
-        if models.is_empty() {
-            println!("No MLX models downloaded. Use `aictl --pull-mlx-model <spec>` to fetch one.");
-        } else {
-            for m in models {
-                println!("{m}");
-            }
-        }
-        return;
-    }
-
-    if let Some(name) = cli.remove_mlx_model.as_deref() {
-        match llm::mlx::remove_model(name) {
-            Ok(()) => println!("removed MLX model: {name}"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.clear_mlx_models {
-        match llm::mlx::clear_models() {
-            Ok(n) => println!("removed {n} MLX model(s)"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if let Some(spec) = cli.pull_ner_model.as_deref() {
-        match security::redaction::ner::download_model(spec, None).await {
-            Ok(name) => {
-                println!("downloaded NER model: {name}");
-                if !security::redaction::ner::is_available() {
-                    eprintln!(
-                        "note: this build lacks the `redaction-ner` feature, so the \
-                         pulled model cannot be used for inference yet. Rebuild with \
-                         `cargo build --features redaction-ner`."
-                    );
-                }
-            }
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.list_ner_models {
-        let models = security::redaction::ner::list_models();
-        if models.is_empty() {
-            println!(
-                "No NER models downloaded. Use `aictl --pull-ner-model {}` to fetch one.",
-                security::redaction::ner::DEFAULT_NER_MODEL
-            );
-        } else {
-            for m in models {
-                println!("{m}");
-            }
-        }
-        return;
-    }
-
-    if let Some(name) = cli.remove_ner_model.as_deref() {
-        match security::redaction::ner::remove_model(name) {
-            Ok(()) => println!("removed NER model: {name}"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    if cli.clear_ner_models {
-        match security::redaction::ner::clear_models() {
-            Ok(n) => println!("removed {n} NER model(s)"),
-            Err(e) => {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
-        }
-        return;
-    }
-
-    let provider = cli.provider.unwrap_or_else(|| {
-        match config_get("AICTL_PROVIDER").as_deref() {
-            Some("openai") => Provider::Openai,
-            Some("anthropic") => Provider::Anthropic,
-            Some("gemini") => Provider::Gemini,
-            Some("grok") => Provider::Grok,
-            Some("mistral") => Provider::Mistral,
-            Some("deepseek") => Provider::Deepseek,
-            Some("kimi") => Provider::Kimi,
-            Some("zai") => Provider::Zai,
-            Some("ollama") => Provider::Ollama,
-            Some("gguf") => Provider::Gguf,
-            Some("mlx") => Provider::Mlx,
-            Some(other) => {
-                eprintln!("Error: invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'gguf', or 'mlx')");
-                std::process::exit(1);
-            }
-            None => {
-                eprintln!("Error: no provider specified. Use --provider, set AICTL_PROVIDER in ~/.aictl/config, or run aictl --config");
-                std::process::exit(1);
-            }
-        }
-    });
-
-    let model = cli.model.unwrap_or_else(|| {
-        config_get("AICTL_MODEL").unwrap_or_else(|| {
-            eprintln!("Error: no model specified. Use --model, set AICTL_MODEL in ~/.aictl/config, or run aictl --config");
-            std::process::exit(1);
-        })
-    });
-
-    let api_key = if matches!(
-        provider,
-        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
-    ) {
-        String::new()
-    } else {
-        let key_name = match provider {
-            Provider::Openai => "LLM_OPENAI_API_KEY",
-            Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
-            Provider::Gemini => "LLM_GEMINI_API_KEY",
-            Provider::Grok => "LLM_GROK_API_KEY",
-            Provider::Mistral => "LLM_MISTRAL_API_KEY",
-            Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
-            Provider::Kimi => "LLM_KIMI_API_KEY",
-            Provider::Zai => "LLM_ZAI_API_KEY",
-            Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
-        };
-        keys::get_secret(key_name).unwrap_or_else(|| {
-            eprintln!("Error: API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config");
-            std::process::exit(1);
-        })
-    };
-
-    let incognito = cli.incognito
-        || match config_get("AICTL_INCOGNITO").as_deref() {
-            Some("true") => true,
-            Some("false") | None => false,
-            Some(other) => {
-                eprintln!(
-                    "Error: invalid AICTL_INCOGNITO value '{other}' (expected 'true' or 'false')"
-                );
-                std::process::exit(1);
-            }
-        };
-    session::set_incognito(incognito);
-
-    if let Some(ref name) = cli.agent {
-        if !agents::is_valid_name(name) {
-            eprintln!(
-                "Error: invalid agent name '{name}' (use only letters, numbers, underscore, or dash)"
-            );
-            std::process::exit(1);
-        }
-        if let Ok(prompt) = agents::read_agent(name) {
-            agents::load_agent(name, &prompt);
-        } else {
-            eprintln!("Error: agent '{name}' not found");
-            std::process::exit(1);
-        }
-    }
-
-    let loaded_skill = cli.skill.as_deref().map(|name| {
-        skills::find(name).unwrap_or_else(|| {
-            eprintln!("Error: skill '{name}' not found");
-            std::process::exit(1);
-        })
-    });
+    session::set_incognito(resolve_incognito(cli.incognito));
+    load_agent_if_requested(cli.agent.as_deref());
+    let loaded_skill = resolve_skill(cli.skill.as_deref());
 
     let result = match cli.message {
         Some(ref msg) => {
@@ -628,4 +284,381 @@ async fn main() {
         eprintln!("Error: {e}");
         std::process::exit(1);
     }
+}
+
+/// Handle CLI flags that short-circuit normal execution (version checks,
+/// administrative commands, model management). Returns `true` when one of
+/// these flags was recognized and handled so the caller should return without
+/// starting a session. Each subsystem has its own helper below.
+async fn handle_management_flags(cli: &Cli) -> bool {
+    if handle_info_flags(cli).await {
+        return true;
+    }
+    if handle_session_flags(cli) {
+        return true;
+    }
+    if handle_agent_skill_flags(cli).await {
+        return true;
+    }
+    if handle_wizard_and_key_flags(cli) {
+        return true;
+    }
+    if handle_gguf_flags(cli).await {
+        return true;
+    }
+    if handle_mlx_flags(cli).await {
+        return true;
+    }
+    if handle_ner_flags(cli).await {
+        return true;
+    }
+    false
+}
+
+async fn handle_info_flags(cli: &Cli) -> bool {
+    if cli.version {
+        let version_info = version_info_string(fetch_remote_version().await.as_deref());
+        if version_info.is_empty() {
+            println!("aictl {VERSION}");
+        } else {
+            println!("aictl {VERSION} {version_info}");
+        }
+        return true;
+    }
+    if cli.update {
+        commands::run_update_cli().await;
+        return true;
+    }
+    if cli.uninstall {
+        commands::run_uninstall_cli();
+        return true;
+    }
+    false
+}
+
+fn handle_session_flags(cli: &Cli) -> bool {
+    if cli.list_sessions {
+        commands::print_sessions_cli();
+        return true;
+    }
+    if cli.clear_sessions {
+        session::clear_all();
+        println!("All saved sessions cleared.");
+        return true;
+    }
+    false
+}
+
+async fn handle_agent_skill_flags(cli: &Cli) -> bool {
+    if cli.list_agents {
+        commands::print_agents_cli(cli.category.as_deref());
+        return true;
+    }
+    if let Some(name) = cli.pull_agent.as_deref() {
+        pull_remote_agent(name, cli.force).await;
+        return true;
+    }
+    if cli.list_skills {
+        commands::print_skills_cli(cli.category.as_deref());
+        return true;
+    }
+    if let Some(name) = cli.pull_skill.as_deref() {
+        pull_remote_skill(name, cli.force).await;
+        return true;
+    }
+    false
+}
+
+async fn pull_remote_agent(name: &str, force: bool) {
+    let outcome = agents::remote::pull(name, || {
+        if force {
+            return true;
+        }
+        // Non-interactive CLI: without --force, don't silently clobber.
+        eprintln!("Error: agent '{name}' already exists. Re-run with --force to overwrite.");
+        false
+    })
+    .await;
+    match outcome {
+        Ok(agents::remote::PullOutcome::Installed) => {
+            println!("pulled official agent: {name}");
+        }
+        Ok(agents::remote::PullOutcome::Overwritten) => {
+            println!("updated official agent: {name}");
+        }
+        Ok(agents::remote::PullOutcome::SkippedExisting) => {
+            // Message already printed by the decider above.
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn pull_remote_skill(name: &str, force: bool) {
+    let outcome = skills::remote::pull(name, || {
+        if force {
+            return true;
+        }
+        eprintln!("Error: skill '{name}' already exists. Re-run with --force to overwrite.");
+        false
+    })
+    .await;
+    match outcome {
+        Ok(skills::remote::PullOutcome::Installed) => {
+            println!("pulled official skill: {name}");
+        }
+        Ok(skills::remote::PullOutcome::Overwritten) => {
+            println!("updated official skill: {name}");
+        }
+        Ok(skills::remote::PullOutcome::SkippedExisting) => {
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_wizard_and_key_flags(cli: &Cli) -> bool {
+    if cli.config {
+        commands::run_config_wizard(false);
+        return true;
+    }
+    if cli.lock_keys {
+        commands::run_lock_keys(&|msg| eprintln!("Error: {msg}"));
+        return true;
+    }
+    if cli.unlock_keys {
+        commands::run_unlock_keys(&|msg| eprintln!("Error: {msg}"));
+        return true;
+    }
+    if cli.clear_keys {
+        commands::run_clear_keys_unconfirmed();
+        return true;
+    }
+    false
+}
+
+async fn handle_gguf_flags(cli: &Cli) -> bool {
+    if let Some(spec) = cli.pull_gguf_model.as_deref() {
+        match llm::gguf::download_model(spec, None).await {
+            Ok(name) => println!("downloaded GGUF model: {name}"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.list_gguf_models {
+        let models = llm::gguf::list_models();
+        if models.is_empty() {
+            println!(
+                "No GGUF models downloaded. Use `aictl --pull-gguf-model <spec>` to fetch one."
+            );
+        } else {
+            for m in models {
+                println!("{m}");
+            }
+        }
+        return true;
+    }
+    if let Some(name) = cli.remove_gguf_model.as_deref() {
+        match llm::gguf::remove_model(name) {
+            Ok(()) => println!("removed GGUF model: {name}"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.clear_gguf_models {
+        match llm::gguf::clear_models() {
+            Ok(n) => println!("removed {n} GGUF model(s)"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    false
+}
+
+async fn handle_mlx_flags(cli: &Cli) -> bool {
+    if let Some(spec) = cli.pull_mlx_model.as_deref() {
+        match llm::mlx::download_model(spec, None).await {
+            Ok(name) => println!("downloaded MLX model: {name}"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.list_mlx_models {
+        let models = llm::mlx::list_models();
+        if models.is_empty() {
+            println!("No MLX models downloaded. Use `aictl --pull-mlx-model <spec>` to fetch one.");
+        } else {
+            for m in models {
+                println!("{m}");
+            }
+        }
+        return true;
+    }
+    if let Some(name) = cli.remove_mlx_model.as_deref() {
+        match llm::mlx::remove_model(name) {
+            Ok(()) => println!("removed MLX model: {name}"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.clear_mlx_models {
+        match llm::mlx::clear_models() {
+            Ok(n) => println!("removed {n} MLX model(s)"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    false
+}
+
+async fn handle_ner_flags(cli: &Cli) -> bool {
+    if let Some(spec) = cli.pull_ner_model.as_deref() {
+        match security::redaction::ner::download_model(spec, None).await {
+            Ok(name) => {
+                println!("downloaded NER model: {name}");
+                if !security::redaction::ner::is_available() {
+                    eprintln!(
+                        "note: this build lacks the `redaction-ner` feature, so the \
+                         pulled model cannot be used for inference yet. Rebuild with \
+                         `cargo build --features redaction-ner`."
+                    );
+                }
+            }
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.list_ner_models {
+        let models = security::redaction::ner::list_models();
+        if models.is_empty() {
+            println!(
+                "No NER models downloaded. Use `aictl --pull-ner-model {}` to fetch one.",
+                security::redaction::ner::DEFAULT_NER_MODEL
+            );
+        } else {
+            for m in models {
+                println!("{m}");
+            }
+        }
+        return true;
+    }
+    if let Some(name) = cli.remove_ner_model.as_deref() {
+        match security::redaction::ner::remove_model(name) {
+            Ok(()) => println!("removed NER model: {name}"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    if cli.clear_ner_models {
+        match security::redaction::ner::clear_models() {
+            Ok(n) => println!("removed {n} NER model(s)"),
+            Err(e) => exit_with_error(&e.to_string()),
+        }
+        return true;
+    }
+    false
+}
+
+fn exit_with_error(msg: &str) -> ! {
+    eprintln!("Error: {msg}");
+    std::process::exit(1);
+}
+
+fn resolve_provider(override_: Option<Provider>) -> Provider {
+    override_.unwrap_or_else(|| {
+        match config_get("AICTL_PROVIDER").as_deref() {
+            Some("openai") => Provider::Openai,
+            Some("anthropic") => Provider::Anthropic,
+            Some("gemini") => Provider::Gemini,
+            Some("grok") => Provider::Grok,
+            Some("mistral") => Provider::Mistral,
+            Some("deepseek") => Provider::Deepseek,
+            Some("kimi") => Provider::Kimi,
+            Some("zai") => Provider::Zai,
+            Some("ollama") => Provider::Ollama,
+            Some("gguf") => Provider::Gguf,
+            Some("mlx") => Provider::Mlx,
+            Some(other) => {
+                exit_with_error(&format!(
+                    "invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'gguf', or 'mlx')"
+                ));
+            }
+            None => exit_with_error(
+                "no provider specified. Use --provider, set AICTL_PROVIDER in ~/.aictl/config, or run aictl --config",
+            ),
+        }
+    })
+}
+
+fn resolve_model(override_: Option<String>) -> String {
+    override_.unwrap_or_else(|| {
+        config_get("AICTL_MODEL").unwrap_or_else(|| {
+            exit_with_error(
+                "no model specified. Use --model, set AICTL_MODEL in ~/.aictl/config, or run aictl --config",
+            )
+        })
+    })
+}
+
+fn resolve_api_key(provider: &Provider) -> String {
+    if matches!(
+        provider,
+        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
+    ) {
+        return String::new();
+    }
+    let key_name = match provider {
+        Provider::Openai => "LLM_OPENAI_API_KEY",
+        Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
+        Provider::Gemini => "LLM_GEMINI_API_KEY",
+        Provider::Grok => "LLM_GROK_API_KEY",
+        Provider::Mistral => "LLM_MISTRAL_API_KEY",
+        Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
+        Provider::Kimi => "LLM_KIMI_API_KEY",
+        Provider::Zai => "LLM_ZAI_API_KEY",
+        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
+    };
+    keys::get_secret(key_name).unwrap_or_else(|| {
+        exit_with_error(&format!(
+            "API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config"
+        ))
+    })
+}
+
+fn resolve_incognito(cli_flag: bool) -> bool {
+    if cli_flag {
+        return true;
+    }
+    match config_get("AICTL_INCOGNITO").as_deref() {
+        Some("true") => true,
+        Some("false") | None => false,
+        Some(other) => exit_with_error(&format!(
+            "invalid AICTL_INCOGNITO value '{other}' (expected 'true' or 'false')"
+        )),
+    }
+}
+
+fn load_agent_if_requested(name: Option<&str>) {
+    let Some(name) = name else { return };
+    if !agents::is_valid_name(name) {
+        exit_with_error(&format!(
+            "invalid agent name '{name}' (use only letters, numbers, underscore, or dash)"
+        ));
+    }
+    match agents::read_agent(name) {
+        Ok(prompt) => agents::load_agent(name, &prompt),
+        Err(_) => exit_with_error(&format!("agent '{name}' not found")),
+    }
+}
+
+fn resolve_skill(name: Option<&str>) -> Option<skills::Skill> {
+    name.map(|name| {
+        skills::find(name).unwrap_or_else(|| exit_with_error(&format!("skill '{name}' not found")))
+    })
 }

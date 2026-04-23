@@ -155,12 +155,11 @@ enum ReplAction {
     },
 }
 
-/// Handle a single REPL input line: dispatch slash commands, auto-compact, etc.
-#[allow(
-    clippy::too_many_arguments,
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_lines
-)]
+/// Handle a single REPL input line. Thin coordinator: validates the line,
+/// asks [`commands::handle`] to classify it, then either dispatches the slash
+/// command (via [`dispatch_slash_command`]) or falls through to the user-turn
+/// path (auto-compact, then return [`ReplAction::RunAgentTurn`]).
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn handle_repl_input(
     input: &str,
     last_answer: &mut String,
@@ -182,386 +181,532 @@ async fn handle_repl_input(
         return ReplAction::Break;
     }
 
-    match commands::handle(input, last_answer, &|msg| ui.show_error(msg)) {
-        commands::CommandResult::Exit => return ReplAction::Break,
+    let result = commands::handle(input, last_answer, &|msg| ui.show_error(msg));
+    if matches!(result, commands::CommandResult::NotACommand) {
+        let _ = rl.add_history_entry(input);
+        handle_user_turn(
+            provider,
+            api_key,
+            model,
+            messages,
+            last_input_tokens,
+            ui,
+            *memory,
+        )
+        .await;
+        return ReplAction::RunAgentTurn;
+    }
+
+    dispatch_slash_command(
+        result,
+        input,
+        last_answer,
+        ui,
+        rl,
+        messages,
+        last_input_tokens,
+        provider,
+        api_key,
+        model,
+        auto,
+        memory,
+        version_info,
+    )
+    .await
+}
+
+/// Dispatch a non-NotACommand [`commands::CommandResult`]. Each arm is a
+/// one-line call to a focused helper so the diff for any single command stays
+/// local. History is added once (except for `Exit`, which exits immediately).
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+async fn dispatch_slash_command(
+    result: commands::CommandResult,
+    input: &str,
+    last_answer: &mut String,
+    ui: &InteractiveUI,
+    rl: &mut rustyline::Editor<SlashCommandHelper, rustyline::history::DefaultHistory>,
+    messages: &mut Vec<Message>,
+    last_input_tokens: &mut u64,
+    provider: &mut Provider,
+    api_key: &mut String,
+    model: &mut String,
+    auto: &mut bool,
+    memory: &mut MemoryMode,
+    version_info: &str,
+) -> ReplAction {
+    if matches!(result, commands::CommandResult::Exit) {
+        return ReplAction::Break;
+    }
+    let _ = rl.add_history_entry(input);
+
+    match result {
+        commands::CommandResult::Exit | commands::CommandResult::NotACommand => unreachable!(),
         commands::CommandResult::Clear => {
-            let _ = rl.add_history_entry(input);
-            messages.truncate(1);
-            tools::clear_call_history();
-            last_answer.clear();
-            *last_input_tokens = 0;
-            println!();
-            println!("  {} context cleared", "✓".with(Color::Green));
-            println!();
-            return ReplAction::Continue;
+            handle_clear(messages, last_answer, last_input_tokens);
+            ReplAction::Continue
         }
         commands::CommandResult::Compact => {
-            let _ = rl.add_history_entry(input);
-            commands::compact(
+            handle_compact(
                 provider,
                 api_key,
                 model,
                 messages,
                 ui,
-                &memory.to_string(),
-                false,
+                *memory,
+                last_input_tokens,
             )
             .await;
-            *last_input_tokens = 0;
-            session::save_current(messages);
-            return ReplAction::Continue;
+            ReplAction::Continue
         }
         commands::CommandResult::Session => {
-            let _ = rl.add_history_entry(input);
-            if session::is_incognito() {
-                println!();
-                println!(
-                    "  {} incognito mode: session functionality is disabled",
-                    "⚠".with(Color::Yellow)
-                );
-                println!();
-            } else {
-                if commands::run_session_menu(messages, &|msg| ui.show_error(msg)) {
-                    *last_input_tokens = 0;
-                }
-                session::save_current(messages);
-            }
-            return ReplAction::Continue;
+            handle_session(messages, last_input_tokens, ui);
+            ReplAction::Continue
         }
         commands::CommandResult::Agent(name) => {
-            let _ = rl.add_history_entry(input);
-            if let Some(name) = name {
-                commands::load_agent_by_name(&name, messages, &|msg| ui.show_error(msg));
+            handle_agent(name.as_deref(), provider, api_key, model, messages, ui).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Skills => handle_skills(provider, api_key, model, ui).await,
+        commands::CommandResult::InvokeSkill { name, task } => handle_invoke_skill(&name, task, ui),
+        commands::CommandResult::Gguf => {
+            commands::run_gguf_menu(&|msg| ui.show_error(msg)).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Mlx => {
+            commands::run_mlx_menu(&|msg| ui.show_error(msg)).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Context => {
+            commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
+            ReplAction::Continue
+        }
+        commands::CommandResult::History(args) => {
+            commands::print_history(messages, &args);
+            ReplAction::Continue
+        }
+        commands::CommandResult::Info => {
+            let pname = format!("{provider:?}").to_lowercase();
+            let ollama_models = llm::ollama::list_models().await;
+            commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
+            ReplAction::Continue
+        }
+        commands::CommandResult::Security => {
+            commands::print_security();
+            ReplAction::Continue
+        }
+        commands::CommandResult::Continue => ReplAction::Continue,
+        commands::CommandResult::Keys => {
+            commands::run_keys_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
+        commands::CommandResult::Stats => {
+            commands::run_stats_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
+        commands::CommandResult::Ping => {
+            commands::run_ping().await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Roadmap(query) => {
+            commands::run_roadmap(query.as_deref(), &|msg| ui.show_error(msg)).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Retry => {
+            handle_retry(messages, last_answer, last_input_tokens, ui)
+        }
+        commands::CommandResult::Undo(n) => {
+            handle_undo(n, messages, last_answer, last_input_tokens, ui);
+            ReplAction::Continue
+        }
+        commands::CommandResult::Config => {
+            handle_config_command(provider, api_key, model, ui);
+            ReplAction::Continue
+        }
+        commands::CommandResult::Update => {
+            if commands::run_update(&|msg| ui.show_error(msg)).await {
+                ReplAction::Break
             } else {
-                commands::run_agent_menu(provider, api_key, model, messages, ui, &|msg| {
-                    ui.show_error(msg);
-                })
-                .await;
+                ReplAction::Continue
             }
-            return ReplAction::Continue;
         }
-        commands::CommandResult::Skills => {
-            let _ = rl.add_history_entry(input);
-            match commands::run_skills_menu(provider, api_key, model, ui, &|msg| {
-                ui.show_error(msg);
-            })
-            .await
-            {
-                commands::SkillsMenuOutcome::Nothing => {}
-                commands::SkillsMenuOutcome::Invoke { name, task } => {
-                    let Some(skill) = skills::find(&name) else {
-                        ui.show_error(&format!("Skill '{name}' not found"));
-                        return ReplAction::Continue;
-                    };
-                    return ReplAction::InvokeSkill { skill, task };
-                }
+        commands::CommandResult::Uninstall => {
+            if commands::run_uninstall_repl(&|msg| ui.show_error(msg)) {
+                ReplAction::Break
+            } else {
+                ReplAction::Continue
             }
-            return ReplAction::Continue;
         }
-        commands::CommandResult::InvokeSkill { name, task } => {
-            let _ = rl.add_history_entry(input);
+        commands::CommandResult::Version => {
+            commands::run_version(&|msg| ui.show_error(msg)).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Model(query) => {
+            handle_model_switch(query.as_deref(), provider, api_key, model, ui).await;
+            ReplAction::Continue
+        }
+        commands::CommandResult::Behavior => {
+            handle_behavior(auto);
+            ReplAction::Continue
+        }
+        commands::CommandResult::Memory => {
+            handle_memory(memory);
+            ReplAction::Continue
+        }
+    }
+}
+
+// --- Per-command helpers (stateful) ---
+
+fn handle_clear(
+    messages: &mut Vec<Message>,
+    last_answer: &mut String,
+    last_input_tokens: &mut u64,
+) {
+    messages.truncate(1);
+    tools::clear_call_history();
+    last_answer.clear();
+    *last_input_tokens = 0;
+    println!();
+    println!("  {} context cleared", "✓".with(Color::Green));
+    println!();
+}
+
+async fn handle_compact(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut Vec<Message>,
+    ui: &InteractiveUI,
+    memory: MemoryMode,
+    last_input_tokens: &mut u64,
+) {
+    commands::compact(
+        provider,
+        api_key,
+        model,
+        messages,
+        ui,
+        &memory.to_string(),
+        false,
+    )
+    .await;
+    *last_input_tokens = 0;
+    session::save_current(messages);
+}
+
+fn handle_session(messages: &mut Vec<Message>, last_input_tokens: &mut u64, ui: &InteractiveUI) {
+    if session::is_incognito() {
+        println!();
+        println!(
+            "  {} incognito mode: session functionality is disabled",
+            "⚠".with(Color::Yellow)
+        );
+        println!();
+        return;
+    }
+    if commands::run_session_menu(messages, &|msg| ui.show_error(msg)) {
+        *last_input_tokens = 0;
+    }
+    session::save_current(messages);
+}
+
+async fn handle_agent(
+    name: Option<&str>,
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut [Message],
+    ui: &InteractiveUI,
+) {
+    if let Some(name) = name {
+        commands::load_agent_by_name(name, messages, &|msg| ui.show_error(msg));
+    } else {
+        commands::run_agent_menu(provider, api_key, model, messages, ui, &|msg| {
+            ui.show_error(msg);
+        })
+        .await;
+    }
+}
+
+async fn handle_skills(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    ui: &InteractiveUI,
+) -> ReplAction {
+    match commands::run_skills_menu(provider, api_key, model, ui, &|msg| ui.show_error(msg)).await {
+        commands::SkillsMenuOutcome::Nothing => ReplAction::Continue,
+        commands::SkillsMenuOutcome::Invoke { name, task } => {
             let Some(skill) = skills::find(&name) else {
                 ui.show_error(&format!("Skill '{name}' not found"));
                 return ReplAction::Continue;
             };
-            // Task is optional. When absent, the skill body alone drives the
-            // turn via a minimal trigger message the LLM sees as the user
-            // saying "run this skill."
-            return ReplAction::InvokeSkill { skill, task };
+            ReplAction::InvokeSkill { skill, task }
         }
-        commands::CommandResult::Gguf => {
-            let _ = rl.add_history_entry(input);
-            commands::run_gguf_menu(&|msg| ui.show_error(msg)).await;
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Mlx => {
-            let _ = rl.add_history_entry(input);
-            commands::run_mlx_menu(&|msg| ui.show_error(msg)).await;
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Context => {
-            let _ = rl.add_history_entry(input);
-            commands::print_context(model, messages.len(), *last_input_tokens, MAX_MESSAGES);
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::History(args) => {
-            let _ = rl.add_history_entry(input);
-            commands::print_history(messages, &args);
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Info => {
-            let _ = rl.add_history_entry(input);
-            let pname = format!("{provider:?}").to_lowercase();
-            let ollama_models = llm::ollama::list_models().await;
-            commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Security => {
-            let _ = rl.add_history_entry(input);
-            commands::print_security();
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Continue => {
-            let _ = rl.add_history_entry(input);
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Keys => {
-            let _ = rl.add_history_entry(input);
-            commands::run_keys_menu(&|msg| ui.show_error(msg));
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Stats => {
-            let _ = rl.add_history_entry(input);
-            commands::run_stats_menu(&|msg| ui.show_error(msg));
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Ping => {
-            let _ = rl.add_history_entry(input);
-            commands::run_ping().await;
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Roadmap(query) => {
-            let _ = rl.add_history_entry(input);
-            commands::run_roadmap(query.as_deref(), &|msg| ui.show_error(msg)).await;
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Retry => {
-            let _ = rl.add_history_entry(input);
-            let Some(prompt) = commands::retry_last_exchange(messages) else {
-                ui.show_error("nothing to retry");
-                return ReplAction::Continue;
-            };
-            tools::clear_call_history();
-            last_answer.clear();
-            *last_input_tokens = 0;
-            let preview: String = prompt.chars().take(80).collect();
-            let ellipsis = if prompt.chars().count() > 80 {
-                "…"
-            } else {
-                ""
-            };
-            println!();
-            println!(
-                "  {} retry — resending: {}{}",
-                "↩".with(Color::Yellow),
-                preview.replace('\n', " ").with(Color::DarkGrey),
-                ellipsis.with(Color::DarkGrey),
-            );
-            println!();
-            session::save_current(messages);
-            return ReplAction::RunAgentTurnWith(prompt);
-        }
-        commands::CommandResult::Undo(n) => {
-            let _ = rl.add_history_entry(input);
-            let popped = commands::undo_turns(messages, n);
-            if popped == 0 {
-                ui.show_error("nothing to undo");
-                return ReplAction::Continue;
-            }
-            tools::clear_call_history();
-            last_answer.clear();
-            *last_input_tokens = 0;
-            let suffix = if popped == 1 { "turn" } else { "turns" };
-            println!();
-            if popped < n {
-                println!(
-                    "  {} undo — popped {popped} of {n} {suffix} (compaction boundary reached)",
-                    "↶".with(Color::Yellow),
-                );
-            } else {
-                println!(
-                    "  {} undo — popped {popped} {suffix}",
-                    "↶".with(Color::Green),
-                );
-            }
-            println!();
-            session::save_current(messages);
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Config => {
-            let _ = rl.add_history_entry(input);
-            commands::run_config_wizard(true);
-            // Re-read provider/model/api_key from config so the change takes
-            // effect mid-session. The wizard may have been cancelled, in which
-            // case the config values are unchanged and these reads are no-ops.
-            if let Some(new_prov) = config_get("AICTL_PROVIDER") {
-                let resolved = match new_prov.as_str() {
-                    "openai" => Some(Provider::Openai),
-                    "anthropic" => Some(Provider::Anthropic),
-                    "gemini" => Some(Provider::Gemini),
-                    "grok" => Some(Provider::Grok),
-                    "mistral" => Some(Provider::Mistral),
-                    "deepseek" => Some(Provider::Deepseek),
-                    "kimi" => Some(Provider::Kimi),
-                    "zai" => Some(Provider::Zai),
-                    "ollama" => Some(Provider::Ollama),
-                    "gguf" => Some(Provider::Gguf),
-                    "mlx" => Some(Provider::Mlx),
-                    _ => None,
-                };
-                if let Some(p) = resolved {
-                    *provider = p;
-                }
-            }
-            if let Some(new_model) = config_get("AICTL_MODEL") {
-                *model = new_model;
-            }
-            if matches!(
-                provider,
-                Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
-            ) {
-                *api_key = String::new();
-            } else {
-                let key_name = match provider {
-                    Provider::Openai => "LLM_OPENAI_API_KEY",
-                    Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
-                    Provider::Gemini => "LLM_GEMINI_API_KEY",
-                    Provider::Grok => "LLM_GROK_API_KEY",
-                    Provider::Mistral => "LLM_MISTRAL_API_KEY",
-                    Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
-                    Provider::Kimi => "LLM_KIMI_API_KEY",
-                    Provider::Zai => "LLM_ZAI_API_KEY",
-                    Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => {
-                        unreachable!()
-                    }
-                };
-                if let Some(k) = keys::get_secret(key_name) {
-                    *api_key = k;
-                } else {
-                    ui.show_error(&format!(
-                        "API key for {key_name} is not set — current session may fail until you run /config or /keys"
-                    ));
-                }
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Update => {
-            let _ = rl.add_history_entry(input);
-            if commands::run_update(&|msg| ui.show_error(msg)).await {
-                return ReplAction::Break;
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Uninstall => {
-            let _ = rl.add_history_entry(input);
-            if commands::run_uninstall_repl(&|msg| ui.show_error(msg)) {
-                return ReplAction::Break;
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Version => {
-            let _ = rl.add_history_entry(input);
-            commands::run_version(&|msg| ui.show_error(msg)).await;
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Model(query) => {
-            let _ = rl.add_history_entry(input);
-            let ollama_models = llm::ollama::list_models().await;
-            let local_models = llm::gguf::list_models();
-            let mlx_models = llm::mlx::list_models();
-            if let Some((new_provider, new_model, api_key_name)) = commands::select_model(
-                model,
-                &ollama_models,
-                &local_models,
-                &mlx_models,
-                query.as_deref(),
-            ) {
-                if matches!(
-                    new_provider,
-                    Provider::Ollama | Provider::Gguf | Provider::Mlx
-                ) {
-                    let pname = match new_provider {
-                        Provider::Ollama => "ollama",
-                        Provider::Gguf => "gguf",
-                        Provider::Mlx => "mlx",
-                        _ => unreachable!(),
-                    };
-                    config_set("AICTL_PROVIDER", pname);
-                    config_set("AICTL_MODEL", &new_model);
-                    *provider = new_provider;
-                    *model = new_model;
-                    *api_key = String::new();
-                } else {
-                    let Some(new_api_key) = keys::get_secret(&api_key_name) else {
-                        ui.show_error(&format!(
-                            "API key not found. Set {api_key_name} in ~/.aictl/config or run /keys to migrate from another provider"
-                        ));
-                        return ReplAction::Continue;
-                    };
-                    config_set(
-                        "AICTL_PROVIDER",
-                        &format!("{new_provider:?}").to_lowercase(),
-                    );
-                    config_set("AICTL_MODEL", &new_model);
-                    *provider = new_provider;
-                    *model = new_model;
-                    *api_key = new_api_key;
-                }
-                let pname = format!("{provider:?}").to_lowercase();
-                println!();
-                println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
-                println!();
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Behavior => {
-            let _ = rl.add_history_entry(input);
-            if let Some(new_auto) = commands::select_behavior(*auto) {
-                *auto = new_auto;
-                let behavior = if *auto { "auto" } else { "human-in-the-loop" };
-                println!();
-                println!(
-                    "  {} switched to {behavior} behavior",
-                    "✓".with(Color::Green)
-                );
-                println!();
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::Memory => {
-            let _ = rl.add_history_entry(input);
-            if let Some(new_memory) = commands::select_memory(*memory) {
-                *memory = new_memory;
-                config_set("AICTL_MEMORY", &format!("{new_memory}"));
-                println!();
-                println!(
-                    "  {} switched to {new_memory} memory",
-                    "✓".with(Color::Green)
-                );
-                println!();
-            }
-            return ReplAction::Continue;
-        }
-        commands::CommandResult::NotACommand => {}
     }
+}
 
-    let _ = rl.add_history_entry(input);
+fn handle_invoke_skill(name: &str, task: String, ui: &InteractiveUI) -> ReplAction {
+    let Some(skill) = skills::find(name) else {
+        ui.show_error(&format!("Skill '{name}' not found"));
+        return ReplAction::Continue;
+    };
+    // Task is optional. When absent, the skill body alone drives the turn via
+    // a minimal trigger message the LLM sees as the user saying "run this skill."
+    ReplAction::InvokeSkill { skill, task }
+}
 
-    // Auto-compact if context is >= configured threshold (default 80%)
+fn handle_retry(
+    messages: &mut Vec<Message>,
+    last_answer: &mut String,
+    last_input_tokens: &mut u64,
+    ui: &InteractiveUI,
+) -> ReplAction {
+    let Some(prompt) = commands::retry_last_exchange(messages) else {
+        ui.show_error("nothing to retry");
+        return ReplAction::Continue;
+    };
+    tools::clear_call_history();
+    last_answer.clear();
+    *last_input_tokens = 0;
+    let preview: String = prompt.chars().take(80).collect();
+    let ellipsis = if prompt.chars().count() > 80 {
+        "…"
+    } else {
+        ""
+    };
+    println!();
+    println!(
+        "  {} retry — resending: {}{}",
+        "↩".with(Color::Yellow),
+        preview.replace('\n', " ").with(Color::DarkGrey),
+        ellipsis.with(Color::DarkGrey),
+    );
+    println!();
+    session::save_current(messages);
+    ReplAction::RunAgentTurnWith(prompt)
+}
+
+fn handle_undo(
+    n: usize,
+    messages: &mut Vec<Message>,
+    last_answer: &mut String,
+    last_input_tokens: &mut u64,
+    ui: &InteractiveUI,
+) {
+    let popped = commands::undo_turns(messages, n);
+    if popped == 0 {
+        ui.show_error("nothing to undo");
+        return;
+    }
+    tools::clear_call_history();
+    last_answer.clear();
+    *last_input_tokens = 0;
+    let suffix = if popped == 1 { "turn" } else { "turns" };
+    println!();
+    if popped < n {
+        println!(
+            "  {} undo — popped {popped} of {n} {suffix} (compaction boundary reached)",
+            "↶".with(Color::Yellow),
+        );
+    } else {
+        println!(
+            "  {} undo — popped {popped} {suffix}",
+            "↶".with(Color::Green)
+        );
+    }
+    println!();
+    session::save_current(messages);
+}
+
+/// Handle `/config`: run the wizard, then re-read `provider`/`model`/`api_key`
+/// from config so the change takes effect mid-session. If the wizard was
+/// cancelled the config values are unchanged and these reads are no-ops.
+fn handle_config_command(
+    provider: &mut Provider,
+    api_key: &mut String,
+    model: &mut String,
+    ui: &InteractiveUI,
+) {
+    commands::run_config_wizard(true);
+    if let Some(new_prov) = config_get("AICTL_PROVIDER")
+        && let Some(p) = provider_from_str(&new_prov)
+    {
+        *provider = p;
+    }
+    if let Some(new_model) = config_get("AICTL_MODEL") {
+        *model = new_model;
+    }
+    reload_api_key(provider, api_key, ui);
+}
+
+/// Reload `api_key` from the keyring/config for the current `provider`. For
+/// keyless providers (Ollama/Gguf/Mlx/Mock) this clears it. When the key is
+/// missing for a keyed provider we surface a non-fatal error — the next LLM
+/// call will fail loudly but the user can still fix it via `/config` or `/keys`.
+fn reload_api_key(provider: &Provider, api_key: &mut String, ui: &InteractiveUI) {
+    if matches!(
+        provider,
+        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock
+    ) {
+        *api_key = String::new();
+        return;
+    }
+    let key_name = provider_api_key_name(provider);
+    if let Some(k) = keys::get_secret(key_name) {
+        *api_key = k;
+    } else {
+        ui.show_error(&format!(
+            "API key for {key_name} is not set — current session may fail until you run /config or /keys"
+        ));
+    }
+}
+
+async fn handle_model_switch(
+    query: Option<&str>,
+    provider: &mut Provider,
+    api_key: &mut String,
+    model: &mut String,
+    ui: &InteractiveUI,
+) {
+    let ollama_models = llm::ollama::list_models().await;
+    let local_models = llm::gguf::list_models();
+    let mlx_models = llm::mlx::list_models();
+    let Some((new_provider, new_model, api_key_name)) =
+        commands::select_model(model, &ollama_models, &local_models, &mlx_models, query)
+    else {
+        return;
+    };
+    if matches!(
+        new_provider,
+        Provider::Ollama | Provider::Gguf | Provider::Mlx
+    ) {
+        let pname = match new_provider {
+            Provider::Ollama => "ollama",
+            Provider::Gguf => "gguf",
+            Provider::Mlx => "mlx",
+            _ => unreachable!(),
+        };
+        config_set("AICTL_PROVIDER", pname);
+        config_set("AICTL_MODEL", &new_model);
+        *provider = new_provider;
+        *model = new_model;
+        *api_key = String::new();
+    } else {
+        let Some(new_api_key) = keys::get_secret(&api_key_name) else {
+            ui.show_error(&format!(
+                "API key not found. Set {api_key_name} in ~/.aictl/config or run /keys to migrate from another provider"
+            ));
+            return;
+        };
+        config_set(
+            "AICTL_PROVIDER",
+            &format!("{new_provider:?}").to_lowercase(),
+        );
+        config_set("AICTL_MODEL", &new_model);
+        *provider = new_provider;
+        *model = new_model;
+        *api_key = new_api_key;
+    }
+    let pname = format!("{provider:?}").to_lowercase();
+    println!();
+    println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
+    println!();
+}
+
+fn handle_behavior(auto: &mut bool) {
+    let Some(new_auto) = commands::select_behavior(*auto) else {
+        return;
+    };
+    *auto = new_auto;
+    let behavior = if *auto { "auto" } else { "human-in-the-loop" };
+    println!();
+    println!(
+        "  {} switched to {behavior} behavior",
+        "✓".with(Color::Green)
+    );
+    println!();
+}
+
+fn handle_memory(memory: &mut MemoryMode) {
+    let Some(new_memory) = commands::select_memory(*memory) else {
+        return;
+    };
+    *memory = new_memory;
+    config_set("AICTL_MEMORY", &format!("{new_memory}"));
+    println!();
+    println!(
+        "  {} switched to {new_memory} memory",
+        "✓".with(Color::Green)
+    );
+    println!();
+}
+
+/// Fall-through path for a non-slash input: auto-compact if we're near the
+/// context limit, then leave it to the caller to run the agent turn.
+async fn handle_user_turn(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut Vec<Message>,
+    last_input_tokens: &mut u64,
+    ui: &InteractiveUI,
+    memory: MemoryMode,
+) {
     let token_pct = llm::pct(*last_input_tokens, llm::context_limit(model));
     let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
     let context_pct = token_pct.max(message_pct);
-    if context_pct >= auto_compact_threshold() {
-        println!();
-        println!(
-            "  {} context at {context_pct}%, auto-compacting...",
-            "⚠".with(Color::Yellow)
-        );
-        commands::compact(
-            provider,
-            api_key,
-            model,
-            messages,
-            ui,
-            &memory.to_string(),
-            true,
-        )
-        .await;
-        *last_input_tokens = 0;
-        session::save_current(messages);
+    if context_pct < auto_compact_threshold() {
+        return;
     }
+    println!();
+    println!(
+        "  {} context at {context_pct}%, auto-compacting...",
+        "⚠".with(Color::Yellow)
+    );
+    commands::compact(
+        provider,
+        api_key,
+        model,
+        messages,
+        ui,
+        &memory.to_string(),
+        true,
+    )
+    .await;
+    *last_input_tokens = 0;
+    session::save_current(messages);
+}
 
-    ReplAction::RunAgentTurn
+fn provider_from_str(name: &str) -> Option<Provider> {
+    Some(match name {
+        "openai" => Provider::Openai,
+        "anthropic" => Provider::Anthropic,
+        "gemini" => Provider::Gemini,
+        "grok" => Provider::Grok,
+        "mistral" => Provider::Mistral,
+        "deepseek" => Provider::Deepseek,
+        "kimi" => Provider::Kimi,
+        "zai" => Provider::Zai,
+        "ollama" => Provider::Ollama,
+        "gguf" => Provider::Gguf,
+        "mlx" => Provider::Mlx,
+        _ => return None,
+    })
+}
+
+fn provider_api_key_name(provider: &Provider) -> &'static str {
+    match provider {
+        Provider::Openai => "LLM_OPENAI_API_KEY",
+        Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
+        Provider::Gemini => "LLM_GEMINI_API_KEY",
+        Provider::Grok => "LLM_GROK_API_KEY",
+        Provider::Mistral => "LLM_MISTRAL_API_KEY",
+        Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
+        Provider::Kimi => "LLM_KIMI_API_KEY",
+        Provider::Zai => "LLM_ZAI_API_KEY",
+        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
+    }
 }
 
 /// Run an agent turn and display the result, updating REPL state.
