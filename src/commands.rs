@@ -33,6 +33,7 @@ mod session;
 mod skills;
 mod stats;
 mod tools;
+mod undo;
 mod uninstall;
 mod update;
 
@@ -53,6 +54,7 @@ pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
 pub use skills::{SkillsMenuOutcome, print_skills_cli, run_skills_menu};
 pub use stats::run_stats_menu;
+pub use undo::undo_turns;
 pub use uninstall::{run_uninstall_cli, run_uninstall_repl};
 pub use update::{run_update, run_update_cli, run_version};
 
@@ -82,6 +84,7 @@ pub const COMMANDS: &[&str] = &[
     "skills",
     "stats",
     "tools",
+    "undo",
     "uninstall",
     "update",
     "version",
@@ -144,6 +147,10 @@ pub enum CommandResult {
     Stats,
     /// Remove the last user/assistant exchange and retry it.
     Retry,
+    /// Drop the last N turns from the conversation without re-running
+    /// anything. Carries the requested count (defaults to `1` when the user
+    /// typed `/undo` with no argument).
+    Undo(usize),
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -186,6 +193,24 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "mlx" => CommandResult::Mlx,
         "ping" => CommandResult::Ping,
         "retry" => CommandResult::Retry,
+        "undo" => {
+            let count = if args.is_empty() {
+                1
+            } else {
+                match args.parse::<usize>() {
+                    Ok(0) => {
+                        show_error("/undo: count must be at least 1");
+                        return CommandResult::Continue;
+                    }
+                    Ok(n) => n,
+                    Err(_) => {
+                        show_error("/undo: invalid count (expected a positive integer)");
+                        return CommandResult::Continue;
+                    }
+                }
+            };
+            CommandResult::Undo(count)
+        }
         "copy" => {
             clipboard::copy_to_clipboard(last_answer, show_error);
             CommandResult::Continue
@@ -317,6 +342,38 @@ mod tests {
         assert!(matches!(
             handle("/retry", "", &noop_error),
             CommandResult::Retry
+        ));
+    }
+
+    #[test]
+    fn cmd_undo_no_args_defaults_to_one() {
+        assert!(matches!(
+            handle("/undo", "", &noop_error),
+            CommandResult::Undo(1)
+        ));
+    }
+
+    #[test]
+    fn cmd_undo_with_count() {
+        assert!(matches!(
+            handle("/undo 3", "", &noop_error),
+            CommandResult::Undo(3)
+        ));
+    }
+
+    #[test]
+    fn cmd_undo_zero_is_rejected() {
+        assert!(matches!(
+            handle("/undo 0", "", &noop_error),
+            CommandResult::Continue
+        ));
+    }
+
+    #[test]
+    fn cmd_undo_non_numeric_is_rejected() {
+        assert!(matches!(
+            handle("/undo foo", "", &noop_error),
+            CommandResult::Continue
         ));
     }
 

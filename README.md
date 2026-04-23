@@ -142,6 +142,7 @@ The interactive REPL supports slash commands:
 | `/clear` | Clear conversation context |
 | `/compact` | Summarize conversation into a compact context |
 | `/retry` | Remove the last user/assistant exchange and retry with the same prompt (useful when a response goes off track) |
+| `/undo` | Drop the last N turns from the conversation without re-running (`/undo` = 1, `/undo 3` = 3); refuses to cross a `/compact` boundary |
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |

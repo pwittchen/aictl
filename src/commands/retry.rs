@@ -9,14 +9,14 @@
 
 use crate::{Message, Role};
 
-fn is_user_prompt(content: &str) -> bool {
+pub(super) fn is_user_prompt(content: &str) -> bool {
     let trimmed = content.trim_start();
     !trimmed.starts_with("<tool_result>") && !trimmed.starts_with("Tool call denied")
 }
 
 /// Index of the last genuine user prompt in `messages`, or `None` if the
 /// conversation has not progressed past the system prompt.
-fn find_last_user_prompt(messages: &[Message]) -> Option<usize> {
+pub(super) fn find_last_user_prompt(messages: &[Message]) -> Option<usize> {
     messages.iter().enumerate().rev().find_map(|(i, m)| {
         if matches!(m.role, Role::User) && is_user_prompt(&m.content) {
             Some(i)

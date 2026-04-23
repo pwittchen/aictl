@@ -346,6 +346,33 @@ async fn handle_repl_input(
             session::save_current(messages);
             return ReplAction::RunAgentTurnWith(prompt);
         }
+        commands::CommandResult::Undo(n) => {
+            let _ = rl.add_history_entry(input);
+            let popped = commands::undo_turns(messages, n);
+            if popped == 0 {
+                ui.show_error("nothing to undo");
+                return ReplAction::Continue;
+            }
+            tools::clear_call_history();
+            last_answer.clear();
+            *last_input_tokens = 0;
+            let suffix = if popped == 1 { "turn" } else { "turns" };
+            println!();
+            if popped < n {
+                println!(
+                    "  {} undo — popped {popped} of {n} {suffix} (compaction boundary reached)",
+                    "↶".with(Color::Yellow),
+                );
+            } else {
+                println!(
+                    "  {} undo — popped {popped} {suffix}",
+                    "↶".with(Color::Green),
+                );
+            }
+            println!();
+            session::save_current(messages);
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Config => {
             let _ = rl.add_history_entry(input);
             commands::run_config_wizard(true);

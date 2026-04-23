@@ -8,6 +8,10 @@ pub(super) fn print_help() {
         ("/context", "show context usage"),
         ("/copy", "copy last response to clipboard"),
         ("/retry", "remove last exchange and retry"),
+        (
+            "/undo",
+            "drop the last N turns without re-running (default 1)",
+        ),
         ("/help", "show this help message"),
         ("/history", "view conversation (filter by role or keyword)"),
         ("/info", "show setup info"),
