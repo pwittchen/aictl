@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -66,7 +67,7 @@ pub async fn call_gemini(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
 
     let mut system_text: Option<String> = None;
@@ -153,7 +154,7 @@ pub async fn call_gemini(
             GeminiPart::Text { text } => Some(text.clone()),
             GeminiPart::InlineData { .. } => None,
         })
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Gemini".into() })?;
+        .ok_or(AictlError::EmptyResponse { provider: "Gemini" })?;
     let usage = parsed
         .usage_metadata
         .map(|u| TokenUsage {
@@ -174,7 +175,7 @@ fn surface_gemini_error(
     status: reqwest::StatusCode,
     text: &str,
     model: &str,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(text) {
         let msg = json["error"]["message"]
             .as_str()
@@ -188,9 +189,13 @@ fn surface_gemini_error(
                 })
             })
             .unwrap_or(model);
-        return Err(format!("Gemini API error ({status}): {msg} [model: {model_name}]").into());
+        return Err(AictlError::from_http(
+            "Gemini",
+            status,
+            format!("{msg} [model: {model_name}]"),
+        ));
     }
-    Err(format!("Gemini API error ({status}): {text}").into())
+    Err(AictlError::from_http("Gemini", status, text.to_string()))
 }
 
 /// Consume Gemini's `streamGenerateContent?alt=sse` stream. Each event carries
@@ -199,7 +204,7 @@ fn surface_gemini_error(
 async fn drive_gemini_stream(
     response: reqwest::Response,
     on_token: &TokenSink,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     use futures_util::StreamExt;
 
     let mut bytes = response.bytes_stream();
@@ -255,7 +260,7 @@ async fn drive_gemini_stream(
     }
 
     if full.is_empty() {
-        return Err("No response from Gemini".into());
+        return Err(AictlError::EmptyResponse { provider: "Gemini" });
     }
     Ok((full, usage))
 }

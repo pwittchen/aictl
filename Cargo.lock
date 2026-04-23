@@ -82,6 +82,7 @@ dependencies = [
  "sha2 0.11.0",
  "tar",
  "termimad",
+ "thiserror 2.0.18",
  "tokenizers 0.22.2",
  "tokio",
  "zip 8.5.1",

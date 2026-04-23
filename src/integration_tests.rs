@@ -704,8 +704,9 @@ fn outbound_block_returns_err_with_kind_label() {
         sample_history("pls use sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb for the job");
     let err =
         redact_outbound(&messages, &pol, &Provider::Mock).expect_err("block should abort the turn");
-    assert!(err.contains("API_KEY"));
-    assert!(!err.contains("sk-proj-aaaaa"));
+    let msg = err.to_string();
+    assert!(msg.contains("API_KEY"));
+    assert!(!msg.contains("sk-proj-aaaaa"));
 }
 
 #[test]
@@ -825,7 +826,7 @@ fn redact_result_block_variant_matches_expected_kind() {
     let pol = build_redact_policy(RedactionMode::Block);
     let messages = sample_history("bearer AKIAIOSFODNN7EXAMPLE plus prose");
     let err = redact_outbound(&messages, &pol, &Provider::Mock).unwrap_err();
-    assert!(err.contains("AWS_KEY"));
+    assert!(err.to_string().contains("AWS_KEY"));
 }
 
 #[test]

@@ -14,6 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::error::AictlError;
 use crate::llm::TokenUsage;
 use crate::{Message, Role};
 
@@ -154,10 +155,7 @@ fn default_name_from_file(file: &str) -> String {
 /// Download a model to `~/.aictl/models/gguf/<name>.gguf`. Prints a progress bar
 /// to stderr via `indicatif`. Overwrites any existing file with the same
 /// name. Returns the resolved local name.
-pub async fn download_model(
-    spec: &str,
-    override_name: Option<&str>,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn download_model(spec: &str, override_name: Option<&str>) -> Result<String, AictlError> {
     use futures_util::StreamExt;
     use indicatif::{ProgressBar, ProgressStyle};
     use tokio::io::AsyncWriteExt;
@@ -420,7 +418,7 @@ pub async fn call_gguf(
     model: &str,
     messages: &[Message],
     on_token: Option<crate::llm::TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     use llama_cpp_2::context::params::LlamaContextParams;
     use llama_cpp_2::llama_batch::LlamaBatch;
     use llama_cpp_2::model::AddBos;
@@ -428,20 +426,17 @@ pub async fn call_gguf(
     use llama_cpp_2::token::data_array::LlamaTokenDataArray;
     use std::num::NonZeroU32;
 
-    let path = model_path(model).ok_or_else(|| -> Box<dyn std::error::Error> {
-        format!(
-            "local model '{model}' not found. Pull it with `aictl --pull-gguf-model <spec>` or via `/gguf` in the REPL."
-        )
-        .into()
-    })?;
+    let path = model_path(model).ok_or_else(|| AictlError::Other(format!(
+        "local model '{model}' not found. Pull it with `aictl --pull-gguf-model <spec>` or via `/gguf` in the REPL."
+    )))?;
 
     // Load (or reuse) the backend and model outside the blocking task so the
     // expensive first-turn cost is paid once per session instead of per call.
     // `ensure_backend` touches llama.cpp's global init machinery, but the
     // actual work it guards is cheap after the first call; loading a model
     // from disk can take tens of seconds, so caching is what the user sees.
-    let backend = ensure_backend().map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
-    let model_arc = ensure_model(&path).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let backend = ensure_backend()?;
+    let model_arc = ensure_model(&path)?;
 
     let prompt = render_prompt(messages);
 
@@ -596,10 +591,9 @@ pub async fn call_gguf(
         Ok((out.trim().to_string(), input_tokens, output_tokens))
     })
     .await
-    .map_err(|e| -> Box<dyn std::error::Error> { format!("inference task failed: {e}").into() })?;
+    .map_err(|e| AictlError::Other(format!("inference task failed: {e}")))?;
 
-    let (text, input_tokens, output_tokens) =
-        result.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let (text, input_tokens, output_tokens) = result.map_err(AictlError::Other)?;
 
     Ok((
         text,
@@ -617,8 +611,10 @@ pub async fn call_gguf(
     _model: &str,
     _messages: &[Message],
     _on_token: Option<crate::llm::TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
-    Err("native GGUF model inference is not compiled in. Rebuild with `cargo build --features gguf` (requires cmake and a C/C++ toolchain).".into())
+) -> Result<(String, TokenUsage), AictlError> {
+    Err(AictlError::Other(
+        "native GGUF model inference is not compiled in. Rebuild with `cargo build --features gguf` (requires cmake and a C/C++ toolchain).".to_string(),
+    ))
 }
 
 #[cfg(test)]

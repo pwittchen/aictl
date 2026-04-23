@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -140,7 +141,7 @@ pub async fn call_openai(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
     let oai_messages = build_messages(messages);
 
@@ -164,7 +165,7 @@ pub async fn call_openai(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("OpenAI API error ({status}): {text}").into());
+        return Err(AictlError::from_http("OpenAI", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -172,7 +173,7 @@ pub async fn call_openai(
             crate::llm::stream::drive_openai_compatible_stream(resp, &sink, parse_openai_usage)
                 .await?;
         if content.is_empty() {
-            return Err("No response from OpenAI".into());
+            return Err(AictlError::EmptyResponse { provider: "OpenAI" });
         }
         return Ok((content, usage));
     }
@@ -185,7 +186,7 @@ pub async fn call_openai(
         .map(|c| c.message.content.clone())
         .unwrap_or_default();
     if content.is_empty() {
-        return Err("No response from OpenAI".into());
+        return Err(AictlError::EmptyResponse { provider: "OpenAI" });
     }
     let usage = parsed
         .usage

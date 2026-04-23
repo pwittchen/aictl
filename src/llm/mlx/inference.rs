@@ -18,6 +18,7 @@
 //!     `Qwen2MoeForCausalLM`, or `Gemma2ForCausalLM` are rejected.
 
 use crate::Message;
+use crate::error::AictlError;
 use crate::llm::TokenUsage;
 
 /// Extra reinforcement appended to the prompt for MLX-served local models.
@@ -273,26 +274,21 @@ pub async fn call_mlx(
     model: &str,
     messages: &[Message],
     on_token: Option<crate::llm::TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     use crate::Role;
     use std::collections::HashSet;
     use tokenizers::Tokenizer;
 
     use super::{arch, gemma2, model_path, tmpl};
 
-    let dir = model_path(model).ok_or_else(|| -> Box<dyn std::error::Error> {
-        format!(
-            "MLX model '{model}' not found. Pull it with `aictl --pull-mlx-model <spec>` or via `/mlx` in the REPL."
-        )
-        .into()
-    })?;
+    let dir = model_path(model).ok_or_else(|| AictlError::Other(format!(
+        "MLX model '{model}' not found. Pull it with `aictl --pull-mlx-model <spec>` or via `/mlx` in the REPL."
+    )))?;
 
     // --- Load config.json ---
     let cfg_path = dir.join("config.json");
-    let cfg_body =
-        std::fs::read_to_string(&cfg_path).map_err(|e| -> Box<dyn std::error::Error> {
-            format!("failed to read {}: {e}", cfg_path.display()).into()
-        })?;
+    let cfg_body = std::fs::read_to_string(&cfg_path)
+        .map_err(|e| AictlError::Other(format!("failed to read {}: {e}", cfg_path.display())))?;
     let cfg_raw: serde_json::Value = serde_json::from_str(&cfg_body)?;
 
     let mut is_qwen2 = false;
@@ -310,11 +306,10 @@ pub async fn call_mlx(
             )
         });
         if !supported && !names.is_empty() {
-            return Err(format!(
+            return Err(AictlError::Other(format!(
                 "unsupported model architecture: {} — only Llama-family and Gemma 2 models are supported in this build",
                 names.join(", ")
-            )
-            .into());
+            )));
         }
         is_qwen2 = names
             .iter()
@@ -343,7 +338,7 @@ pub async fn call_mlx(
     // --- Tokenizer + chat template ---
     let tok_path = dir.join("tokenizer.json");
     let tokenizer = Tokenizer::from_file(&tok_path)
-        .map_err(|e| -> Box<dyn std::error::Error> { format!("tokenizer load: {e}").into() })?;
+        .map_err(|e| AictlError::Other(format!("tokenizer load: {e}")))?;
 
     let tok_cfg_path = dir.join("tokenizer_config.json");
     let tok_cfg: serde_json::Value = if tok_cfg_path.exists() {
@@ -403,9 +398,7 @@ pub async fn call_mlx(
             )
         })
         .await
-        .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("inference task panicked: {e}").into()
-        })?
+        .map_err(|e| AictlError::Other(format!("inference task panicked: {e}")))?
     } else {
         let mut cfg: arch::LlamaConfig = serde_json::from_str(&cfg_body)?;
         // Qwen2 modeling unconditionally uses a bias on q/k/v projections.
@@ -424,13 +417,10 @@ pub async fn call_mlx(
             )
         })
         .await
-        .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("inference task panicked: {e}").into()
-        })?
+        .map_err(|e| AictlError::Other(format!("inference task panicked: {e}")))?
     };
 
-    let (text, input_tokens, output_tokens) =
-        result.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let (text, input_tokens, output_tokens) = result.map_err(AictlError::Other)?;
 
     Ok((
         text,
@@ -464,9 +454,13 @@ pub async fn call_mlx(
     _model: &str,
     _messages: &[Message],
     _on_token: Option<crate::llm::TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     if !super::host_supports_mlx() {
-        return Err("MLX inference is only available on macOS + Apple Silicon (aarch64).".into());
+        return Err(AictlError::Other(
+            "MLX inference is only available on macOS + Apple Silicon (aarch64).".to_string(),
+        ));
     }
-    Err("MLX inference is not compiled in. Rebuild with `cargo build --features mlx` on macOS Apple Silicon.".into())
+    Err(AictlError::Other(
+        "MLX inference is not compiled in. Rebuild with `cargo build --features mlx` on macOS Apple Silicon.".to_string(),
+    ))
 }

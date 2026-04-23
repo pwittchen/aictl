@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -71,7 +72,7 @@ pub async fn call_mistral(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
 
     let mistral_messages: Vec<MistralMessage> = messages
@@ -120,7 +121,7 @@ pub async fn call_mistral(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("Mistral API error ({status}): {text}").into());
+        return Err(AictlError::from_http("Mistral", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -140,7 +141,9 @@ pub async fn call_mistral(
             })
             .await?;
         if content.is_empty() {
-            return Err("No response from Mistral".into());
+            return Err(AictlError::EmptyResponse {
+                provider: "Mistral",
+            });
         }
         return Ok((content, usage));
     }
@@ -151,7 +154,9 @@ pub async fn call_mistral(
         .choices
         .first()
         .map(|c| c.message.content.clone())
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Mistral".into() })?;
+        .ok_or(AictlError::EmptyResponse {
+            provider: "Mistral",
+        })?;
     let usage = parsed
         .usage
         .map(|u| TokenUsage {

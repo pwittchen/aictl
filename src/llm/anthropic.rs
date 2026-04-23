@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::config::MAX_RESPONSE_TOKENS;
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -99,7 +100,7 @@ pub async fn call_anthropic(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
 
     let mut system_text: Option<String> = None;
@@ -223,7 +224,7 @@ pub async fn call_anthropic(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("Anthropic API error ({status}): {text}").into());
+        return Err(AictlError::from_http("Anthropic", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -232,11 +233,14 @@ pub async fn call_anthropic(
 
     let text = resp.text().await?;
     let parsed: AnthropicResponse = serde_json::from_str(&text)?;
-    let content = parsed
-        .content
-        .first()
-        .map(|c| c.text.clone())
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Anthropic".into() })?;
+    let content =
+        parsed
+            .content
+            .first()
+            .map(|c| c.text.clone())
+            .ok_or(AictlError::EmptyResponse {
+                provider: "Anthropic",
+            })?;
     let usage = parsed
         .usage
         .map(|u| TokenUsage {
@@ -264,7 +268,7 @@ pub async fn call_anthropic(
 async fn drive_anthropic_stream(
     response: reqwest::Response,
     on_token: &TokenSink,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     use futures_util::StreamExt;
 
     let mut bytes = response.bytes_stream();
@@ -336,7 +340,10 @@ async fn drive_anthropic_stream(
                         .and_then(|e| e.get("message"))
                         .and_then(|m| m.as_str())
                         .unwrap_or("unknown stream error");
-                    return Err(format!("Anthropic stream error: {msg}").into());
+                    return Err(AictlError::Stream {
+                        provider: "Anthropic",
+                        message: msg.to_string(),
+                    });
                 }
                 _ => {}
             }
@@ -344,7 +351,9 @@ async fn drive_anthropic_stream(
     }
 
     if full.is_empty() {
-        return Err("No response from Anthropic".into());
+        return Err(AictlError::EmptyResponse {
+            provider: "Anthropic",
+        });
     }
     Ok((full, usage))
 }

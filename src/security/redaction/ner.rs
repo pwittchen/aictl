@@ -43,6 +43,7 @@
 use std::path::PathBuf;
 
 use crate::config::config_get;
+use crate::error::AictlError;
 
 /// Default gline-rs-compatible model when `AICTL_REDACTION_NER_MODEL`
 /// is not set. Small enough (~200 MB) to pull on demand, accurate
@@ -232,10 +233,7 @@ fn default_name_from_spec(spec: &str) -> Option<String> {
 /// Returns an error if the spec is invalid, the name contains
 /// disallowed characters, the HTTP request fails, or the archive
 /// cannot be written to disk.
-pub async fn download_model(
-    spec: &str,
-    override_name: Option<&str>,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn download_model(spec: &str, override_name: Option<&str>) -> Result<String, AictlError> {
     use futures_util::StreamExt;
     use indicatif::{ProgressBar, ProgressStyle};
     use tokio::io::AsyncWriteExt;
@@ -266,11 +264,14 @@ pub async fn download_model(
     for (idx, (remote, local)) in files.iter().enumerate() {
         let url =
             format!("https://huggingface.co/{owner}/{repo}/resolve/main/{remote}?download=true");
-        let response = client.get(&url).send().await?.error_for_status().map_err(
-            |e| -> Box<dyn std::error::Error> {
-                format!("failed to fetch {remote} from {owner}/{repo}: {e}").into()
-            },
-        )?;
+        let response = client
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| {
+                AictlError::Other(format!("failed to fetch {remote} from {owner}/{repo}: {e}"))
+            })?;
         let total = response.content_length().unwrap_or(0);
 
         let pb = if total > 0 {

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -86,7 +87,7 @@ pub async fn call_grok(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
 
     let grok_messages: Vec<GrokMessage> = messages
@@ -138,7 +139,7 @@ pub async fn call_grok(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("Grok API error ({status}): {text}").into());
+        return Err(AictlError::from_http("Grok", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -149,7 +150,7 @@ pub async fn call_grok(
         )
         .await?;
         if content.is_empty() {
-            return Err("No response from Grok".into());
+            return Err(AictlError::EmptyResponse { provider: "Grok" });
         }
         return Ok((content, usage));
     }
@@ -160,7 +161,7 @@ pub async fn call_grok(
         .choices
         .first()
         .map(|c| c.message.content.clone())
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Grok".into() })?;
+        .ok_or(AictlError::EmptyResponse { provider: "Grok" })?;
     let usage = parsed
         .usage
         .map(|u| {

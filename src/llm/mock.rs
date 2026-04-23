@@ -16,6 +16,7 @@ use std::collections::VecDeque;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::Message;
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 
 /// Outcome of a single scripted LLM call: either `Ok((response_text, usage))`
@@ -118,17 +119,17 @@ pub async fn call_mock(
     _model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let response = {
         let mut st = MOCK_STATE.lock().unwrap_or_else(PoisonError::into_inner);
         st.calls.push(messages.to_vec());
-        st.scripts
-            .pop_front()
-            .ok_or_else(|| -> Box<dyn std::error::Error> {
-                "mock script exhausted — no more scripted responses queued".into()
-            })?
+        st.scripts.pop_front().ok_or_else(|| {
+            AictlError::Other(
+                "mock script exhausted — no more scripted responses queued".to_string(),
+            )
+        })?
     };
-    let (content, usage) = response.map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+    let (content, usage) = response.map_err(AictlError::Other)?;
     if let Some(sink) = on_token {
         sink(&content);
     }

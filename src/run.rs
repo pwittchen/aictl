@@ -29,6 +29,7 @@ use crate::config::{
     self, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT, load_prompt_file,
     max_iterations,
 };
+use crate::error::AictlError;
 use crate::message::{Message, Role};
 use crate::security::redaction::{
     self, RedactionDirection, RedactionMode, RedactionPolicy, RedactionResult, RedactionSource,
@@ -335,7 +336,7 @@ pub(crate) fn redact_outbound(
     messages: &[Message],
     pol: &RedactionPolicy,
     provider: &Provider,
-) -> Result<Option<Vec<Message>>, String> {
+) -> Result<Option<Vec<Message>>, AictlError> {
     if matches!(pol.mode, RedactionMode::Off) {
         return Ok(None);
     }
@@ -380,7 +381,10 @@ pub(crate) fn redact_outbound(
                     &msg.content,
                     &matches,
                 );
-                return Err(redaction::describe_matches(&msg.content, &matches));
+                return Err(AictlError::Redaction(redaction::describe_matches(
+                    &msg.content,
+                    &matches,
+                )));
             }
         }
     }
@@ -402,7 +406,7 @@ async fn handle_tool_call(
     ui: &dyn AgentUI,
     messages: &mut Vec<Message>,
     streamed: bool,
-) -> Result<ToolAction, Interrupted> {
+) -> Result<ToolAction, AictlError> {
     // Print the LLM's reasoning (text before the tool tag).
     // Skip when streaming was active for this LLM call: the same reasoning
     // text was already forwarded to the UI by stream_chunk before the
@@ -510,12 +514,12 @@ pub(crate) async fn run_agent_turn(
     memory: MemoryMode,
     streaming: bool,
     skill: Option<&Skill>,
-) -> Result<TurnResult, Box<dyn std::error::Error>> {
+) -> Result<TurnResult, AictlError> {
     if security::policy().enabled
         && security::policy().injection_guard
         && let Err(reason) = security::detect_prompt_injection(user_message)
     {
-        return Err(format!("blocked: possible prompt injection ({reason})").into());
+        return Err(AictlError::Injection(reason));
     }
 
     messages.push(Message {
@@ -591,12 +595,9 @@ pub(crate) async fn run_agent_turn(
         let redaction_pol = redaction::policy();
         let redacted_buf = match redact_outbound(base_messages, redaction_pol, provider) {
             Ok(buf) => buf,
-            Err(reason) => {
+            Err(err) => {
                 ui.stop_spinner();
-                return Err(format!(
-                    "blocked: outbound message contains sensitive data ({reason})"
-                )
-                .into());
+                return Err(err);
             }
         };
         let llm_messages: &[Message] = redacted_buf.as_deref().unwrap_or(base_messages);
@@ -772,13 +773,16 @@ pub(crate) async fn run_agent_turn(
         // already returned the full assembled string.
         drop(stream_ctx);
 
-        let result = result.map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })?;
-        let result = result.map_err(|_| -> Box<dyn std::error::Error> {
-            format!(
-                "LLM call exceeded the {}s timeout. Increase AICTL_LLM_TIMEOUT in ~/.aictl/config (seconds, 0 disables) if this is expected on your hardware.",
-                llm_timeout.as_secs()
-            )
-            .into()
+        // Peel the three layers the provider call accumulates:
+        //   * outer `Interrupted` from `with_esc_cancel`
+        //   * middle `tokio::time::error::Elapsed` from `tokio::time::timeout`
+        //   * inner `AictlError` from the provider itself
+        // Keeping them as distinct variants lets `run_and_display_turn` in
+        // the REPL branch on `AictlError::Interrupted` without string matching
+        // and lets future retry logic fire on `AictlError::Timeout`.
+        let result = result?;
+        let result = result.map_err(|_| AictlError::Timeout {
+            secs: llm_timeout.as_secs(),
         })?;
         let (response, usage) = result?;
 
@@ -863,11 +867,10 @@ pub(crate) async fn run_agent_turn(
                     ui.show_reasoning(reasoning);
                 }
             }
-            return Err(format!(
+            return Err(AictlError::Other(format!(
                 "Agent stopped: model tried to call `{}` again with the same input — it is looping. Try a stronger model or rephrase the request.",
                 tool_call.name
-            )
-            .into());
+            )));
         }
 
         match handle_tool_call(&tool_call, &response, auto, ui, messages, streamed).await {
@@ -875,7 +878,7 @@ pub(crate) async fn run_agent_turn(
                 tool_calls += 1;
             }
             Ok(ToolAction::Denied) => {}
-            Err(e) => return Err(Box::new(e)),
+            Err(e) => return Err(e),
         }
         // Status line goes at the bottom of the iteration — below the tool
         // output, above the next prompt. The counter includes the tool call
@@ -883,11 +886,11 @@ pub(crate) async fn run_agent_turn(
         emit_status(tool_calls);
     }
 
-    Err(format!(
-        "Agent loop reached maximum iterations ({max_iter}) after {:.1}s",
-        turn_start.elapsed().as_secs_f64()
-    )
-    .into())
+    Err(AictlError::MaxIterations {
+        #[allow(clippy::cast_possible_truncation)]
+        iters: max_iter as u32,
+        elapsed_secs: turn_start.elapsed().as_secs_f64(),
+    })
 }
 
 /// Single-shot mode: run one message and print the result.
@@ -899,7 +902,7 @@ pub(crate) async fn run_agent_single(
     auto: bool,
     quiet: bool,
     skill: Option<&Skill>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), AictlError> {
     use std::cell::Cell;
 
     let mut messages = vec![Message {

@@ -2,6 +2,7 @@ mod agents;
 mod audit;
 mod commands;
 mod config;
+mod error;
 #[cfg(test)]
 mod integration_tests;
 mod keys;

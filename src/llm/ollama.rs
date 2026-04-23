@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -82,7 +83,7 @@ pub async fn call_ollama(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
     let url = format!("{}/api/chat", base_url());
 
@@ -111,7 +112,7 @@ pub async fn call_ollama(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("Ollama API error ({status}): {text}").into());
+        return Err(AictlError::from_http("Ollama", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -123,7 +124,7 @@ pub async fn call_ollama(
     let content = parsed
         .message
         .map(|m| m.content)
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Ollama".into() })?;
+        .ok_or(AictlError::EmptyResponse { provider: "Ollama" })?;
     let usage = TokenUsage {
         input_tokens: parsed.prompt_eval_count.unwrap_or(0),
         output_tokens: parsed.eval_count.unwrap_or(0),
@@ -138,7 +139,7 @@ pub async fn call_ollama(
 async fn drive_ollama_stream(
     response: reqwest::Response,
     on_token: &TokenSink,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     use futures_util::StreamExt;
 
     let mut bytes = response.bytes_stream();
@@ -190,7 +191,7 @@ async fn drive_ollama_stream(
     }
 
     if full.is_empty() {
-        return Err("No response from Ollama".into());
+        return Err(AictlError::EmptyResponse { provider: "Ollama" });
     }
     Ok((full, usage))
 }

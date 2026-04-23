@@ -19,8 +19,9 @@ use rustyline::error::ReadlineError;
 
 use crate::commands::{self, MemoryMode};
 use crate::config::{self, MAX_MESSAGES, auto_compact_threshold, config_get, config_set};
+use crate::error::AictlError;
 use crate::message::{Message, Role};
-use crate::run::{Interrupted, Provider, run_agent_turn, stdout_is_tty};
+use crate::run::{Provider, run_agent_turn, stdout_is_tty};
 use crate::skills::Skill;
 use crate::ui::{AgentUI, InteractiveUI};
 use crate::{
@@ -757,7 +758,7 @@ async fn run_and_display_turn(
             }
         }
         Err(e) => {
-            if e.downcast_ref::<Interrupted>().is_some() {
+            if matches!(e, AictlError::Interrupted) {
                 messages.truncate(msg_len_before);
                 println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
             } else {
@@ -780,7 +781,7 @@ pub(crate) async fn run_interactive(
     auto: bool,
     session_key: Option<String>,
     initial_skill: Option<Skill>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), AictlError> {
     // Check the local cache first. If `~/.aictl/version` exists and its
     // timestamp is less than 24h old, we already know the latest upstream
     // version and skip the network call entirely. On a miss (or stale entry)

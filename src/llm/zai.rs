@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
@@ -78,7 +79,7 @@ pub async fn call_zai(
     model: &str,
     messages: &[Message],
     on_token: Option<TokenSink>,
-) -> Result<(String, TokenUsage), Box<dyn std::error::Error>> {
+) -> Result<(String, TokenUsage), AictlError> {
     let client = crate::config::http_client();
 
     let zai_messages: Vec<ZaiMessage> = messages
@@ -130,7 +131,7 @@ pub async fn call_zai(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        return Err(format!("Z.ai API error ({status}): {text}").into());
+        return Err(AictlError::from_http("Z.ai", status, text));
     }
 
     if let Some(sink) = on_token {
@@ -150,7 +151,7 @@ pub async fn call_zai(
             })
             .await?;
         if content.is_empty() {
-            return Err("No response from Z.ai".into());
+            return Err(AictlError::EmptyResponse { provider: "Z.ai" });
         }
         return Ok((content, usage));
     }
@@ -161,7 +162,7 @@ pub async fn call_zai(
         .choices
         .first()
         .map(|c| c.message.content.clone())
-        .ok_or_else(|| -> Box<dyn std::error::Error> { "No response from Z.ai".into() })?;
+        .ok_or(AictlError::EmptyResponse { provider: "Z.ai" })?;
     let usage = parsed
         .usage
         .map(|u| TokenUsage {

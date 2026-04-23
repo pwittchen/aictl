@@ -17,6 +17,8 @@
 
 use std::path::PathBuf;
 
+use crate::error::AictlError;
+
 mod arch;
 mod gemma2;
 mod inference;
@@ -216,10 +218,7 @@ fn should_skip_file(path: &str) -> bool {
 /// `indicatif`. Overwrites any existing directory with the same name.
 /// Returns the resolved local name.
 #[allow(clippy::too_many_lines)]
-pub async fn download_model(
-    spec: &str,
-    override_name: Option<&str>,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn download_model(spec: &str, override_name: Option<&str>) -> Result<String, AictlError> {
     use futures_util::StreamExt;
     use indicatif::{ProgressBar, ProgressStyle};
     use tokio::io::AsyncWriteExt;
@@ -231,10 +230,9 @@ pub async fn download_model(
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
     {
-        return Err(format!(
+        return Err(AictlError::Other(format!(
             "invalid local model name '{name}' (allowed: alphanumerics, '-', '_', '.')"
-        )
-        .into());
+        )));
     }
 
     let dir = ensure_models_dir()?.join(&name);
@@ -258,9 +256,7 @@ pub async fn download_model(
         .await?;
     let entries = tree
         .as_array()
-        .ok_or_else(|| -> Box<dyn std::error::Error> {
-            format!("unexpected tree response for {owner}/{repo}").into()
-        })?;
+        .ok_or_else(|| AictlError::Other(format!("unexpected tree response for {owner}/{repo}")))?;
 
     let files: Vec<String> = entries
         .iter()
@@ -279,17 +275,18 @@ pub async fn download_model(
 
     if files.is_empty() {
         let _ = std::fs::remove_dir_all(&tmp_dir);
-        return Err(format!("no downloadable files found in {owner}/{repo}").into());
+        return Err(AictlError::Other(format!(
+            "no downloadable files found in {owner}/{repo}"
+        )));
     }
 
     // Ensure at least one safetensors file is present — otherwise the repo
     // probably isn't an MLX model and we'd produce a useless directory.
     if !files.iter().any(|f| f.ends_with(".safetensors")) {
         let _ = std::fs::remove_dir_all(&tmp_dir);
-        return Err(format!(
+        return Err(AictlError::Other(format!(
             "repo {owner}/{repo} contains no .safetensors files — not an MLX model"
-        )
-        .into());
+        )));
     }
 
     for (idx, file) in files.iter().enumerate() {

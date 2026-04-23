@@ -183,7 +183,7 @@ pub async fn drive_openai_compatible_stream<F>(
     response: reqwest::Response,
     on_token: &super::TokenSink,
     mut parse_usage: F,
-) -> Result<(String, super::TokenUsage), Box<dyn std::error::Error>>
+) -> Result<(String, super::TokenUsage), crate::error::AictlError>
 where
     F: FnMut(&serde_json::Value) -> Option<super::TokenUsage>,
 {
