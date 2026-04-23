@@ -12,7 +12,6 @@
 
 ### REPL
 
-- **Model search in `/model`** — After invoking `/model`, present two entry points: **Browse** (the current paged provider → model picker) and **Search** (a type-ahead query over the full `MODELS` catalog). The search view takes a substring/fuzzy query against model id, provider, and aliases, renders the filtered list with the same formatting as browse, and lets the user pick one to activate. Implementation: extend `commands/model.rs` (or the matching handler) with a top-level menu step, reuse the existing `MODELS` iteration for both paths, and share the selection/confirmation code so switching models behaves identically regardless of entry point. Consider accepting an inline argument (`/model search <query>`) to skip straight to filtered results for scripted use.
 - **`/roadmap` command** — Fetch `ROADMAP.md` from the project's GitHub repo, render the markdown, and display it in the terminal so users can see planned features without leaving the REPL. Implementation: add `commands/roadmap.rs` that downloads the raw file (e.g. `https://raw.githubusercontent.com/<owner>/<repo>/master/ROADMAP.md`) via `reqwest`, then renders it with `termimad` (already used elsewhere for markdown output). Cache the fetched content for the session to avoid repeat network calls, surface a clear error if offline, and consider paging long output through the existing pager path. Optional: accept a section argument (`/roadmap desktop`) to jump to a specific heading.
 
 ### Quality Improvements

@@ -21,7 +21,10 @@ pub(super) fn print_help() {
             "manage native MLX models (Apple Silicon) [experimental]",
         ),
         ("/behavior", "switch auto/human-in-the-loop behavior"),
-        ("/model", "switch model and provider"),
+        (
+            "/model",
+            "switch model and provider (use /model <query> to search)",
+        ),
         ("/ping", "validate API keys and probe provider connectivity"),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),

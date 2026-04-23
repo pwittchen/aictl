@@ -107,8 +107,11 @@ pub enum CommandResult {
     Info,
     /// Show security policy status.
     Security,
-    /// Switch model interactively.
-    Model,
+    /// Switch model interactively. Carries an optional search query: when
+    /// `Some(q)`, the handler should skip the top-level Browse/Search menu
+    /// and jump straight to filtered results (used for `/model search <q>`
+    /// and `/model <q>` scripted selection).
+    Model(Option<String>),
     /// Switch auto/human-in-the-loop behavior.
     Behavior,
     /// Switch memory mode (long-term/short-term).
@@ -182,7 +185,35 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             CommandResult::Agent(name)
         }
         "security" => CommandResult::Security,
-        "model" => CommandResult::Model,
+        "model" => {
+            // `/model` → top-level Browse/Search menu.
+            // `/model search <query>` or `/model <query>` → jump to filtered
+            // results. The leading `search` token is optional — either form
+            // is accepted so scripted callers can pick whichever reads best.
+            let query = if args.is_empty() {
+                None
+            } else {
+                let q = args
+                    .strip_prefix("search")
+                    .and_then(|rest| {
+                        // Only strip the prefix when it was its own token,
+                        // so `/model searchlight` stays as a literal query.
+                        if rest.is_empty() || rest.starts_with(char::is_whitespace) {
+                            Some(rest.trim())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(args)
+                    .trim();
+                if q.is_empty() {
+                    None
+                } else {
+                    Some(q.to_string())
+                }
+            };
+            CommandResult::Model(query)
+        }
         "behavior" => CommandResult::Behavior,
         "memory" => CommandResult::Memory,
         "update" => CommandResult::Update,
@@ -293,7 +324,52 @@ mod tests {
     fn cmd_model() {
         assert!(matches!(
             handle("/model", "", &noop_error),
-            CommandResult::Model
+            CommandResult::Model(None)
+        ));
+    }
+
+    #[test]
+    fn cmd_model_with_search_prefix_strips_the_keyword() {
+        match handle("/model search opus", "", &noop_error) {
+            CommandResult::Model(Some(q)) => assert_eq!(q, "opus"),
+            _ => panic!("expected Model(Some(_))"),
+        }
+    }
+
+    #[test]
+    fn cmd_model_with_bare_query_is_treated_as_search() {
+        match handle("/model claude", "", &noop_error) {
+            CommandResult::Model(Some(q)) => assert_eq!(q, "claude"),
+            _ => panic!("expected Model(Some(_))"),
+        }
+    }
+
+    #[test]
+    fn cmd_model_does_not_strip_prefix_when_token_is_glued() {
+        // `/model searchlight` should search for "searchlight", not "light".
+        match handle("/model searchlight", "", &noop_error) {
+            CommandResult::Model(Some(q)) => assert_eq!(q, "searchlight"),
+            _ => panic!("expected Model(Some(_))"),
+        }
+    }
+
+    #[test]
+    fn cmd_model_multi_word_query() {
+        match handle("/model anthropic opus", "", &noop_error) {
+            CommandResult::Model(Some(q)) => assert_eq!(q, "anthropic opus"),
+            _ => panic!("expected Model(Some(_))"),
+        }
+    }
+
+    #[test]
+    fn cmd_model_search_with_empty_query_is_treated_as_no_query() {
+        assert!(matches!(
+            handle("/model search", "", &noop_error),
+            CommandResult::Model(None)
+        ));
+        assert!(matches!(
+            handle("/model search   ", "", &noop_error),
+            CommandResult::Model(None)
         ));
     }
 

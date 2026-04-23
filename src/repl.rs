@@ -449,14 +449,18 @@ async fn handle_repl_input(
             commands::run_version(&|msg| ui.show_error(msg)).await;
             return ReplAction::Continue;
         }
-        commands::CommandResult::Model => {
+        commands::CommandResult::Model(query) => {
             let _ = rl.add_history_entry(input);
             let ollama_models = llm::ollama::list_models().await;
             let local_models = llm::gguf::list_models();
             let mlx_models = llm::mlx::list_models();
-            if let Some((new_provider, new_model, api_key_name)) =
-                commands::select_model(model, &ollama_models, &local_models, &mlx_models)
-            {
+            if let Some((new_provider, new_model, api_key_name)) = commands::select_model(
+                model,
+                &ollama_models,
+                &local_models,
+                &mlx_models,
+                query.as_deref(),
+            ) {
                 if matches!(
                     new_provider,
                     Provider::Ollama | Provider::Gguf | Provider::Mlx
