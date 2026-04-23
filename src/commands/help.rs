@@ -26,6 +26,10 @@ pub(super) fn print_help() {
             "switch model and provider (use /model <query> to search)",
         ),
         ("/ping", "validate API keys and probe provider connectivity"),
+        (
+            "/roadmap",
+            "view the project roadmap (use /roadmap <section> to filter)",
+        ),
         ("/security", "show security policy"),
         ("/session", "manage sessions"),
         ("/skills", "manage skills (one-turn markdown playbooks)"),

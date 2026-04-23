@@ -320,6 +320,11 @@ async fn handle_repl_input(
             commands::run_ping().await;
             return ReplAction::Continue;
         }
+        commands::CommandResult::Roadmap(query) => {
+            let _ = rl.add_history_entry(input);
+            commands::run_roadmap(query.as_deref(), &|msg| ui.show_error(msg)).await;
+            return ReplAction::Continue;
+        }
         commands::CommandResult::Retry => {
             let _ = rl.add_history_entry(input);
             let Some(prompt) = commands::retry_last_exchange(messages) else {

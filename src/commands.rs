@@ -28,6 +28,7 @@ mod mlx;
 mod model;
 mod ping;
 mod retry;
+mod roadmap;
 mod security;
 mod session;
 mod skills;
@@ -50,6 +51,7 @@ pub use mlx::run_mlx_menu;
 pub use model::select_model;
 pub use ping::run_ping;
 pub use retry::retry_last_exchange;
+pub use roadmap::run_roadmap;
 pub use security::print_security;
 pub use session::{print_sessions_cli, run_session_menu};
 pub use skills::{SkillsMenuOutcome, print_skills_cli, run_skills_menu};
@@ -79,6 +81,7 @@ pub const COMMANDS: &[&str] = &[
     "model",
     "ping",
     "retry",
+    "roadmap",
     "security",
     "session",
     "skills",
@@ -150,6 +153,9 @@ pub enum CommandResult {
     Stats,
     /// Remove the last user/assistant exchange and retry it.
     Retry,
+    /// Fetch and render the project roadmap. Carries an optional heading
+    /// filter: `/roadmap desktop` jumps to the `## Desktop` section.
+    Roadmap(Option<String>),
     /// Drop the last N turns from the conversation without re-running
     /// anything. Carries the requested count (defaults to `1` when the user
     /// typed `/undo` with no argument).
@@ -161,6 +167,7 @@ pub enum CommandResult {
 }
 
 /// Handle slash command input. Returns how the REPL should proceed.
+#[allow(clippy::too_many_lines)]
 pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> CommandResult {
     let Some(rest) = input.strip_prefix('/') else {
         return CommandResult::NotACommand;
@@ -224,6 +231,14 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "mlx" => CommandResult::Mlx,
         "ping" => CommandResult::Ping,
         "retry" => CommandResult::Retry,
+        "roadmap" => {
+            let query = if args.is_empty() {
+                None
+            } else {
+                Some(args.to_string())
+            };
+            CommandResult::Roadmap(query)
+        }
         "undo" => {
             let count = if args.is_empty() {
                 1
@@ -419,6 +434,22 @@ mod tests {
             handle("/retry", "", &noop_error),
             CommandResult::Retry
         ));
+    }
+
+    #[test]
+    fn cmd_roadmap_no_args() {
+        assert!(matches!(
+            handle("/roadmap", "", &noop_error),
+            CommandResult::Roadmap(None)
+        ));
+    }
+
+    #[test]
+    fn cmd_roadmap_with_section_arg() {
+        match handle("/roadmap desktop", "", &noop_error) {
+            CommandResult::Roadmap(Some(q)) => assert_eq!(q, "desktop"),
+            _ => panic!("expected Roadmap(Some(_))"),
+        }
     }
 
     #[test]
