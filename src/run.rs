@@ -26,8 +26,8 @@ use clap::ValueEnum;
 
 use crate::commands::MemoryMode;
 use crate::config::{
-    self, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT, load_prompt_file,
-    max_iterations,
+    self, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT,
+    SYSTEM_PROMPT_CHAT_ONLY, load_prompt_file, max_iterations,
 };
 use crate::error::AictlError;
 use crate::message::{Message, Role};
@@ -166,8 +166,19 @@ pub(crate) async fn with_esc_cancel<F: std::future::Future>(
 }
 
 /// Build the full system prompt, appending the project prompt file and loaded agent if present.
+///
+/// When `AICTL_TOOLS_ENABLED=false` the base prompt is swapped for a
+/// pure-chat variant that omits the tool catalog entirely and tells the
+/// model tools are unavailable. This prevents the model from trying to emit
+/// `<tool>` XML (which would be blocked by the execute-tool guard anyway)
+/// and stops it hallucinating filesystem or network access.
 pub(crate) fn build_system_prompt() -> String {
-    let mut prompt = SYSTEM_PROMPT.to_string();
+    let base = if tools::tools_enabled() {
+        SYSTEM_PROMPT
+    } else {
+        SYSTEM_PROMPT_CHAT_ONLY
+    };
+    let mut prompt = base.to_string();
     if let Some((name, content)) = load_prompt_file() {
         prompt.push_str("\n\n# Project prompt file (");
         prompt.push_str(&name);

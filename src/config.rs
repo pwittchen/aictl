@@ -162,6 +162,20 @@ Rules:
 - Show your reasoning before tool calls.
 "#;
 
+/// System prompt used when tools are globally disabled via
+/// `AICTL_TOOLS_ENABLED=false`. The agent runs in pure-chat mode — the model
+/// is told explicitly that no tools are available so it does not attempt to
+/// emit `<tool>` XML (which would be rejected by the execute-tool guard
+/// anyway) and does not hallucinate filesystem/network access.
+pub const SYSTEM_PROMPT_CHAT_ONLY: &str = r"You are a helpful assistant running in pure-chat mode. You do NOT have access to any tools, the filesystem, the shell, the network, or external systems of any kind. Answer from your training knowledge only.
+
+Rules:
+- Never emit `<tool>` tags or any other tool-invocation markup — tools are disabled and any such attempt will be rejected.
+- Do not claim to run commands, read or write files, fetch URLs, or look anything up in real time.
+- If the user asks for something that would require a tool (reading a file, running code, fetching a page, checking current date/time or location, generating an image, etc.), explain briefly that tools are disabled in this session and offer the best text-only answer you can.
+- Respond in plain prose. Markdown formatting is fine.
+";
+
 // --- Config file loading ---
 
 pub fn load_config() {

@@ -192,10 +192,16 @@ pub fn print_info(
     );
     let tool_count = crate::tools::TOOL_COUNT;
     let disabled = crate::security::policy().disabled_tools.len();
-    let tools_info = if disabled > 0 {
-        format!("{tool_count} ({disabled} disabled)")
+    let tools_info = if crate::tools::tools_enabled() {
+        if disabled > 0 {
+            format!("{tool_count} ({disabled} disabled)")
+        } else {
+            format!("{tool_count}")
+        }
     } else {
-        format!("{tool_count}")
+        "disabled — pure chat mode (AICTL_TOOLS_ENABLED=false)"
+            .with(Color::Yellow)
+            .to_string()
     };
     println!("  {} {tools_info}", "tools:    ".with(Color::Cyan));
     println!();
