@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent in your terminal — 58 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
+AI agent in your terminal — 70 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -146,7 +146,9 @@ The interactive REPL supports slash commands:
 | `/context` | Show context usage (token and message counts vs limits) |
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
+| `/history` | View the in-memory conversation; optional role or keyword filter (e.g. `/history user rust`) |
 | `/info` | Show setup info (provider, model, behavior, memory, agent, version, OS, binary size) |
+| `/roadmap` | Fetch and render the project roadmap; optional section filter (e.g. `/roadmap desktop`) |
 | `/gguf` | Manage native GGUF models (view downloaded, pull, remove, clear all) |
 | `/mlx` | Manage native MLX models (Apple Silicon; view downloaded, pull, remove, clear all) |
 | `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |

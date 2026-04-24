@@ -7,8 +7,8 @@ src/
  ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; also log_redaction() for the redaction layer's events
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /security, /session, /skills, /stats, /tools, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
- ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, security, session, skills, stats, tools, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
+ ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -344,7 +344,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
+ Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -392,6 +392,12 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
                  Tool-call-denied messages when locating the boundary), clear tool
                  call history and last_answer, save session, re-submit the removed
                  prompt via ReplAction::RunAgentTurnWith so the agent tries again
+   History     → carries the raw `/history` arg string; the REPL filters the
+                 in-memory conversation by role and/or keyword before printing
+   Roadmap     → fetch and render the project ROADMAP.md; optional heading
+                 filter (`/roadmap desktop`) jumps to the `## Desktop` section
+   Undo        → carries a positive count; drop the last N turns without
+                 re-running anything; refuses to cross a `/compact` boundary
    Continue    → command handled, continue
    NotACommand → pass input to agent loop (session saved after turn)
 ```
