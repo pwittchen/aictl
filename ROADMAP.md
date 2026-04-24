@@ -58,7 +58,7 @@ Ship the CLI and Server as **two separate binaries** (`aictl` and `aictl-server`
 
 ## Server
 
-Run `aictl` as a long-lived HTTP server that exposes the agent loop and every supported LLM provider through a single gateway API. Reuses the same `~/.aictl/config` as the CLI; an alternative path can be supplied via `--config <path>` (and a matching `AICTL_CONFIG` env var) so multiple server instances can run side-by-side with different keys, models, and security policies.
+Run `aictl` as a long-lived HTTP server that exposes the agent loop and every supported LLM provider through a single gateway API. Reuses the same `~/.aictl/config` as the CLI; an alternative path can be supplied via `--config <path>` (and a matching `AICTL_CONFIG` env var) so multiple server instances can run side-by-side with different keys, models, and security policies. See [.claude/plans/server.md](.claude/plans/server.md) for the development plan.
 
 ### Launch surface
 
