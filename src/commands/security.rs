@@ -26,18 +26,11 @@ pub fn print_security() {
 
 /// Render the redaction status. The `redaction:` row lives at the
 /// bottom of the summary block (after `disabled tools`) and — when the
-/// layer is turned on — is separated by a blank line and followed by
-/// an indented detail block listing active detectors, custom patterns,
-/// allowlist size, and NER state.
+/// layer is turned on — is followed by an indented detail block listing
+/// active detectors, custom patterns, allowlist size, and NER state.
 fn print_redaction_block(max_label: usize) {
     let pol = redaction::policy();
     let is_off = matches!(pol.mode, RedactionMode::Off);
-
-    if !is_off {
-        // Visual gap so the active redaction config stands apart from
-        // the rest of the security summary.
-        println!();
-    }
 
     let label = "redaction";
     let pad = max_label - label.len() + 2;
@@ -70,7 +63,6 @@ fn print_redaction_block(max_label: usize) {
         },
     );
     print_subrow_styled(max_label, "redaction ner", ner_label(pol), ner_color(pol));
-    println!();
 }
 
 fn local_providers_label(pol: &RedactionPolicy) -> (String, Color) {

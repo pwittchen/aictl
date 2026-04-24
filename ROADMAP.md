@@ -4,10 +4,6 @@
 
 ## General
 
-### REPL
-
-- **`/security` commmand** - remove spaces in the UI when redaction is on
-
 ### Developer Experience
 
 - **Plugin / extension system** — Let users add custom tools via external scripts or WASM modules without forking the repo. See [.claude/plans/plugin-system.md](.claude/plans/plugin-system.md) for the development plan.
