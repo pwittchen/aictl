@@ -7,7 +7,7 @@ Users have domain-specific tool needs that don't belong in the core binary — a
 ## Goals & Non-goals
 
 **Goals**
-- Let users add new tools as external artifacts (scripts first, WASM later).
+- Let users add new tools as external artifacts (executable scripts / binaries).
 - Route plugin calls through the existing `security::validate_tool()` pipeline so the CWD jail, disabled-tools list, and confirmation UX keep working.
 - Expose plugin-declared schema to the LLM exactly like a built-in tool (same `<tool>name…</tool>` XML contract).
 - Keep plugins opt-in and auditable — third-party code must not auto-load silently.
@@ -18,21 +18,13 @@ Users have domain-specific tool needs that don't belong in the core binary — a
 - No package registry / remote install in v1. Users drop files into `~/.aictl/plugins/` manually.
 - No hot-reload. Plugins are discovered at startup; restart to pick up changes.
 
-## Approach: Tiered Rollout
-
-### Tier 1 — Script plugins (MVP)
+## Approach
 
 An executable + manifest pair dropped into `~/.aictl/plugins/<name>/`. aictl spawns the executable under the existing subprocess sandbox, pipes input on stdin, reads result from stdout. Language-agnostic — any script/binary that reads stdin and writes stdout works.
 
-### Tier 2 — WASM plugins (follow-up)
-
-Single `.wasm` file + embedded manifest, executed via `wasmtime` with WASI capabilities explicitly granted in the manifest (filesystem/network denied by default). Safer and cross-platform, but heavier implementation — only worth doing if Tier 1 gets traction.
-
-This plan focuses on Tier 1; Tier 2 is sketched at the end as a future phase.
-
 ---
 
-## Tier 1 — Script Plugin Design
+## Script Plugin Design
 
 ### 1. Layout on disk
 
@@ -216,26 +208,15 @@ Per-plugin enable/disable lives in config rather than in the manifest — users 
 - New `docs/plugins.md` (or a section in README.md — decide during implementation based on size): manifest reference, wire protocol, security model, example walkthrough.
 - `ARCH.md` gains a "Plugins" section describing discovery, execution, and the security gate.
 - `CLAUDE.md` gets a one-paragraph addition describing `src/plugins.rs`.
-- `ROADMAP.md`: remove the "Plugin / extension system" entry from the Developer Experience section once Tier 1 ships.
+- `ROADMAP.md`: remove the "Plugin / extension system" entry from the Developer Experience section once the feature ships.
 
 ---
-
-## Tier 2 — WASM Plugins (future phase)
-
-Sketch only; implement after Tier 1 has real users.
-
-- Single `.wasm` file at `~/.aictl/plugins/<name>.wasm`; manifest embedded as a custom WASM section or sibling `.toml`.
-- Execute via `wasmtime` with a WASI context built from the manifest's capability declarations (`fs_read`, `fs_write`, `net_connect`, each scoped to allowed paths/domains). Default = no capabilities.
-- Same input (stdin bytes) / output (stdout bytes) contract as Tier 1, so plugin authors can share logic.
-- Dependencies (`wasmtime` + `wasi-common`) add meaningful binary size — put behind a `plugins-wasm` cargo feature like `gguf`/`mlx` so users who don't want it don't pay for it.
-- Security gains: WASM sandbox prevents filesystem/network access the user didn't explicitly grant, which Tier 1 can't offer (a script plugin runs with the user's full privileges, same as `exec_shell`).
 
 ## Rollout phases
 
 1. **Phase 1** — `src/plugins.rs` + manifest parsing + script execution + `--list-plugins` flag. Gated behind `AICTL_PLUGINS_ENABLED`. No REPL surface yet.
 2. **Phase 2** — `/plugins` REPL menu, welcome banner line, system-prompt catalog injection.
 3. **Phase 3** — Integration tests, example plugin, `docs/plugins.md`.
-4. **Phase 4** (optional, later) — Tier 2 WASM support behind a cargo feature.
 
 ## Verification
 
