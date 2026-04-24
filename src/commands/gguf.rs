@@ -76,9 +76,11 @@ fn print_gguf_models() {
     println!();
 }
 
-/// Curated subset of the LM Studio model catalog (<https://lmstudio.ai/models>).
-/// Each entry points at the `lmstudio-community` GGUF mirror on Hugging Face
-/// with the `Q4_K_M` quant where available (gpt-oss ships only `MXFP4`).
+/// Curated subset of the LM Studio model catalog (<https://lmstudio.ai/models>),
+/// plus a few community models hosted elsewhere on Hugging Face.
+/// Most entries point at the `lmstudio-community` GGUF mirror with the
+/// `Q4_K_M` quant where available (gpt-oss ships only `MXFP4`); non-LM-Studio
+/// entries (e.g. Bielik) point at their upstream maintainer's repo.
 /// Sizes were read from the HF tree API at the time of selection.
 const LMSTUDIO_CATALOG: &[(&str, &str, &str)] = &[
     (
@@ -161,6 +163,11 @@ const LMSTUDIO_CATALOG: &[(&str, &str, &str)] = &[
         "lmstudio-community/granite-4.0-h-small-GGUF:granite-4.0-h-small-Q4_K_M.gguf",
         "~18.1 GB",
     ),
+    (
+        "Bielik 11B v3.0 Instruct (Q4_K_M)",
+        "speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q4_K_M.gguf",
+        "~6.3 GB",
+    ),
 ];
 
 fn build_lmstudio_catalog_menu_lines(selected: usize) -> Vec<String> {
@@ -205,7 +212,7 @@ async fn pull_gguf_model(show_error: &dyn Fn(&str)) {
     println!();
     println!(
         "  {}",
-        "curated from the LM Studio catalog (lmstudio.ai/models), hosted on Hugging Face by lmstudio-community"
+        "curated community GGUFs on Hugging Face (mostly LM Studio's lmstudio-community mirror)"
             .with(Color::DarkGrey)
     );
     let total = LMSTUDIO_CATALOG.len() + 1;
