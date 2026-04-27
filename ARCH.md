@@ -12,8 +12,8 @@ src/
  ├── version_cache.rs   Cached remote-version lookup under ~/.aictl/version (TTL gating /version & banner staleness check)
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
- ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
+ ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -49,6 +49,8 @@ src/
  │  1. load_config()            read ~/.aictl/config into RwLock<HashMap>   │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
+ │  2b'. plugins::init()        scan ~/.aictl/plugins/ when                 │
+ │                              AICTL_PLUGINS_ENABLED=true; cache survivors │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
@@ -408,7 +410,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
+ Also: /agent (Agent), /balance (Balance), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /plugins (Plugins), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -439,6 +441,12 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
    Ping        → probe every cloud provider catalog endpoint (`GET /models` with the
                  configured API key) plus the local Ollama daemon in parallel and
                  print per-provider status + latency; GGUF/MLX skipped (local only); continue
+   Balance     → probe each cloud provider's balance endpoint (real for DeepSeek and
+                 Kimi; "unknown + dashboard hint" elsewhere) and print remaining
+                 credit / quota; local providers skipped; continue
+   Plugins     → open plugins menu (list manifests, view a plugin's plugin.toml,
+                 toggle the AICTL_PLUGINS_ENABLED master switch, show the plugins
+                 directory); continue
    Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
                  clear all recorded usage statistics), continue
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /

@@ -516,7 +516,8 @@
               <li><code>--list-agents</code> — print saved agents and exit (add <code>--category &lt;name&gt;</code> to filter)</li>
               <li><code>--pull-agent &lt;name&gt;</code> — pull an official agent from the aictl repo (add <code>--force</code> to overwrite)</li>
               <li><code>--skill &lt;name&gt;</code> — invoke a saved skill for one turn</li>
-              <li><code>--list-skills</code> — print saved skills and exit</li>
+              <li><code>--list-skills</code> — print saved skills and exit (add <code>--category &lt;name&gt;</code> to filter)</li>
+              <li><code>--pull-skill &lt;name&gt;</code> — pull an official skill from the aictl repo (add <code>--force</code> to overwrite)</li>
               <li><code>--session &lt;id|name&gt;</code> — resume a session</li>
               <li><code>--list-sessions</code> — print saved sessions and exit</li>
               <li><code>--clear-sessions</code> — delete all saved sessions</li>
@@ -535,6 +536,7 @@
             <ul>
               <li><code>--update</code> — update to latest version</li>
               <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
+              <li><code>--list-plugins</code> — print installed plugins and exit</li>
             </ul>
           </div>
           <div class="tools" style="grid-column: 1 / -1;">
@@ -673,6 +675,24 @@
             <p>Discovery happens once at startup &mdash; restart aictl to pick up new plugins. The same security gate that fronts built-in tools fronts plugins, so <code>AICTL_SECURITY_DISABLED_TOOLS</code> can disable a plugin name. Per-plugin silencing without editing the manifest: <code>AICTL_PLUGINS_DISABLED=foo,bar</code>. Use <code>--list-plugins</code> for a non-interactive listing.</p>
           </article>
         </div>
+
+        <p class="section__note" style="margin-top: 32px;">
+          Example <code>~/.aictl/plugins/kubectl_query/plugin.toml</code>:
+        </p>
+        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
+          <code id="g-cmd-plugin-toml" style="white-space: pre-wrap;">name = "kubectl_query"&#10;version = "0.1.0"&#10;description = "Query a Kubernetes cluster. Input: 'get|describe|logs &lt;resource&gt; [name]'."&#10;entrypoint = "run"           # relative path inside the plugin dir; default "run"&#10;requires_confirmation = true # keep true unless the plugin is purely read-only&#10;timeout_secs = 30            # optional; falls back to AICTL_SECURITY_SHELL_TIMEOUT&#10;schema_hint = """&#10;First line: subcommand (get|describe|logs)&#10;Second line: resource type&#10;Third line (optional): resource name&#10;"""</code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-plugin-toml" aria-label="Copy plugin.toml example">Copy</button>
+        </div>
+        <p class="section__note" style="margin-top: 16px;">
+          Example <code>~/.aictl/plugins/kubectl_query/run</code> (any executable language works; here&rsquo;s a minimal <code>sh</code> stub):
+        </p>
+        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
+          <code id="g-cmd-plugin-run" style="white-space: pre-wrap;">#!/usr/bin/env sh&#10;# Read the raw &lt;tool&gt;...&lt;/tool&gt; body from stdin, write the result to stdout.&#10;# Non-zero exit codes are surfaced to the model as `[exit N] &lt;stderr&gt;`.&#10;input=$(cat)&#10;subcommand=$(printf '%s\n' "$input" | sed -n '1p')&#10;resource=$(printf '%s\n' "$input" | sed -n '2p')&#10;name=$(printf '%s\n' "$input" | sed -n '3p')&#10;&#10;case "$subcommand" in&#10;  get|describe) kubectl "$subcommand" "$resource" ${name:+"$name"} ;;&#10;  logs)         kubectl logs "$resource" ${name:+"$name"} ;;&#10;  *)            printf 'unknown subcommand: %s\n' "$subcommand" &gt;&amp;2; exit 1 ;;&#10;esac</code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-plugin-run" aria-label="Copy plugin run script example">Copy</button>
+        </div>
+        <p class="section__note" style="margin-top: 16px;">
+          Make it executable (<code>chmod +x run</code>), set <code>AICTL_PLUGINS_ENABLED=true</code> in <code>~/.aictl/config</code>, and restart aictl to pick it up. A minimal working reference lives in the project repo at <a href="https://github.com/pwittchen/aictl/tree/master/examples/plugins/echo_back" target="_blank" rel="noopener"><code>examples/plugins/echo_back/</code></a>.
+        </p>
       </div>
     </section>
 

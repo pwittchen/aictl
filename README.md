@@ -127,7 +127,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
