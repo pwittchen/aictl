@@ -127,7 +127,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -194,6 +194,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--pull-skill` | Download an official skill from the aictl repo into `~/.aictl/skills/<name>/SKILL.md`. Combine with `--force` to skip the overwrite prompt |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
+| `--audit-file` | Write the per-line JSON audit log to an explicit path. Intended for single-shot (`--message`) runs, which otherwise have no session id to key the default `~/.aictl/audit/<session-id>` file by. Force-enables audit logging even when `AICTL_SECURITY_AUDIT_LOG=false`. Parent directories are created on demand |
 | `--unrestricted` | Disable all security restrictions (use with caution) |
 | `--incognito` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
 | `--session` | Load a saved session by uuid or name on startup (interactive mode only) |

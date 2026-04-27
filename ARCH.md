@@ -4,9 +4,14 @@
 
 ```
 src/
- ├── main.rs            CLI args (clap), agent loop, single-shot & REPL modes, session init
+ ├── main.rs            CLI args (clap) and management-flag dispatch (--version, --update, --uninstall, --config, agent/skill/session/key/model helpers, --audit-file), provider/model/key resolution, then routes to single-shot or REPL
+ ├── run.rs             run_agent_turn loop, tool-call dispatch, outbound redaction, Provider enum, Esc-cancel wiring, build_system_prompt
+ ├── repl.rs            Interactive REPL driver — reads input, dispatches slash commands, drives run_agent_turn, persists session/stats after each turn
+ ├── message.rs         Message/Role/ImageData types shared across providers
+ ├── error.rs           Crate-wide Result/Error types (thiserror)
+ ├── version_cache.rs   Cached remote-version lookup under ~/.aictl/version (TTL gating /version & banner staleness check)
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
- ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; also log_redaction() for the redaction layer's events
+ ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
  ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
  ├── commands/          One submodule per slash command (agent, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading

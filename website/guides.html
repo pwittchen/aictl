@@ -450,6 +450,7 @@
               <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
+              <li><code>/balance</code> — show remaining credit / quota for each configured cloud provider</li>
               <li><code>/roadmap</code> — fetch &amp; render ROADMAP.md (filter by section)</li>
               <li><code>/security</code> — show current security policy</li>
               <li><code>/keys</code> — lock / unlock / clear API keys</li>
@@ -497,8 +498,10 @@
               <li><code>--model</code> — override model</li>
               <li><code>--auto</code> — skip tool confirmation</li>
               <li><code>--quiet</code> — final answer only (requires <code>--auto</code>)</li>
+              <li><code>--audit-file &lt;path&gt;</code> — write per-line JSON audit log to an explicit path (single-shot runs)</li>
               <li><code>--unrestricted</code> — disable security checks</li>
               <li><code>--incognito</code> — no session save</li>
+              <li><code>--balance</code> / <code>--list-balances</code> — show remaining credit / quota and exit</li>
               <li><code>--config</code> — interactive wizard</li>
               <li><code>--version</code>, <code>-v</code> — print version</li>
               <li><code>--help</code>, <code>-h</code> — print help</li>
