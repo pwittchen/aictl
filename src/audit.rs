@@ -5,8 +5,10 @@
 //! name mirrors the corresponding session file under `~/.aictl/sessions/`
 //! so a reviewer can read both together. Enabled by default; toggled via
 //! `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config`. Skipped for
-//! single-shot (`--message`) mode and incognito sessions — there is no
-//! session id to key the file by.
+//! incognito sessions and (by default) single-shot (`--message`) mode —
+//! there is no session id to key the file by. Single-shot runs can opt
+//! in with `--audit-file <PATH>` to write the same per-line JSON log to
+//! an explicit path.
 //!
 //! This is an observability channel, not a security restriction: it only
 //! records what happened and why. `--unrestricted` leaves it running so
@@ -18,7 +20,8 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde_json::{Value, json};
 
@@ -26,6 +29,29 @@ use crate::config::config_get;
 use crate::security::redaction::{Match, RedactionDirection, RedactionMode, RedactionSource};
 use crate::session;
 use crate::tools::ToolCall;
+
+/// Explicit audit-file path, set by `--audit-file <PATH>`. When present,
+/// it takes priority over the per-session `~/.aictl/audit/<session-id>`
+/// path and lets single-shot runs (which have no session id) capture an
+/// audit trail.
+static AUDIT_FILE_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Set an explicit audit-log path for this process. Idempotent: the
+/// first call wins, subsequent calls are ignored. Creates parent
+/// directories on demand so the writer in [`log_tool`] / [`log_redaction`]
+/// can append immediately.
+pub fn set_file_override(path: &Path) {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = AUDIT_FILE_OVERRIDE.set(path.to_path_buf());
+}
+
+fn override_path() -> Option<&'static Path> {
+    AUDIT_FILE_OVERRIDE.get().map(PathBuf::as_path)
+}
 
 const MAX_INPUT_LEN: usize = 1_000;
 const MAX_RESULT_LEN: usize = 500;
@@ -42,7 +68,12 @@ pub enum Outcome<'a> {
 
 /// Returns whether audit logging is enabled. Default: on. Configurable via
 /// `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (accepts `false` / `0`).
+/// An explicit `--audit-file` override force-enables the subsystem so the
+/// flag does what its name suggests even if config has it switched off.
 pub fn enabled() -> bool {
+    if override_path().is_some() {
+        return true;
+    }
     config_get("AICTL_SECURITY_AUDIT_LOG").is_none_or(|v| v != "false" && v != "0")
 }
 
@@ -55,6 +86,9 @@ pub fn audit_dir() -> Option<PathBuf> {
 }
 
 fn audit_file() -> Option<PathBuf> {
+    if let Some(path) = override_path() {
+        return Some(path.to_path_buf());
+    }
     let id = session::current_id()?;
     Some(audit_dir()?.join(id))
 }

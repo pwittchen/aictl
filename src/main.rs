@@ -101,6 +101,14 @@ struct Cli {
     #[arg(long, requires = "auto")]
     quiet: bool,
 
+    /// Write the per-line JSON audit log to this path. Intended for
+    /// single-shot (`--message`) runs, which otherwise have no session
+    /// id to key the default `~/.aictl/audit/<session-id>` file by.
+    /// Force-enables audit logging even if `AICTL_SECURITY_AUDIT_LOG`
+    /// is `false`. Parent directories are created on demand.
+    #[arg(long = "audit-file", value_name = "PATH")]
+    audit_file: Option<std::path::PathBuf>,
+
     /// Disable security restrictions (use with caution)
     #[arg(long)]
     unrestricted: bool,
@@ -284,6 +292,10 @@ async fn main() {
     session::set_incognito(resolve_incognito(cli.incognito));
     load_agent_if_requested(cli.agent.as_deref());
     let loaded_skill = resolve_skill(cli.skill.as_deref());
+
+    if let Some(path) = cli.audit_file.as_deref() {
+        audit::set_file_override(path);
+    }
 
     let result = match cli.message {
         Some(ref msg) => {
