@@ -14,7 +14,7 @@
 //! [`ReplAction::RunAgentTurn`] that the loop in [`run_interactive`] feeds
 //! into [`run_and_display_turn`].
 
-use crossterm::style::{Attribute, Color, Stylize};
+use crossterm::style::{Color, Stylize};
 use rustyline::error::ReadlineError;
 
 use crate::commands::{self, MemoryMode};
@@ -28,6 +28,22 @@ use crate::{
     agents, fetch_remote_version, keys, llm, security, session, skills, stats, tools,
     version_cache, version_info_string,
 };
+
+// Codex-style prompt block uses raw SGR codes so the dark-gray bg stays
+// active across labels and the typing area. Crossterm's `Stylize` injects a
+// full SGR reset after each span which would knock the bg off mid-row.
+//   `\x1b[48;5;236m` — 256-color dark gray bg (darker than bright-black).
+//   `\x1b[K` — erase from cursor to EOL, painting with the current bg so
+//              the row fills to the full terminal width.
+//   `\x1b[2A` — move cursor up 2 rows; used to drop rustyline's prompt onto
+//               the middle row of the pre-painted 3-row block so the bottom
+//               padding is visible while the user is still typing.
+//   `\x1b[39m` / `\x1b[22m` — reset only fg / bold so the bg survives.
+//   `\x1b[0m` — full reset, used between the block and surrounding output.
+const PROMPT_BG: &str = "\x1b[48;5;236m";
+const PROMPT_FILL: &str = "\x1b[K";
+const PROMPT_RESET: &str = "\x1b[0m";
+const CURSOR_UP_2: &str = "\x1b[2A";
 
 // --- Slash command tab completion ---
 
@@ -902,31 +918,47 @@ pub(crate) async fn run_interactive(
 
     loop {
         let unrestricted = !security::policy().enabled;
-        let agent_prefix = agents::loaded_agent_name()
-            .map(|name| format!("{} ", format!("[{name}]").with(Color::Magenta)));
+        let agent_prefix =
+            agents::loaded_agent_name().map(|name| format!("\x1b[35m[{name}]\x1b[39m "));
         let ap = agent_prefix.as_deref().unwrap_or("");
+        let chevron = "\x1b[1;36m❯\x1b[22;39m";
+        let auto_label = "\x1b[33m[auto]\x1b[39m";
+        let unrestricted_label = "\x1b[31m[unrestricted]\x1b[39m";
+
+        // Pre-paint a 3-row dark-gray block (top padding, blank middle row,
+        // bottom padding) and move the cursor up 2 rows. Rustyline then writes
+        // the prompt onto the middle row, so the bottom padding is visible
+        // while the user is still typing — the user wanted the whole block,
+        // including its bottom edge, framed before submission.
+        print!(
+            "{PROMPT_BG}{PROMPT_FILL}{PROMPT_RESET}\r\n\
+             \r\n\
+             {PROMPT_BG}{PROMPT_FILL}{PROMPT_RESET}\r\n\
+             {CURSOR_UP_2}"
+        );
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+
+        // Prompt: bg active, line filled with bg, content rendered, no
+        // trailing reset so typed chars inherit the dark-gray bg.
         let prompt = match (auto, unrestricted) {
             (true, true) => format!(
-                "{ap}{} {} {} ",
-                "[auto]".with(Color::Yellow),
-                "[unrestricted]".with(Color::Red),
-                "❯".with(Color::Cyan).attribute(Attribute::Bold),
+                "{PROMPT_BG}{PROMPT_FILL}  {ap}{auto_label} {unrestricted_label} {chevron}  "
             ),
-            (true, false) => format!(
-                "{ap}{} {} ",
-                "[auto]".with(Color::Yellow),
-                "❯".with(Color::Cyan).attribute(Attribute::Bold),
-            ),
-            (false, true) => format!(
-                "{ap}{} {} ",
-                "[unrestricted]".with(Color::Red),
-                "❯".with(Color::Cyan).attribute(Attribute::Bold),
-            ),
-            (false, false) => {
-                format!("{ap}{} ", "❯".with(Color::Cyan).attribute(Attribute::Bold))
+            (true, false) => {
+                format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{auto_label} {chevron}  ")
             }
+            (false, true) => {
+                format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{unrestricted_label} {chevron}  ")
+            }
+            (false, false) => format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{chevron}  "),
         };
         let line = rl.readline(&prompt);
+
+        // After Enter, cursor sits at column 0 of the bottom-padding row.
+        // Reset SGR and step past it onto a fresh line, plus one extra blank
+        // row so the spinner / agent reply isn't glued to the prompt block.
+        print!("{PROMPT_RESET}\r\n\r\n");
+        let _ = std::io::Write::flush(&mut std::io::stdout());
         match line {
             Ok(input) => {
                 let input = input.trim().to_string();
