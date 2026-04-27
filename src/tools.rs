@@ -234,7 +234,13 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "checksum" => checksum::tool_checksum(input).await,
         "clipboard" => clipboard::tool_clipboard(input).await,
         "notify" => notify::tool_notify(input).await,
-        _ => format!("Unknown tool: {}", tool_call.name),
+        other => {
+            if let Some(plugin) = crate::plugins::find(other) {
+                crate::plugins::execute_plugin(plugin, input).await
+            } else {
+                format!("Unknown tool: {other}")
+            }
+        }
     };
     let sanitized = crate::security::sanitize_output(&result);
     crate::audit::log_tool(

@@ -36,7 +36,7 @@ use crate::security::redaction::{
 };
 use crate::skills::Skill;
 use crate::ui::{self, AgentUI, PlainUI};
-use crate::{agents, audit, llm, security, stats, tools};
+use crate::{agents, audit, llm, plugins, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
 
 /// Cached "is stdout a TTY?" check. Computed once at startup to avoid repeated
@@ -179,6 +179,16 @@ pub(crate) fn build_system_prompt() -> String {
         SYSTEM_PROMPT_CHAT_ONLY
     };
     let mut prompt = base.to_string();
+    if tools::tools_enabled() {
+        let plugin_list = plugins::list();
+        if !plugin_list.is_empty() {
+            use std::fmt::Write as _;
+            prompt.push_str("\n\nAdditional tools (plugins):\n");
+            for p in plugin_list {
+                let _ = write!(prompt, "\n### {} (plugin)\n{}\n", p.name, p.catalog_body());
+            }
+        }
+    }
     if let Some((name, content)) = load_prompt_file() {
         prompt.push_str("\n\n# Project prompt file (");
         prompt.push_str(&name);

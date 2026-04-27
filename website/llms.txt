@@ -1,13 +1,13 @@
 # aictl
 
-> aictl is a single-binary AI agent CLI for the terminal. It exposes 70 cloud models across eight providers (OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai) plus three local backends (Ollama, native GGUF via llama.cpp, native MLX on Apple Silicon) behind one interface, with 31 built-in tools, an interactive REPL, agents, skills, sessions, and a security policy that is on by default.
+> aictl is a single-binary AI agent CLI for the terminal. It exposes 70 cloud models across eight providers (OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai) plus three local backends (Ollama, native GGUF via llama.cpp, native MLX on Apple Silicon) behind one interface, with 31 built-in tools, user-installable plugin tools, an interactive REPL, agents, skills, sessions, and a security policy that is on by default.
 
 aictl is written in Rust and ships as one binary with no runtime dependencies on macOS or Linux. API keys are stored in the system keyring (macOS Keychain or Linux Secret Service) with a transparent plain-text fallback. Every tool call passes through a security policy (CWD jail, shell allowlists, environment scrubbing, prompt-injection guard, output sanitization, per-session audit log, opt-in credential and PII redaction at the network boundary). The project is open source under the PolyForm Noncommercial License 1.0.0; commercial use requires a separate license.
 
 ## Site
 
 - [Home](https://aictl.app/index.html): Overview, features, providers, tools, comparison with other AI coding tools, install steps, license.
-- [Guides](https://aictl.app/guides.html): End-to-end documentation — install, configuration, API keys, secure key storage, providers and models, usage modes, REPL commands, CLI flags, agents, skills, sessions, security policy.
+- [Guides](https://aictl.app/guides.html): End-to-end documentation — install, configuration, API keys, secure key storage, providers and models, usage modes, REPL commands, CLI flags, agents, skills, plugins, sessions, security policy.
 - [install.sh](https://aictl.app/install.sh): The one-liner installer script (`curl -sSf https://aictl.app/install.sh | sh`).
 
 ## Source

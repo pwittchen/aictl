@@ -8,6 +8,7 @@ mod integration_tests;
 mod keys;
 mod llm;
 mod message;
+mod plugins;
 mod repl;
 mod run;
 mod security;
@@ -239,6 +240,13 @@ struct Cli {
     #[arg(long = "clear-ner-models")]
     clear_ner_models: bool,
 
+    /// List installed plugins (name, description, location, status) and exit.
+    /// Plugins live under `~/.aictl/plugins/<name>/` (override via
+    /// `AICTL_PLUGINS_DIR`). Output reflects the catalogue at startup —
+    /// plugins are not hot-reloaded.
+    #[arg(long = "list-plugins")]
+    list_plugins: bool,
+
     /// Show remaining credit / quota for each configured cloud provider and
     /// exit. Local providers (Ollama/GGUF/MLX) are out of scope. Providers
     /// without a public balance API are reported as "unknown" with a hint
@@ -269,6 +277,7 @@ async fn main() {
     if cli.unrestricted {
         eprintln!("Warning: security restrictions disabled (--unrestricted)");
     }
+    plugins::init();
 
     if handle_management_flags(&cli).await {
         return;
@@ -357,6 +366,10 @@ async fn handle_management_flags(cli: &Cli) -> bool {
     }
     if cli.balance || cli.list_balances {
         commands::run_balance().await;
+        return true;
+    }
+    if cli.list_plugins {
+        commands::print_plugins_cli();
         return true;
     }
     false

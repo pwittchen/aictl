@@ -183,3 +183,28 @@
 # derived from the repo segment, so the model loads from
 # ~/.aictl/models/ner/gliner_small-v2.1/.
 # AICTL_REDACTION_NER_MODEL=onnx-community/gliner_small-v2.1
+
+################################
+#   PLUGINS (OPTIONAL, OFF)    #
+################################
+
+# User-installable plugin tools. A plugin is a directory under
+# ~/.aictl/plugins/<name>/ containing a `plugin.toml` manifest plus
+# an executable entrypoint (any language — script or binary). The
+# raw <tool>...</tool> body is piped to stdin; stdout is returned to
+# the model verbatim; non-zero exit surfaces as `[exit N] <stderr>`.
+# Discovery happens once at startup — restart aictl to pick up new
+# plugins. The standard security gate (CWD jail, disabled-tools
+# list, confirmation prompt) still fronts every plugin call.
+#
+# Master switch: plugins are third-party code and must not auto-load.
+# Set to true to opt in (default: false). Accepted values: true, false.
+# AICTL_PLUGINS_ENABLED=false
+
+# Override the discovery root (default: ~/.aictl/plugins). Used
+# mainly by tests and isolated installs.
+# AICTL_PLUGINS_DIR=
+
+# Comma-separated plugin names to skip at load time. Useful for
+# silencing one third-party plugin without editing its manifest.
+# AICTL_PLUGINS_DISABLED=

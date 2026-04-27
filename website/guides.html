@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>aictl — guides</title>
-  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, sessions, and tools." />
+  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, plugins, sessions, and tools." />
   <meta name="theme-color" content="#1f2228" />
   <meta property="og:title" content="aictl — guides" />
   <meta property="og:description" content="How to install, configure, and use aictl — the single-binary AI agent CLI." />
@@ -90,6 +90,7 @@
           <li><a href="#flags">CLI flags</a></li>
           <li><a href="#agents">Agents</a></li>
           <li><a href="#skills">Skills</a></li>
+          <li><a href="#plugins">Plugins</a></li>
           <li><a href="#sessions">Sessions</a></li>
           <li><a href="#tools-ref">Tools</a></li>
           <li><a href="#security">Security</a></li>
@@ -448,6 +449,7 @@
               <li><code>/behavior</code> — toggle auto / human-in-the-loop</li>
               <li><code>/agent</code> — manage agents (create, load, delete)</li>
               <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
+              <li><code>/plugins</code> — manage external plugin tools (list, view manifest, toggle)</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
               <li><code>/balance</code> — show remaining credit / quota for each configured cloud provider</li>
@@ -631,6 +633,44 @@
           <article class="card">
             <h3>Scope &amp; safety</h3>
             <p>The body is merged into the base system prompt for one turn only and is never saved into session history. Names collide-checked against built-in slash commands (<code>help</code>, <code>exit</code>, <code>agent</code>, &hellip;) at save time so a skill can&rsquo;t shadow a command. <code>--list-skills</code> prints every saved skill.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="plugins">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// plugins</span>
+          <h2 class="section__title">Plugins</h2>
+          <p class="section__lead">
+            Plugins extend aictl with custom tools without forking
+            the binary. A plugin is a directory under
+            <code>~/.aictl/plugins/&lt;name&gt;/</code> containing a
+            <code>plugin.toml</code> manifest plus an executable
+            entrypoint &mdash; any language, anything that reads stdin
+            and writes stdout. Opt in with
+            <code>AICTL_PLUGINS_ENABLED=true</code>; manage via
+            <code>/plugins</code>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Manifest</h3>
+            <p><code>plugin.toml</code> declares <code>name</code>, <code>description</code>, <code>entrypoint</code> (default <code>run</code>), and optional <code>requires_confirmation</code>, <code>timeout_secs</code>, <code>schema_hint</code>. Description and hint are injected into the system-prompt tool catalog so the model sees the plugin alongside built-ins.</p>
+          </article>
+          <article class="card">
+            <h3>Wire protocol</h3>
+            <p>The raw tool body is piped on stdin; stdout is returned to the model verbatim. Non-zero exits surface as <code>[exit N] &lt;stderr&gt;</code>. No JSON framing &mdash; identical to how built-ins like <code>exec_shell</code> or <code>json_query</code> are written today.</p>
+          </article>
+          <article class="card">
+            <h3>Sandbox</h3>
+            <p>The entrypoint is spawned directly (no shell), with a scrubbed env (secrets / <code>_KEY</code> / <code>_TOKEN</code> stripped) and the working directory pinned to the security CWD jail. Symlinked entrypoints that escape the plugin directory are rejected at load time.</p>
+          </article>
+          <article class="card">
+            <h3>Discovery &amp; gating</h3>
+            <p>Discovery happens once at startup &mdash; restart aictl to pick up new plugins. The same security gate that fronts built-in tools fronts plugins, so <code>AICTL_SECURITY_DISABLED_TOOLS</code> can disable a plugin name. Per-plugin silencing without editing the manifest: <code>AICTL_PLUGINS_DISABLED=foo,bar</code>. Use <code>--list-plugins</code> for a non-interactive listing.</p>
           </article>
         </div>
       </div>

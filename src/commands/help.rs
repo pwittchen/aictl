@@ -27,6 +27,7 @@ pub(super) fn print_help() {
             "switch model and provider (use /model <query> to search)",
         ),
         ("/ping", "validate API keys and probe provider connectivity"),
+        ("/plugins", "manage external plugin tools"),
         (
             "/roadmap",
             "view the project roadmap (use /roadmap <section> to filter)",

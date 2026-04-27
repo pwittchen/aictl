@@ -28,6 +28,7 @@ mod menu;
 mod mlx;
 mod model;
 mod ping;
+mod plugins;
 mod retry;
 mod roadmap;
 mod security;
@@ -52,6 +53,7 @@ pub use memory::{MemoryMode, select_memory};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
 pub use ping::run_ping;
+pub use plugins::{print_plugins_cli, run_plugins_menu};
 pub use retry::retry_last_exchange;
 pub use roadmap::run_roadmap;
 pub use security::print_security;
@@ -83,6 +85,7 @@ pub const COMMANDS: &[&str] = &[
     "mlx",
     "model",
     "ping",
+    "plugins",
     "retry",
     "roadmap",
     "security",
@@ -151,6 +154,9 @@ pub enum CommandResult {
     Mlx,
     /// Open the API key management menu (lock/unlock/clear).
     Keys,
+    /// Open the plugins management menu (list manifests, toggle the
+    /// `AICTL_PLUGINS_ENABLED` master switch).
+    Plugins,
     /// Check connectivity and API key validity for all providers.
     Ping,
     /// Re-run the interactive configuration wizard.
@@ -237,6 +243,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "gguf" => CommandResult::Gguf,
         "mlx" => CommandResult::Mlx,
         "ping" => CommandResult::Ping,
+        "plugins" => CommandResult::Plugins,
         "retry" => CommandResult::Retry,
         "roadmap" => {
             let query = if args.is_empty() {

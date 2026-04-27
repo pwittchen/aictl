@@ -159,6 +159,7 @@ The interactive REPL supports slash commands:
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/ping` | Validate every configured API key and probe provider connectivity (cloud providers + Ollama daemon) |
+| `/plugins` | Manage external plugin tools — list installed plugins, view a manifest, toggle the master switch (`AICTL_PLUGINS_ENABLED`) |
 | `/balance` | Show remaining credit / quota for each configured cloud provider (real numbers from DeepSeek and Kimi; "unknown" with a billing-dashboard hint elsewhere) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
@@ -216,6 +217,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--remove-ner-model` | Remove a downloaded NER model by name and exit |
 | `--clear-ner-models` | Remove every downloaded NER model and exit |
 | `--balance` / `--list-balances` | Show remaining credit / quota for each configured cloud provider and exit. Real numbers from DeepSeek and Kimi (via their official `/user/balance` and `/v1/users/me/balance` endpoints); other providers report "unknown" with a hint pointing at their billing dashboard. Local providers (Ollama / GGUF / MLX) are out of scope |
+| `--list-plugins` | Print installed plugins (name, description, location) and exit. Reads from `~/.aictl/plugins/` (override via `AICTL_PLUGINS_DIR`). When `AICTL_PLUGINS_ENABLED=false` the listing is empty with a hint about the master switch |
 
 CLI flags take priority over config file values.
 
@@ -290,6 +292,52 @@ Pull skills from the catalogue in two ways:
 - From the shell, `aictl --pull-skill <name>` downloads a single skill. Add `--force` to overwrite an existing local file without prompting.
 
 Catalogue skills carry `source: aictl-official` in their frontmatter; both `/skills` and `--list-skills` render an `[official]` badge so you can tell at a glance which skills came from the catalogue and which you wrote yourself. Users can edit or delete pulled skills freely — there is nothing special about them on disk. Public-repo reads are unauthenticated (≈60 requests/hour), which is plenty for browse-then-pull; errors are reported in the REPL without crashing the session.
+
+### Plugins
+
+Plugins are user-installed external tools that extend the agent without forking the repo. A plugin is a directory under `~/.aictl/plugins/<name>/` containing a `plugin.toml` manifest and an executable entrypoint (any language — shell script, Python, compiled binary, anything that reads stdin and writes stdout).
+
+```
+~/.aictl/plugins/
+└── kubectl_query/
+    ├── plugin.toml
+    └── run            # executable; chmod +x
+```
+
+`plugin.toml`:
+
+```toml
+name = "kubectl_query"
+version = "0.1.0"
+description = "Query a Kubernetes cluster. Input: 'get|describe|logs <resource> [name]'."
+entrypoint = "run"           # relative path inside the plugin dir; default "run"
+requires_confirmation = true # keep true unless the plugin is purely read-only
+timeout_secs = 30            # optional; falls back to AICTL_SECURITY_SHELL_TIMEOUT
+schema_hint = """
+First line: subcommand (get|describe|logs)
+Second line: resource type
+Third line (optional): resource name
+"""
+```
+
+Wire protocol:
+
+- **stdin** — the raw `<tool>…</tool>` body the LLM emitted, exactly as it would be passed to a built-in tool. No JSON framing.
+- **stdout** — the result string returned to the LLM verbatim (after `<tool>` tag escaping).
+- **exit code** — `0` for success; non-zero is reported back to the LLM as `[exit N] <stderr>`. Chatty stderr on success is suppressed.
+- **environment** — same scrubbed env that `exec_shell` uses (secrets / `_KEY` / `_TOKEN` / `_PASSWORD` stripped).
+- **working directory** — pinned to the security CWD jail.
+
+Plugins are gated behind `AICTL_PLUGINS_ENABLED=true` (default `false`) — third-party code does not auto-load. Discovery happens once at startup; restart aictl to pick up new plugins. A malformed manifest, missing entrypoint, or symlink that escapes the plugin directory causes that single plugin to be skipped with a stderr warning, never a startup failure.
+
+CLI surface:
+
+- `aictl --list-plugins` — non-interactive listing (name, description, location).
+- `/plugins` (REPL) — list manifests, view a plugin's `plugin.toml`, toggle the master switch, show the plugins directory.
+
+The standard security gate (`security::validate_tool`) runs before dispatch, so `AICTL_SECURITY_DISABLED_TOOLS` can disable a plugin name exactly like a built-in tool, the confirmation prompt fires unchanged, and `--unrestricted` bypasses validation just as it does for built-ins. To silence one plugin without touching its manifest, add it to `AICTL_PLUGINS_DISABLED=foo,bar`.
+
+A reference `echo_back` plugin lives at [`examples/plugins/echo_back/`](./examples/plugins/echo_back/) — copy the directory to `~/.aictl/plugins/echo_back/` and set `AICTL_PLUGINS_ENABLED=true` to try it.
 
 ### Configuration
 
@@ -402,6 +450,9 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_REDACTION_ALLOW` | Semicolon-separated regexes; any detection whose span is covered by an allowlist hit is dropped. Useful for documentation examples or internal IDs that trip the entropy scanner. |
 | `AICTL_REDACTION_NER` | Enable the optional Layer-C NER pass (person / location / organization). Requires the `redaction-ner` cargo feature and a pulled model. Default `false`. |
 | `AICTL_REDACTION_NER_MODEL` | NER model spec (`owner/repo` or `hf:owner/repo`). Default: `onnx-community/gliner_small-v2.1`. |
+| `AICTL_PLUGINS_ENABLED` | Master switch for the plugin subsystem (default: `false`). Plugins are third-party code; they will not auto-load until you opt in. |
+| `AICTL_PLUGINS_DIR` | Override the plugin discovery root (default: `~/.aictl/plugins`). Used mainly by tests and isolated installs. |
+| `AICTL_PLUGINS_DISABLED` | Comma-separated plugin names to skip at load time. Useful for silencing one third-party plugin without editing its manifest. |
 
 Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 

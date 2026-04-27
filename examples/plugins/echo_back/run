@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Smoke-test plugin: echo stdin back to stdout with a prefix.
+# Install by copying this directory to ~/.aictl/plugins/echo_back/
+# and ensure `run` is executable: chmod +x run
+input=$(cat)
+printf "echo_back: %s\n" "$input"

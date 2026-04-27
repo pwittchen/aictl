@@ -99,9 +99,28 @@ pub(super) fn print_tools() {
         );
         println!();
     }
+    let plugin_list = crate::plugins::list();
+    let max_len = std::cmp::max(
+        max_len,
+        plugin_list.iter().map(|p| p.name.len()).max().unwrap_or(0),
+    );
     for (name, desc) in TOOLS {
         let pad = max_len - name.len() + 2;
         println!("  {}{:pad$}{desc}", name.with(Color::Cyan), "");
+    }
+    if !plugin_list.is_empty() {
+        println!();
+        println!("  {}", "plugins:".with(Color::DarkGrey));
+        for p in plugin_list {
+            let pad = max_len - p.name.len() + 2;
+            println!(
+                "  {}{:pad$}{} {}",
+                p.name.as_str().with(Color::Cyan),
+                "",
+                p.description.as_str(),
+                "(plugin)".with(Color::DarkGrey),
+            );
+        }
     }
     println!();
 }

@@ -511,6 +511,19 @@ impl InteractiveUI {
         }
         next += 1;
 
+        // Plugins line — only when plugins are enabled AND at least one
+        // loaded. Uses BLANK directly so the mascot column stays aligned
+        // and we don't consume one of the limited `m[next]` slots.
+        let plugin_list = crate::plugins::list();
+        if !plugin_list.is_empty() {
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                BLANK.with(Color::Cyan),
+                format!("plugins: {} loaded", plugin_list.len()).with(Color::DarkGrey),
+            );
+        }
+
         // Welcome text
         eprintln!(
             "{PAD}{} {}{}",

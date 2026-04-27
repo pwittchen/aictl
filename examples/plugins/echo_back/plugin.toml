@@ -1,0 +1,8 @@
+name = "echo_back"
+version = "0.1.0"
+description = "Echo the input back to the model. Useful as a smoke test for the plugin protocol."
+entrypoint = "run"
+requires_confirmation = false
+schema_hint = """
+Input: any text. Output: the same text, prefixed with "echo_back:".
+"""

@@ -308,6 +308,10 @@ async fn dispatch_slash_command(
             commands::run_ping().await;
             ReplAction::Continue
         }
+        commands::CommandResult::Plugins => {
+            commands::run_plugins_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
         commands::CommandResult::Balance => {
             commands::run_balance().await;
             ReplAction::Continue

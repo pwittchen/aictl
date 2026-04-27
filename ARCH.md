@@ -266,8 +266,67 @@ Both single-shot and REPL modes share the same loop:
  │  - notify shells out to `osascript` on macOS or           │
  │    `notify-send` on Linux. Title required (≤256 B), body  │
  │    optional (≤4096 B). Useful for --auto completion pings │
+ │  - any other tool name falls through to plugins::find().  │
+ │    User-installed plugin tools dispatch through the same  │
+ │    security gate, audit, and sanitization path; see the   │
+ │    Plugins section below for the manifest + wire protocol │
  └───────────────────────────────────────────────────────────┘
 ```
+
+## Plugins (`src/plugins.rs`)
+
+User-installed plugin tools live under `~/.aictl/plugins/<name>/` (override
+via `AICTL_PLUGINS_DIR`) and let users add domain-specific tools without
+forking the repo. Each plugin pairs a `plugin.toml` manifest with an
+executable entrypoint (script or binary).
+
+```
+~/.aictl/plugins/
+└── <name>/
+    ├── plugin.toml
+    └── run                # any executable, language-agnostic
+```
+
+`plugin.toml` fields:
+
+- `name` — must match the directory name; re-validated at load.
+- `description` — injected verbatim into the system-prompt tool catalog.
+- `entrypoint` — relative path inside the plugin dir (default `run`);
+  resolved + canonicalized; rejected if it resolves outside the plugin dir
+  (symlink-escape guard) or is not executable on Unix.
+- `requires_confirmation` (default `true`) — informational; the agent
+  loop's existing y/N gate still owns the prompt.
+- `timeout_secs` — per-plugin override of the global shell timeout.
+- `schema_hint` — free-form text appended after the description in the
+  catalog so the model knows the input shape.
+
+Discovery (`init`) walks the directory at startup, skips entries that
+collide with built-in tool names or appear in `AICTL_PLUGINS_DISABLED`,
+logs (does not print) any malformed manifest, and stores the survivors
+in a `OnceLock<Vec<Plugin>>`. A bad plugin is skipped, never fatal.
+
+Wire protocol:
+
+- **Input**: the raw `<tool>…</tool>` body on stdin (no JSON framing).
+- **Output**: stdout returned verbatim (after `sanitize_output` neutralizes
+  any embedded `<tool>` tags).
+- **Exit code**: `0` → success; non-zero → `[exit N] <stderr>`.
+- **Env**: `scrubbed_env()` (same helper `exec_shell` uses) — secrets/keys
+  stripped.
+- **CWD**: pinned to `security::policy().paths.working_dir` (the CWD jail).
+
+Opt-in: `AICTL_PLUGINS_ENABLED=true` (default `false`). Plugins are
+third-party code and must not auto-load. CLI surface: `--list-plugins`
+for non-interactive listing; `/plugins` REPL menu for browse/manifest
+view/master-switch toggle. The system-prompt catalog appends each plugin
+under an `### <name> (plugin)` heading so the LLM can see it isn't
+first-party.
+
+Dispatch happens after the built-in match in `tools::execute_tool` —
+`security::validate_tool` runs *before* the fallthrough, so
+`AICTL_SECURITY_DISABLED_TOOLS` can disable plugin names exactly like
+built-ins, the confirmation prompt fires unchanged, and `--unrestricted`
+bypasses validation just as it does for built-ins.
 
 ## LLM Provider Abstraction
 
@@ -612,6 +671,20 @@ Management functions (all safe to compile without the `gguf` feature): `list_mod
 Each subdirectory is a Hugging Face MLX model snapshot for the native MLX provider (`src/llm/mlx.rs`), containing at minimum `config.json`, `tokenizer.json`, `tokenizer_config.json`, and one or more `*.safetensors` files (with `model.safetensors.index.json` for sharded models). The parent `~/.aictl/models/mlx/` directory is created lazily on the first `--pull-mlx-model` or `/mlx → pull model`. Downloads walk the Hugging Face tree API, skip non-essential files (READMEs, images, alternate weight formats), and stream each file with a per-file `indicatif` progress bar into a `<name>.part/` staging directory that is renamed atomically on success.
 
 Management functions (all safe to compile without the `mlx` feature, on every platform): `list_models()` enumerates subdirectories that contain a `config.json`, `model_path(name)` resolves to the directory, `remove_model(name)` recursively deletes one (with a defence-in-depth check that the canonical path is inside `models/mlx/`), `clear_models()` wipes every subdirectory, `model_size(name)` reports total on-disk bytes for the `/mlx` view. `download_model(spec, override_name)` parses two spec forms — `mlx:owner/repo` and `owner/repo` — both resolved against `huggingface.co/<owner>/<repo>`. `call_mlx()` is feature-gated: with `--features mlx` on `macos`+`aarch64` it builds a hand-written Llama-family transformer with `mlx-rs` primitives, hand-installs the quantized embedding (the `MaybeQuantized<Embedding>` derive doesn't expose its params), translates `q_proj.weight` → `q_proj.inner.weight` so safetensors keys match `QuantizedLinear`'s nested layout, renders the per-model jinja chat template via `minijinja` (ChatML fallback), and runs temperature-sampled generation with KV cache up to 4096 new tokens on a `tokio::spawn_blocking` task; without the feature or off Apple Silicon it returns a clear error telling the user how to enable native inference.
+
+### `~/.aictl/plugins/<name>/`
+
+Each subdirectory is a user-installed plugin tool, holding a `plugin.toml`
+manifest plus an executable entrypoint (any language). Discovery,
+manifest parsing, and subprocess execution live in `src/plugins.rs` —
+see the **Plugins** section above for the full design. The directory is
+not created by aictl; users drop plugins in by hand. Override the
+discovery root with `AICTL_PLUGINS_DIR` (used by tests). The whole
+subsystem is gated behind `AICTL_PLUGINS_ENABLED=true` (default off);
+when off, no directory walk happens and the catalogue stays empty.
+Per-plugin disable lives in config (`AICTL_PLUGINS_DISABLED=foo,bar`)
+rather than in the manifest, so users don't have to edit a third-party
+file to silence one.
 
 ### `~/.aictl/sessions/`
 
