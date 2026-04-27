@@ -159,6 +159,7 @@ The interactive REPL supports slash commands:
 | `/behavior` | Switch between auto and human-in-the-loop mode during the session |
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/ping` | Validate every configured API key and probe provider connectivity (cloud providers + Ollama daemon) |
+| `/balance` | Show remaining credit / quota for each configured cloud provider (real numbers from DeepSeek and Kimi; "unknown" with a billing-dashboard hint elsewhere) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
 | `/config` | Re-run the interactive configuration wizard |
@@ -213,6 +214,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--list-ner-models` | Print all downloaded NER models and exit |
 | `--remove-ner-model` | Remove a downloaded NER model by name and exit |
 | `--clear-ner-models` | Remove every downloaded NER model and exit |
+| `--balance` / `--list-balances` | Show remaining credit / quota for each configured cloud provider and exit. Real numbers from DeepSeek and Kimi (via their official `/user/balance` and `/v1/users/me/balance` endpoints); other providers report "unknown" with a hint pointing at their billing dashboard. Local providers (Ollama / GGUF / MLX) are out of scope |
 
 CLI flags take priority over config file values.
 

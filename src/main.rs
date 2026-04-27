@@ -231,6 +231,18 @@ struct Cli {
     #[arg(long = "clear-ner-models")]
     clear_ner_models: bool,
 
+    /// Show remaining credit / quota for each configured cloud provider and
+    /// exit. Local providers (Ollama/GGUF/MLX) are out of scope. Providers
+    /// without a public balance API are reported as "unknown" with a hint
+    /// pointing at their billing dashboard. Synonym: `--list-balances`.
+    #[arg(long = "balance")]
+    balance: bool,
+
+    /// Synonym for `--balance`: list remaining credit / quota for every
+    /// configured cloud provider and exit.
+    #[arg(long = "list-balances")]
+    list_balances: bool,
+
     /// Internal: route all LLM calls to the scripted mock provider. Used by
     /// the end-to-end smoke tests under `tests/`. Scripted responses are read
     /// from `AICTL_MOCK_RESPONSES_FILE` on first call; hidden from `--help`
@@ -329,6 +341,10 @@ async fn handle_management_flags(cli: &Cli) -> bool {
         return true;
     }
     if handle_ner_flags(cli).await {
+        return true;
+    }
+    if cli.balance || cli.list_balances {
+        commands::run_balance().await;
         return true;
     }
     false

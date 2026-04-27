@@ -13,6 +13,7 @@
 //! paths that callers use.
 
 mod agent;
+mod balance;
 mod behavior;
 mod clipboard;
 mod compact;
@@ -39,6 +40,7 @@ mod uninstall;
 mod update;
 
 pub use agent::{load_agent_by_name, print_agents_cli, run_agent_menu};
+pub use balance::run_balance;
 pub use behavior::select_behavior;
 pub use compact::{compact, print_context};
 pub use config_wizard::run_config_wizard;
@@ -64,6 +66,7 @@ pub use update::{run_update, run_update_cli, run_version};
 /// Used by the REPL tab completer.
 pub const COMMANDS: &[&str] = &[
     "agent",
+    "balance",
     "behavior",
     "clear",
     "compact",
@@ -130,6 +133,9 @@ pub enum CommandResult {
     /// instead of opening the menu. Name validation/existence checks happen
     /// at dispatch time.
     Agent(Option<String>),
+    /// Probe every cloud provider's balance endpoint and print remaining
+    /// credit. Async — the REPL drives the future on its tokio runtime.
+    Balance,
     /// Open the skills management menu.
     Skills,
     /// Invoke a skill by name. `task` is the inline argument (may be empty —
@@ -191,6 +197,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             };
             CommandResult::Agent(name)
         }
+        "balance" => CommandResult::Balance,
         "security" => CommandResult::Security,
         "model" => {
             // `/model` → top-level Browse/Search menu.

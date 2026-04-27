@@ -23,7 +23,7 @@ Single-binary async Rust CLI. Top-level modules under `src/`, plus three submodu
 - `run.rs` — `run_agent_turn` loop, tool-call dispatch, outbound redaction, stream suspend wiring
 - `agents.rs` (+ `agents/remote.rs`) — agent prompts in `~/.aictl/agents/`; loaded agent appended to system prompt. Optional YAML frontmatter (`name`, `description`, `source`, `category`) — `source: aictl-official` renders an `[official]` badge in `/agent` and `--list-agents`. `agents/remote.rs` fetches the live catalogue from `.aictl/agents/` in the project repo via GitHub's trees API and pulls a single `.md` on demand (REPL browse entry or `--pull-agent <name>` + `--force`). The frontmatter is stripped before the body is injected into the system prompt.
 - `audit.rs` — per-session JSONL tool-call log under `~/.aictl/audit/<session-id>`
-- `commands.rs` + `commands/` — slash commands (`/agent`, `/behavior`, `/clear`, `/compact`, `/config`, `/context`, `/copy`, `/exit`, `/gguf`, `/help`, `/history`, `/info`, `/keys`, `/memory`, `/mlx`, `/model`, `/ping`, `/retry`, `/roadmap`, `/security`, `/session`, `/skills`, `/stats`, `/tools`, `/undo`, `/uninstall`, `/update`, `/version`); any other `/<name>` falls through to a user-defined skill lookup.
+- `commands.rs` + `commands/` — slash commands (`/agent`, `/balance`, `/behavior`, `/clear`, `/compact`, `/config`, `/context`, `/copy`, `/exit`, `/gguf`, `/help`, `/history`, `/info`, `/keys`, `/memory`, `/mlx`, `/model`, `/ping`, `/retry`, `/roadmap`, `/security`, `/session`, `/skills`, `/stats`, `/tools`, `/undo`, `/uninstall`, `/update`, `/version`); any other `/<name>` falls through to a user-defined skill lookup.
 - `config.rs` — `~/.aictl/config` loader (`OnceLock<RwLock<HashMap>>`), constants, `load_prompt_file`
 - `keys.rs` — keyring-backed API key storage with plain-text fallback; use `get_secret(name)` not `config_get` for keys
 - `security.rs` — `SecurityPolicy`: shell/path validation, CWD jail, env scrub, output sanitization, prompt-injection guard
@@ -33,7 +33,7 @@ Single-binary async Rust CLI. Top-level modules under `src/`, plus three submodu
 - `stats.rs` — usage stats under `~/.aictl/stats`
 - `tools.rs` + `tools/` — XML parsing, dispatch, duplicate guard, per-tool impls (31 tools)
 - `ui.rs` — `AgentUI` trait: `PlainUI` (single-shot) + `InteractiveUI` (REPL)
-- `llm.rs` + `llm/` — `TokenUsage`, `MODELS` catalog, provider calls (OpenAI, Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, MLX)
+- `llm.rs` + `llm/` — `TokenUsage`, `MODELS` catalog, provider calls (OpenAI, Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, MLX). `llm/balance.rs` exposes per-provider credit/quota probes used by `/balance` and `--balance` / `--list-balances`: real fetchers for DeepSeek (`GET /user/balance`) and Kimi (`GET /v1/users/me/balance` — base URL via `LLM_KIMI_BASE_URL` for the `.cn` endpoint); every other cloud provider returns `Unknown` with a billing-dashboard hint. Local providers are not probed.
 
 ## Key behaviors (non-obvious)
 

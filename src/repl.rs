@@ -308,6 +308,10 @@ async fn dispatch_slash_command(
             commands::run_ping().await;
             ReplAction::Continue
         }
+        commands::CommandResult::Balance => {
+            commands::run_balance().await;
+            ReplAction::Continue
+        }
         commands::CommandResult::Roadmap(query) => {
             commands::run_roadmap(query.as_deref(), &|msg| ui.show_error(msg)).await;
             ReplAction::Continue

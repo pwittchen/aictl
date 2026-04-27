@@ -3,6 +3,7 @@ use crossterm::style::{Color, Stylize};
 pub(super) fn print_help() {
     let entries: &[(&str, &str)] = &[
         ("/agent", "manage agents"),
+        ("/balance", "show remaining credit / quota per provider"),
         ("/clear", "clear conversation context"),
         ("/compact", "compact context into a summary"),
         ("/context", "show context usage"),
