@@ -1,0 +1,53 @@
+[package]
+name = "engine"
+description = "Core agent engine for aictl — provider calls, tools, security, sessions"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+license-file.workspace = true
+
+[lib]
+name = "engine"
+path = "src/lib.rs"
+
+[dependencies]
+reqwest = { version = "0.13", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+glob = "0.3"
+scraper = "0.26"
+keyring = { version = "3", features = ["apple-native", "sync-secret-service"] }
+base64 = "0.22"
+pdf-extract = "0.10"
+zip = { version = "8", default-features = false, features = ["deflate"] }
+tar = "0.4"
+flate2 = "1"
+calamine = "0.34"
+csv = "1"
+futures-util = "0.3"
+sha2 = "0.11"
+md-5 = "0.11"
+regex = "1"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] } # `Provider` derives `ValueEnum` so the CLI can wire it up directly
+llama-cpp-2 = { version = "0.1", optional = true }
+mlx-rs = { version = "0.25", optional = true }
+tokenizers = { version = "0.22", optional = true, default-features = false, features = ["onig"] }
+minijinja = { version = "2", optional = true, features = ["loader"] }
+safetensors = { version = "0.7", optional = true }
+gline-rs = { version = "1", optional = true }
+# gline-rs exposes the model loader but not the companion runtime-
+# parameters struct; `orp` lives behind gline-rs as a transitive dep
+# and must be imported directly when the feature is on.
+orp = { version = "0.9", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = []
+gguf = ["dep:llama-cpp-2"]
+mlx = ["dep:mlx-rs", "dep:tokenizers", "dep:minijinja", "dep:safetensors"]
+redaction-ner = ["dep:gline-rs", "dep:orp"]

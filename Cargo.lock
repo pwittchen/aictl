@@ -52,44 +52,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aictl"
-version = "0.34.1"
-dependencies = [
- "base64 0.22.1",
- "calamine",
- "clap",
- "crossterm",
- "csv",
- "flate2",
- "futures-util",
- "gline-rs",
- "glob",
- "indicatif 0.18.4",
- "keyring",
- "llama-cpp-2",
- "md-5 0.11.0",
- "minijinja",
- "mlx-rs",
- "orp",
- "pdf-extract",
- "regex",
- "reqwest",
- "rustyline",
- "safetensors",
- "scraper",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tar",
- "tempfile",
- "termimad",
- "thiserror",
- "tokenizers 0.22.2",
- "tokio",
- "zip 8.6.0",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -437,6 +399,25 @@ name = "clap_lex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+
+[[package]]
+name = "cli"
+version = "0.34.1"
+dependencies = [
+ "clap",
+ "crossterm",
+ "engine",
+ "futures-util",
+ "indicatif 0.18.4",
+ "regex",
+ "reqwest",
+ "rustyline",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "termimad",
+ "tokio",
+]
 
 [[package]]
 name = "clipboard-win"
@@ -1071,6 +1052,40 @@ name = "endian-type"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "869b0adbda23651a9c5c0c3d270aac9fcb52e8622a8f2b17e57802d7791962f2"
+
+[[package]]
+name = "engine"
+version = "0.34.1"
+dependencies = [
+ "base64 0.22.1",
+ "calamine",
+ "clap",
+ "csv",
+ "flate2",
+ "futures-util",
+ "gline-rs",
+ "glob",
+ "keyring",
+ "llama-cpp-2",
+ "md-5 0.11.0",
+ "minijinja",
+ "mlx-rs",
+ "orp",
+ "pdf-extract",
+ "regex",
+ "reqwest",
+ "safetensors",
+ "scraper",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tar",
+ "tempfile",
+ "thiserror",
+ "tokenizers 0.22.2",
+ "tokio",
+ "zip 8.6.0",
+]
 
 [[package]]
 name = "enumflags2"

@@ -1,0 +1,49 @@
+[package]
+name = "cli"
+description = "AI agent for the terminal"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+license-file.workspace = true
+
+# Workspace package name is short ("cli") so paths stay tidy alongside
+# `engine`; the binary keeps the public name users invoke from the shell.
+[[bin]]
+name = "aictl"
+path = "src/main.rs"
+
+[dependencies]
+engine = { path = "../engine" }
+
+# Frontend deps. The core engine deliberately does not link any of these
+# — every side-effect call goes through the `aictl_core::AgentUI` trait.
+# The CLI's REPL, status banner, progress bars, and Esc cancellation all
+# live in `crates/cli/src/ui.rs`.
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.29"
+indicatif = "0.18"
+rustyline = "18"
+termimad = "0.34"
+tokio = { version = "1", features = ["full"] }
+
+# Direct CLI uses outside the UI:
+#   * `serde` / `serde_json` — version-cache (de)serialization,
+#     `/hooks --test` payload pretty-print
+#   * `reqwest` — `/ping` provider probes
+#   * `regex` — integration test helpers
+#   * `futures-util` — `/ping` runs probes in parallel via `join_all`
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", features = ["json"] }
+regex = "1"
+futures-util = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = []
+gguf = ["engine/gguf"]
+mlx = ["engine/mlx"]
+redaction-ner = ["engine/redaction-ner"]

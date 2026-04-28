@@ -1,73 +1,13 @@
-[package]
-name = "aictl"
+[workspace]
+members = ["crates/cli", "crates/engine"]
+resolver = "3"
+
+# Shared package metadata. Both crates reference these via
+# `field.workspace = true` so the release workflow only has to bump
+# the version in one place.
+[workspace.package]
 version = "0.34.1"
 edition = "2024"
-description = "AI agent for the terminal"
 repository = "https://github.com/pwittchen/aictl"
 authors = ["Piotr Wittchen"]
 license-file = "LICENSE"
-
-[dependencies]
-clap = { version = "4", features = ["derive"] }
-reqwest = { version = "0.13", features = ["json", "stream"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["full"] }
-crossterm = "0.29"
-indicatif = "0.18"
-rustyline = "18"
-termimad = "0.34"
-glob = "0.3"
-scraper = "0.26"
-keyring = { version = "3", features = ["apple-native", "sync-secret-service"] }
-base64 = "0.22"
-pdf-extract = "0.10"
-zip = { version = "8", default-features = false, features = ["deflate"] }
-tar = "0.4"
-flate2 = "1"
-calamine = "0.34"
-csv = "1"
-futures-util = "0.3"
-sha2 = "0.11"
-md-5 = "0.11"
-regex = "1"
-thiserror = "2"
-llama-cpp-2 = { version = "0.1", optional = true }
-mlx-rs = { version = "0.25", optional = true }
-tokenizers = { version = "0.22", optional = true, default-features = false, features = ["onig"] }
-minijinja = { version = "2", optional = true, features = ["loader"] }
-safetensors = { version = "0.7", optional = true }
-gline-rs = { version = "1", optional = true }
-# gline-rs exposes the model loader but not the companion runtime-
-# parameters struct; `orp` lives behind gline-rs as a transitive dep
-# and must be imported directly when the feature is on.
-orp = { version = "0.9", optional = true }
-
-[dev-dependencies]
-tempfile = "3"
-
-[features]
-default = []
-# Native GGUF model inference via llama.cpp bindings. Disabled by default
-# because it requires a C++ toolchain (cmake + a working C/C++ compiler) at
-# build time. Enable with `cargo build --features gguf`.
-gguf = ["dep:llama-cpp-2"]
-# Native MLX model inference (Apple Silicon only). Disabled by default.
-# Model management (pull / list / remove) works without the feature on any
-# platform; only the actual inference path is gated. Enable with
-# `cargo build --features mlx` on macOS Apple Silicon. Pulls in mlx-rs
-# (Metal kernels), the HF tokenizers crate, minijinja for chat templates,
-# and safetensors for direct shard parsing.
-mlx = ["dep:mlx-rs", "dep:tokenizers", "dep:minijinja", "dep:safetensors"]
-# Optional NER-based detector for the sensitive-data redaction layer.
-# Disabled by default; the base redaction layer (regex packs + entropy
-# scanner + Luhn/IBAN validators) is always compiled in. When this
-# feature is on, `AICTL_REDACTION_NER=true` is set, and a model has
-# been pulled via `--pull-ner-model`, the redactor adds a Layer C pass
-# for person names / locations / organizations via gline-rs (bundled
-# ONNX Runtime through the `ort` crate — no system install needed).
-# Without the feature, setting `AICTL_REDACTION_NER=true` surfaces a
-# startup warning and degrades gracefully to Layers A + B. Model
-# management CLI flags (`--pull-ner-model`, `--list-ner-models`,
-# `--remove-ner-model`, `--clear-ner-models`) always compile.
-redaction-ner = ["dep:gline-rs", "dep:orp"]

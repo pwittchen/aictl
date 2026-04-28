@@ -2,51 +2,6 @@
 
 ---
 
-## Modular Architecture
-
-Prerequisite for both Server and Desktop. Today the codebase is a single binary crate where the agent loop, providers, security, and CLI presentation are entangled. To support multiple frontends (CLI, Server, Desktop) without forking logic, separate the code that is *frontend-agnostic* from the code that is *CLI-specific*. See [.claude/plans/modular-architecture.md](.claude/plans/modular-architecture.md) for the development plan.
-
-### Cargo workspace split
-
-Split the repo into a workspace with three crates:
-
-- **`aictl-core`** (library) — shared engine. Owns: `agents`, `audit`, `config`, `keys`, `llm/` (all providers), `run`, `security/`, `session`, `skills`, `stats`, `tools/`. Defines the `AgentUI` trait as the boundary between engine and frontend. Exposes typed events (`AgentEvent`, `ToolCallEvent`, `StreamChunk`, `TokenUsage`) over `tokio::mpsc` so any frontend can consume the agent loop asynchronously.
-- **`aictl-cli`** (binary) — pure CLI surface. Owns: `main.rs` (clap parsing), `commands/` slash-command handlers, `ui.rs` (`PlainUI` + `InteractiveUI`), REPL line editor, terminal markdown rendering (`termimad`), spinners, and the y/N tool-approval prompt. Depends on `aictl-core`.
-- **`aictl-server`** (binary, future) — HTTP LLM proxy. Reuses `aictl-core`'s provider catalogue (`llm::call_<provider>`, redaction, audit, stats) to expose an OpenAI-compatible gateway. Does **not** consume the agent loop or `AgentUI` — agent capabilities, tools, agents, skills, and sessions stay in `aictl-cli`. Depends on `aictl-core` only.
-- **`aictl-desktop`** (binary, future) — Tauri shell. Implements `DesktopUI` against the `AgentUI` trait. Depends on `aictl-core` only.
-
-### What stays in core, what moves to CLI
-
-- **Stays in core**: anything that produces structured output (events, errors, typed results) or operates on persistent state (config, sessions, keys, audit, stats, agents/skills directories). All provider HTTP calls. The agent loop iteration limit, timeout, and tool dispatch. The security policy.
-- **Moves to CLI**: every `println!`/`eprintln!`, `print!`, `eprint!`, `dialoguer` prompt, terminal color code, spinner widget, and `termimad` render currently scattered through the engine. These get routed through `AgentUI` methods (`show_answer`, `show_tool_call`, `confirm_tool`, `show_error`, `progress_start/end`) that the CLI implements with terminal output and the server/desktop implement with channel sends.
-- **Shared but parameterized**: the prompt-file lookup (`AICTL.md` → `CLAUDE.md` → `AGENTS.md`) lives in core but takes the working directory as an argument rather than reading `std::env::current_dir()` directly, so the server can scope it per-request.
-
-### Refactoring steps
-
-1. **Inventory side-effects** — grep core modules for `println!`, `eprintln!`, `print!`, `eprint!`, `dialoguer::`, `indicatif::`, `termimad::` and list every call site that needs to become an `AgentUI` method invocation.
-2. **Extend `AgentUI`** — add the missing methods so `PlainUI` and `InteractiveUI` can absorb every stripped-out call without losing functionality. Keep the trait small and event-shaped, not procedural.
-3. **Convert `Cargo.toml` to a workspace** — move existing `src/` into `crates/aictl-cli/src/`, then progressively pull frontend-agnostic modules into `crates/aictl-core/src/`. CI stays green at every step.
-4. **Lock the public API** — once the split compiles, mark `aictl-core` re-exports explicitly (`pub use`) and treat the surface as semver-stable so server and desktop can depend on it confidently.
-5. **Feature flags follow the split** — `gguf`, `mlx`, `redaction-ner` move to `aictl-core` (they gate provider/redaction code). `aictl-cli` only carries CLI-presentation features.
-
-### Why this comes first
-
-Without this split, the Server section duplicates `run::run_agent_turn` wrapper logic and the Desktop section can't avoid re-implementing tool dispatch. Doing the extraction once means Server, Desktop, and any future frontend (web, MCP server, automation harness) all consume the same engine with the same security guarantees.
-
-### Separate binaries vs. one binary
-
-Ship the CLI and Server as **two separate binaries** (`aictl` and `aictl-server`) from the same workspace, not as one binary with a `serve` subcommand. Reasons:
-
-- **Dependency footprint** — the server pulls in `axum`, HTTP/SSE machinery, JSON schemas, and auth middleware. None of that belongs in a CLI binary that most users install via `cargo install` or Homebrew. Keeping them separate keeps the CLI lean and its cold-start fast.
-- **Different runtime profiles** — CLI is short-lived, single-user, terminal-bound. Server is long-lived, multi-user, network-bound. They want different defaults for logging, panic behavior, signal handling, and telemetry.
-- **Different security postures** — the CLI assumes the local user owns the machine; the server must assume an untrusted caller. Mixing them in one binary makes it easy for a CLI-only assumption to leak into a server code path.
-- **Distribution** — most CLI users will never run the server. Server operators want a narrow artifact (Docker image, systemd unit) without REPL deps like `rustyline`/`termimad`.
-- **Natural fit with the workspace split** — `aictl-core` does the real work; `aictl-cli` and `aictl-server` are thin frontends. One-binary-with-subcommand would re-entangle what the workspace split just separated.
-
-**Optional ergonomic shim**: if user feedback later asks for `aictl serve`, add a thin subcommand in the CLI binary that `exec`s `aictl-server` when present on `$PATH` — keeps the convenience without bundling the server deps.
-
----
-
 ## Server
 
 Run `aictl-server` as a long-lived HTTP **LLM proxy** that exposes every supported LLM provider through a single OpenAI-compatible gateway API. Reuses the same `~/.aictl/config` as the CLI; an alternative path can be supplied via `--config <path>` (and a matching `AICTL_CONFIG` env var) so multiple server instances can run side-by-side with different keys and policies. See [.claude/plans/server.md](.claude/plans/server.md) for the development plan.
@@ -94,13 +49,13 @@ The server writes a structured request log to `~/.aictl/server.log` by default; 
 - Likely framework: `axum` (already in the Tokio ecosystem) for low-overhead async routing and SSE support.
 - Reuse the existing `llm::call_<provider>` functions directly — the server is a thin translation layer between OpenAI's request/response schema and each provider's native format. There is no `HttpUI`, no `AgentUI` consumer, no agent loop wiring on the server.
 - Coding agent mode and every other CLI/REPL feature (slash commands, agents, skills, plugins, hooks, sessions, tool dispatch) stay CLI-only. The server has no surface for them.
-- Same module split as the desktop plan benefits the server: an `aictl-core` crate keeps the provider implementations reusable across `aictl-cli`, `aictl-desktop`, and `aictl-server`.
+- The provider implementations already live in the workspace's `engine` crate, so `aictl-server` would consume them the same way `cli` does today — a new workspace member with a path dependency on `engine`.
 
 ---
 
 ## Desktop
 
-Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. Builds on the **Modular Architecture** section above — `aictl-desktop` is a new workspace crate that depends on `aictl-core`.
+Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. The workspace already exposes a frontend-agnostic `engine` crate; `aictl-desktop` would be a new workspace member that depends on it the same way `cli` does today.
 
 ### Core API stabilization
 
@@ -108,7 +63,7 @@ Define clean public types for the desktop to consume: `AgentLoop`, `Conversation
 
 ### GUI framework: Tauri v2
 
-Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap `aictl-core`. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
+Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap the `engine` crate. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
 
 ### Desktop `AgentUI` implementation
 
@@ -120,7 +75,7 @@ In the CLI it's a blocking y/N prompt. In the desktop, the agent loop should `aw
 
 ### Phased rollout
 
-1. Stabilize the core API — channel-based event interface (assumes the Modular Architecture workspace split is already done).
+1. Stabilize the core API — channel-based event interface on top of the existing `engine` crate.
 2. Scaffold the desktop app — Tauri + minimal frontend, send a message and see the response.
 3. Feature parity incrementally — sessions, agents, tool approval dialogs, settings, stats, one at a time.
 

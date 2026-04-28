@@ -27,12 +27,17 @@ jobs:
 
       - name: Update Cargo.toml, Cargo.lock, and website version if needed
         run: |
-          current=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          # Workspace `version` lives under [workspace.package] in the root
+          # Cargo.toml; both crates inherit it via `version.workspace = true`.
+          current=$(awk '/^\[workspace.package\]/,/^\[/{ if ($1 == "version") print $3 }' Cargo.toml | head -1 | tr -d '"')
           tag_version="${{ steps.version.outputs.version }}"
           changed=0
           if [ "$current" != "$tag_version" ]; then
-            sed -i "s/^version = \"$current\"/version = \"$tag_version\"/" Cargo.toml
-            sed -i '/^name = "aictl"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            # Bump the single source of truth at the workspace root.
+            sed -i "/^\[workspace.package\]/,/^\[/{s/^version = \"$current\"/version = \"$tag_version\"/}" Cargo.toml
+            # Cargo.lock has one entry per workspace member.
+            sed -i '/^name = "cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            sed -i '/^name = "engine"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             changed=1
           fi
           if ! grep -q "v$tag_version ·" website/index.html; then

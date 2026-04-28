@@ -1,2 +1,2 @@
 [alias]
-lint = "clippy -- -W clippy::all -W clippy::pedantic"
+lint = "clippy --workspace -- -W clippy::all -W clippy::pedantic"
