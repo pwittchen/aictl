@@ -402,7 +402,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli"
-version = "0.34.1"
+version = "0.34.2"
 dependencies = [
  "clap",
  "crossterm",
@@ -1055,7 +1055,7 @@ checksum = "869b0adbda23651a9c5c0c3d270aac9fcb52e8622a8f2b17e57802d7791962f2"
 
 [[package]]
 name = "engine"
-version = "0.34.1"
+version = "0.34.2"
 dependencies = [
  "base64 0.22.1",
  "calamine",
