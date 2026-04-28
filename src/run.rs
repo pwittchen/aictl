@@ -543,6 +543,13 @@ pub(crate) async fn run_agent_turn(
         return Err(AictlError::Injection(reason));
     }
 
+    // The duplicate-call guard only blocks consecutive repeats. A new
+    // user message advances the conversation past whatever tool-only
+    // turn ran last, so reset the slot — otherwise the first tool call
+    // of this turn could still collide with the trailing call from the
+    // previous turn.
+    tools::clear_call_history();
+
     messages.push(Message {
         role: Role::User,
         content: user_message.to_string(),

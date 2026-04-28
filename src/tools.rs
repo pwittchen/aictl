@@ -11,7 +11,6 @@
 //! return plain `String` (or [`ToolOutput`] for `read_image`, which carries
 //! image bytes alongside text).
 
-use std::collections::HashSet;
 use std::io::Write;
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -41,15 +40,19 @@ mod system_info;
 mod util;
 mod web;
 
-/// Session-wide set of tool invocations that have already been executed,
+/// Slot holding the most recent successfully dispatched tool invocation,
 /// keyed by `(tool_name, normalized_input)`. Used to block the model from
-/// calling the same tool with the same input value twice in a single
-/// process lifetime — weaker models (e.g. small local GGUFs) otherwise
-/// loop indefinitely, re-running the same search or fetch.
-static CALL_HISTORY: OnceLock<Mutex<HashSet<(String, String)>>> = OnceLock::new();
+/// calling the same tool with the same input value *back-to-back* —
+/// weaker models (e.g. small local GGUFs) otherwise loop indefinitely,
+/// re-running the same search or fetch. Only consecutive repeats are
+/// blocked: any intervening tool call (or new user/assistant turn that
+/// clears the slot) lets the same call run again, so legitimate
+/// re-reads (`read_file` → `edit_file` → `read_file` to verify) are
+/// not penalized.
+static LAST_CALL: OnceLock<Mutex<Option<(String, String)>>> = OnceLock::new();
 
-fn call_history() -> &'static Mutex<HashSet<(String, String)>> {
-    CALL_HISTORY.get_or_init(|| Mutex::new(HashSet::new()))
+fn last_call() -> &'static Mutex<Option<(String, String)>> {
+    LAST_CALL.get_or_init(|| Mutex::new(None))
 }
 
 /// Normalize tool input for duplicate detection: lowercase, strip
@@ -66,23 +69,25 @@ fn normalize_input(input: &str) -> String {
         .join(" ")
 }
 
-/// Clear the session-wide tool call history. Called on REPL `/clear` and
-/// session switches so a new conversation starts with a blank slate.
+/// Clear the last-call slot. Called on REPL `/clear`, session switches,
+/// and at the start of every new user turn so a new conversation (or a
+/// new user message after a final answer) starts with a blank slate.
 pub fn clear_call_history() {
-    if let Ok(mut h) = call_history().lock() {
-        h.clear();
+    if let Ok(mut slot) = last_call().lock() {
+        *slot = None;
     }
 }
 
-/// Returns `true` if this exact tool call (same name, same normalized
-/// input) has already been executed in this session. Does not mutate
-/// history — use so the agent loop can abort *before* spending another
-/// LLM round-trip on a call that would be rejected anyway.
+/// Returns `true` if this tool call (same name, same normalized input)
+/// is identical to the most recent one — i.e. the model is trying to
+/// repeat itself back-to-back. Does not mutate the slot — used by the
+/// agent loop to abort *before* spending another LLM round-trip on a
+/// call that would be rejected anyway.
 pub fn is_duplicate_call(tool_call: &ToolCall) -> bool {
     let key = (tool_call.name.clone(), normalize_input(&tool_call.input));
-    call_history()
+    last_call()
         .lock()
-        .map(|h| h.contains(&key))
+        .map(|slot| slot.as_ref() == Some(&key))
         .unwrap_or(false)
 }
 
@@ -163,20 +168,23 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     }
 
     // Duplicate-call guard: refuse to run the same tool with the same
-    // (normalized) input more than once per session. The model gets a
-    // clear message instead of a fresh result, which breaks tool-call
-    // loops that weaker models otherwise enter.
+    // (normalized) input *back-to-back*. Only consecutive repeats are
+    // blocked — any intervening tool call (or a new user/assistant turn
+    // that clears the slot) lets the same call run again, so legitimate
+    // re-reads aren't penalized. The model gets a clear message instead
+    // of a fresh result, which breaks the tool-call loops that weaker
+    // models otherwise enter.
     let call_key = (tool_call.name.clone(), normalize_input(&tool_call.input));
     {
-        let mut history = call_history().lock().expect("tool call history poisoned");
-        if history.contains(&call_key) {
+        let mut slot = last_call().lock().expect("tool call slot poisoned");
+        if slot.as_ref() == Some(&call_key) {
             crate::audit::log_tool(tool_call, crate::audit::Outcome::DuplicateCall);
             return ToolOutput::text(format!(
-                "You already called the tool `{}` with this input earlier in the session, and its result is already in the conversation above. Do not repeat the same tool call. Answer now with your final response based on the information you already have, or call a different tool with a meaningfully different input.",
+                "You just called the tool `{}` with this input back-to-back, and its result is already in the conversation right above. Do not repeat the same tool call. Answer now with your final response based on the information you already have, or call a different tool with a meaningfully different input.",
                 tool_call.name
             ));
         }
-        history.insert(call_key);
+        *slot = Some(call_key);
     }
 
     // Security gate
@@ -404,6 +412,46 @@ mod tests {
         let resp = "Sure, let me check.\n<tool name=\"read_file\">a.txt</tool>\nDone.";
         assert!(parse_tool_call(resp).is_some());
         assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    // --- Duplicate-call guard tests ---
+
+    /// Verify the slot blocks only consecutive identical calls. We hold
+    /// the slot mutex for the whole test so parallel `execute_tool`
+    /// callers in other tests can't clobber the state mid-assertion;
+    /// that means we can't go through `is_duplicate_call` /
+    /// `clear_call_history` here (they'd re-lock and deadlock), so we
+    /// assert against the slot directly — which is exactly what those
+    /// public functions observe.
+    #[test]
+    fn duplicate_guard_blocks_only_consecutive_repeats() {
+        let mut slot = last_call().lock().expect("slot poisoned");
+        let key_a = ("read_file".to_string(), normalize_input("/tmp/a.txt"));
+        let key_b = ("read_file".to_string(), normalize_input("/tmp/b.txt"));
+
+        // Empty slot (fresh session / after clear): nothing is a duplicate.
+        *slot = None;
+        assert_ne!(slot.as_ref(), Some(&key_a));
+
+        // First dispatch of A populates the slot — an immediate repeat
+        // would now hit.
+        *slot = Some(key_a.clone());
+        assert_eq!(slot.as_ref(), Some(&key_a));
+
+        // A *different* call (B) takes the slot, so a follow-up A is no
+        // longer back-to-back and must be allowed through.
+        *slot = Some(key_b.clone());
+        assert_ne!(slot.as_ref(), Some(&key_a));
+
+        // Same call reasserts the duplicate state.
+        *slot = Some(key_b.clone());
+        assert_eq!(slot.as_ref(), Some(&key_b));
+
+        // clear_call_history-equivalent: slot back to None, nothing
+        // duplicates.
+        *slot = None;
+        assert_ne!(slot.as_ref(), Some(&key_a));
+        assert_ne!(slot.as_ref(), Some(&key_b));
     }
 
     // --- Tool execution tests ---
