@@ -1,6 +1,6 @@
 [package]
 name = "aictl"
-version = "0.33.0"
+version = "0.34.0"
 edition = "2024"
 description = "AI agent for the terminal"
 repository = "https://github.com/pwittchen/aictl"
