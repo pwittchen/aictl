@@ -135,8 +135,7 @@ pub fn parse(raw: &str) -> Result<Vec<ServerConfig>, String> {
             .ok_or_else(|| format!("server '{name}': missing 'command'"))?
             .to_string();
         if command.is_empty() {
-            return Err(format!("server '{name}': empty 'command'"))
-;
+            return Err(format!("server '{name}': empty 'command'"));
         }
         let args = obj
             .get("args")
@@ -152,10 +151,7 @@ pub fn parse(raw: &str) -> Result<Vec<ServerConfig>, String> {
             .and_then(serde_json::Value::as_object)
             .map(|m| {
                 m.iter()
-                    .filter_map(|(k, v)| {
-                        v.as_str()
-                            .map(|raw| (k.clone(), substitute_keyring(raw)))
-                    })
+                    .filter_map(|(k, v)| v.as_str().map(|raw| (k.clone(), substitute_keyring(raw))))
                     .collect::<HashMap<String, String>>()
             })
             .unwrap_or_default();

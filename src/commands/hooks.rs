@@ -20,10 +20,7 @@ const HOOKS_MENU_ITEMS: &[(&str, &str)] = &[
         "enable or disable an entry without removing it",
     ),
     ("test-fire a hook", "run a hook with a synthetic payload"),
-    (
-        "show hooks file",
-        "print the path of ~/.aictl/hooks.json",
-    ),
+    ("show hooks file", "print the path of ~/.aictl/hooks.json"),
     ("reload hooks", "re-read hooks.json from disk"),
 ];
 
@@ -56,12 +53,16 @@ fn header_status_line() {
         .iter()
         .map(|ev| hooks::list_for(*ev).len())
         .sum();
-    let path = hooks::hooks_file()
-        .map_or_else(|| "(unset)".to_string(), |p| p.display().to_string());
+    let path =
+        hooks::hooks_file().map_or_else(|| "(unset)".to_string(), |p| p.display().to_string());
     println!(
         "  {} {} hooks across {} events  {}",
         "hooks:".with(Color::Cyan),
-        format!("{total}").with(if total == 0 { Color::Yellow } else { Color::Green }),
+        format!("{total}").with(if total == 0 {
+            Color::Yellow
+        } else {
+            Color::Green
+        }),
         HookEvent::ALL.len(),
         format!("({path})").with(Color::DarkGrey),
     );
@@ -136,7 +137,10 @@ fn toggle_hook(show_error: &dyn Fn(&str)) {
             (label, desc)
         })
         .collect();
-    let label_refs: Vec<(&str, &str)> = labels.iter().map(|(l, d)| (l.as_str(), d.as_str())).collect();
+    let label_refs: Vec<(&str, &str)> = labels
+        .iter()
+        .map(|(l, d)| (l.as_str(), d.as_str()))
+        .collect();
 
     let Some(idx) = select_from_menu(label_refs.len(), 0, |selected| {
         build_simple_menu_lines(&label_refs, selected)
@@ -190,12 +194,19 @@ fn test_fire_hook(show_error: &dyn Fn(&str)) {
         .iter()
         .map(|h| {
             (
-                format!("{} / {}", h.event.as_str(), truncate_for_label(&h.matcher, 24)),
+                format!(
+                    "{} / {}",
+                    h.event.as_str(),
+                    truncate_for_label(&h.matcher, 24)
+                ),
                 truncate_for_label(&h.command, 60),
             )
         })
         .collect();
-    let label_refs: Vec<(&str, &str)> = labels.iter().map(|(l, d)| (l.as_str(), d.as_str())).collect();
+    let label_refs: Vec<(&str, &str)> = labels
+        .iter()
+        .map(|(l, d)| (l.as_str(), d.as_str()))
+        .collect();
 
     let Some(idx) = select_from_menu(label_refs.len(), 0, |selected| {
         build_simple_menu_lines(&label_refs, selected)
@@ -216,7 +227,10 @@ fn test_fire_hook(show_error: &dyn Fn(&str)) {
     let payload = serde_json::to_string(&hooks::build_payload(hook.event, "", &ctx))
         .unwrap_or_else(|_| "{}".to_string());
 
-    let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
         Ok(rt) => rt,
         Err(e) => {
             show_error(&format!("failed to build tokio runtime: {e}"));
@@ -228,7 +242,11 @@ fn test_fire_hook(show_error: &dyn Fn(&str)) {
     println!();
     match decision {
         hooks::HookDecision::Continue => {
-            println!("  {} hook returned {}", "✓".with(Color::Green), "continue".with(Color::DarkGrey));
+            println!(
+                "  {} hook returned {}",
+                "✓".with(Color::Green),
+                "continue".with(Color::DarkGrey)
+            );
         }
         hooks::HookDecision::Block(reason) => {
             println!(
@@ -306,8 +324,8 @@ fn truncate_for_label(s: &str, max: usize) -> String {
 
 /// `--list-hooks` non-interactive output.
 pub fn print_hooks_cli() {
-    let path = hooks::hooks_file()
-        .map_or_else(|| "(unset)".to_string(), |p| p.display().to_string());
+    let path =
+        hooks::hooks_file().map_or_else(|| "(unset)".to_string(), |p| p.display().to_string());
     let mut printed = false;
     for ev in HookEvent::ALL {
         let entries = hooks::list_for(*ev);

@@ -369,9 +369,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
 /// The CWD jail does not apply — MCP servers run with their own privileges
 /// in their own process.
 fn check_mcp_tool(name: &str, input: &str, pol: &SecurityPolicy) -> Result<(), String> {
-    if pol.resources.max_file_write_bytes > 0
-        && input.len() > pol.resources.max_file_write_bytes
-    {
+    if pol.resources.max_file_write_bytes > 0 && input.len() > pol.resources.max_file_write_bytes {
         return Err(format!(
             "MCP tool body size {} bytes exceeds limit of {} bytes",
             input.len(),

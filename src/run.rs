@@ -30,12 +30,12 @@ use crate::config::{
     SYSTEM_PROMPT_CHAT_ONLY, load_prompt_file, max_iterations,
 };
 use crate::error::AictlError;
+use crate::hooks::{self, HookContext, HookEvent};
 use crate::message::{Message, Role};
 use crate::security::redaction::{
     self, RedactionDirection, RedactionMode, RedactionPolicy, RedactionResult, RedactionSource,
 };
 use crate::skills::Skill;
-use crate::hooks::{self, HookContext, HookEvent};
 use crate::ui::{self, AgentUI, PlainUI};
 use crate::{agents, audit, llm, mcp, plugins, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
@@ -451,10 +451,7 @@ enum ToolAction {
 
 /// Build a `HookContext` for a tool-event hook call. Centralized so
 /// `PreToolUse` / `PostToolUse` share the same shape.
-fn tool_hook_ctx<'a>(
-    tool_call: &'a tools::ToolCall,
-    output: Option<&'a str>,
-) -> HookContext<'a> {
+fn tool_hook_ctx<'a>(tool_call: &'a tools::ToolCall, output: Option<&'a str>) -> HookContext<'a> {
     HookContext {
         session_id: crate::session::current_id(),
         cwd: std::env::current_dir().ok(),

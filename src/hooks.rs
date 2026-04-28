@@ -354,11 +354,7 @@ pub struct HookContext<'a> {
 /// for tool events, the empty string (matched by `*`) for prompt/lifecycle
 /// events. Hooks run sequentially in declared order — predictable side
 /// effects matter more than wall-clock parallelism here.
-pub async fn run_hooks(
-    event: HookEvent,
-    match_target: &str,
-    ctx: HookContext<'_>,
-) -> HookOutcome {
+pub async fn run_hooks(event: HookEvent, match_target: &str, ctx: HookContext<'_>) -> HookOutcome {
     let hooks = list_for(event);
     if hooks.is_empty() {
         return HookOutcome::default();
@@ -408,10 +404,7 @@ pub fn build_payload(event: HookEvent, match_target: &str, ctx: &HookContext<'_>
         obj.insert("session_id".into(), Value::String(id.clone()));
     }
     if let Some(cwd) = &ctx.cwd {
-        obj.insert(
-            "cwd".into(),
-            Value::String(cwd.display().to_string()),
-        );
+        obj.insert("cwd".into(), Value::String(cwd.display().to_string()));
     }
     if let Some(name) = ctx.tool_name {
         let mut tool = serde_json::Map::new();
@@ -463,8 +456,7 @@ pub async fn execute_hook(hook: &Hook, payload: &str) -> HookDecision {
         Err(e) => {
             eprintln!(
                 "hook ({} / {}): spawn failed: {e}",
-                hook.event,
-                hook.matcher
+                hook.event, hook.matcher
             );
             return HookDecision::Continue;
         }
@@ -481,11 +473,7 @@ pub async fn execute_hook(hook: &Hook, payload: &str) -> HookDecision {
     let output = match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(Ok(out)) => out,
         Ok(Err(e)) => {
-            eprintln!(
-                "hook ({} / {}): wait failed: {e}",
-                hook.event,
-                hook.matcher
-            );
+            eprintln!("hook ({} / {}): wait failed: {e}", hook.event, hook.matcher);
             return HookDecision::Continue;
         }
         Err(_) => {
@@ -506,8 +494,7 @@ pub async fn execute_hook(hook: &Hook, payload: &str) -> HookDecision {
         let stderr = stderr.trim();
         eprintln!(
             "hook ({} / {}): [exit {code}] {stderr}",
-            hook.event,
-            hook.matcher
+            hook.event, hook.matcher
         );
         // A non-zero exit by convention blocks the action and uses stderr
         // (or stdout, when stderr is empty) as the reason. Mirrors the
@@ -603,8 +590,8 @@ pub fn save(map: &HashMap<HookEvent, Vec<Hook>>) -> Result<(), String> {
             .collect();
         doc.insert(ev.as_str().to_string(), Value::Array(arr));
     }
-    let serialized = serde_json::to_string_pretty(&Value::Object(doc))
-        .map_err(|e| format!("serialize: {e}"))?;
+    let serialized =
+        serde_json::to_string_pretty(&Value::Object(doc)).map_err(|e| format!("serialize: {e}"))?;
     std::fs::write(&path, serialized).map_err(|e| format!("write: {e}"))?;
     Ok(())
 }
@@ -631,7 +618,10 @@ mod tests {
         for ev in HookEvent::ALL {
             assert_eq!(HookEvent::from_str(ev.as_str()), Some(*ev));
         }
-        assert_eq!(HookEvent::from_str("preToolUse"), Some(HookEvent::PreToolUse));
+        assert_eq!(
+            HookEvent::from_str("preToolUse"),
+            Some(HookEvent::PreToolUse)
+        );
         assert_eq!(HookEvent::from_str("nonsense"), None);
     }
 
@@ -700,8 +690,7 @@ mod tests {
         // _comment / _description keys are a JSON5-ish convention used to
         // document JSON config files. They must not trip the unknown-event
         // warning on every startup.
-        let raw =
-            r#"{ "_comment": "demo", "_description": "x", "Stop": [ { "command": "y" } ] }"#;
+        let raw = r#"{ "_comment": "demo", "_description": "x", "Stop": [ { "command": "y" } ] }"#;
         let map = parse_hooks(raw).unwrap();
         assert!(map.get(&HookEvent::Stop).is_some());
         assert_eq!(map.len(), 1);
@@ -714,8 +703,7 @@ mod tests {
 
     #[test]
     fn parse_hooks_respects_enabled_field() {
-        let raw =
-            r#"{ "Stop": [ { "command": "x", "enabled": false }, { "command": "y" } ] }"#;
+        let raw = r#"{ "Stop": [ { "command": "x", "enabled": false }, { "command": "y" } ] }"#;
         let map = parse_hooks(raw).unwrap();
         let hooks = map.get(&HookEvent::Stop).unwrap();
         assert!(!hooks[0].enabled);
@@ -810,7 +798,10 @@ mod tests {
         assert!(!obj.contains_key("tool"));
         assert!(!obj.contains_key("session_id"));
         assert!(!obj.contains_key("matcher"));
-        assert_eq!(obj.get("prompt").and_then(Value::as_str), Some("write a haiku"));
+        assert_eq!(
+            obj.get("prompt").and_then(Value::as_str),
+            Some("write a haiku")
+        );
     }
 
     #[test]
@@ -831,7 +822,10 @@ mod tests {
             timeout_secs: 5,
             enabled: true,
         };
-        assert!(matches!(execute_hook(&hook, "{}").await, HookDecision::Continue));
+        assert!(matches!(
+            execute_hook(&hook, "{}").await,
+            HookDecision::Continue
+        ));
     }
 
     #[tokio::test]
@@ -876,7 +870,10 @@ mod tests {
             enabled: true,
         };
         // Timeouts surface as Continue (logged to stderr) — don't wedge the loop.
-        assert!(matches!(execute_hook(&hook, "{}").await, HookDecision::Continue));
+        assert!(matches!(
+            execute_hook(&hook, "{}").await,
+            HookDecision::Continue
+        ));
     }
 
     #[test]

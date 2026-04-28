@@ -95,7 +95,10 @@ pub fn clear_call_history() {
 /// agent loop to abort *before* spending another LLM round-trip on a
 /// call that would be rejected anyway.
 pub fn is_duplicate_call(tool_call: &ToolCall) -> bool {
-    let key = (tool_call.name.clone(), normalize_for(&tool_call.name, &tool_call.input));
+    let key = (
+        tool_call.name.clone(),
+        normalize_for(&tool_call.name, &tool_call.input),
+    );
     last_call()
         .lock()
         .map(|slot| slot.as_ref() == Some(&key))

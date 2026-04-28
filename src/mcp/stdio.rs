@@ -237,10 +237,7 @@ impl StdioClient {
             }
         };
         if let Some(err) = response.error {
-            return Err(format!(
-                "initialize failed: {} ({})",
-                err.message, err.code
-            ));
+            return Err(format!("initialize failed: {} ({})", err.message, err.code));
         }
         // Send the `notifications/initialized` notification per the spec.
         let notif = json!({
@@ -262,11 +259,7 @@ impl StdioClient {
         Ok(parsed.tools)
     }
 
-    pub async fn call_tool(
-        &self,
-        name: &str,
-        arguments: Value,
-    ) -> Result<CallToolResult, String> {
+    pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, String> {
         let result = self
             .request(
                 "tools/call",
@@ -280,10 +273,7 @@ impl StdioClient {
     pub async fn shutdown(&self) {
         // Best-effort: send the shutdown notification then close stdin so
         // the child sees EOF. The reader task ends when stdout closes.
-        let _ = self
-            .request("shutdown", json!({}))
-            .await
-            .ok();
+        let _ = self.request("shutdown", json!({})).await.ok();
         // Drop stdin so EOF flows through to the child.
         // (Replacing it would need a re-take; instead we leave it open and
         // rely on kill_on_drop when the StdioClient is dropped.)

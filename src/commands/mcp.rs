@@ -20,10 +20,7 @@ const MCP_MENU_ITEMS: &[(&str, &str)] = &[
     ("view all servers", "browse servers, tools, schemas, status"),
     ("enable mcp", "set AICTL_MCP_ENABLED=true and exit"),
     ("disable mcp", "unset AICTL_MCP_ENABLED and exit"),
-    (
-        "show config path",
-        "print where mcp.json is read from",
-    ),
+    ("show config path", "print where mcp.json is read from"),
 ];
 
 /// Run the `/mcp` REPL menu.
@@ -105,8 +102,7 @@ fn view_all() {
         if mcp::enabled() {
             println!(
                 "  {}",
-                "No servers configured. Drop entries into ~/.aictl/mcp.json."
-                    .with(Color::DarkGrey)
+                "No servers configured. Drop entries into ~/.aictl/mcp.json.".with(Color::DarkGrey)
             );
         } else {
             println!(
@@ -293,9 +289,7 @@ fn view_server(server: &ServerSummary) {
 /// `--list-mcp` non-interactive output.
 pub fn print_mcp_cli() {
     if !mcp::enabled() {
-        println!(
-            "(mcp disabled — set AICTL_MCP_ENABLED=true in ~/.aictl/config to opt in)"
-        );
+        println!("(mcp disabled — set AICTL_MCP_ENABLED=true in ~/.aictl/config to opt in)");
         return;
     }
     let servers = mcp::list();

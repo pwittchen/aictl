@@ -132,11 +132,17 @@ async fn spawn_one(cfg: config::ServerConfig, startup_timeout: std::time::Durati
                 Ok(raws) => {
                     let tools = raws
                         .into_iter()
-                        .map(|RawTool { name: tname, description, input_schema }| McpTool {
-                            name: tname,
-                            description,
-                            input_schema,
-                        })
+                        .map(
+                            |RawTool {
+                                 name: tname,
+                                 description,
+                                 input_schema,
+                             }| McpTool {
+                                name: tname,
+                                description,
+                                input_schema,
+                            },
+                        )
                         .collect();
                     McpServer {
                         name,
@@ -259,9 +265,7 @@ pub async fn call_tool(qualified: &str, body: &str) -> String {
         match serde_json::from_str(body_trimmed) {
             Ok(v) => v,
             Err(e) => {
-                return format!(
-                    "[mcp error] tool body must be a JSON object: {e}"
-                );
+                return format!("[mcp error] tool body must be a JSON object: {e}");
             }
         }
     };
@@ -319,10 +323,7 @@ mod tests {
         // Tools may contain `__`; `find` returns at the *first* `__`, so the
         // server name must not contain it. Servers using `__` are out of
         // scope for v1; document by example here.
-        assert_eq!(
-            split_qualified("mcp__srv__a__b"),
-            Some(("srv", "a__b"))
-        );
+        assert_eq!(split_qualified("mcp__srv__a__b"), Some(("srv", "a__b")));
     }
 
     #[test]

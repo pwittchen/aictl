@@ -363,7 +363,6 @@ async fn main() {
     mcp::shutdown().await;
 }
 
-
 /// Handle CLI flags that short-circuit normal execution (version checks,
 /// administrative commands, model management). Returns `true` when one of
 /// these flags was recognized and handled so the caller should return without
