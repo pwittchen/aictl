@@ -81,6 +81,10 @@ cargo install --path . --features gguf
 cargo build --release --features mlx
 cargo install --path . --features mlx
 
+# NER-backed redaction only (Layer C of the redaction pipeline)
+cargo build --release --features redaction-ner
+cargo install --path . --features redaction-ner
+
 # All three (GGUF + MLX + NER-backed redaction)
 cargo build --release --features "gguf mlx redaction-ner"
 cargo install --path . --features "gguf mlx redaction-ner"
