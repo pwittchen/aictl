@@ -500,11 +500,13 @@ impl InteractiveUI {
         }
         if crate::mcp::enabled() {
             let n_servers = crate::mcp::list().len();
-            let n_failed = crate::mcp::failed_count();
-            if n_failed > 0 {
-                extras.push(format!("mcp: {n_servers} servers ({n_failed} failed)"));
-            } else {
-                extras.push(format!("mcp: {n_servers} servers"));
+            if n_servers > 0 {
+                let n_failed = crate::mcp::failed_count();
+                if n_failed > 0 {
+                    extras.push(format!("mcp: {n_servers} servers ({n_failed} failed)"));
+                } else {
+                    extras.push(format!("mcp: {n_servers} servers"));
+                }
             }
         }
         if !extras.is_empty() {
