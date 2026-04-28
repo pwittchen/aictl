@@ -2,13 +2,6 @@
 
 ---
 
-## General
-
-### Developer Experience
-- **MCP server support** — Allow users to connect [Model Context Protocol](https://modelcontextprotocol.io) servers as a source of additional tools, resources, and prompts. Config entries under `~/.aictl/config` (or a dedicated `~/.aictl/mcp.json`) declare each server's transport (stdio command or HTTP/SSE URL), environment, and enablement. At startup, spawn/connect each configured server, list its tools/resources, namespace them (e.g. `mcp__<server>__<tool>`) and merge them into the built-in tool registry so the agent loop can dispatch them transparently. Tool calls route through the MCP client, results flow back like any other tool output, and the security policy (`security::validate_tool`) still applies — per-server allow/deny lists, CWD jailing for stdio servers, and redaction on outbound payloads. Add `/mcp` slash command to list, enable/disable, or restart servers, and `--list-mcp` / `--mcp-server <name>` CLI flags for scripted use. Remote catalogue (similar to `agents/remote.rs` and `skills/remote.rs`) can expose a curated set of official servers pullable on demand. See [.claude/plans/mcp-support.md](.claude/plans/mcp-support.md) for the development plan.
-
----
-
 ## Modular Architecture
 
 Prerequisite for both Server and Desktop. Today the codebase is a single binary crate where the agent loop, providers, security, and CLI presentation are entangled. To support multiple frontends (CLI, Server, Desktop) without forking logic, separate the code that is *frontend-agnostic* from the code that is *CLI-specific*. See [.claude/plans/modular-architecture.md](.claude/plans/modular-architecture.md) for the development plan.
