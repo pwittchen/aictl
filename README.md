@@ -50,6 +50,12 @@ cd aictl
 cargo install --path crates/cli
 ```
 
+To install with all features run:
+
+```bash
+cargo install --path crates/cli --features "gguf mlx redaction-ner"
+```
+
 This installs the `aictl` binary to `~/.cargo/bin/`.
 
 ### Build without installing
