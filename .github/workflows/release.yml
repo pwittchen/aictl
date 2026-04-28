@@ -29,12 +29,26 @@ jobs:
         run: |
           # Workspace `version` lives under [workspace.package] in the root
           # Cargo.toml; both crates inherit it via `version.workspace = true`.
-          current=$(awk '/^\[workspace.package\]/,/^\[/{ if ($1 == "version") print $3 }' Cargo.toml | head -1 | tr -d '"')
+          # Flag-based section parsing (not an awk range) — `[workspace.package]`
+          # is the last section in Cargo.toml, so a `addr1,addr2` range where
+          # both addresses match `^\[` collapses to a single line.
+          current=$(awk '
+            /^\[workspace\.package\]/ { in_section=1; next }
+            in_section && /^\[/ { in_section=0 }
+            in_section && /^version *= *"/ {
+              sub(/^version *= *"/, ""); sub(/".*$/, ""); print; exit
+            }
+          ' Cargo.toml)
           tag_version="${{ steps.version.outputs.version }}"
           changed=0
           if [ "$current" != "$tag_version" ]; then
             # Bump the single source of truth at the workspace root.
-            sed -i "/^\[workspace.package\]/,/^\[/{s/^version = \"$current\"/version = \"$tag_version\"/}" Cargo.toml
+            awk -v new="$tag_version" '
+              /^\[workspace\.package\]/ { in_section=1; print; next }
+              in_section && /^\[/ { in_section=0 }
+              in_section && /^version *= *"/ { print "version = \"" new "\""; next }
+              { print }
+            ' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
             # Cargo.lock has one entry per workspace member.
             sed -i '/^name = "cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             sed -i '/^name = "engine"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
