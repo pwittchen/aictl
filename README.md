@@ -1021,6 +1021,8 @@ This project includes [Claude Code](https://claude.ai/code) skills for common wo
 | `/evaluate-rust-performance` | Audit performance patterns, allocations, and CLI responsiveness |
 | `/project-stats-report` | Generate a project statistics report (LOC, commit activity, contributors, etc.) |
 | `/sync-models` | Check each provider for newly released models and update the supported set and README |
+| `/create-hook` | Add a lifecycle hook to `~/.aictl/hooks.json` (event, matcher, command, timeout) |
+| `/add-mcp-server` | Connect an MCP server by adding an entry to `~/.aictl/mcp.json` |
 
 Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
 
