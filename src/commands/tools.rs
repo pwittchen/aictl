@@ -100,10 +100,22 @@ pub(super) fn print_tools() {
         println!();
     }
     let plugin_list = crate::plugins::list();
+    let mcp_servers = crate::mcp::list();
+    let mcp_max = mcp_servers
+        .iter()
+        .filter(|s| matches!(s.state, crate::mcp::ServerState::Ready))
+        .flat_map(|s| {
+            s.tools
+                .iter()
+                .map(move |t| crate::mcp::qualify(&s.name, &t.name).len())
+        })
+        .max()
+        .unwrap_or(0);
     let max_len = std::cmp::max(
         max_len,
         plugin_list.iter().map(|p| p.name.len()).max().unwrap_or(0),
     );
+    let max_len = std::cmp::max(max_len, mcp_max);
     for (name, desc) in TOOLS {
         let pad = max_len - name.len() + 2;
         println!("  {}{:pad$}{desc}", name.with(Color::Cyan), "");
@@ -120,6 +132,30 @@ pub(super) fn print_tools() {
                 p.description.as_str(),
                 "(plugin)".with(Color::DarkGrey),
             );
+        }
+    }
+    let any_ready_mcp = mcp_servers
+        .iter()
+        .any(|s| matches!(s.state, crate::mcp::ServerState::Ready) && !s.tools.is_empty());
+    if any_ready_mcp {
+        println!();
+        println!("  {}", "mcp:".with(Color::DarkGrey));
+        for s in &mcp_servers {
+            if !matches!(s.state, crate::mcp::ServerState::Ready) {
+                continue;
+            }
+            for t in &s.tools {
+                let qualified = crate::mcp::qualify(&s.name, &t.name);
+                let pad = max_len - qualified.len() + 2;
+                let suffix = format!("(mcp: {})", s.name);
+                println!(
+                    "  {}{:pad$}{} {}",
+                    qualified.as_str().with(Color::Cyan),
+                    "",
+                    t.description.as_str(),
+                    suffix.with(Color::DarkGrey),
+                );
+            }
         }
     }
     println!();

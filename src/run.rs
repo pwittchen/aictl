@@ -37,7 +37,7 @@ use crate::security::redaction::{
 use crate::skills::Skill;
 use crate::hooks::{self, HookContext, HookEvent};
 use crate::ui::{self, AgentUI, PlainUI};
-use crate::{agents, audit, llm, plugins, security, stats, tools};
+use crate::{agents, audit, llm, mcp, plugins, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
 
 /// Cached "is stdout a TTY?" check. Computed once at startup to avoid repeated
@@ -187,6 +187,35 @@ pub(crate) fn build_system_prompt() -> String {
             prompt.push_str("\n\nAdditional tools (plugins):\n");
             for p in plugin_list {
                 let _ = write!(prompt, "\n### {} (plugin)\n{}\n", p.name, p.catalog_body());
+            }
+        }
+        let mcp_servers = mcp::list();
+        let any_ready = mcp_servers
+            .iter()
+            .any(|s| matches!(s.state, mcp::ServerState::Ready) && !s.tools.is_empty());
+        if any_ready {
+            use std::fmt::Write as _;
+            prompt.push_str(
+                "\n\nAdditional tools (MCP servers). Each call body must be a JSON object matching the tool's input schema:\n",
+            );
+            for server in &mcp_servers {
+                if !matches!(server.state, mcp::ServerState::Ready) {
+                    continue;
+                }
+                for tool in &server.tools {
+                    let qualified = mcp::qualify(&server.name, &tool.name);
+                    let desc = if tool.description.trim().is_empty() {
+                        "(no description provided)"
+                    } else {
+                        tool.description.trim()
+                    };
+                    let _ = write!(prompt, "\n### {qualified} (mcp)\n{desc}\n");
+                    if !tool.input_schema.is_null() {
+                        let schema = serde_json::to_string_pretty(&tool.input_schema)
+                            .unwrap_or_else(|_| tool.input_schema.to_string());
+                        let _ = write!(prompt, "\nInput schema:\n```json\n{schema}\n```\n");
+                    }
+                }
             }
         }
     }

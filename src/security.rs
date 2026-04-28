@@ -353,8 +353,45 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
         }
         "archive" => check_archive(input),
         "checksum" => check_checksum(input),
+        name if name.starts_with("mcp__") => check_mcp_tool(name, input, pol),
         _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
     }
+}
+
+/// Validate an MCP tool call. We can't introspect the server's intent
+/// statically (unlike `read_file` / `write_file`), so the gate enforces
+/// only what the host can know:
+///   * the qualified name is not in `AICTL_SECURITY_DISABLED_TOOLS` (already
+///     handled by the caller)
+///   * the server isn't blanket-blocked via `AICTL_MCP_DENY_SERVERS`
+///   * the JSON body isn't bigger than `max_file_write_bytes`
+///
+/// The CWD jail does not apply — MCP servers run with their own privileges
+/// in their own process.
+fn check_mcp_tool(name: &str, input: &str, pol: &SecurityPolicy) -> Result<(), String> {
+    if pol.resources.max_file_write_bytes > 0
+        && input.len() > pol.resources.max_file_write_bytes
+    {
+        return Err(format!(
+            "MCP tool body size {} bytes exceeds limit of {} bytes",
+            input.len(),
+            pol.resources.max_file_write_bytes
+        ));
+    }
+    let server = name
+        .strip_prefix("mcp__")
+        .and_then(|rest| rest.split_once("__"))
+        .map_or("", |(s, _)| s);
+    if !server.is_empty() {
+        let denied = crate::config::config_get("AICTL_MCP_DENY_SERVERS")
+            .is_some_and(|raw| raw.split(',').map(str::trim).any(|s| s == server));
+        if denied {
+            return Err(format!(
+                "MCP server '{server}' is blocked by AICTL_MCP_DENY_SERVERS"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Validate paths referenced by the `archive` tool. The first line declares
@@ -1447,6 +1484,21 @@ mod tests {
         // Users should still be able to talk about the tool system.
         assert!(detect_prompt_injection("How does the exec_shell tool handle timeouts?").is_ok());
         assert!(detect_prompt_injection("Can you list the tools you have available?").is_ok());
+    }
+
+    #[test]
+    fn check_mcp_tool_rejects_oversize_body() {
+        let mut pol = test_policy();
+        pol.resources.max_file_write_bytes = 8;
+        let big = "x".repeat(64);
+        let err = check_mcp_tool("mcp__srv__op", &big, &pol).unwrap_err();
+        assert!(err.contains("exceeds limit"));
+    }
+
+    #[test]
+    fn check_mcp_tool_passes_small_body() {
+        let pol = test_policy();
+        assert!(check_mcp_tool("mcp__srv__op", "{}", &pol).is_ok());
     }
 
     #[test]

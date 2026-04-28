@@ -8,6 +8,7 @@ mod hooks;
 mod integration_tests;
 mod keys;
 mod llm;
+mod mcp;
 mod message;
 mod plugins;
 mod repl;
@@ -253,6 +254,18 @@ struct Cli {
     #[arg(long = "list-hooks")]
     list_hooks: bool,
 
+    /// List configured MCP servers (name, transport, state, tool count)
+    /// and exit. MCP servers live in `~/.aictl/mcp.json` (override via
+    /// `AICTL_MCP_CONFIG`) and require `AICTL_MCP_ENABLED=true`.
+    #[arg(long = "list-mcp")]
+    list_mcp: bool,
+
+    /// Restrict this session to only the named MCP server (others are
+    /// disabled). Useful for scripted runs that should only touch one
+    /// integration. Effective only when `AICTL_MCP_ENABLED=true`.
+    #[arg(long = "mcp-server", value_name = "NAME")]
+    mcp_server: Option<String>,
+
     /// Show remaining credit / quota for each configured cloud provider and
     /// exit. Local providers (Ollama/GGUF/MLX) are out of scope. Providers
     /// without a public balance API are reported as "unknown" with a hint
@@ -286,7 +299,10 @@ async fn main() {
     plugins::init();
     hooks::init();
 
+    mcp::init_with(cli.mcp_server.as_deref()).await;
+
     if handle_management_flags(&cli).await {
+        mcp::shutdown().await;
         return;
     }
 
@@ -340,10 +356,13 @@ async fn main() {
     };
 
     if let Err(e) = result {
+        mcp::shutdown().await;
         eprintln!("Error: {e}");
         std::process::exit(1);
     }
+    mcp::shutdown().await;
 }
+
 
 /// Handle CLI flags that short-circuit normal execution (version checks,
 /// administrative commands, model management). Returns `true` when one of
@@ -381,6 +400,10 @@ async fn handle_management_flags(cli: &Cli) -> bool {
     }
     if cli.list_hooks {
         commands::print_hooks_cli();
+        return true;
+    }
+    if cli.list_mcp {
+        commands::print_mcp_cli();
         return true;
     }
     false

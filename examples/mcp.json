@@ -1,0 +1,30 @@
+{
+  "_comment": "Example aictl MCP servers config. Copy to ~/.aictl/mcp.json (or point AICTL_MCP_CONFIG at this path) and set AICTL_MCP_ENABLED=true in ~/.aictl/config to opt in. Each entry under 'mcpServers' is { command, args, env, enabled, timeout_secs }. 'command' is resolved via PATH (no shell); 'env' values support a ${keyring:NAME} substitution that pulls a secret from the system keyring (or plain config). Edit the absolute path under 'tiny_add' to match where you cloned aictl.",
+
+  "mcpServers": {
+    "tiny_add": {
+      "_comment": "Minimal smoke-test server bundled with aictl. Exposes one tool (mcp__tiny_add__add). Replace the absolute path with the location on your machine.",
+      "command": "python3",
+      "args": ["/absolute/path/to/aictl/examples/mcp/tiny_add/server.py"],
+      "enabled": true,
+      "timeout_secs": 10
+    },
+
+    "filesystem": {
+      "_comment": "Official Anthropic MCP server, fetched on demand via npx. The trailing arg is the directory the server is allowed to access — keep it scoped tightly.",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "enabled": false
+    },
+
+    "github": {
+      "_comment": "Official GitHub MCP server in a Docker container. Set GITHUB_TOKEN in the system keyring (e.g. via /keys) and the ${keyring:GITHUB_TOKEN} placeholder is resolved at startup — the literal token is not stored in this file.",
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${keyring:GITHUB_TOKEN}"
+      },
+      "enabled": false
+    }
+  }
+}

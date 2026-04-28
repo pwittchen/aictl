@@ -332,6 +332,10 @@ async fn dispatch_slash_command(
             commands::run_hooks_menu(&|msg| ui.show_error(msg));
             ReplAction::Continue
         }
+        commands::CommandResult::Mcp => {
+            commands::run_mcp_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
         commands::CommandResult::Balance => {
             commands::run_balance().await;
             ReplAction::Continue

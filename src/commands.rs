@@ -24,6 +24,7 @@ mod history;
 mod hooks;
 mod info;
 mod keys;
+mod mcp;
 mod memory;
 mod menu;
 mod mlx;
@@ -51,6 +52,7 @@ pub use history::print_history;
 pub use hooks::{print_hooks_cli, run_hooks_menu};
 pub use info::print_info;
 pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unlock_keys};
+pub use mcp::{print_mcp_cli, run_mcp_menu};
 pub use memory::{MemoryMode, select_memory};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
@@ -84,6 +86,7 @@ pub const COMMANDS: &[&str] = &[
     "info",
     "keys",
     "gguf",
+    "mcp",
     "memory",
     "mlx",
     "model",
@@ -162,6 +165,9 @@ pub enum CommandResult {
     Plugins,
     /// Open the hooks management menu (list, toggle, test-fire).
     Hooks,
+    /// Open the MCP servers management menu (list servers, view tools,
+    /// toggle the `AICTL_MCP_ENABLED` master switch).
+    Mcp,
     /// Check connectivity and API key validity for all providers.
     Ping,
     /// Re-run the interactive configuration wizard.
@@ -250,6 +256,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "ping" => CommandResult::Ping,
         "plugins" => CommandResult::Plugins,
         "hooks" => CommandResult::Hooks,
+        "mcp" => CommandResult::Mcp,
         "retry" => CommandResult::Retry,
         "roadmap" => {
             let query = if args.is_empty() {

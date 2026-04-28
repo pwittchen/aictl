@@ -69,6 +69,17 @@ fn normalize_input(input: &str) -> String {
         .join(" ")
 }
 
+/// Normalize an MCP tool body (JSON object) so that whitespace differences
+/// don't make the duplicate-call guard treat semantically identical calls as
+/// distinct. Falls back to the generic [`normalize_input`] if the body isn't
+/// valid JSON — the gate still works, it's just less robust.
+fn normalize_mcp_input(input: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(input.trim()) {
+        Ok(v) => serde_json::to_string(&v).unwrap_or_else(|_| input.to_string()),
+        Err(_) => normalize_input(input),
+    }
+}
+
 /// Clear the last-call slot. Called on REPL `/clear`, session switches,
 /// and at the start of every new user turn so a new conversation (or a
 /// new user message after a final answer) starts with a blank slate.
@@ -84,11 +95,21 @@ pub fn clear_call_history() {
 /// agent loop to abort *before* spending another LLM round-trip on a
 /// call that would be rejected anyway.
 pub fn is_duplicate_call(tool_call: &ToolCall) -> bool {
-    let key = (tool_call.name.clone(), normalize_input(&tool_call.input));
+    let key = (tool_call.name.clone(), normalize_for(&tool_call.name, &tool_call.input));
     last_call()
         .lock()
         .map(|slot| slot.as_ref() == Some(&key))
         .unwrap_or(false)
+}
+
+/// Pick the right normalizer for a tool name. MCP tool bodies are JSON
+/// objects, so canonicalize them before keying the duplicate slot.
+fn normalize_for(tool_name: &str, input: &str) -> String {
+    if tool_name.starts_with("mcp__") {
+        normalize_mcp_input(input)
+    } else {
+        normalize_input(input)
+    }
 }
 
 #[derive(Debug)]
@@ -174,7 +195,10 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     // re-reads aren't penalized. The model gets a clear message instead
     // of a fresh result, which breaks the tool-call loops that weaker
     // models otherwise enter.
-    let call_key = (tool_call.name.clone(), normalize_input(&tool_call.input));
+    let call_key = (
+        tool_call.name.clone(),
+        normalize_for(&tool_call.name, &tool_call.input),
+    );
     {
         let mut slot = last_call().lock().expect("tool call slot poisoned");
         if slot.as_ref() == Some(&call_key) {
@@ -242,6 +266,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "checksum" => checksum::tool_checksum(input).await,
         "clipboard" => clipboard::tool_clipboard(input).await,
         "notify" => notify::tool_notify(input).await,
+        other if other.starts_with("mcp__") => crate::mcp::call_tool(other, input).await,
         other => {
             if let Some(plugin) = crate::plugins::find(other) {
                 crate::plugins::execute_plugin(plugin, input).await
@@ -743,6 +768,30 @@ mod tests {
         .await;
         assert!(!result.text.is_empty());
         assert!(result.text.starts_with("20"));
+    }
+
+    #[test]
+    fn normalize_mcp_input_canonicalizes_json() {
+        // Same JSON with different whitespace must collapse to the same key
+        // so the duplicate-call guard doesn't treat them as distinct.
+        let a = normalize_mcp_input(r#"{"a":1,"b":"x"}"#);
+        let b = normalize_mcp_input(r#"{ "a" : 1 , "b" : "x" }"#);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn normalize_mcp_input_falls_back_for_non_json() {
+        // Garbage text falls through to the generic normalizer rather than
+        // panicking — keeps the gate working even for malformed bodies.
+        let out = normalize_mcp_input("not  json   here");
+        assert_eq!(out, "not json here");
+    }
+
+    #[test]
+    fn normalize_for_routes_mcp_names_to_json_canonicalizer() {
+        let a = normalize_for("mcp__fs__read", r#"{"path":"/a"}"#);
+        let b = normalize_for("mcp__fs__read", r#"{ "path" : "/a" }"#);
+        assert_eq!(a, b);
     }
 
     #[tokio::test]

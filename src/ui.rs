@@ -490,6 +490,32 @@ impl InteractiveUI {
         );
         next += 1;
 
+        // Plugins / MCP line — emitted when either has something to report.
+        // Uses BLANK directly so the mascot column stays aligned and we
+        // don't consume one of the limited `m[next]` slots.
+        let mut extras: Vec<String> = Vec::new();
+        let plugin_list = crate::plugins::list();
+        if !plugin_list.is_empty() {
+            extras.push(format!("plugins: {} loaded", plugin_list.len()));
+        }
+        if crate::mcp::enabled() {
+            let n_servers = crate::mcp::list().len();
+            let n_failed = crate::mcp::failed_count();
+            if n_failed > 0 {
+                extras.push(format!("mcp: {n_servers} servers ({n_failed} failed)"));
+            } else {
+                extras.push(format!("mcp: {n_servers} servers"));
+            }
+        }
+        if !extras.is_empty() {
+            eprintln!(
+                "{PAD}{} {}{}",
+                PIPE.with(Color::DarkGrey),
+                BLANK.with(Color::Cyan),
+                extras.join(" · ").with(Color::DarkGrey),
+            );
+        }
+
         // Line 4: session / incognito info
         if crate::session::is_incognito() {
             eprintln!(
@@ -510,19 +536,6 @@ impl InteractiveUI {
             );
         }
         next += 1;
-
-        // Plugins line — only when plugins are enabled AND at least one
-        // loaded. Uses BLANK directly so the mascot column stays aligned
-        // and we don't consume one of the limited `m[next]` slots.
-        let plugin_list = crate::plugins::list();
-        if !plugin_list.is_empty() {
-            eprintln!(
-                "{PAD}{} {}{}",
-                PIPE.with(Color::DarkGrey),
-                BLANK.with(Color::Cyan),
-                format!("plugins: {} loaded", plugin_list.len()).with(Color::DarkGrey),
-            );
-        }
 
         // Welcome text
         eprintln!(

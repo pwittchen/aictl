@@ -227,5 +227,22 @@ pub fn print_info(
         format!("{hooks_total}")
     };
     println!("  {} {hooks_info}", "hooks:    ".with(Color::Cyan));
+
+    let mcp_info = if crate::mcp::enabled() {
+        let n_servers = crate::mcp::list().len();
+        let n_tools = crate::mcp::total_tools();
+        let n_failed = crate::mcp::failed_count();
+        let mut s = format!("{n_servers} server(s), {n_tools} tool(s)");
+        if n_failed > 0 {
+            use std::fmt::Write as _;
+            let _ = write!(s, ", {n_failed} failed");
+        }
+        s
+    } else {
+        "disabled (AICTL_MCP_ENABLED=false)"
+            .with(Color::Yellow)
+            .to_string()
+    };
+    println!("  {} {mcp_info}", "mcp:      ".with(Color::Cyan));
     println!();
 }

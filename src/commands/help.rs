@@ -29,6 +29,7 @@ pub(super) fn print_help() {
         ("/ping", "validate API keys and probe provider connectivity"),
         ("/plugins", "manage external plugin tools"),
         ("/hooks", "manage lifecycle hooks (list, toggle, test-fire)"),
+        ("/mcp", "manage MCP servers (list, view tools, toggle)"),
         (
             "/roadmap",
             "view the project roadmap (use /roadmap <section> to filter)",
