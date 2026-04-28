@@ -1,73 +1,86 @@
-# Plan: `aictl-server` — HTTP Gateway for the Agent Loop
+# Plan: `aictl-server` — HTTP LLM Proxy
+
+## Scope update — 2026-04-28
+
+This plan was originally written around an agent-endpoint MVP plus an OpenAI-compatible gateway. That direction has been narrowed: **`aictl-server` is now a pure LLM proxy with no agent capabilities.** Specifically, the server:
+
+- Does **not** run the agent loop (`run::run_agent_turn`) or expose any endpoint that does.
+- Does **not** dispatch tools, list/load agents or skills, manage sessions, or surface plugins/hooks/slash commands.
+- Does **not** implement an `HttpUI` against `AgentUI` — there is no `AgentUI` consumer on the server side.
+- **Does** expose the OpenAI-compatible gateway (`/v1/chat/completions`, `/v1/completions`, `/v1/models`) routing to every supported provider, with redaction and audit applied.
+- **Does** require a master API key on every request (auto-generated on first startup if not configured) and **does** write a structured server log.
+
+Everything that was the "agent endpoint" plan (formerly Phase 1, §§5–7, parts of §13–§15) is dropped from the active scope and kept below for reference only — it is no longer a target for implementation. Sections that still apply (gateway, errors, shutdown, deployment) are unchanged. New sections at the end of this document describe the master API key and the server log requirements.
+
+If a future product need calls for HTTP-accessible agent loops, that becomes a separate plan, not a revival of the dropped phase.
 
 ## Context
 
-Today `aictl` is a CLI-only program. Every interaction goes through the REPL or a single-shot `--message` invocation, and every provider call originates from a short-lived process on the user's machine. This plan turns the engine into a long-lived HTTP server — a second binary, `aictl-server`, that exposes the same agent loop, the same provider catalogue, and the same tool registry over a local (or optionally remote) HTTP endpoint. It reuses `~/.aictl/config` as-is so a user can already run the CLI and the server side-by-side against the same keys, models, agents, and skills, while `--config <path>` / `AICTL_CONFIG` let operators run multiple server instances with different policies.
+Today `aictl` is a CLI-only program. Every interaction goes through the REPL or a single-shot `--message` invocation, and every provider call originates from a short-lived process on the user's machine. This plan adds a second binary, `aictl-server`, that exposes the LLM provider catalogue over a local (or optionally remote) HTTP endpoint as an **OpenAI-compatible passthrough**. Clients holding an OpenAI-format SDK can point at `aictl-server` and transparently consume Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models, with redaction, audit, key management, and a master-key gate handled centrally.
 
-The server is **not** a new AI product. It is a gateway: the same `run::run_agent_turn` that drives the REPL, reached over HTTP instead of stdin/stdout. Every guarantee the CLI offers today — security gate, outbound redaction, audit logging, per-turn iteration and timeout limits — applies to every HTTP request without exception. The one thing the server does *not* inherit is the Coding Agent mode: that surface is deliberately CLI-only (see the roadmap), and the server rejects coding-mode requests with a 400.
+The server reuses `~/.aictl/config` as-is so a user can run the CLI and the server side-by-side against the same provider keys, while `--config <path>` / `AICTL_CONFIG` let operators run multiple server instances with different policies. Outbound redaction (`run::redact_outbound`) and audit logging continue to apply on the proxy path.
 
-Beyond the agent endpoint, the server doubles as an **OpenAI-compatible passthrough**: clients holding an OpenAI-format SDK can point at `aictl-server` and transparently consume Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models, with redaction, audit, and key management handled centrally. That turns the server into a useful piece of infrastructure even for users who never touch the agent loop.
-
-Scope-boundary statement up front: this plan is specifically **Phase 1 + Phase 2** of the server — the agent endpoint, the meta endpoints, SSE streaming, and the OpenAI-compatible gateway. Remote-catalogue surfaces, multi-tenancy, and aictl-as-an-MCP-server all land in later phases.
+What the server deliberately does **not** offer: the agent loop, tool dispatch, agents, skills, plugins, hooks, sessions, slash commands, or any coding-mode workflow. Those are CLI/REPL features and remain CLI/REPL-only. Clients that need them use `aictl`.
 
 ## Prerequisite: Modular Architecture
 
-This plan depends on [.claude/plans/modular-architecture.md](modular-architecture.md) having shipped through at least Phase 5. Specifically:
+This plan depends on [.claude/plans/modular-architecture.md](modular-architecture.md) having shipped through at least the workspace split. Specifically:
 
-- `aictl-core` exists as a library crate with `run::run_agent_turn` as a public API.
-- The `AgentUI` trait is part of `aictl-core`'s public surface; `HttpUI` is a new implementation living in `aictl-server`.
-- Provider calls, security policy, redaction, audit, and session storage are owned by `aictl-core` and reachable by any frontend.
-- Feature flags (`gguf`, `mlx`, `redaction-ner`, and the future `mcp`) live on `aictl-core`; the server enables whichever the deployment needs.
+- `aictl-core` exists as a library crate with the `llm::call_<provider>` functions, `MODELS` catalogue, redaction pipeline, audit logger, key store, and stats writer as public API.
+- Provider calls and the redaction pipeline are owned by `aictl-core` and reachable from any frontend.
+- Feature flags (`gguf`, `mlx`, `redaction-ner`) live on `aictl-core`; the server enables whichever the deployment needs.
 
-Until Modular Architecture Phase 3 lands, the server plan is **blocked**. Attempting to write `aictl-server` against the current monolithic crate would either (a) duplicate `run_agent_turn` wrapper logic or (b) drag `rustyline`/`termimad`/`crossterm` into a daemon, both of which the workspace split is explicitly there to prevent.
+The server does **not** depend on `AgentUI` or `run::run_agent_turn` being part of the public surface — it never calls them. Until the workspace split lands, attempting to write `aictl-server` would drag REPL deps (`rustyline`/`termimad`/`crossterm`) into a daemon, which the workspace split is explicitly there to prevent.
 
 ## Goals & Non-goals
 
 **Goals**
 - Ship a second binary (`aictl-server`) from the same workspace that speaks HTTP on a configurable bind address.
-- Reuse `run::run_agent_turn` unchanged; the server is a thin HTTP adapter around the engine.
+- Be a pure LLM proxy: translate OpenAI-shaped requests into the configured provider's native format, call `aictl_core::llm::call_<provider>`, translate the response back, with redaction and audit layered in.
 - Keep the CLI binary (`aictl`) unchanged in behavior, dependencies, and cold-start cost. No HTTP deps leak into `aictl-cli`.
-- Token streaming over Server-Sent Events with the same `<tool name="...">` filter the CLI's `StreamState` applies, so tool XML never reaches the client.
-- First-class OpenAI-compatible gateway (`/v1/chat/completions`, `/v1/completions`) that routes to any aictl-supported provider, with redaction applied before the outbound provider call and audit logged per request.
-- Security-first defaults: bind `127.0.0.1` only, bearer-token required for any non-loopback bind, CORS off, per-request body size cap, per-request timeout, same `security::validate_tool` gate as the CLI.
-- Audit every request and tool dispatch through `audit.rs`. Stats through `stats.rs`.
-- Graceful shutdown: drain in-flight requests with a timeout, flush audit/stats, exit.
-- Observability: structured logs, `/healthz`, `/v1/stats`.
+- Streaming over Server-Sent Events using OpenAI's `data: {"choices":[{"delta":...}]}` shape.
+- Security-first defaults: bind `127.0.0.1` only by default, master API key required on every request, CORS off, per-request body size cap, per-request timeout.
+- Master API key auto-generated and persisted to `~/.aictl/config` on first startup if not already configured.
+- Structured server log written to a configurable path; redaction applied to any payload preview.
+- Audit every gateway request through `audit.rs`. Stats through `stats.rs`.
+- Graceful shutdown: drain in-flight requests with a timeout, flush audit/stats/log, exit.
 - Multiple instances on the same host can coexist via distinct `--config <path>` and `--bind` pairs.
 
 **Non-goals**
-- Not a Coding Agent host. `coding_mode` requests are rejected.
-- Not a multi-tenant SaaS backend. No per-user isolation beyond what the single shared `~/.aictl/config` provides. Multi-tenancy is deferred to a later phase (see Open questions).
-- No clustering, no inter-node session replication, no load-balancer-aware session stickiness. One process, one host. Clients that need HA run a pool and accept session non-affinity.
-- No WebSockets in v1. SSE covers streaming; WebSockets add framing complexity without a concrete client need yet.
-- No browser UI served by the binary. The server is JSON/SSE only; a user-facing UI is the Desktop plan's job or a separate project.
-- No storage backend migration. Sessions keep using `session.rs` on the local filesystem. A pluggable storage layer (Postgres, Redis) is out of scope.
-- No reverse-proxy assumption. We do not read `X-Forwarded-*` headers or trust them. Operators who put the server behind nginx/Caddy manage TLS and IP forwarding at the proxy level.
-- No rate-limiting in v1 beyond a concurrency cap. Rate-limiting is a next-phase concern once we have a stable threat model.
+- **Not an agent host.** No `/v1/chat` agent-loop endpoint, no SSE streaming of `AgentEvent`s, no tool dispatch, no `<tool name="...">` filtering — none of those code paths exist on the server. Clients that need agent capabilities use the CLI.
+- **No agents, skills, sessions, plugins, hooks, or slash commands.** Their files on disk are ignored by the server; their HTTP endpoints do not exist.
+- **No `/v1/tools/*`** direct tool invocation. The security gate (`security::validate_tool`) is not even wired up on the server because there are no tools to validate.
+- Not a Coding Agent host. The dropped scope statement above already implies this; coding mode is doubly out of scope.
+- Not a multi-tenant SaaS backend. No per-user isolation beyond what the single shared `~/.aictl/config` provides.
+- No clustering, no inter-node replication. One process, one host.
+- No WebSockets in v1. SSE covers streaming.
+- No browser UI served by the binary. The server is JSON/SSE only.
+- No reverse-proxy assumption. We do not read `X-Forwarded-*` headers or trust them.
+- No rate-limiting in v1 beyond a concurrency cap.
 
 ## Approach: Phased rollout
 
-### Phase 1 — core agent endpoint + meta endpoints (MVP)
+### Phase 1 — OpenAI-compatible gateway (MVP)
 
-The minimum surface a client needs to replace the CLI: a non-streaming chat endpoint, a streaming chat endpoint, model/agent/skill listings, session CRUD, health, and stats. Bearer-token auth, single-host bind. No OpenAI-compatible routes yet.
+`POST /v1/chat/completions` and `POST /v1/completions` accept the OpenAI request schema and route to whichever provider matches the `model` field. Streaming via SSE in OpenAI's `data: {"choices":[{"delta":...}]}` shape. Plus `GET /v1/models`, `GET /healthz`, `GET /v1/stats`. Master API key required on every authenticated request (auto-generated on first startup if not configured). Structured server log enabled out of the box.
 
-### Phase 2 — OpenAI-compatible gateway
+### Phase 2 — operational hardening
 
-`POST /v1/chat/completions` and `POST /v1/completions` that accept the OpenAI request schema and route to whichever provider matches the `model` field. Streaming via the same SSE machinery as Phase 1. No agent loop — raw provider passthrough with redaction and audit layered in.
+Optional TLS termination via `rustls`. Rate limiting (`tower_governor` or equivalent) keyed on the master API key. `GET /metrics` Prometheus endpoint. Multi-config presets so a single binary launch can switch between pre-baked policies.
 
-### Phase 3 — direct tool invocation + resource surfaces
+### Phase 3 — remote provider key passthrough (revisit)
 
-`POST /v1/tools/{name}` for clients that want the tool registry without going through the agent loop. `GET /v1/tools` catalog. Resource/prompt introspection endpoints for MCP-sourced surfaces, once MCP client support lands.
+Re-evaluate whether to support a per-request provider key override (`Authorization` forwarded upstream) for deployments that want the server to hold no provider keys. Not a v1 concern; revisit only on concrete demand.
 
-### Phase 4 — remote catalogue, extras
+### Dropped scope (formerly Phase 1 + Phase 3)
 
-`GET /v1/agents/remote`, `GET /v1/skills/remote` that expose the curated catalogues already fetched by `agents/remote.rs` and `skills/remote.rs`. Optional TLS termination flag. Optional multi-config file for deployment presets.
-
-This plan specifies Phases 1 and 2 in detail and sketches Phases 3 and 4 at the end.
+The agent endpoint (`POST /v1/chat`, `POST /v1/chat/stream`), session CRUD, agent/skill listings, direct tool invocation (`POST /v1/tools/{name}`), tool catalog, MCP resources/prompts, and the `HttpUI`/`AgentEvent` SSE machinery are all dropped from this plan. The detailed sections below that describe them are kept for historical reference and **clearly marked as dropped** — they are not implementation targets.
 
 ---
 
 ## Phase 1 — detailed design
+
+> **Note:** the sections below were written when Phase 1 covered the agent endpoint plus the gateway. Sub-sections describing the agent loop, `HttpUI`, sessions, agents, skills, tool dispatch, and Phase-3 tool surfaces are **dropped** (see scope update at the top). Sub-sections covering crate skeleton, framework choice, configuration, errors, graceful shutdown, deployment, and the gateway translation layer (§8) still apply to the new Phase 1 (OpenAI gateway only). The new master-key and server-log requirements are documented in their own sections after this block.
 
 ### 1. Crate skeleton
 
@@ -83,21 +96,21 @@ crates/
         ├── main.rs            # clap, server startup, graceful shutdown
         ├── config.rs          # server-specific config knobs
         ├── state.rs           # shared AppState (concurrency semaphore, shutdown handle)
-        ├── auth.rs            # bearer-token middleware
+        ├── auth.rs            # master-key middleware (constant-time compare)
+        ├── master_key.rs      # load-or-generate the master API key on startup
+        ├── log.rs             # structured server log writer (file or stderr)
         ├── error.rs           # typed ApiError + IntoResponse impl
-        ├── ui.rs              # HttpUI: AgentUI impl that pipes events into an mpsc channel
+        ├── openai.rs          # OpenAI request/response translation per provider
         ├── routes/
         │   ├── mod.rs
-        │   ├── chat.rs        # /v1/chat, /v1/chat/stream
+        │   ├── gateway.rs     # /v1/chat/completions, /v1/completions
         │   ├── models.rs      # /v1/models
-        │   ├── agents.rs      # /v1/agents
-        │   ├── skills.rs      # /v1/skills
-        │   ├── sessions.rs    # /v1/sessions
-        │   ├── gateway.rs     # Phase 2: /v1/chat/completions, /v1/completions
         │   ├── health.rs      # /healthz
         │   └── stats.rs       # /v1/stats
-        └── sse.rs             # SSE framing helpers
+        └── sse.rs             # SSE framing helpers (OpenAI delta shape)
 ```
+
+There is intentionally no `ui.rs`, `routes/chat.rs`, `routes/agents.rs`, `routes/skills.rs`, or `routes/sessions.rs` — those would have served the dropped agent-endpoint scope.
 
 `aictl-server/Cargo.toml` depends on `aictl-core = { path = "../aictl-core" }`. Runtime deps beyond what core already pulls in: `axum`, `tower`, `tower-http` (for `RequestBodyLimit`, `TraceLayer`, `TimeoutLayer`), `tokio` (inherits features from core), `futures`, `serde`/`serde_json` (already in core), `async-stream` for SSE body construction. No `rustyline`, `termimad`, `crossterm`, `indicatif`, `dialoguer`.
 
@@ -121,8 +134,8 @@ Pin axum to `0.8.x`. Upgrade cost is low but semver breaks between minor lines a
 Every server knob lives in `~/.aictl/config` (or the `--config <path>` override). CLI flags override config. The CLI-style `config_get`/`config_set` helpers in `aictl-core::config` work unchanged; the server adds a narrow set of new keys:
 
 ```
-server_bind=127.0.0.1:7878           # default; any change requires explicit opt-in for non-loopback
-server_token=<bearer>                # required if binding a non-loopback address
+server_bind=127.0.0.1:7878           # default; any non-loopback change still requires the master key
+server_master_key=<key>              # required on every request; auto-generated on first startup if absent
 server_cors_origins=                 # comma-separated; empty = CORS off (default)
 server_request_timeout=120           # per-request wall-clock timeout, seconds; 0 disables
 server_body_limit_bytes=2097152      # per-request body cap; 2 MiB default
@@ -130,6 +143,7 @@ server_max_concurrent_requests=32    # global concurrency semaphore; rejects 503
 server_shutdown_timeout=20           # drain grace period on SIGTERM, seconds
 server_sse_keepalive=15              # SSE keepalive interval, seconds (0 disables)
 server_log_level=info                # trace|debug|info|warn|error
+server_log_file=~/.aictl/server.log  # structured log destination; empty = stderr only
 ```
 
 CLI flags on `aictl-server` mirror the important ones and follow the existing long-form-only convention:
@@ -138,28 +152,67 @@ CLI flags on `aictl-server` mirror the important ones and follow the existing lo
 aictl-server \
   --config <path>           # override ~/.aictl/config
   --bind <addr:port>        # override server_bind
-  --token <bearer>          # override server_token (prefer config for persistence)
-  --unrestricted            # disable security::validate_tool, same semantics as CLI
+  --master-key <value>      # override server_master_key (prefer config for persistence)
   --quiet                   # suppress startup banner on stderr
   --log-level <level>       # override server_log_level
+  --log-file <path>         # override server_log_file
 ```
+
+Note: `--unrestricted` is **not** a server flag. It exists in the CLI to disable `security::validate_tool`, but the server does not dispatch tools, so the flag has nothing to gate.
 
 The existing `aictl-core::config` loader uses `OnceLock<RwLock<HashMap>>` and hard-codes the `~/.aictl/config` path. As part of Modular Architecture Phase 3 that loader should already take an override path; if not, adjust it before writing the server. The server plan assumes the override path is wired.
 
 ### 4. Authentication and network binding
 
-Two rules, enforced at startup:
+The master API key (`server_master_key`) is required on every request **regardless of bind address**. There is no loopback-bypass. The CLI's "user owns the machine" model does not transfer here: the moment a process listens on a port, anything on the loopback interface (other users on a shared host, browser-based attacks via DNS rebinding) can reach it. A single key is the simplest defense and costs nothing.
 
-1. **Loopback bind with no token** is allowed. The default `127.0.0.1:7878` with `server_token` unset works out of the box. Clients on the same host reach the server without auth, matching the CLI's "user owns the machine" model.
-2. **Any non-loopback bind requires a token.** If `server_bind` resolves to anything other than `127.0.0.1` or `::1` and `server_token` is empty, startup fails with a clear error: `"server_bind is non-loopback; set server_token in ~/.aictl/config"`. No escape hatch, no env var to disable the check. This matters — plenty of CI images or Docker defaults bind to `0.0.0.0` without meaning to, and we do not want a silently-exposed LLM gateway.
+**Master-key handling on startup** (`master_key.rs`):
 
-When a token is configured, every request except `GET /healthz` requires `Authorization: Bearer <token>`. The comparison is constant-time (`subtle::ConstantTimeEq` or equivalent) to avoid timing oracles. Missing header → 401; wrong token → 401 with an identical response body so the distinction can't be enumerated.
+1. If `--master-key <value>` is provided, use it for this launch. Do not persist it.
+2. Else if `server_master_key` is set in the active config, use it.
+3. Else generate a new key: 32 bytes of OS-randomness, base64url-encoded with no padding. Persist via `aictl_core::config::config_set("server_master_key", …)` and print exactly once to stderr (and to `server_log_file`) at startup, prefixed with a clear marker:
 
-A second header, `X-AICTL-Session: <session-id>`, carries session affinity. If present and the session exists, the request continues that conversation; if absent, a fresh ephemeral session is created for the request and discarded at turn end (unless the request explicitly asks to persist it).
+   ```
+   [server] generated new master API key — set Authorization: Bearer <key>
+   [server] persisted to ~/.aictl/config (server_master_key)
+   ```
 
-**CORS**: off by default. If `server_cors_origins` is set, `tower-http::cors::CorsLayer` adds the configured origins with credentials allowed. Browsers are a last-class client for this server; CORS is opt-in.
+   Subsequent launches reuse the persisted key silently.
 
-**TLS**: not terminated by the server in v1. Operators put nginx/Caddy in front if they need HTTPS. Rustls termination is a Phase 4 optional add-on.
+Operators rotate by removing the config entry (next launch regenerates) or by writing a new value manually. There is no rotation API in v1 — the surface stays small.
+
+Every request except `GET /healthz` requires `Authorization: Bearer <master-key>`. Comparison is constant-time (`subtle::ConstantTimeEq` or equivalent) to avoid timing oracles. Missing header → 401; wrong key → 401 with an identical response body so the distinction can't be enumerated.
+
+**Bind defaults**: `127.0.0.1:7878`. Operators who set a non-loopback bind get the same auth requirement (the master key). A startup warning is printed when `server_bind` resolves to a non-loopback address so accidental `0.0.0.0` from a container template is at least visible in the log.
+
+**CORS**: off by default. If `server_cors_origins` is set, `tower-http::cors::CorsLayer` adds the configured origins with credentials allowed.
+
+**TLS**: not terminated by the server in v1. Operators put nginx/Caddy in front if they need HTTPS. Rustls termination is a Phase 2 optional add-on.
+
+### 4a. Server log
+
+The server writes a structured request log on top of (and separate from) the existing `audit::log_tool` records. Where the audit log is a per-session JSONL trail of every provider dispatch (kept for parity with the CLI), the **server log** is the operational record an admin actually reads when something goes wrong.
+
+Destination resolution: `--log-file` overrides `server_log_file`; empty value (or unset) means stderr only; otherwise the file is opened append-only with a `BufWriter`.
+
+Each log line is one JSON object (`tracing-subscriber`'s `json` formatter). Required fields:
+
+- `timestamp` (RFC 3339, UTC)
+- `level` (`info` / `warn` / `error` etc.)
+- `request_id` (per-request UUID; surfaced in `X-Request-Id` response header)
+- `method`, `path`, `status`
+- `elapsed_ms`
+- `model` (when known), `provider` (when known)
+- `upstream_request_id` (from the provider's response, when surfaced)
+- `bytes_in`, `bytes_out`
+- `client_ip` (from the socket — `X-Forwarded-*` is not trusted)
+- `error_code` and `trace_id` on failures
+
+Server-internal events (startup banner, master-key generation marker, shutdown drain progress) log at `info`. Failed-auth attempts log at `warn` with the source IP. Provider errors log at `error` with the trace ID.
+
+Redaction note: the log never includes raw prompt content or full response bodies. If a payload preview is helpful (e.g., for malformed-JSON diagnostics), it is run through the same `redaction` pipeline that protects outbound provider calls before being attached. Bodies that fail redaction are logged as `<redacted>` rather than risking PII leakage to the file.
+
+Log level is set by `server_log_level` (`trace` / `debug` / `info` / `warn` / `error`) or `--log-level`. Default `info`. Rotation is the operator's responsibility (`logrotate` or systemd journal); the server does not rotate the file itself in v1.
 
 ### 5. The `HttpUI` — adapting `AgentUI` to HTTP
 

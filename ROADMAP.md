@@ -19,7 +19,7 @@ Split the repo into a workspace with three crates:
 
 - **`aictl-core`** (library) — shared engine. Owns: `agents`, `audit`, `config`, `keys`, `llm/` (all providers), `run`, `security/`, `session`, `skills`, `stats`, `tools/`. Defines the `AgentUI` trait as the boundary between engine and frontend. Exposes typed events (`AgentEvent`, `ToolCallEvent`, `StreamChunk`, `TokenUsage`) over `tokio::mpsc` so any frontend can consume the agent loop asynchronously.
 - **`aictl-cli`** (binary) — pure CLI surface. Owns: `main.rs` (clap parsing), `commands/` slash-command handlers, `ui.rs` (`PlainUI` + `InteractiveUI`), REPL line editor, terminal markdown rendering (`termimad`), spinners, and the y/N tool-approval prompt. Depends on `aictl-core`.
-- **`aictl-server`** (binary, future) — HTTP gateway. Implements `HttpUI` against the `AgentUI` trait, translates engine events into JSON / SSE responses. Depends on `aictl-core` only.
+- **`aictl-server`** (binary, future) — HTTP LLM proxy. Reuses `aictl-core`'s provider catalogue (`llm::call_<provider>`, redaction, audit, stats) to expose an OpenAI-compatible gateway. Does **not** consume the agent loop or `AgentUI` — agent capabilities, tools, agents, skills, and sessions stay in `aictl-cli`. Depends on `aictl-core` only.
 - **`aictl-desktop`** (binary, future) — Tauri shell. Implements `DesktopUI` against the `AgentUI` trait. Depends on `aictl-core` only.
 
 ### What stays in core, what moves to CLI
@@ -56,39 +56,52 @@ Ship the CLI and Server as **two separate binaries** (`aictl` and `aictl-server`
 
 ## Server
 
-Run `aictl` as a long-lived HTTP server that exposes the agent loop and every supported LLM provider through a single gateway API. Reuses the same `~/.aictl/config` as the CLI; an alternative path can be supplied via `--config <path>` (and a matching `AICTL_CONFIG` env var) so multiple server instances can run side-by-side with different keys, models, and security policies. See [.claude/plans/server.md](.claude/plans/server.md) for the development plan.
+Run `aictl-server` as a long-lived HTTP **LLM proxy** that exposes every supported LLM provider through a single OpenAI-compatible gateway API. Reuses the same `~/.aictl/config` as the CLI; an alternative path can be supplied via `--config <path>` (and a matching `AICTL_CONFIG` env var) so multiple server instances can run side-by-side with different keys and policies. See [.claude/plans/server.md](.claude/plans/server.md) for the development plan.
+
+### Scope: proxy only, no agent capabilities
+
+The server is **not** an agent host. It does not run the agent loop, dispatch tools, load agents/skills, manage sessions, or expose any of the slash-command surface — those remain CLI-only and REPL-only features. The server's single job is to forward requests to the configured LLM providers (cloud and local) with redaction, audit, and key management handled centrally. Any client that needs agent loops, tool dispatch, agents, skills, sessions, or coding-mode workflows uses the CLI.
 
 ### Launch surface
 
-- `aictl serve` subcommand (or `--serve` flag) starts the HTTP server. Flags: `--config <path>`, `--bind <addr:port>` (default `127.0.0.1:7878`), `--unrestricted`, `--quiet`. Long-form only, matching existing CLI conventions.
+- `aictl-server` is a separate binary in the workspace. Flags: `--config <path>`, `--bind <addr:port>` (default `127.0.0.1:7878`), `--quiet`, `--log-level <level>`, `--log-file <path>`. Long-form only, matching existing CLI conventions.
 - Config file resolution: explicit `--config` wins, otherwise fall back to the default `~/.aictl/config`. The loader in `config.rs` already uses `OnceLock<RwLock<HashMap>>` — extend it to accept an override path at init time instead of hard-coding the home-directory location.
-- Server runs the same security gate, redaction, audit, and stats subsystems as the CLI. `--unrestricted` disables `security::validate_tool` exactly as in the CLI; redaction and audit always run.
+- Server runs the same redaction and audit subsystems as the CLI on the proxy path. The CLI security gate (`security::validate_tool`) does not apply because no tools are dispatched server-side.
 
 ### HTTP API
 
-- `POST /v1/chat` — single-shot agent turn. Body: `{ "prompt": "...", "model": "...", "agent": "...", "skill": "...", "session_id": "..." }`. Returns the final assistant message plus tool-call trace and token usage. Server-Sent Events variant at `POST /v1/chat/stream` for token streaming, mirroring the CLI's `StreamState` behavior (tool XML never reaches the client).
+- `POST /v1/chat/completions` — OpenAI-compatible chat endpoint. Routes to whichever provider matches the requested `model` id. Streaming via `stream: true` returns SSE frames in OpenAI's `data: {"choices":[{"delta":...}]}` shape.
+- `POST /v1/completions` — OpenAI-compatible legacy text-completion endpoint, with the same provider routing rules.
 - `GET /v1/models` — list every model from `llm::MODELS` plus locally available Ollama/GGUF/MLX models, with provider, context window, and availability flags.
-- `GET /v1/agents`, `GET /v1/skills` — list installed agents/skills with frontmatter (`name`, `description`, `source`, `category`).
-- `GET /v1/sessions`, `GET /v1/sessions/{id}`, `DELETE /v1/sessions/{id}` — session CRUD backed by the existing `session.rs` store.
-- `POST /v1/tools/{name}` — direct tool invocation (gated by the security policy) for clients that want the tool registry without going through the agent loop.
-- `GET /healthz`, `GET /v1/stats` — liveness + usage stats from `stats.rs`.
+- `GET /healthz` — liveness probe (no auth).
+- `GET /v1/stats` — usage stats from `stats.rs` (authenticated).
 
-### LLM gateway mode
+This endpoint set is intentionally narrow. There are no agent endpoints, no `/v1/chat`, no agent/skill/session listings, no `/v1/tools/*`. Clients using the OpenAI SDK can point their base URL at `aictl-server` and transparently consume Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models — that is the entire feature set.
 
-Beyond the agent endpoint, expose an OpenAI-compatible passthrough (`POST /v1/completions`, `POST /v1/chat/completions`) that routes to whichever provider matches the requested model id. This lets existing OpenAI-SDK clients point at `aictl` and transparently consume Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models — with redaction, audit, and key management handled centrally by the server.
+### Master API key
+
+Every request requires `Authorization: Bearer <master-key>` regardless of bind address. The server reads the master key from `~/.aictl/config` (`server_master_key`), or `--master-key <value>` overrides it for a single launch.
+
+If neither is set on first startup, the server **generates a cryptographically random master key**, writes it to `~/.aictl/config` (`server_master_key`), and prints it once to stderr (and to the configured server log) so the operator can copy it. Subsequent launches reuse the persisted key. Rotate by deleting the config entry (server regenerates on next launch) or by setting `server_master_key` manually.
+
+The master key gates the entire server. There is no second tier of credentials and no per-route auth bypass except `GET /healthz`. Comparison is constant-time. This replaces the previous `server_token` knob — the auto-generation behavior makes "you must set a token" the default rather than a manual setup step.
 
 ### Auth and isolation
 
-- Local-only bind by default (`127.0.0.1`). Remote bind requires explicit `--bind 0.0.0.0:...` plus a bearer token configured in `~/.aictl/config` (`server_token = "..."`).
-- Per-request `X-AICTL-Session` header for session affinity; otherwise a fresh ephemeral session is created.
+- Local-only bind by default (`127.0.0.1`). Remote bind requires `--bind 0.0.0.0:...`; the master key is required regardless of bind address.
 - CORS off by default; opt-in via config for browser clients.
+- TLS not terminated by the server in v1 — operators run nginx/Caddy in front for HTTPS.
+
+### Server log
+
+The server writes a structured request log to `~/.aictl/server.log` by default; `--log-file <path>` and `server_log_file` override the destination. Each entry includes a timestamp, request id, method, path, status, elapsed time, model, provider, and (where present) the upstream provider's request id, with redaction applied to any included payload preview. The audit log (`~/.aictl/audit/<session-id>`) continues to record provider dispatches as it does for the CLI; the new server log is a higher-level operational record specifically for the proxy. Log level is set by `server_log_level` (`trace`/`debug`/`info`/`warn`/`error`) or `--log-level`.
 
 ### Implementation notes
 
 - Likely framework: `axum` (already in the Tokio ecosystem) for low-overhead async routing and SSE support.
-- Reuse `run::run_agent_turn` directly — wrap it with a per-request `AgentUI` impl (`HttpUI`) that pipes events into an `mpsc` channel feeding the response stream.
-- Coding agent mode (see below) stays CLI-only; the server rejects coding-mode requests.
-- Same module split as the desktop plan benefits the server: an `aictl-core` crate keeps the agent loop reusable across `aictl-cli`, `aictl-desktop`, and a future `aictl-server` binary.
+- Reuse the existing `llm::call_<provider>` functions directly — the server is a thin translation layer between OpenAI's request/response schema and each provider's native format. There is no `HttpUI`, no `AgentUI` consumer, no agent loop wiring on the server.
+- Coding agent mode and every other CLI/REPL feature (slash commands, agents, skills, plugins, hooks, sessions, tool dispatch) stay CLI-only. The server has no surface for them.
+- Same module split as the desktop plan benefits the server: an `aictl-core` crate keeps the provider implementations reusable across `aictl-cli`, `aictl-desktop`, and `aictl-server`.
 
 ---
 
