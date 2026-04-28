@@ -127,7 +127,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -160,6 +160,7 @@ The interactive REPL supports slash commands:
 | `/model` | Switch model and provider during the session (persists to `~/.aictl/config`) |
 | `/ping` | Validate every configured API key and probe provider connectivity (cloud providers + Ollama daemon) |
 | `/plugins` | Manage external plugin tools — list installed plugins, view a manifest, toggle the master switch (`AICTL_PLUGINS_ENABLED`) |
+| `/hooks` | Manage lifecycle hooks — view all configured hooks per event, toggle individual entries on/off, test-fire a hook with a synthetic payload, or reload `~/.aictl/hooks.json` |
 | `/balance` | Show remaining credit / quota for each configured cloud provider (real numbers from DeepSeek and Kimi; "unknown" with a billing-dashboard hint elsewhere) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
@@ -218,6 +219,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--clear-ner-models` | Remove every downloaded NER model and exit |
 | `--balance` / `--list-balances` | Show remaining credit / quota for each configured cloud provider and exit. Real numbers from DeepSeek and Kimi (via their official `/user/balance` and `/v1/users/me/balance` endpoints); other providers report "unknown" with a hint pointing at their billing dashboard. Local providers (Ollama / GGUF / MLX) are out of scope |
 | `--list-plugins` | Print installed plugins (name, description, location) and exit. Reads from `~/.aictl/plugins/` (override via `AICTL_PLUGINS_DIR`). When `AICTL_PLUGINS_ENABLED=false` the listing is empty with a hint about the master switch |
+| `--list-hooks` | Print configured hooks (event, matcher, command, status) and exit. Reads from `~/.aictl/hooks.json` (override via `AICTL_HOOKS_FILE`) |
 
 CLI flags take priority over config file values.
 
@@ -339,6 +341,63 @@ The standard security gate (`security::validate_tool`) runs before dispatch, so 
 
 A reference `echo_back` plugin lives at [`examples/plugins/echo_back/`](./examples/plugins/echo_back/) — copy the directory to `~/.aictl/plugins/echo_back/` and set `AICTL_PLUGINS_ENABLED=true` to try it.
 
+### Hooks
+
+Hooks are user-defined shell commands the harness runs at lifecycle events. Use them for harness-level automation that does not belong in an agent prompt — running `cargo fmt` after every edit, blocking specific shell commands, snapshotting the transcript before compaction, or mirroring desktop notifications to a webhook.
+
+Hooks live in `~/.aictl/hooks.json` (override the path with `AICTL_HOOKS_FILE`):
+
+```json
+{
+  "PreToolUse": [
+    { "matcher": "exec_shell", "command": "echo seen", "timeout": 30 }
+  ],
+  "PostToolUse": [
+    { "matcher": "edit_file|write_file", "command": "cargo fmt --message-format short 2>&1 | head -c 2000" }
+  ],
+  "Stop": [
+    { "matcher": "*", "command": "date '+turn ended at %H:%M:%S' >> /tmp/aictl-hook.log" }
+  ]
+}
+```
+
+Each hook is `{ matcher, command, timeout, enabled }`. `matcher` is a glob over the tool name (`exec_shell`, `read_*`, `edit_file|write_file`, `mcp__*__*`) for tool events, or `*` for non-tool events. `command` runs via `sh -c` in the security working directory with a scrubbed env. `timeout` defaults to 60 seconds; `enabled` defaults to `true`.
+
+Supported events:
+
+| Event | Fires |
+|-------|-------|
+| `SessionStart` | REPL boots; single-shot run starts |
+| `SessionEnd` | REPL exits; single-shot run finishes |
+| `UserPromptSubmit` | After Enter, before the injection guard. Can rewrite or block the prompt |
+| `PreToolUse` | Before a tool runs (and before user y/N confirm). Can deny or pre-approve |
+| `PostToolUse` | After the tool result joins history. Can append `additionalContext` for the next turn |
+| `Stop` | After the agent's final answer (no tool call) |
+| `PreCompact` | Before `/compact` summarizes the conversation |
+| `Notification` | Inside the `notify` tool, before the OS pop. Can suppress noisy alerts |
+
+Each hook receives a JSON payload on stdin (`event`, `session_id`, `cwd`, plus `tool` / `prompt` / `notification` / `trigger` depending on the event) and may return JSON on stdout to influence the harness:
+
+| Stdout | Effect |
+|--------|--------|
+| empty | Continue silently |
+| `{"decision":"block","reason":"..."}` | Abort the action; reason is surfaced to the LLM |
+| `{"decision":"approve","reason":"..."}` | Pre-approve a tool call — skip the user's y/N prompt |
+| `{"additionalContext":"..."}` | Inject a `<hook_context>` user turn into history before the next LLM call |
+| `{"rewrittenPrompt":"..."}` | `UserPromptSubmit` only — replace the user's text before the agent sees it |
+| plain text | Treated as `additionalContext` |
+
+Exit code `2` is shorthand for `{"decision":"block","reason":"<stderr>"}`. Failures (spawn error, timeout, non-2 nonzero exit) are logged to stderr and treated as "continue" so a broken hook can't wedge the agent loop.
+
+Hooks are *harness* behavior, not LLM behavior — `--unrestricted` does not bypass them. Automated rules like "always run `cargo fmt` after `edit_file`" belong here, not in agent prompts or memory.
+
+CLI surface:
+
+- `aictl --list-hooks` — non-interactive listing (event, matcher, command, status).
+- `/hooks` (REPL) — view all hooks grouped by event, toggle individual entries, test-fire a hook with a synthetic payload, or reload the file from disk.
+
+A reference `hooks.json` with one example per event (all `enabled: false` so they don't fire until you flip them on) lives at [`examples/hooks.json`](./examples/hooks.json).
+
 ### Configuration
 
 Configuration is loaded from `~/.aictl/config`. This is a single global config file.
@@ -453,6 +512,7 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_PLUGINS_ENABLED` | Master switch for the plugin subsystem (default: `false`). Plugins are third-party code; they will not auto-load until you opt in. |
 | `AICTL_PLUGINS_DIR` | Override the plugin discovery root (default: `~/.aictl/plugins`). Used mainly by tests and isolated installs. |
 | `AICTL_PLUGINS_DISABLED` | Comma-separated plugin names to skip at load time. Useful for silencing one third-party plugin without editing its manifest. |
+| `AICTL_HOOKS_FILE` | Override the hooks config path (default: `~/.aictl/hooks.json`). Used mainly by tests and isolated installs. |
 
 Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 

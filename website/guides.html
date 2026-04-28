@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>aictl — guides</title>
-  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, plugins, sessions, and tools." />
+  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, plugins, hooks, sessions, and tools." />
   <meta name="theme-color" content="#1f2228" />
   <meta property="og:title" content="aictl — guides" />
   <meta property="og:description" content="How to install, configure, and use aictl — the single-binary AI agent CLI." />
@@ -91,6 +91,7 @@
           <li><a href="#agents">Agents</a></li>
           <li><a href="#skills">Skills</a></li>
           <li><a href="#plugins">Plugins</a></li>
+          <li><a href="#hooks">Hooks</a></li>
           <li><a href="#sessions">Sessions</a></li>
           <li><a href="#tools-ref">Tools</a></li>
           <li><a href="#security">Security</a></li>
@@ -450,6 +451,7 @@
               <li><code>/agent</code> — manage agents (create, load, delete)</li>
               <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
               <li><code>/plugins</code> — manage external plugin tools (list, view manifest, toggle)</li>
+              <li><code>/hooks</code> — manage lifecycle hooks (view, toggle, test-fire, reload)</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
               <li><code>/balance</code> — show remaining credit / quota for each configured cloud provider</li>
@@ -537,6 +539,7 @@
               <li><code>--update</code> — update to latest version</li>
               <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
               <li><code>--list-plugins</code> — print installed plugins and exit</li>
+              <li><code>--list-hooks</code> — print configured hooks and exit</li>
             </ul>
           </div>
           <div class="tools" style="grid-column: 1 / -1;">
@@ -692,6 +695,54 @@
         </div>
         <p class="section__note" style="margin-top: 16px;">
           Make it executable (<code>chmod +x run</code>), set <code>AICTL_PLUGINS_ENABLED=true</code> in <code>~/.aictl/config</code>, and restart aictl to pick it up. A minimal working reference lives in the project repo at <a href="https://github.com/pwittchen/aictl/tree/master/examples/plugins/echo_back" target="_blank" rel="noopener"><code>examples/plugins/echo_back/</code></a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="hooks">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// hooks</span>
+          <h2 class="section__title">Hooks</h2>
+          <p class="section__lead">
+            User-defined shell commands the harness fires at lifecycle
+            events. Hooks are <em>harness</em> behavior, not LLM
+            behavior &mdash; rules like &ldquo;always run
+            <code>cargo fmt</code> after <code>edit_file</code>&rdquo;
+            or &ldquo;block any <code>exec_shell</code> containing
+            <code>git push</code>&rdquo; belong here, not in agent
+            prompts or memory where the model can ignore them.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Eight events</h3>
+            <p><code>SessionStart</code> &middot; <code>SessionEnd</code> &middot; <code>UserPromptSubmit</code> (block or rewrite the prompt) &middot; <code>PreToolUse</code> (block or pre-approve a tool call) &middot; <code>PostToolUse</code> (observe + add context) &middot; <code>Stop</code> (after the final answer) &middot; <code>PreCompact</code> &middot; <code>Notification</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Matcher</h3>
+            <p>A small glob over the tool name (<code>*</code>, <code>?</code>, <code>|</code> alternation): <code>exec_shell</code>, <code>read_*</code>, <code>edit_file|write_file</code>, <code>mcp__*__*</code>. Non-tool events use <code>*</code> to match the empty target the harness sends.</p>
+          </article>
+          <article class="card">
+            <h3>Wire protocol</h3>
+            <p>Hooks run via <code>sh -c</code> with a JSON payload on stdin (<code>event</code>, <code>session_id</code>, <code>cwd</code>, plus <code>tool</code> / <code>prompt</code> / <code>notification</code> depending on the event). Stdout JSON shapes: <code>{"decision":"block","reason":"..."}</code> aborts; <code>{"decision":"approve","reason":"..."}</code> skips the y/N prompt; <code>{"additionalContext":"..."}</code> adds a <code>&lt;hook_context&gt;</code> turn; <code>{"rewrittenPrompt":"..."}</code> (UserPromptSubmit only) replaces the user message. Plain-text stdout becomes additionalContext. Exit code <code>2</code> is shorthand for block.</p>
+          </article>
+          <article class="card">
+            <h3>Sandbox</h3>
+            <p>Default 60s timeout, runs in the security working directory with a scrubbed env. Failures (spawn error, timeout, non-2 nonzero exit) are logged and treated as &ldquo;continue&rdquo; so a wedged hook can&rsquo;t hang the agent. <code>--unrestricted</code> does <em>not</em> bypass hook execution.</p>
+          </article>
+        </div>
+
+        <p class="section__note" style="margin-top: 32px;">
+          Example <code>~/.aictl/hooks.json</code> &mdash; log every completed turn, block <code>git push</code> from <code>exec_shell</code>, and run <code>cargo fmt</code> after every file edit:
+        </p>
+        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
+          <code id="g-cmd-hooks-json" style="white-space: pre-wrap;">{&#10;  "PreToolUse": [&#10;    {&#10;      "matcher": "exec_shell",&#10;      "command": "jq -r '.tool.input' | grep -Eq '^[[:space:]]*git[[:space:]]+push' &amp;&amp; (echo 'no git push from hooks' &gt;&amp;2; exit 2) || true",&#10;      "timeout": 10&#10;    }&#10;  ],&#10;  "PostToolUse": [&#10;    {&#10;      "matcher": "edit_file|write_file",&#10;      "command": "cargo fmt --message-format short 2&gt;&amp;1 | head -c 2000",&#10;      "timeout": 30&#10;    }&#10;  ],&#10;  "Stop": [&#10;    {&#10;      "matcher": "*",&#10;      "command": "date '+turn ended at %H:%M:%S' &gt;&gt; /tmp/aictl-hook.log",&#10;      "timeout": 5&#10;    }&#10;  ]&#10;}</code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-hooks-json" aria-label="Copy hooks.json example">Copy</button>
+        </div>
+        <p class="section__note" style="margin-top: 16px;">
+          Drop the file at <code>~/.aictl/hooks.json</code> (or set <code>AICTL_HOOKS_FILE</code> to point elsewhere). Use <code>aictl --list-hooks</code> for a non-interactive listing, or <code>/hooks</code> in the REPL to view, toggle, test-fire, or reload entries. A reference file with one example per event (all <code>enabled: false</code>) lives in the project repo at <a href="https://github.com/pwittchen/aictl/blob/master/examples/hooks.json" target="_blank" rel="noopener"><code>examples/hooks.json</code></a>.
         </p>
       </div>
     </section>

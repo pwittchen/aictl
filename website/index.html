@@ -123,6 +123,10 @@
             <p>Add custom tools without forking. Drop an executable plus a <code>plugin.toml</code> manifest into <code>~/.aictl/plugins/&lt;name&gt;/</code>; aictl pipes the tool body in on stdin and returns stdout to the model. Opt in with <code>AICTL_PLUGINS_ENABLED=true</code>; manage via <code>/plugins</code>.</p>
           </article>
           <article class="card">
+            <h3>Hooks</h3>
+            <p>Shell commands the harness fires at lifecycle events &mdash; <code>SessionStart</code>, <code>UserPromptSubmit</code>, <code>PreToolUse</code>, <code>PostToolUse</code>, <code>Stop</code>, and more. Block, approve, rewrite a prompt, or inject context via JSON on stdout. Configured in <code>~/.aictl/hooks.json</code>; manage via <code>/hooks</code>.</p>
+          </article>
+          <article class="card">
             <h3>Security first</h3>
             <p>CWD jail, blocked paths, shell command allowlists, environment scrubbing, subshell blocking, injection guard, output sanitization, per-session audit log, and opt-in credential / PII redaction at the network boundary. On by default. Review policy with <code>/security</code>.</p>
           </article>

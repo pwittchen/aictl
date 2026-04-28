@@ -12,8 +12,9 @@ src/
  ├── version_cache.rs   Cached remote-version lookup under ~/.aictl/version (TTL gating /version & banner staleness check)
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /info, /keys, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
- ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, info, keys, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /hooks, /info, /keys, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
+ ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, hooks, info, keys, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
+ ├── hooks.rs           User-defined lifecycle hooks loaded from ~/.aictl/hooks.json (override via AICTL_HOOKS_FILE). Eight events (SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, Notification). Glob matcher (*, ?, |) over tool name. JSON payload on stdin; stdout JSON shapes (decision: block|approve, additionalContext, rewrittenPrompt) influence the harness; exit 2 = block. Default 60s timeout, scrubbed env, security CWD. --unrestricted does NOT bypass.
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -51,6 +52,8 @@ src/
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  2b'. plugins::init()        scan ~/.aictl/plugins/ when                 │
  │                              AICTL_PLUGINS_ENABLED=true; cache survivors │
+ │  2b''. hooks::init()         parse ~/.aictl/hooks.json (override via    │
+ │                              AICTL_HOOKS_FILE); cache hook table         │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
@@ -95,6 +98,9 @@ Both single-shot and REPL modes share the same loop:
       │
       ▼
  ┌─────────────────────────────────────────────────────────┐
+ │  hooks::run_hooks(UserPromptSubmit) ── may block,       │
+ │  rewrite prompt, or attach additionalContext            │
+ │                                                         │
  │  security::detect_prompt_injection() ── block on match  │
  │  (guard; gated by AICTL_SECURITY_INJECTION_GUARD)       │
  │                                                         │
@@ -141,8 +147,12 @@ Both single-shot and REPL modes share the same loop:
  │    no tool  tool found                                  │
  │       │       │                                         │
  │       ▼       ▼                                         │
- │   return   ┌────────────────────┐                       │
- │   answer   │  Confirm or --auto │                       │
+ │   Stop     hooks::run_hooks(PreToolUse) ──             │
+ │   hook +   may block (deny) or pre-approve              │
+ │   return       │                                        │
+ │   answer       ▼                                        │
+ │            ┌────────────────────┐                       │
+ │            │  Confirm or --auto │                       │
  │            └────────┬───────────┘                       │
  │                 ┌───┴───┐                               │
  │              denied   approved                          │
@@ -151,11 +161,18 @@ Both single-shot and REPL modes share the same loop:
  │          push deny   execute_tool()                     │
  │          message     push <tool_result> to messages     │
  │                 │       │                               │
+ │                 │       ▼                               │
+ │                 │   hooks::run_hooks(PostToolUse) ──   │
+ │                 │   may attach <hook_context> turn      │
+ │                 │       │                               │
  │                 └───┬───┘                               │
  │                     │                                   │
  │                     ▼                                   │
  │              next iteration ─────────────────────────>  │
  │  }                                                      │
+ │                                                         │
+ │  On final answer: hooks::run_hooks(Stop)                │
+ │  may attach <hook_context> for the next turn            │
  └─────────────────────────────────────────────────────────┘
 ```
 
@@ -330,6 +347,83 @@ Dispatch happens after the built-in match in `tools::execute_tool` —
 built-ins, the confirmation prompt fires unchanged, and `--unrestricted`
 bypasses validation just as it does for built-ins.
 
+## Hooks (`src/hooks.rs`)
+
+User-defined shell commands the harness fires at lifecycle events. Hooks
+are *harness* behavior, not LLM behavior: rules like "always run `cargo
+fmt` after `edit_file`" or "block any `exec_shell` containing `git push`"
+belong here, not in agent prompts or memory where the model can ignore
+them.
+
+Configured in `~/.aictl/hooks.json` (override the path with
+`AICTL_HOOKS_FILE`). Top-level keys are event names; each value is an
+array of `{ matcher, command, timeout, enabled }` entries. The parser
+silently skips underscore-prefixed top-level keys (`_comment`, etc.) so
+the file can carry inline JSON5-style notes.
+
+```
+~/.aictl/hooks.json:
+{
+  "PreToolUse": [
+    { "matcher": "exec_shell", "command": "echo seen", "timeout": 30 }
+  ],
+  "PostToolUse": [
+    { "matcher": "edit_file|write_file", "command": "cargo fmt --message-format short" }
+  ],
+  "Stop":       [ { "matcher": "*", "command": "..." } ]
+}
+```
+
+Eight events, fired from these call sites:
+
+| Event              | Where it fires                                          |
+|--------------------|---------------------------------------------------------|
+| `SessionStart`     | `repl::run_interactive` after session init; `run::run_agent_single` at entry |
+| `SessionEnd`       | `repl::run_interactive` before exit banner; `run_agent_single` after answer  |
+| `UserPromptSubmit` | `run::run_agent_turn` before injection guard            |
+| `PreToolUse`       | `run::handle_tool_call` before y/N approval and `execute_tool` |
+| `PostToolUse`      | `run::handle_tool_call` after the tool result joins history    |
+| `Stop`             | `run::run_agent_turn` after the model returns a final answer   |
+| `PreCompact`       | `commands::compact::compact` before the summary call    |
+| `Notification`     | `tools::notify::tool_notify` before the OS-level pop    |
+
+The matcher is a small glob (`*` = any run, `?` = single char, `|` =
+alternation). For tool events the match target is the tool name; for
+non-tool events the match target is empty so only `*` and empty patterns
+hit. `glob_match` is implemented in `hooks.rs` directly to avoid a new
+dependency.
+
+Wire protocol:
+
+- **stdin** — one JSON object: `{ event, session_id, cwd, tool: { name, input, output? }, prompt, notification, trigger, matcher }`. Only `event` is always present; the rest depend on the event kind.
+- **stdout** — one of five shapes:
+  - empty → `Continue`
+  - `{ "decision": "block", "reason": "..." }` → abort the action; reason surfaced to the LLM as the tool result (or rejection error for prompt events)
+  - `{ "decision": "approve", "reason": "..." }` → pre-approve a tool call (skips the user y/N prompt)
+  - `{ "additionalContext": "..." }` → inject a `<hook_context>` user turn into history before the next LLM call
+  - `{ "rewrittenPrompt": "..." }` → `UserPromptSubmit` only; replace the user's text before the agent sees it
+  - plain text → treated as `additionalContext`
+- **exit code** — `0` parses stdout normally; `2` is shorthand for `block` with stderr as the reason; any other non-zero exit is logged and treated as `Continue`.
+- **env** — `scrubbed_env()` (same helper `exec_shell` and plugins use).
+- **CWD** — pinned to `security::policy().paths.working_dir`.
+- **timeout** — per-hook (default 60s); a timeout is logged and treated as `Continue` so a wedged hook can't hang the agent.
+
+Outcomes from multiple matching hooks for the same event are folded into
+a `HookOutcome`: a `block` from any hook wins; the first `approve` wins;
+the first `rewrittenPrompt` wins; `additionalContext` strings accumulate
+and are concatenated with a blank-line separator into a single
+`<hook_context>` turn.
+
+`--unrestricted` does **not** bypass hook execution. It only disables
+the inner shell-validation that would otherwise refuse to run hook
+commands containing blocked binaries — the hook itself always fires.
+
+CLI surface: `--list-hooks` prints the catalogue; `/hooks` opens a REPL
+menu (view all, toggle individual entries, test-fire with a synthetic
+payload, reload from disk, show file path). Toggle/save round-trips go
+through `hooks::save` + `hooks::replace` so changes take effect
+mid-session without a restart.
+
 ## LLM Provider Abstraction
 
 ```
@@ -410,7 +504,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /balance (Balance), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /plugins (Plugins), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
+ Also: /agent (Agent), /balance (Balance), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /hooks (Hooks), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /plugins (Plugins), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -447,6 +541,10 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
    Plugins     → open plugins menu (list manifests, view a plugin's plugin.toml,
                  toggle the AICTL_PLUGINS_ENABLED master switch, show the plugins
                  directory); continue
+   Hooks       → open hooks menu (view all hooks per event, toggle a hook on/off,
+                 test-fire a hook with a synthetic payload, show hooks file path,
+                 reload ~/.aictl/hooks.json); persists toggles to disk via
+                 hooks::save + hooks::replace; continue
    Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
                  clear all recorded usage statistics), continue
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /
@@ -568,6 +666,7 @@ All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and n
 ```
  ~/.aictl/
   ├── config              key=value settings file (provider, model, API keys, security & tool toggles)
+  ├── hooks.json          user-defined lifecycle hooks (event → array of {matcher, command, timeout, enabled}); override path with AICTL_HOOKS_FILE
   ├── history             rustyline REPL input history (one entry per line)
   ├── stats               JSON array of per-day usage statistics (calls, tokens, estimated cost; written by stats.rs after every agent turn; consumed by /stats)
   ├── agents/             saved agent prompts — one plain-text file per agent
@@ -600,6 +699,7 @@ Recognized keys include:
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`), `AICTL_SKILLS_DIR` (override the default `~/.aictl/skills/` location)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 - **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.
+- **Hooks**: `AICTL_HOOKS_FILE` (override the default `~/.aictl/hooks.json` path; used mainly by tests). The hook entries themselves live in the JSON file, not in `config`.
 
 ### API key storage (`src/keys.rs`)
 
@@ -693,6 +793,20 @@ when off, no directory walk happens and the catalogue stays empty.
 Per-plugin disable lives in config (`AICTL_PLUGINS_DISABLED=foo,bar`)
 rather than in the manifest, so users don't have to edit a third-party
 file to silence one.
+
+### `~/.aictl/hooks.json`
+
+User-defined lifecycle hooks loaded by `src/hooks.rs::init` at startup.
+Top-level JSON object whose keys are event names and values are arrays
+of hook entries `{ matcher, command, timeout, enabled }`. Underscore-
+prefixed top-level keys (`_comment`, etc.) are silently skipped so the
+file can carry inline notes despite JSON not supporting comments.
+`AICTL_HOOKS_FILE` overrides the path (used by tests). The file is not
+created by aictl; users drop it in by hand or via the `create-hook`
+catalogue skill. A missing file leaves the hook table empty — all hook
+fire sites become no-ops with zero overhead. Parse errors print a
+diagnostic to stderr at startup but do not abort. See the Hooks section
+above for the wire protocol and event semantics.
 
 ### `~/.aictl/sessions/`
 
