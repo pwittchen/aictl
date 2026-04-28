@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent in your terminal — 70 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
+AI agent in your terminal and beyond — 70 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 

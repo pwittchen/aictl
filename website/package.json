@@ -2,7 +2,7 @@
   "name": "aictl-website",
   "version": "1.0.0",
   "private": true,
-  "description": "Landing page for aictl — AI agent in your terminal",
+  "description": "Landing page for aictl — AI agent in your terminal and beyond",
   "scripts": {
     "dev": "bun run serve",
     "serve": "bun --hot serve.ts",
