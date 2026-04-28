@@ -682,15 +682,37 @@
         <p class="section__note" style="margin-top: 32px;">
           Example <code>~/.aictl/plugins/kubectl_query/plugin.toml</code>:
         </p>
-        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
-          <code id="g-cmd-plugin-toml" style="white-space: pre-wrap;">name = "kubectl_query"&#10;version = "0.1.0"&#10;description = "Query a Kubernetes cluster. Input: 'get|describe|logs &lt;resource&gt; [name]'."&#10;entrypoint = "run"           # relative path inside the plugin dir; default "run"&#10;requires_confirmation = true # keep true unless the plugin is purely read-only&#10;timeout_secs = 30            # optional; falls back to AICTL_SECURITY_SHELL_TIMEOUT&#10;schema_hint = """&#10;First line: subcommand (get|describe|logs)&#10;Second line: resource type&#10;Third line (optional): resource name&#10;"""</code>
+        <div class="cmd cmd--block" style="margin-top: 12px; max-width: none;">
+          <code id="g-cmd-plugin-toml"><span class="tok-k">name</span> <span class="tok-p">=</span> <span class="tok-s">"kubectl_query"</span>
+<span class="tok-k">version</span> <span class="tok-p">=</span> <span class="tok-s">"0.1.0"</span>
+<span class="tok-k">description</span> <span class="tok-p">=</span> <span class="tok-s">"Query a Kubernetes cluster. Input: 'get|describe|logs &lt;resource&gt; [name]'."</span>
+<span class="tok-k">entrypoint</span> <span class="tok-p">=</span> <span class="tok-s">"run"</span>           <span class="tok-c"># relative path inside the plugin dir; default "run"</span>
+<span class="tok-k">requires_confirmation</span> <span class="tok-p">=</span> <span class="tok-n">true</span> <span class="tok-c"># keep true unless the plugin is purely read-only</span>
+<span class="tok-k">timeout_secs</span> <span class="tok-p">=</span> <span class="tok-n">30</span>            <span class="tok-c"># optional; falls back to AICTL_SECURITY_SHELL_TIMEOUT</span>
+<span class="tok-k">schema_hint</span> <span class="tok-p">=</span> <span class="tok-s">"""
+First line: subcommand (get|describe|logs)
+Second line: resource type
+Third line (optional): resource name
+"""</span></code>
           <button class="cmd__copy" type="button" data-copy="#g-cmd-plugin-toml" aria-label="Copy plugin.toml example">Copy</button>
         </div>
         <p class="section__note" style="margin-top: 16px;">
           Example <code>~/.aictl/plugins/kubectl_query/run</code> (any executable language works; here&rsquo;s a minimal <code>sh</code> stub):
         </p>
-        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
-          <code id="g-cmd-plugin-run" style="white-space: pre-wrap;">#!/usr/bin/env sh&#10;# Read the raw &lt;tool&gt;...&lt;/tool&gt; body from stdin, write the result to stdout.&#10;# Non-zero exit codes are surfaced to the model as `[exit N] &lt;stderr&gt;`.&#10;input=$(cat)&#10;subcommand=$(printf '%s\n' "$input" | sed -n '1p')&#10;resource=$(printf '%s\n' "$input" | sed -n '2p')&#10;name=$(printf '%s\n' "$input" | sed -n '3p')&#10;&#10;case "$subcommand" in&#10;  get|describe) kubectl "$subcommand" "$resource" ${name:+"$name"} ;;&#10;  logs)         kubectl logs "$resource" ${name:+"$name"} ;;&#10;  *)            printf 'unknown subcommand: %s\n' "$subcommand" &gt;&amp;2; exit 1 ;;&#10;esac</code>
+        <div class="cmd cmd--block" style="margin-top: 12px; max-width: none;">
+          <code id="g-cmd-plugin-run"><span class="tok-c">#!/usr/bin/env sh</span>
+<span class="tok-c"># Read the raw &lt;tool&gt;...&lt;/tool&gt; body from stdin, write the result to stdout.</span>
+<span class="tok-c"># Non-zero exit codes are surfaced to the model as `[exit N] &lt;stderr&gt;`.</span>
+input=$(cat)
+subcommand=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</span> | sed -n <span class="tok-s">'1p'</span>)
+resource=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</span> | sed -n <span class="tok-s">'2p'</span>)
+name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</span> | sed -n <span class="tok-s">'3p'</span>)
+
+<span class="tok-k">case</span> <span class="tok-s">"$subcommand"</span> <span class="tok-k">in</span>
+  get|describe) kubectl <span class="tok-s">"$subcommand"</span> <span class="tok-s">"$resource"</span> ${name:+<span class="tok-s">"$name"</span>} <span class="tok-p">;;</span>
+  logs)         kubectl logs <span class="tok-s">"$resource"</span> ${name:+<span class="tok-s">"$name"</span>} <span class="tok-p">;;</span>
+  *)            printf <span class="tok-s">'unknown subcommand: %s\n'</span> <span class="tok-s">"$subcommand"</span> &gt;&amp;2; <span class="tok-k">exit</span> <span class="tok-n">1</span> <span class="tok-p">;;</span>
+<span class="tok-k">esac</span></code>
           <button class="cmd__copy" type="button" data-copy="#g-cmd-plugin-run" aria-label="Copy plugin run script example">Copy</button>
         </div>
         <p class="section__note" style="margin-top: 16px;">
@@ -737,8 +759,30 @@
         <p class="section__note" style="margin-top: 32px;">
           Example <code>~/.aictl/hooks.json</code> &mdash; log every completed turn, block <code>git push</code> from <code>exec_shell</code>, and run <code>cargo fmt</code> after every file edit:
         </p>
-        <div class="cmd" style="margin-top: 12px; max-width: none; align-items: flex-start;">
-          <code id="g-cmd-hooks-json" style="white-space: pre-wrap;">{&#10;  "PreToolUse": [&#10;    {&#10;      "matcher": "exec_shell",&#10;      "command": "jq -r '.tool.input' | grep -Eq '^[[:space:]]*git[[:space:]]+push' &amp;&amp; (echo 'no git push from hooks' &gt;&amp;2; exit 2) || true",&#10;      "timeout": 10&#10;    }&#10;  ],&#10;  "PostToolUse": [&#10;    {&#10;      "matcher": "edit_file|write_file",&#10;      "command": "cargo fmt --message-format short 2&gt;&amp;1 | head -c 2000",&#10;      "timeout": 30&#10;    }&#10;  ],&#10;  "Stop": [&#10;    {&#10;      "matcher": "*",&#10;      "command": "date '+turn ended at %H:%M:%S' &gt;&gt; /tmp/aictl-hook.log",&#10;      "timeout": 5&#10;    }&#10;  ]&#10;}</code>
+        <div class="cmd cmd--block" style="margin-top: 12px; max-width: none;">
+          <code id="g-cmd-hooks-json"><span class="tok-p">{</span>
+  <span class="tok-k">"PreToolUse"</span><span class="tok-p">:</span> <span class="tok-p">[</span>
+    <span class="tok-p">{</span>
+      <span class="tok-k">"matcher"</span><span class="tok-p">:</span> <span class="tok-s">"exec_shell"</span><span class="tok-p">,</span>
+      <span class="tok-k">"command"</span><span class="tok-p">:</span> <span class="tok-s">"jq -r '.tool.input' | grep -Eq '^[[:space:]]*git[[:space:]]+push' &amp;&amp; (echo 'no git push from hooks' &gt;&amp;2; exit 2) || true"</span><span class="tok-p">,</span>
+      <span class="tok-k">"timeout"</span><span class="tok-p">:</span> <span class="tok-n">10</span>
+    <span class="tok-p">}</span>
+  <span class="tok-p">],</span>
+  <span class="tok-k">"PostToolUse"</span><span class="tok-p">:</span> <span class="tok-p">[</span>
+    <span class="tok-p">{</span>
+      <span class="tok-k">"matcher"</span><span class="tok-p">:</span> <span class="tok-s">"edit_file|write_file"</span><span class="tok-p">,</span>
+      <span class="tok-k">"command"</span><span class="tok-p">:</span> <span class="tok-s">"cargo fmt --message-format short 2&gt;&amp;1 | head -c 2000"</span><span class="tok-p">,</span>
+      <span class="tok-k">"timeout"</span><span class="tok-p">:</span> <span class="tok-n">30</span>
+    <span class="tok-p">}</span>
+  <span class="tok-p">],</span>
+  <span class="tok-k">"Stop"</span><span class="tok-p">:</span> <span class="tok-p">[</span>
+    <span class="tok-p">{</span>
+      <span class="tok-k">"matcher"</span><span class="tok-p">:</span> <span class="tok-s">"*"</span><span class="tok-p">,</span>
+      <span class="tok-k">"command"</span><span class="tok-p">:</span> <span class="tok-s">"date '+turn ended at %H:%M:%S' &gt;&gt; /tmp/aictl-hook.log"</span><span class="tok-p">,</span>
+      <span class="tok-k">"timeout"</span><span class="tok-p">:</span> <span class="tok-n">5</span>
+    <span class="tok-p">}</span>
+  <span class="tok-p">]</span>
+<span class="tok-p">}</span></code>
           <button class="cmd__copy" type="button" data-copy="#g-cmd-hooks-json" aria-label="Copy hooks.json example">Copy</button>
         </div>
         <p class="section__note" style="margin-top: 16px;">

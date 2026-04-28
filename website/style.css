@@ -467,6 +467,22 @@ body.nav-open {
   border-color: var(--accent);
 }
 
+/* Multi-line code block (TOML / JSON examples) */
+.cmd--block { align-items: flex-start; }
+.cmd--block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.55;
+  tab-size: 2;
+}
+
+.tok-k { color: var(--accent); }
+.tok-s { color: var(--fg); }
+.tok-n { color: var(--fg-70); }
+.tok-c { color: var(--fg-50); font-style: italic; }
+.tok-p { color: var(--fg-50); }
+
 /* Sections */
 .section {
   padding: 96px 0;
@@ -892,6 +908,12 @@ body.nav-open {
     overflow-wrap: anywhere;
     word-break: break-word;
     overflow-x: visible;
+  }
+  .cmd--block code {
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+    overflow-x: auto;
   }
 }
 

@@ -36,11 +36,17 @@ async function main() {
   // Minify HTML (whitespace + HTML comments, preserving pre/code content).
   for (const page of ["index.html", "guides.html"]) {
     let html = await readFile(join(root, page), "utf8");
+    const blocks: string[] = [];
+    html = html.replace(/<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/g, (m) => {
+      blocks.push(m);
+      return `\x00BLOCK${blocks.length - 1}\x00`;
+    });
     html = html
       .replace(/<!--[^[][\s\S]*?-->/g, "")
       .replace(/>\s+</g, "><")
       .replace(/\s{2,}/g, " ")
       .trim();
+    html = html.replace(/\x00BLOCK(\d+)\x00/g, (_, i) => blocks[+i]);
     await writeFile(join(dist, page), html);
   }
 
