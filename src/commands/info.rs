@@ -204,5 +204,28 @@ pub fn print_info(
             .to_string()
     };
     println!("  {} {tools_info}", "tools:    ".with(Color::Cyan));
+
+    let plugins_explicitly_disabled = matches!(
+        crate::config::config_get("AICTL_PLUGINS_ENABLED").as_deref(),
+        Some("false" | "0")
+    );
+    let plugins_info = if plugins_explicitly_disabled {
+        "disabled (AICTL_PLUGINS_ENABLED=false)"
+            .with(Color::Yellow)
+            .to_string()
+    } else {
+        format!("{}", crate::plugins::list().len())
+    };
+    println!("  {} {plugins_info}", "plugins:  ".with(Color::Cyan));
+
+    let hooks = crate::hooks::list_all();
+    let hooks_total = hooks.len();
+    let hooks_disabled = hooks.iter().filter(|h| !h.enabled).count();
+    let hooks_info = if hooks_disabled > 0 {
+        format!("{hooks_total} ({hooks_disabled} disabled)")
+    } else {
+        format!("{hooks_total}")
+    };
+    println!("  {} {hooks_info}", "hooks:    ".with(Color::Cyan));
     println!();
 }
