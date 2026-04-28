@@ -21,6 +21,7 @@ mod config_wizard;
 mod gguf;
 mod help;
 mod history;
+mod hooks;
 mod info;
 mod keys;
 mod memory;
@@ -47,6 +48,7 @@ pub use compact::{compact, print_context};
 pub use config_wizard::run_config_wizard;
 pub use gguf::run_gguf_menu;
 pub use history::print_history;
+pub use hooks::{print_hooks_cli, run_hooks_menu};
 pub use info::print_info;
 pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unlock_keys};
 pub use memory::{MemoryMode, select_memory};
@@ -78,6 +80,7 @@ pub const COMMANDS: &[&str] = &[
     "exit",
     "help",
     "history",
+    "hooks",
     "info",
     "keys",
     "gguf",
@@ -157,6 +160,8 @@ pub enum CommandResult {
     /// Open the plugins management menu (list manifests, toggle the
     /// `AICTL_PLUGINS_ENABLED` master switch).
     Plugins,
+    /// Open the hooks management menu (list, toggle, test-fire).
+    Hooks,
     /// Check connectivity and API key validity for all providers.
     Ping,
     /// Re-run the interactive configuration wizard.
@@ -244,6 +249,7 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "mlx" => CommandResult::Mlx,
         "ping" => CommandResult::Ping,
         "plugins" => CommandResult::Plugins,
+        "hooks" => CommandResult::Hooks,
         "retry" => CommandResult::Retry,
         "roadmap" => {
             let query = if args.is_empty() {

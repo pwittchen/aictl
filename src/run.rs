@@ -35,6 +35,7 @@ use crate::security::redaction::{
     self, RedactionDirection, RedactionMode, RedactionPolicy, RedactionResult, RedactionSource,
 };
 use crate::skills::Skill;
+use crate::hooks::{self, HookContext, HookEvent};
 use crate::ui::{self, AgentUI, PlainUI};
 use crate::{agents, audit, llm, plugins, security, stats, tools};
 use llm::{TokenSink, TokenUsage, stream::StreamState};
@@ -419,6 +420,22 @@ enum ToolAction {
     Denied,
 }
 
+/// Build a `HookContext` for a tool-event hook call. Centralized so
+/// `PreToolUse` / `PostToolUse` share the same shape.
+fn tool_hook_ctx<'a>(
+    tool_call: &'a tools::ToolCall,
+    output: Option<&'a str>,
+) -> HookContext<'a> {
+    HookContext {
+        session_id: crate::session::current_id(),
+        cwd: std::env::current_dir().ok(),
+        tool_name: Some(&tool_call.name),
+        tool_input: Some(&tool_call.input),
+        tool_output: output,
+        ..Default::default()
+    }
+}
+
 /// Handle a single tool call: display reasoning, get approval, execute, push result.
 async fn handle_tool_call(
     tool_call: &tools::ToolCall,
@@ -439,7 +456,36 @@ async fn handle_tool_call(
         }
     }
 
-    let approval = if *auto {
+    // PreToolUse hook fires before approval/execution. Hooks can:
+    //   - Block the call entirely (decision: "block") — surfaces the reason
+    //     to the LLM as the tool result so the model can pivot.
+    //   - Pre-approve it (decision: "approve") — skip the user prompt in
+    //     human-in-the-loop mode but never override an explicit `--auto`
+    //     decision (auto stays auto either way).
+    let pre_outcome = hooks::run_hooks(
+        HookEvent::PreToolUse,
+        &tool_call.name,
+        tool_hook_ctx(tool_call, None),
+    )
+    .await;
+    if let Some(reason) = pre_outcome.blocked {
+        ui.show_reasoning(&format!("(tool blocked by hook: {reason})"));
+        crate::audit::log_tool(
+            tool_call,
+            crate::audit::Outcome::DeniedByPolicy {
+                reason: &format!("hook: {reason}"),
+            },
+        );
+        messages.push(Message {
+            role: Role::User,
+            content: format!("<tool_result>\nTool call blocked by hook: {reason}\n</tool_result>"),
+            images: vec![],
+        });
+        return Ok(ToolAction::Denied);
+    }
+    let hook_pre_approved = pre_outcome.approved.is_some();
+
+    let approval = if *auto || hook_pre_approved {
         ui.show_auto_tool(tool_call);
         ui::ToolApproval::Allow
     } else {
@@ -491,6 +537,30 @@ async fn handle_tool_call(
             content: format!("<tool_result>\n{result_content}\n</tool_result>"),
             images: output.images,
         });
+
+        // PostToolUse hook fires after the result has joined history. It
+        // can append guidance for the next iteration via additionalContext
+        // (e.g. a formatter result, a "tests passed" note); blocking here
+        // would be too late to rewind the side effect, so a `block`
+        // decision is treated as additionalContext for that reason.
+        let post = hooks::run_hooks(
+            HookEvent::PostToolUse,
+            &tool_call.name,
+            tool_hook_ctx(tool_call, Some(&result_content)),
+        )
+        .await;
+        let mut extras: Vec<String> = post.additional_context;
+        if let Some(reason) = post.blocked {
+            extras.push(format!("hook objection (post): {reason}"));
+        }
+        if !extras.is_empty() {
+            messages.push(Message {
+                role: Role::User,
+                content: format!("<hook_context>\n{}\n</hook_context>", extras.join("\n\n")),
+                images: vec![],
+            });
+        }
+
         Ok(ToolAction::Executed)
     } else {
         crate::audit::log_tool(tool_call, crate::audit::Outcome::DeniedByUser);
@@ -536,6 +606,29 @@ pub(crate) async fn run_agent_turn(
     streaming: bool,
     skill: Option<&Skill>,
 ) -> Result<TurnResult, AictlError> {
+    // UserPromptSubmit hook runs before the injection guard so a hook can
+    // sanitize ("rewrittenPrompt") an otherwise-blocked phrase or block
+    // outright with a custom reason. Empty string match_target — only `*`
+    // matchers fire for prompt events.
+    let prompt_outcome = hooks::run_hooks(
+        HookEvent::UserPromptSubmit,
+        "",
+        HookContext {
+            session_id: crate::session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            prompt: Some(user_message),
+            ..Default::default()
+        },
+    )
+    .await;
+    if let Some(reason) = &prompt_outcome.blocked {
+        return Err(AictlError::Other(format!(
+            "prompt blocked by hook: {reason}"
+        )));
+    }
+    let owned_prompt: Option<String> = prompt_outcome.rewritten_prompt.clone();
+    let user_message: &str = owned_prompt.as_deref().unwrap_or(user_message);
+
     if security::policy().enabled
         && security::policy().injection_guard
         && let Err(reason) = security::detect_prompt_injection(user_message)
@@ -555,6 +648,17 @@ pub(crate) async fn run_agent_turn(
         content: user_message.to_string(),
         images: vec![],
     });
+
+    // Any additional context lines the UserPromptSubmit hook returned go in
+    // as a separate user turn so the model sees them as authoritative
+    // out-of-band info rather than part of the user's question.
+    if let Some(ctx) = prompt_outcome.merged_context() {
+        messages.push(Message {
+            role: Role::User,
+            content: format!("<hook_context>\n{ctx}\n</hook_context>"),
+            images: vec![],
+        });
+    }
 
     let mut total_usage = TokenUsage::default();
     let mut tool_calls = 0u32;
@@ -861,6 +965,33 @@ pub(crate) async fn run_agent_turn(
         let Some(tool_call) = tool_call else {
             // No tool call — this is the final answer
             emit_status(tool_calls);
+
+            // Stop hook fires once per turn after the final answer. It
+            // can't influence the answer the user already sees, but it
+            // can append additionalContext to the next turn or block
+            // future progress with a logged reason.
+            let stop = hooks::run_hooks(
+                HookEvent::Stop,
+                "",
+                HookContext {
+                    session_id: crate::session::current_id(),
+                    cwd: std::env::current_dir().ok(),
+                    prompt: Some(&response),
+                    ..Default::default()
+                },
+            )
+            .await;
+            if let Some(reason) = &stop.blocked {
+                ui.show_reasoning(&format!("(Stop hook objection: {reason})"));
+            }
+            if let Some(ctx) = stop.merged_context() {
+                messages.push(Message {
+                    role: Role::User,
+                    content: format!("<hook_context>\n{ctx}\n</hook_context>"),
+                    images: vec![],
+                });
+            }
+
             return Ok(TurnResult {
                 answer: response,
                 usage: total_usage,
@@ -925,6 +1056,21 @@ pub(crate) async fn run_agent_single(
 ) -> Result<(), AictlError> {
     use std::cell::Cell;
 
+    // SessionStart for single-shot runs. There's no session id (audit logs
+    // need one), but hooks still run — useful for "log every aictl
+    // invocation" style observability.
+    let _ = hooks::run_hooks(
+        HookEvent::SessionStart,
+        "",
+        HookContext {
+            session_id: crate::session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            trigger: Some("single-shot"),
+            ..Default::default()
+        },
+    )
+    .await;
+
     let mut messages = vec![Message {
         role: Role::System,
         content: build_system_prompt(),
@@ -965,5 +1111,17 @@ pub(crate) async fn run_agent_single(
             0,
         );
     }
+
+    let _ = hooks::run_hooks(
+        HookEvent::SessionEnd,
+        "",
+        HookContext {
+            session_id: crate::session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            trigger: Some("single-shot"),
+            ..Default::default()
+        },
+    )
+    .await;
     Ok(())
 }

@@ -1,0 +1,88 @@
+{
+  "_comment": "Example aictl hooks file. Copy to ~/.aictl/hooks.json (or point AICTL_HOOKS_FILE at this path). Each top-level key is a lifecycle event. Each entry is { matcher, command, timeout, enabled }. Matcher is a glob over tool name (`*`, `?`, `|` alternation); for non-tool events use `*`. Command runs via `sh -c` in the security working dir with a scrubbed env. Stdin gets a JSON payload (event, session_id, cwd, tool, prompt, …). Stdout JSON shapes: {\"decision\":\"block\",\"reason\":\"...\"} aborts the action; {\"decision\":\"approve\",\"reason\":\"...\"} pre-approves a tool call; {\"additionalContext\":\"...\"} adds a <hook_context> turn; {\"rewrittenPrompt\":\"...\"} (UserPromptSubmit only) replaces the user message. Plain stdout becomes additionalContext. Exit 2 is a shorthand for block (stderr is the reason). Default timeout: 60s.",
+
+  "SessionStart": [
+    {
+      "matcher": "*",
+      "command": "date '+session start at %Y-%m-%d %H:%M:%S' >> ~/.aictl/hook.log",
+      "timeout": 5,
+      "enabled": false
+    }
+  ],
+
+  "UserPromptSubmit": [
+    {
+      "_comment": "Refuse prompts that look like a credential dump.",
+      "matcher": "*",
+      "command": "jq -e 'select(.prompt | test(\"AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}\"))' >/dev/null && printf '{\"decision\":\"block\",\"reason\":\"prompt looks like it contains credentials\"}' || true",
+      "timeout": 5,
+      "enabled": false
+    }
+  ],
+
+  "PreToolUse": [
+    {
+      "_comment": "Refuse exec_shell calls that try to push to a remote.",
+      "matcher": "exec_shell",
+      "command": "jq -r '.tool.input' | grep -Eq '^[[:space:]]*git[[:space:]]+push' && (echo 'no git push from hooks' >&2; exit 2) || true",
+      "timeout": 10,
+      "enabled": false
+    },
+    {
+      "_comment": "Pre-approve read_file in --auto mode equivalent: skip the y/N prompt for all reads.",
+      "matcher": "read_file",
+      "command": "printf '{\"decision\":\"approve\",\"reason\":\"reads are always allowed\"}'",
+      "timeout": 5,
+      "enabled": false
+    }
+  ],
+
+  "PostToolUse": [
+    {
+      "_comment": "Auto-format Rust after every edit_file or write_file. cargo fmt's stdout is fed back to the model as additional context, so it sees what changed.",
+      "matcher": "edit_file|write_file",
+      "command": "cargo fmt --message-format short 2>&1 | head -c 2000",
+      "timeout": 30,
+      "enabled": false
+    }
+  ],
+
+  "Stop": [
+    {
+      "_comment": "Append a single line to a per-session transcript log when the agent finishes a turn.",
+      "matcher": "*",
+      "command": "jq -r '\"[\" + .session_id + \"] \" + (.prompt // \"\")' >> ~/.aictl/turns.log",
+      "timeout": 5,
+      "enabled": false
+    }
+  ],
+
+  "PreCompact": [
+    {
+      "_comment": "Snapshot the session file before compaction discards the raw transcript.",
+      "matcher": "*",
+      "command": "jq -r '.session_id' | xargs -I{} cp ~/.aictl/sessions/{} ~/.aictl/sessions/{}.pre-compact 2>/dev/null || true",
+      "timeout": 10,
+      "enabled": false
+    }
+  ],
+
+  "Notification": [
+    {
+      "_comment": "Mirror desktop notifications to a webhook for remote follow-up.",
+      "matcher": "*",
+      "command": "jq -c '{text: .notification}' | curl -fsS -X POST -H 'content-type: application/json' --max-time 5 -d @- https://example.invalid/aictl 2>/dev/null || true",
+      "timeout": 10,
+      "enabled": false
+    }
+  ],
+
+  "SessionEnd": [
+    {
+      "matcher": "*",
+      "command": "date '+session end   at %Y-%m-%d %H:%M:%S' >> ~/.aictl/hook.log",
+      "timeout": 5,
+      "enabled": false
+    }
+  ]
+}

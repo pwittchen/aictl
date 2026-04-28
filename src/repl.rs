@@ -328,6 +328,10 @@ async fn dispatch_slash_command(
             commands::run_plugins_menu(&|msg| ui.show_error(msg));
             ReplAction::Continue
         }
+        commands::CommandResult::Hooks => {
+            commands::run_hooks_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
         commands::CommandResult::Balance => {
             commands::run_balance().await;
             ReplAction::Continue
@@ -873,6 +877,18 @@ pub(crate) async fn run_interactive(
     }
     session::save_current(&messages);
 
+    let _ = crate::hooks::run_hooks(
+        crate::hooks::HookEvent::SessionStart,
+        "",
+        crate::hooks::HookContext {
+            session_id: session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            trigger: Some(if loaded_ok { "resume" } else { "startup" }),
+            ..Default::default()
+        },
+    )
+    .await;
+
     // Prefer the cached result if we had one; otherwise consume the live
     // fetch if it's already completed. If neither is ready, fall back to an
     // empty string so the banner prints immediately — the background task
@@ -1038,6 +1054,19 @@ pub(crate) async fn run_interactive(
 
     // Final save and exit notification.
     session::save_current(&messages);
+
+    let _ = crate::hooks::run_hooks(
+        crate::hooks::HookEvent::SessionEnd,
+        "",
+        crate::hooks::HookContext {
+            session_id: session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            trigger: Some("repl-exit"),
+            ..Default::default()
+        },
+    )
+    .await;
+
     if let Some((id, name)) = session::current_info() {
         let label = name
             .as_deref()

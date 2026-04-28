@@ -31,6 +31,25 @@ pub async fn compact(
         return;
     }
 
+    // PreCompact hook fires before the summary call so a hook can capture
+    // the about-to-be-discarded transcript or veto the compaction.
+    let trigger = if is_auto { "auto" } else { "manual" };
+    let pre = crate::hooks::run_hooks(
+        crate::hooks::HookEvent::PreCompact,
+        "",
+        crate::hooks::HookContext {
+            session_id: crate::session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            trigger: Some(trigger),
+            ..Default::default()
+        },
+    )
+    .await;
+    if let Some(reason) = pre.blocked {
+        ui.show_error(&format!("compaction blocked by hook: {reason}"));
+        return;
+    }
+
     ui.start_spinner("compacting context...");
 
     let mut summary_msgs = messages.clone();

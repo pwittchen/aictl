@@ -3,6 +3,7 @@ mod audit;
 mod commands;
 mod config;
 mod error;
+mod hooks;
 #[cfg(test)]
 mod integration_tests;
 mod keys;
@@ -247,6 +248,11 @@ struct Cli {
     #[arg(long = "list-plugins")]
     list_plugins: bool,
 
+    /// List configured hooks (event, matcher, command, status) and exit.
+    /// Hooks live in `~/.aictl/hooks.json` (override via `AICTL_HOOKS_FILE`).
+    #[arg(long = "list-hooks")]
+    list_hooks: bool,
+
     /// Show remaining credit / quota for each configured cloud provider and
     /// exit. Local providers (Ollama/GGUF/MLX) are out of scope. Providers
     /// without a public balance API are reported as "unknown" with a hint
@@ -278,6 +284,7 @@ async fn main() {
         eprintln!("Warning: security restrictions disabled (--unrestricted)");
     }
     plugins::init();
+    hooks::init();
 
     if handle_management_flags(&cli).await {
         return;
@@ -370,6 +377,10 @@ async fn handle_management_flags(cli: &Cli) -> bool {
     }
     if cli.list_plugins {
         commands::print_plugins_cli();
+        return true;
+    }
+    if cli.list_hooks {
+        commands::print_hooks_cli();
         return true;
     }
     false

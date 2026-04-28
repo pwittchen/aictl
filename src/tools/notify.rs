@@ -60,6 +60,29 @@ pub(super) async fn tool_notify(input: &str) -> String {
         Err(e) => return e,
     };
 
+    // Notification hook: fires before the OS-level pop. A hook can suppress
+    // a noisy notification (decision: "block") or capture every alert for
+    // remote forwarding without modifying the agent flow.
+    let combined = if parsed.body.is_empty() {
+        parsed.title.to_string()
+    } else {
+        format!("{}\n{}", parsed.title, parsed.body)
+    };
+    let outcome = crate::hooks::run_hooks(
+        crate::hooks::HookEvent::Notification,
+        "",
+        crate::hooks::HookContext {
+            session_id: crate::session::current_id(),
+            cwd: std::env::current_dir().ok(),
+            notification: Some(&combined),
+            ..Default::default()
+        },
+    )
+    .await;
+    if let Some(reason) = outcome.blocked {
+        return format!("Notification suppressed by hook: {reason}");
+    }
+
     if cfg!(target_os = "macos") {
         notify_macos(parsed.title, &parsed.body).await
     } else if cfg!(target_os = "linux") {
