@@ -12,9 +12,11 @@ src/
  ├── version_cache.rs   Cached remote-version lookup under ~/.aictl/version (TTL gating /version & banner staleness check)
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
- ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /hooks, /info, /keys, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
- ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, hooks, info, keys, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
+ ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /hooks, /info, /keys, /mcp, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
+ ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, hooks, info, keys, mcp, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update)
  ├── hooks.rs           User-defined lifecycle hooks loaded from ~/.aictl/hooks.json (override via AICTL_HOOKS_FILE). Eight events (SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, Notification). Glob matcher (*, ?, |) over tool name. JSON payload on stdin; stdout JSON shapes (decision: block|approve, additionalContext, rewrittenPrompt) influence the harness; exit 2 = block. Default 60s timeout, scrubbed env, security CWD. --unrestricted does NOT bypass.
+ ├── mcp.rs             Model Context Protocol client. Servers declared in ~/.aictl/mcp.json (override via AICTL_MCP_CONFIG); spawned at startup, JSON-RPC over stdio (Phase 1: stdio transport + tools only). Tools surface as mcp__<server>__<tool>; merged into the agent loop catalogue alongside built-ins and plugins. Master switch AICTL_MCP_ENABLED (default false) — third-party processes do not auto-spawn. Per-server failures land in ServerState::Failed and never abort startup.
+ ├── mcp/               Submodules: config.rs (mcp.json parser + ${keyring:NAME} substitution + AICTL_MCP_TIMEOUT/STARTUP_TIMEOUT/DISABLED), protocol.rs (JSON-RPC envelope + initialize/tools/list/tools/call types), stdio.rs (StdioClient: spawn child, line-delimited JSON-RPC reader task, request/response correlation by id, kill_on_drop)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization
@@ -54,6 +56,16 @@ src/
  │                              AICTL_PLUGINS_ENABLED=true; cache survivors │
  │  2b''. hooks::init()         parse ~/.aictl/hooks.json (override via    │
  │                              AICTL_HOOKS_FILE); cache hook table         │
+ │  2b'''. mcp::init_with(only) spawn each enabled server in ~/.aictl/mcp. │
+ │                              json (override via AICTL_MCP_CONFIG) when   │
+ │                              AICTL_MCP_ENABLED=true; complete            │
+ │                              `initialize` handshake under                │
+ │                              AICTL_MCP_STARTUP_TIMEOUT (default 10s);    │
+ │                              call tools/list and store the catalogue;    │
+ │                              per-server failures recorded as             │
+ │                              ServerState::Failed and skipped, never      │
+ │                              fatal. `--mcp-server <name>` restricts to   │
+ │                              one server without persisting config.       │
  │  2c. --list-sessions /       non-interactive session helpers, exit       │
  │      --clear-sessions                                                    │
  │  2c'. --list-agents          non-interactive agent listing, exit         │
@@ -285,6 +297,14 @@ Both single-shot and REPL modes share the same loop:
  │  - notify shells out to `osascript` on macOS or           │
  │    `notify-send` on Linux. Title required (≤256 B), body  │
  │    optional (≤4096 B). Useful for --auto completion pings │
+ │  - tool names starting with `mcp__` route to             │
+ │    mcp::call_tool: locate the (server, tool) pair in the  │
+ │    cached catalogue, parse the JSON body, send tools/call │
+ │    via the stdio JSON-RPC client, and return the          │
+ │    concatenation of `content[]` text blocks. `[mcp error] │
+ │    <reason>` on failure (timeout, decode, isError=true).  │
+ │    Same security gate / audit / sanitization path as      │
+ │    built-ins. See the MCP Servers section below           │
  │  - any other tool name falls through to plugins::find().  │
  │    User-installed plugin tools dispatch through the same  │
  │    security gate, audit, and sanitization path; see the   │
@@ -424,6 +444,118 @@ payload, reload from disk, show file path). Toggle/save round-trips go
 through `hooks::save` + `hooks::replace` so changes take effect
 mid-session without a restart.
 
+## MCP Servers (`src/mcp.rs`)
+
+Connect to external [Model Context Protocol](https://modelcontextprotocol.io)
+servers and merge their tools into the agent loop alongside built-ins
+and plugins. Phase 1 covers the **stdio** transport and **tools**
+capability only — HTTP/SSE transport, resources, and prompts are on
+the roadmap.
+
+Servers are declared in `~/.aictl/mcp.json` (override via
+`AICTL_MCP_CONFIG`) in a Claude Desktop-compatible shape:
+
+```
+{
+  "mcpServers": {
+    "<name>": {
+      "command": "...",
+      "args": [...],
+      "env": { "K": "V" },
+      "enabled": true,
+      "timeout_secs": 30
+    }
+  }
+}
+```
+
+Per-entry fields: `command` + `args` (resolved via `PATH`, no shell),
+optional `env`, `enabled` (default `true`), `timeout_secs` (per-call
+RPC timeout, falling back to `AICTL_MCP_TIMEOUT`, default 30s). Values
+inside `env` may use `${keyring:NAME}` to pull a secret from
+`keys::get_secret(NAME)` instead of checking it in.
+
+Lifecycle (`mcp::init_with`):
+
+1. Read the config; reject malformed entries (missing `command`,
+   invalid name) — invalid names use the same alphanumeric +
+   `_`/`-` rule as agents/skills/plugins.
+2. For each enabled server (skipping anything in `AICTL_MCP_DISABLED`
+   or excluded by `--mcp-server <only>`), spawn the child via
+   `tokio::process::Command` with a scrubbed env + the entry's `env`
+   overlay. `kill_on_drop(true)` is the backstop.
+3. Wrap the `initialize` handshake in `tokio::time::timeout`
+   (`AICTL_MCP_STARTUP_TIMEOUT`, default 10s) so a hung server cannot
+   block startup.
+4. On success send `notifications/initialized` and call `tools/list`;
+   store the catalogue in a `OnceLock<Vec<McpServer>>`.
+5. Any failure (spawn, handshake, list) lands in
+   `ServerState::Failed(reason)`; the rest of the catalogue is
+   unaffected.
+
+All servers spawn in parallel via `futures_util::future::join_all`.
+
+Wire protocol (`src/mcp/stdio.rs`):
+
+- **Framing** — line-delimited JSON-RPC 2.0 (one envelope per line on
+  stdin/stdout). The spec also describes a `Content-Length:` framing
+  but it's rare in deployed servers; not implemented here.
+- **Correlation** — each outbound request gets a monotonic integer
+  `id`. A background reader task parses lines, looks up the matching
+  `oneshot::Sender` in a `pending: Mutex<HashMap<i64, _>>`, and
+  forwards the response. Lines that fail JSON parse (occasional
+  startup banners) are silently dropped.
+- **Stderr** — drained in a side task so the child can't block on a
+  full pipe; not surfaced unless the user asks via `/mcp show`.
+
+Catalog injection (`run::build_system_prompt`): every Ready server's
+tools are appended under `### mcp__<server>__<tool> (mcp)` headings
+with the description and pretty-printed JSON Schema, so the model can
+self-format calls:
+
+```
+<tool name="mcp__filesystem__read_file">
+{"path": "/tmp/notes.md"}
+</tool>
+```
+
+Dispatch (`tools::execute_tool`): names starting with `mcp__` route to
+`mcp::call_tool`. The body is parsed as JSON, sent as `tools/call`,
+and the response's `content[]` text blocks are concatenated. Errors
+surface as `[mcp error] <reason>` (matching the `[exit N]` convention
+plugins use). The duplicate-call guard normalizes JSON bodies before
+keying so whitespace differences don't create distinct entries.
+
+Security gate:
+
+- The `mcp__*` arm in `security::validate_tool` enforces a body-size
+  cap (`max_file_write_bytes`) and `AICTL_MCP_DENY_SERVERS=foo,bar`,
+  which blocks every tool from listed servers even when the master
+  switch is on.
+- `AICTL_SECURITY_DISABLED_TOOLS` accepts qualified names
+  (`mcp__github__create_issue`).
+- The CWD jail does **not** apply — MCP servers run in their own
+  process with their own privileges. Users who want strict isolation
+  should keep `AICTL_MCP_ENABLED=false` or curate the server list.
+- Outbound redaction runs on the entire message stream regardless of
+  transport.
+
+Shutdown: `mcp::shutdown()` runs on every exit path (REPL `/exit`,
+single-shot completion, error path). It best-effort-sends `shutdown`,
+kills the child, and aborts the reader task. `kill_on_drop(true)` is
+the safety net.
+
+CLI / REPL surface: `aictl --list-mcp` for a non-interactive listing
+(name, state, tool count, command); `aictl --mcp-server <name>`
+restricts a single process to one server without persisting the
+disable list. `/mcp` opens a REPL menu (view servers, browse per-tool
+schemas, toggle the master switch, show config path). `/info` and the
+welcome banner show MCP server / tool counts when enabled.
+
+A bundled `tiny_add` smoke-test server lives at
+`examples/mcp/tiny_add/server.py` with a fully-annotated example
+config at `examples/mcp.json`.
+
 ## LLM Provider Abstraction
 
 ```
@@ -504,7 +636,7 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
       (break)     (reset      (summarize  (pbcopy     (print
                   messages)   via LLM)    last_answer) commands)
 
- Also: /agent (Agent), /balance (Balance), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /hooks (Hooks), /info (Info), /gguf (Gguf), /mlx (Mlx), /ping (Ping), /plugins (Plugins), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
+ Also: /agent (Agent), /balance (Balance), /behavior (Behavior), /memory (Memory), /context (Context), /history (History), /hooks (Hooks), /info (Info), /gguf (Gguf), /mcp (Mcp), /mlx (Mlx), /ping (Ping), /plugins (Plugins), /security (Security), /session (Session), /skills (Skills), /model (Model), /tools (Continue), /stats (Stats), /keys (Keys), /config (Config), /retry (Retry), /roadmap (Roadmap), /undo (Undo), /update (Update), /uninstall (Uninstall), /version (Version). Any other /<name> the dispatcher doesn't recognize is tried as a skills::find lookup; on a hit it returns CommandResult::InvokeSkill, otherwise the "unknown command" error fires.
 
  CommandResult enum:
    Exit        → break REPL loop
@@ -545,6 +677,10 @@ Two additional providers are not wired to remote endpoints. `call_gguf()` in `sr
                  test-fire a hook with a synthetic payload, show hooks file path,
                  reload ~/.aictl/hooks.json); persists toggles to disk via
                  hooks::save + hooks::replace; continue
+   Mcp         → open MCP servers menu (view all servers with state and tool
+                 count, browse per-server tool catalogue with input schemas,
+                 toggle the AICTL_MCP_ENABLED master switch, show mcp.json
+                 config path); continue
    Stats       → open stats menu (view today/this-month/overall from ~/.aictl/stats /
                  clear all recorded usage statistics), continue
    Keys        → open keys menu (lock = config → keyring / unlock = keyring → config /
@@ -667,6 +803,7 @@ All persistent state lives under `~/.aictl/`. Nothing is stored elsewhere, and n
  ~/.aictl/
   ├── config              key=value settings file (provider, model, API keys, security & tool toggles)
   ├── hooks.json          user-defined lifecycle hooks (event → array of {matcher, command, timeout, enabled}); override path with AICTL_HOOKS_FILE
+  ├── mcp.json            MCP server declarations ({mcpServers: {<name>: {command, args, env, enabled, timeout_secs}}}); override path with AICTL_MCP_CONFIG; gated behind AICTL_MCP_ENABLED=true
   ├── history             rustyline REPL input history (one entry per line)
   ├── stats               JSON array of per-day usage statistics (calls, tokens, estimated cost; written by stats.rs after every agent turn; consumed by /stats)
   ├── agents/             saved agent prompts — one plain-text file per agent
@@ -700,6 +837,7 @@ Recognized keys include:
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 - **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.
 - **Hooks**: `AICTL_HOOKS_FILE` (override the default `~/.aictl/hooks.json` path; used mainly by tests). The hook entries themselves live in the JSON file, not in `config`.
+- **MCP**: `AICTL_MCP_ENABLED` (master switch, default `false`), `AICTL_MCP_CONFIG` (override the default `~/.aictl/mcp.json` path), `AICTL_MCP_TIMEOUT` (per-call RPC timeout, default 30s), `AICTL_MCP_STARTUP_TIMEOUT` (`initialize` handshake timeout, default 10s), `AICTL_MCP_DISABLED` (comma-separated server names to skip at init), `AICTL_MCP_DENY_SERVERS` (comma-separated server names blocked at the security gate). Server entries themselves live in `mcp.json`.
 
 ### API key storage (`src/keys.rs`)
 

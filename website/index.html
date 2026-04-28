@@ -127,6 +127,10 @@
             <p>Shell commands the harness fires at lifecycle events &mdash; <code>SessionStart</code>, <code>UserPromptSubmit</code>, <code>PreToolUse</code>, <code>PostToolUse</code>, <code>Stop</code>, and more. Block, approve, rewrite a prompt, or inject context via JSON on stdout. Configured in <code>~/.aictl/hooks.json</code>; manage via <code>/hooks</code>.</p>
           </article>
           <article class="card">
+            <h3>MCP servers</h3>
+            <p>Connect <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> servers as a source of additional tools. Declare servers in <code>~/.aictl/mcp.json</code> (Claude Desktop-compatible shape); their tools merge into the agent loop as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>. Opt in with <code>AICTL_MCP_ENABLED=true</code>; manage via <code>/mcp</code>.</p>
+          </article>
+          <article class="card">
             <h3>Security first</h3>
             <p>CWD jail, blocked paths, shell command allowlists, environment scrubbing, subshell blocking, injection guard, output sanitization, per-session audit log, and opt-in credential / PII redaction at the network boundary. On by default. Review policy with <code>/security</code>.</p>
           </article>

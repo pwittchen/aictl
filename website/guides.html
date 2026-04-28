@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>aictl — guides</title>
-  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, plugins, hooks, sessions, and tools." />
+  <meta name="description" content="User guides for aictl: installation, configuration, API keys, providers, commands, agents, skills, plugins, hooks, MCP servers, sessions, and tools." />
   <meta name="theme-color" content="#1f2228" />
   <meta property="og:title" content="aictl — guides" />
   <meta property="og:description" content="How to install, configure, and use aictl — the single-binary AI agent CLI." />
@@ -92,6 +92,7 @@
           <li><a href="#skills">Skills</a></li>
           <li><a href="#plugins">Plugins</a></li>
           <li><a href="#hooks">Hooks</a></li>
+          <li><a href="#mcp">MCP servers</a></li>
           <li><a href="#sessions">Sessions</a></li>
           <li><a href="#tools-ref">Tools</a></li>
           <li><a href="#security">Security</a></li>
@@ -452,6 +453,7 @@
               <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
               <li><code>/plugins</code> — manage external plugin tools (list, view manifest, toggle)</li>
               <li><code>/hooks</code> — manage lifecycle hooks (view, toggle, test-fire, reload)</li>
+              <li><code>/mcp</code> — manage external MCP servers (list, view tools &amp; schemas, toggle)</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
               <li><code>/balance</code> — show remaining credit / quota for each configured cloud provider</li>
@@ -540,6 +542,8 @@
               <li><code>--uninstall</code> — remove the binary (leaves <code>~/.aictl/</code>)</li>
               <li><code>--list-plugins</code> — print installed plugins and exit</li>
               <li><code>--list-hooks</code> — print configured hooks and exit</li>
+              <li><code>--list-mcp</code> — print configured MCP servers and exit</li>
+              <li><code>--mcp-server &lt;name&gt;</code> — restrict this session to one MCP server (others force-disabled)</li>
             </ul>
           </div>
           <div class="tools" style="grid-column: 1 / -1;">
@@ -787,6 +791,67 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
         </div>
         <p class="section__note" style="margin-top: 16px;">
           Drop the file at <code>~/.aictl/hooks.json</code> (or set <code>AICTL_HOOKS_FILE</code> to point elsewhere). Use <code>aictl --list-hooks</code> for a non-interactive listing, or <code>/hooks</code> in the REPL to view, toggle, test-fire, or reload entries. A reference file with one example per event (all <code>enabled: false</code>) lives in the project repo at <a href="https://github.com/pwittchen/aictl/blob/master/examples/hooks.json" target="_blank" rel="noopener"><code>examples/hooks.json</code></a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="mcp">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// mcp servers</span>
+          <h2 class="section__title">MCP servers</h2>
+          <p class="section__lead">
+            Connect external <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a>
+            servers as a source of additional tools. Their tools merge into the
+            agent loop alongside built-ins and plugins as
+            <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>. Phase&nbsp;1 supports the
+            <strong>stdio</strong> transport and <strong>tools</strong> capability;
+            HTTP/SSE transport, resources, and prompts are on the roadmap.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Config shape</h3>
+            <p>Servers are declared in <code>~/.aictl/mcp.json</code> (override the path with <code>AICTL_MCP_CONFIG</code>) in a Claude Desktop-compatible shape. Each entry is <code>{ command, args, env, enabled, timeout_secs }</code>. <code>command</code> is resolved via <code>PATH</code> (no shell). Values inside <code>env</code> may use <code>${keyring:NAME}</code> to pull a secret from the system keyring instead of checking it in.</p>
+          </article>
+          <article class="card">
+            <h3>Master switch</h3>
+            <p>Gated behind <code>AICTL_MCP_ENABLED=true</code> (default <code>false</code>) &mdash; third-party server processes do not auto-spawn until you opt in. Per-server failures during <code>initialize</code> are recorded as <code>Failed</code> and skipped, so a single broken entry can&rsquo;t take down the catalogue. <code>--mcp-server &lt;name&gt;</code> restricts a single process to one server.</p>
+          </article>
+          <article class="card">
+            <h3>Dispatch</h3>
+            <p>Each server&rsquo;s tools surface as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> in the system prompt with its input schema. Calls go out over JSON-RPC 2.0; the body is a JSON object that matches the schema. Errors come back as <code>[mcp error] &lt;reason&gt;</code> so the model can self-correct.</p>
+          </article>
+          <article class="card">
+            <h3>Security</h3>
+            <p>Every MCP call passes through the same <code>security::validate_tool</code> gate. <code>AICTL_SECURITY_DISABLED_TOOLS</code> accepts qualified names (<code>mcp__github__create_issue</code>); <code>AICTL_MCP_DENY_SERVERS=foo,bar</code> blocks every tool from listed servers. Outbound redaction runs on every transport. The CWD jail does <em>not</em> apply &mdash; servers run in their own process.</p>
+          </article>
+        </div>
+
+        <p class="section__note" style="margin-top: 32px;">
+          Example <code>~/.aictl/mcp.json</code> &mdash; the official filesystem server (via <code>npx</code>) and the GitHub server (via Docker) with a token pulled from the keyring:
+        </p>
+        <div class="cmd cmd--block" style="margin-top: 12px; max-width: none;">
+          <code id="g-cmd-mcp-json"><span class="tok-p">{</span>
+  <span class="tok-k">"mcpServers"</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+    <span class="tok-k">"filesystem"</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+      <span class="tok-k">"command"</span><span class="tok-p">:</span> <span class="tok-s">"npx"</span><span class="tok-p">,</span>
+      <span class="tok-k">"args"</span><span class="tok-p">:</span> <span class="tok-p">[</span><span class="tok-s">"-y"</span><span class="tok-p">,</span> <span class="tok-s">"@modelcontextprotocol/server-filesystem"</span><span class="tok-p">,</span> <span class="tok-s">"/Users/me/Documents"</span><span class="tok-p">],</span>
+      <span class="tok-k">"enabled"</span><span class="tok-p">:</span> <span class="tok-kc">true</span><span class="tok-p">,</span>
+      <span class="tok-k">"timeout_secs"</span><span class="tok-p">:</span> <span class="tok-n">30</span>
+    <span class="tok-p">},</span>
+    <span class="tok-k">"github"</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+      <span class="tok-k">"command"</span><span class="tok-p">:</span> <span class="tok-s">"docker"</span><span class="tok-p">,</span>
+      <span class="tok-k">"args"</span><span class="tok-p">:</span> <span class="tok-p">[</span><span class="tok-s">"run"</span><span class="tok-p">,</span> <span class="tok-s">"--rm"</span><span class="tok-p">,</span> <span class="tok-s">"-i"</span><span class="tok-p">,</span> <span class="tok-s">"ghcr.io/github/github-mcp-server"</span><span class="tok-p">],</span>
+      <span class="tok-k">"env"</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-k">"GITHUB_PERSONAL_ACCESS_TOKEN"</span><span class="tok-p">:</span> <span class="tok-s">"${keyring:GITHUB_TOKEN}"</span> <span class="tok-p">}</span>
+    <span class="tok-p">}</span>
+  <span class="tok-p">}</span>
+<span class="tok-p">}</span></code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-mcp-json" aria-label="Copy mcp.json example">Copy</button>
+        </div>
+        <p class="section__note" style="margin-top: 16px;">
+          Drop the file at <code>~/.aictl/mcp.json</code>, set <code>AICTL_MCP_ENABLED=true</code> in <code>~/.aictl/config</code>, and restart aictl. Use <code>aictl --list-mcp</code> for a non-interactive listing, or <code>/mcp</code> in the REPL to browse servers, view tool schemas, or toggle the master switch. A bundled <code>tiny_add</code> smoke-test server (Python, ~70 lines, exposes one <code>add</code> tool) lives in the project repo at <a href="https://github.com/pwittchen/aictl/tree/master/examples/mcp/tiny_add" target="_blank" rel="noopener"><code>examples/mcp/tiny_add/</code></a>, with a fully-annotated example config at <a href="https://github.com/pwittchen/aictl/blob/master/examples/mcp.json" target="_blank" rel="noopener"><code>examples/mcp.json</code></a>.
         </p>
       </div>
     </section>

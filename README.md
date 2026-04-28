@@ -131,7 +131,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -165,6 +165,7 @@ The interactive REPL supports slash commands:
 | `/ping` | Validate every configured API key and probe provider connectivity (cloud providers + Ollama daemon) |
 | `/plugins` | Manage external plugin tools — list installed plugins, view a manifest, toggle the master switch (`AICTL_PLUGINS_ENABLED`) |
 | `/hooks` | Manage lifecycle hooks — view all configured hooks per event, toggle individual entries on/off, test-fire a hook with a synthetic payload, or reload `~/.aictl/hooks.json` |
+| `/mcp` | Manage external MCP (Model Context Protocol) servers — list configured servers, view tool catalogues with input schemas, toggle the master switch (`AICTL_MCP_ENABLED`) |
 | `/balance` | Show remaining credit / quota for each configured cloud provider (real numbers from DeepSeek and Kimi; "unknown" with a billing-dashboard hint elsewhere) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
@@ -224,6 +225,8 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--balance` / `--list-balances` | Show remaining credit / quota for each configured cloud provider and exit. Real numbers from DeepSeek and Kimi (via their official `/user/balance` and `/v1/users/me/balance` endpoints); other providers report "unknown" with a hint pointing at their billing dashboard. Local providers (Ollama / GGUF / MLX) are out of scope |
 | `--list-plugins` | Print installed plugins (name, description, location) and exit. Reads from `~/.aictl/plugins/` (override via `AICTL_PLUGINS_DIR`). When `AICTL_PLUGINS_ENABLED=false` the listing is empty with a hint about the master switch |
 | `--list-hooks` | Print configured hooks (event, matcher, command, status) and exit. Reads from `~/.aictl/hooks.json` (override via `AICTL_HOOKS_FILE`) |
+| `--list-mcp` | Print configured MCP servers (name, state, tool count) and exit. Reads from `~/.aictl/mcp.json` (override via `AICTL_MCP_CONFIG`). When `AICTL_MCP_ENABLED=false` the listing is empty with a hint about the master switch |
+| `--mcp-server` | Restrict this session to only the named MCP server (every other configured server is force-disabled for the process). Effective only when `AICTL_MCP_ENABLED=true` |
 
 CLI flags take priority over config file values.
 
@@ -402,6 +405,58 @@ CLI surface:
 
 A reference `hooks.json` with one example per event (all `enabled: false` so they don't fire until you flip them on) lives at [`examples/hooks.json`](./examples/hooks.json).
 
+### MCP servers
+
+aictl can connect to [Model Context Protocol](https://modelcontextprotocol.io) servers and merge their tools into the agent loop alongside built-ins and plugins. This unlocks the existing MCP ecosystem — filesystem, git, GitHub, Postgres, Slack, and dozens of others — without aictl having to integrate each one individually. Phase 1 supports the **stdio** transport and **tools** capability; HTTP/SSE transport, resources, and prompts are on the roadmap.
+
+Servers are declared in `~/.aictl/mcp.json` (override the path with `AICTL_MCP_CONFIG`) in a shape compatible with Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/Documents"],
+      "enabled": true,
+      "timeout_secs": 30
+    },
+    "github": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${keyring:GITHUB_TOKEN}" }
+    }
+  }
+}
+```
+
+Per-entry fields: `command` + `args` (resolved via `PATH`, no shell), optional `env`, `enabled`, `timeout_secs`. Values inside `env` may use `${keyring:NAME}` to pull a secret from the system keyring instead of checking it into the file. The whole subsystem is gated behind `AICTL_MCP_ENABLED=true` (default `false`) — third-party server processes do not auto-spawn.
+
+At startup, every enabled server is spawned in parallel, the JSON-RPC `initialize` handshake completes, and the server's `tools/list` response is merged into the agent loop's catalogue. Each tool is reachable as `mcp__<server>__<tool>` and the model invokes it like any built-in:
+
+```xml
+<tool name="mcp__filesystem__read_file">
+{"path": "/Users/me/Documents/notes.md"}
+</tool>
+```
+
+The body is a JSON object that matches the tool's input schema (the schema is appended to the system prompt so the model formats calls correctly). Failed servers are recorded in `ServerState::Failed` and never abort startup — a single broken entry can't take down the rest of the catalogue.
+
+Security model:
+
+- Every MCP call passes through the same `security::validate_tool` gate as built-ins. `AICTL_SECURITY_DISABLED_TOOLS` accepts qualified MCP names (`mcp__github__create_issue`).
+- `AICTL_MCP_DENY_SERVERS=github,slack` blocks every tool from listed servers, even when the master switch is on.
+- Outbound redaction runs on the entire message stream regardless of transport, so detected secrets never reach the server.
+- The CWD jail does **not** apply — MCP servers run in their own process with their own privileges. Users who want strict isolation should keep `AICTL_MCP_ENABLED=false` or curate the server list aggressively.
+
+CLI / REPL surface:
+
+- `aictl --list-mcp` — non-interactive listing (server name, state, tool count, command).
+- `aictl --mcp-server <name>` — restrict this session to only the named server (every other configured server is force-disabled for the process; not persisted).
+- `/mcp` (REPL) — list servers, browse per-server tool catalogue with input schemas, toggle the master switch, show the config path.
+- `/info` and the welcome banner show MCP server / tool counts when enabled.
+
+A bundled `tiny_add` smoke-test server (Python, ~70 lines, exposes one `add` tool) lives at [`examples/mcp/tiny_add/server.py`](./examples/mcp/tiny_add/server.py) and a fully-annotated example config at [`examples/mcp.json`](./examples/mcp.json).
+
 ### Configuration
 
 Configuration is loaded from `~/.aictl/config`. This is a single global config file.
@@ -517,6 +572,12 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_PLUGINS_DIR` | Override the plugin discovery root (default: `~/.aictl/plugins`). Used mainly by tests and isolated installs. |
 | `AICTL_PLUGINS_DISABLED` | Comma-separated plugin names to skip at load time. Useful for silencing one third-party plugin without editing its manifest. |
 | `AICTL_HOOKS_FILE` | Override the hooks config path (default: `~/.aictl/hooks.json`). Used mainly by tests and isolated installs. |
+| `AICTL_MCP_ENABLED` | Master switch for the MCP subsystem (default: `false`). MCP servers are third-party processes; they will not auto-spawn until you opt in. |
+| `AICTL_MCP_CONFIG` | Override the MCP config path (default: `~/.aictl/mcp.json`). |
+| `AICTL_MCP_TIMEOUT` | Default per-call RPC timeout in seconds for `tools/call` (default: `30`). Per-server overrides via `timeout_secs` in `mcp.json` win when set. |
+| `AICTL_MCP_STARTUP_TIMEOUT` | `initialize` handshake timeout per server, in seconds (default: `10`). Hung servers are marked `Failed` and skipped — startup never blocks on a bad server. |
+| `AICTL_MCP_DISABLED` | Comma-separated MCP server names to skip at load time, even when their `enabled` flag is `true`. |
+| `AICTL_MCP_DENY_SERVERS` | Comma-separated MCP server names whose every tool is blocked at the security gate, even when the master switch is on. |
 
 Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 
