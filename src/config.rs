@@ -228,6 +228,31 @@ pub fn config_get(key: &str) -> Option<String> {
         .and_then(|m| m.get(key).cloned())
 }
 
+/// Which local config root was found in the current working directory.
+/// `Aictl` always wins — its presence skips `Claude` entirely so a project
+/// can opt out of the legacy fallback by simply having a `.aictl/` dir.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalRoot {
+    Aictl,
+    Claude,
+}
+
+/// Resolve the local config root in the current working directory.
+/// Returns the directory path and which kind it is (`.aictl/` preferred,
+/// `.claude/` fallback). `None` when neither directory exists.
+pub fn local_config_root() -> Option<(std::path::PathBuf, LocalRoot)> {
+    let cwd = std::env::current_dir().ok()?;
+    let aictl_root = cwd.join(".aictl");
+    if aictl_root.is_dir() {
+        return Some((aictl_root, LocalRoot::Aictl));
+    }
+    let claude_root = cwd.join(".claude");
+    if claude_root.is_dir() {
+        return Some((claude_root, LocalRoot::Claude));
+    }
+    None
+}
+
 /// Default primary prompt file name when `AICTL_PROMPT_FILE` is unset.
 pub const DEFAULT_PROMPT_FILE: &str = "AICTL.md";
 

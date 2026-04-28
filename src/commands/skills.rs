@@ -15,7 +15,10 @@ use crate::skills;
 use crate::ui::AgentUI;
 use crate::{Message, Role};
 
-use super::menu::{confirm_yn, read_input_line, read_multiline_input, select_from_menu};
+use super::menu::{
+    confirm_yn, menu_viewport_height, read_input_line, read_multiline_input, render_menu_viewport,
+    select_from_menu,
+};
 
 const SKILLS_MENU_ITEMS: &[(&str, &str)] = &[
     ("create skill manually", "type or paste skill body"),
@@ -340,11 +343,14 @@ fn build_skills_list_lines(selected: usize, entries: &[skills::SkillEntry]) -> V
         } else {
             format!("{}", padded.as_str().with(Color::DarkGrey))
         };
-        let badge = if e.is_official() {
-            format!("  {}", "[official]".with(Color::Cyan))
-        } else {
-            String::new()
-        };
+        let mut badge = format!(
+            "  {}",
+            format!("[{}]", e.origin.label()).with(Color::DarkGrey)
+        );
+        if e.is_official() {
+            use std::fmt::Write;
+            let _ = write!(badge, "  {}", "[official]".with(Color::Cyan));
+        }
         let desc_styled = format!("{}", e.description.as_str().with(Color::DarkGrey));
         let line = if is_selected {
             format!(
@@ -376,19 +382,24 @@ fn select_skill_from_list(entries: &[skills::SkillEntry]) -> SkillListAction {
     };
 
     let mut selected: usize = 0;
+    let mut scroll_offset: usize = 0;
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
-    let mut lines = build_skills_list_lines(selected, entries);
-    let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
+    let max_visible = menu_viewport_height();
     let hint = "↑/↓ navigate · enter/i invoke · v view · d delete · esc cancel";
-    let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-    let _ = stdout.flush();
-    let mut rendered = lines.len() + 2;
+
+    let lines = build_skills_list_lines(selected, entries);
+    let _ = write!(stdout, "\r\n");
+    let mut rendered = render_menu_viewport(
+        &mut stdout,
+        &lines,
+        &mut scroll_offset,
+        0,
+        max_visible,
+        hint,
+    );
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -429,18 +440,15 @@ fn select_skill_from_list(entries: &[skills::SkillEntry]) -> SkillListAction {
             continue;
         }
 
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(rendered as u16),
-            terminal::Clear(ClearType::FromCursorDown),
+        let lines = build_skills_list_lines(selected, entries);
+        rendered = render_menu_viewport(
+            &mut stdout,
+            &lines,
+            &mut scroll_offset,
+            rendered,
+            max_visible,
+            hint,
         );
-        lines = build_skills_list_lines(selected, entries);
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-        let _ = stdout.flush();
-        rendered = lines.len() + 2;
     };
 
     // +1 consumes the leading `\r\n` written before the first render so the
@@ -484,18 +492,23 @@ fn view_all_skills(show_error: &dyn Fn(&str)) -> SkillsMenuOutcome {
                     continue;
                 };
                 println!();
+                let origin_tag = format!("[{}]", entry.origin.label())
+                    .with(Color::DarkGrey)
+                    .to_string();
                 let title = if entry.is_official() {
                     format!(
-                        "  {} {}  {}",
+                        "  {} {}  {}  {}",
                         "skill:".with(Color::Cyan),
                         skill.name.as_str().with(Color::Magenta),
+                        origin_tag,
                         "[official]".with(Color::Cyan)
                     )
                 } else {
                     format!(
-                        "  {} {}",
+                        "  {} {}  {}",
                         "skill:".with(Color::Cyan),
-                        skill.name.as_str().with(Color::Magenta)
+                        skill.name.as_str().with(Color::Magenta),
+                        origin_tag
                     )
                 };
                 println!("{title}");
@@ -515,10 +528,14 @@ fn view_all_skills(show_error: &dyn Fn(&str)) -> SkillsMenuOutcome {
             }
             SkillListAction::Delete(i) => {
                 let entry = &entries[i];
-                if !confirm_yn(&format!("delete skill \"{}\"?", entry.name)) {
+                if !confirm_yn(&format!(
+                    "delete {} skill \"{}\"?",
+                    entry.origin.label(),
+                    entry.name
+                )) {
                     continue;
                 }
-                if let Err(e) = skills::delete(&entry.name) {
+                if let Err(e) = skills::delete_entry(entry) {
                     show_error(&format!("Failed to delete skill: {e}"));
                 } else {
                     println!();
@@ -554,11 +571,15 @@ pub fn print_skills_cli(category: Option<&str>) {
     }
     let max_name = filtered.iter().map(|e| e.name.len()).max().unwrap_or(0);
     for e in &filtered {
-        let badge = if e.is_official() { " [official]" } else { "" };
+        let origin_badge = format!(" [{}]", e.origin.label());
+        let official_badge = if e.is_official() { " [official]" } else { "" };
         if e.description.is_empty() {
-            println!("{:<max_name$}{badge}", e.name);
+            println!("{:<max_name$}{origin_badge}{official_badge}", e.name);
         } else {
-            println!("{:<max_name$}{badge}  {}", e.name, e.description);
+            println!(
+                "{:<max_name$}{origin_badge}{official_badge}  {}",
+                e.name, e.description
+            );
         }
     }
 }
@@ -804,20 +825,24 @@ fn select_remote_skill(entries: &[&RemoteSkill], initial: usize) -> Option<Remot
     };
 
     let mut selected: usize = initial.min(entries.len().saturating_sub(1));
+    let mut scroll_offset: usize = 0;
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
+    let max_visible = menu_viewport_height();
     let hint = "↑/↓ navigate · p/enter pull · v view · esc back";
 
-    let mut lines = build_remote_skills_list_lines(selected, entries);
+    let lines = build_remote_skills_list_lines(selected, entries);
     let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
-    let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-    let _ = stdout.flush();
-    let mut rendered = lines.len() + 2;
+    let mut rendered = render_menu_viewport(
+        &mut stdout,
+        &lines,
+        &mut scroll_offset,
+        0,
+        max_visible,
+        hint,
+    );
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -853,18 +878,15 @@ fn select_remote_skill(entries: &[&RemoteSkill], initial: usize) -> Option<Remot
             continue;
         }
 
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(rendered as u16),
-            terminal::Clear(ClearType::FromCursorDown),
+        let lines = build_remote_skills_list_lines(selected, entries);
+        rendered = render_menu_viewport(
+            &mut stdout,
+            &lines,
+            &mut scroll_offset,
+            rendered,
+            max_visible,
+            hint,
         );
-        lines = build_remote_skills_list_lines(selected, entries);
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-        let _ = stdout.flush();
-        rendered = lines.len() + 2;
     };
 
     // +1 consumes the leading `\r\n` written before the first render so the

@@ -7,6 +7,155 @@ use std::io::Write;
 
 use crossterm::style::{Color, Stylize};
 
+/// Visible terminal width in columns, falling back to 80 when the size is
+/// unavailable (non-tty, no kernel support, etc.). Menu rendering pre-clips
+/// every line to this width so wrapped output never throws off the
+/// `MoveUp` cleanup math used between redraws.
+pub(super) fn term_width() -> usize {
+    crossterm::terminal::size().map_or(80, |(w, _)| w as usize)
+}
+
+/// Number of menu rows that fit in the terminal once the scroll indicators
+/// (`↑/↓ N more`) and the help line are accounted for. Falls back to a
+/// 24-row terminal so the menu still renders something usable when the
+/// kernel can't report a size.
+pub(super) fn menu_viewport_height() -> usize {
+    let h = crossterm::terminal::size().map_or(24, |(_, h)| h as usize);
+    h.saturating_sub(4)
+}
+
+/// Count visible columns in a string, skipping ANSI CSI escape sequences
+/// (the `\x1b[...<letter>` color/attribute codes the menu uses). Treats every
+/// non-escape `char` as one column — wide CJK and emoji aren't common in the
+/// menus and trying to be exact would drag in `unicode-width`.
+fn visible_width(s: &str) -> usize {
+    let mut count = 0usize;
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip to the terminator (an alpha char ends a CSI sequence).
+            for nc in chars.by_ref() {
+                if nc.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        count += 1;
+    }
+    count
+}
+
+/// Truncate a styled string so its visible width fits in `max` columns. ANSI
+/// escape sequences pass through unchanged; only printable chars are counted.
+/// When truncation occurs, appends `…\x1b[0m` so the line ends with a reset.
+/// Returns an empty string when `max < 2` because the ellipsis itself needs
+/// one column and nothing meaningful fits.
+pub(super) fn truncate_to_width(line: &str, max: usize) -> String {
+    if max < 2 {
+        return String::new();
+    }
+    if visible_width(line) <= max {
+        return line.to_string();
+    }
+    let limit = max - 1;
+    let mut out = String::with_capacity(line.len());
+    let mut count = 0usize;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            out.push(c);
+            for nc in chars.by_ref() {
+                out.push(nc);
+                if nc.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        if count >= limit {
+            break;
+        }
+        out.push(c);
+        count += 1;
+    }
+    out.push('…');
+    out.push_str("\x1b[0m");
+    out
+}
+
+/// Render `lines` into `stdout` with viewport scrolling, scroll indicators,
+/// and a help line, returning the number of physical rows written so the
+/// caller can pass it back as `prev_rendered` on the next redraw. Each line
+/// is pre-clipped to terminal width so wrapping can't desync the
+/// `MoveUp(prev_rendered)` cleanup. The currently-selected entry is
+/// detected by the `›` glyph — every menu in this codebase marks selection
+/// the same way.
+#[allow(clippy::cast_possible_truncation)]
+pub(super) fn render_menu_viewport(
+    stdout: &mut std::io::Stdout,
+    lines: &[String],
+    scroll_offset: &mut usize,
+    prev_rendered: usize,
+    max_visible: usize,
+    help_text: &str,
+) -> usize {
+    use crossterm::{
+        cursor, execute,
+        terminal::{self, ClearType},
+    };
+
+    let cols = term_width();
+    let selected_line = lines.iter().position(|l| l.contains('›')).unwrap_or(0);
+    let total = lines.len();
+    let viewport = max_visible.min(total);
+
+    if viewport < total {
+        if selected_line < *scroll_offset {
+            *scroll_offset = selected_line;
+        } else if selected_line >= *scroll_offset + viewport {
+            *scroll_offset = selected_line + 1 - viewport;
+        }
+        if *scroll_offset + viewport > total {
+            *scroll_offset = total - viewport;
+        }
+    } else {
+        *scroll_offset = 0;
+    }
+
+    let has_above = *scroll_offset > 0;
+    let has_below = *scroll_offset + viewport < total;
+
+    if prev_rendered > 0 {
+        let _ = execute!(
+            stdout,
+            cursor::MoveUp(prev_rendered as u16),
+            terminal::Clear(ClearType::FromCursorDown),
+        );
+    }
+
+    if has_above {
+        let line = format!(
+            "  {}",
+            format!("↑ {} more", *scroll_offset).with(Color::DarkGrey)
+        );
+        let _ = write!(stdout, "{}\r\n", truncate_to_width(&line, cols));
+    }
+    for line in &lines[*scroll_offset..*scroll_offset + viewport] {
+        let _ = write!(stdout, "{}\r\n", truncate_to_width(line, cols));
+    }
+    if has_below {
+        let remaining = total - (*scroll_offset + viewport);
+        let line = format!("  {}", format!("↓ {remaining} more").with(Color::DarkGrey));
+        let _ = write!(stdout, "{}\r\n", truncate_to_width(&line, cols));
+    }
+    let help_line = format!("  {}", help_text.with(Color::DarkGrey));
+    let _ = write!(stdout, "\r\n{}\r\n", truncate_to_width(&help_line, cols));
+    let _ = stdout.flush();
+
+    viewport + usize::from(has_above) + usize::from(has_below) + 2
+}
+
 pub(super) fn build_simple_menu_lines(items: &[(&str, &str)], selected: usize) -> Vec<String> {
     let max_name = items.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
     items
@@ -62,87 +211,23 @@ where
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
-    // Determine how many menu lines fit in the terminal.
-    // Reserve 4 lines: 1 top blank, 1 bottom blank, 1 help text, 1 safety margin.
-    let term_height = terminal::size().map_or(24, |(_, h)| h as usize);
-    let max_visible = term_height.saturating_sub(4);
+    let max_visible = menu_viewport_height();
+    let help = "↑/↓ navigate · enter select · esc cancel";
 
-    let render = |stdout: &mut std::io::Stdout,
-                  lines: &[String],
-                  scroll_offset: &mut usize,
-                  prev_rendered: usize| {
-        // Find the selected line (marked with ›) and keep it in view.
-        let selected_line = lines.iter().position(|l| l.contains('›')).unwrap_or(0);
-        let total = lines.len();
-        let viewport = max_visible.min(total);
-
-        if viewport < total {
-            if selected_line < *scroll_offset {
-                *scroll_offset = selected_line;
-            } else if selected_line >= *scroll_offset + viewport {
-                *scroll_offset = selected_line + 1 - viewport;
-            }
-            // Clamp
-            if *scroll_offset + viewport > total {
-                *scroll_offset = total - viewport;
-            }
-        } else {
-            *scroll_offset = 0;
-        }
-
-        let has_above = *scroll_offset > 0;
-        let has_below = *scroll_offset + viewport < total;
-
-        // Clear previous render
-        if prev_rendered > 0 {
-            let _ = execute!(
-                stdout,
-                cursor::MoveUp(prev_rendered as u16),
-                terminal::Clear(ClearType::FromCursorDown),
-            );
-        }
-
-        // Scroll indicator above
-        if has_above {
-            let _ = write!(
-                stdout,
-                "  {}\r\n",
-                format!("↑ {} more", *scroll_offset).with(Color::DarkGrey)
-            );
-        }
-
-        // Visible lines
-        for line in &lines[*scroll_offset..*scroll_offset + viewport] {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-
-        // Scroll indicator below
-        if has_below {
-            let remaining = total - (*scroll_offset + viewport);
-            let _ = write!(
-                stdout,
-                "  {}\r\n",
-                format!("↓ {remaining} more").with(Color::DarkGrey)
-            );
-        }
-
-        // Help text
-        let _ = write!(
-            stdout,
-            "\r\n  {}\r\n",
-            "↑/↓ navigate · enter select · esc cancel".with(Color::DarkGrey)
-        );
-        let _ = stdout.flush();
-
-        // Return number of rendered lines for cleanup
-        viewport + usize::from(has_above) + usize::from(has_below) + 2 // blank + help text
-    };
-
-    // Initial render
+    // Initial render: a leading `\r\n` reserves a blank row above the menu so
+    // the cleanup `MoveUp(rendered + 1)` lands the cursor exactly where it
+    // started. `MoveToColumn(0)` guards against rendering mid-prompt.
     let lines = build_lines(selected);
     let _ = execute!(stdout, cursor::MoveToColumn(0));
     let _ = write!(stdout, "\r\n");
-    let mut total_rendered_lines = render(&mut stdout, &lines, &mut scroll_offset, 0);
+    let mut total_rendered_lines = render_menu_viewport(
+        &mut stdout,
+        &lines,
+        &mut scroll_offset,
+        0,
+        max_visible,
+        help,
+    );
 
     loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -161,9 +246,6 @@ where
                     }
                 }
                 KeyCode::Enter => {
-                    // +1 consumes the leading `\r\n` written before the first
-                    // render so the menu leaves the cursor where it started
-                    // rather than one row down.
                     let _ = execute!(
                         stdout,
                         cursor::MoveUp((total_rendered_lines + 1) as u16),
@@ -189,11 +271,13 @@ where
         }
 
         let lines = build_lines(selected);
-        total_rendered_lines = render(
+        total_rendered_lines = render_menu_viewport(
             &mut stdout,
             &lines,
             &mut scroll_offset,
             total_rendered_lines,
+            max_visible,
+            help,
         );
     }
 
@@ -454,5 +538,51 @@ pub(super) fn format_mtime(mtime: std::time::SystemTime) -> String {
         format!("{}h ago", diff / 3600)
     } else {
         format!("{}d ago", diff / 86400)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_width_skips_ansi() {
+        assert_eq!(visible_width("hello"), 5);
+        assert_eq!(visible_width("\x1b[31mhello\x1b[0m"), 5);
+        assert_eq!(visible_width("\x1b[1;32mfoo\x1b[0mbar"), 6);
+        assert_eq!(visible_width(""), 0);
+    }
+
+    #[test]
+    fn truncate_to_width_passes_short_strings_through() {
+        assert_eq!(truncate_to_width("hello", 10), "hello");
+        assert_eq!(truncate_to_width("hello", 5), "hello");
+    }
+
+    #[test]
+    fn truncate_to_width_clips_long_strings_with_ellipsis() {
+        let result = truncate_to_width("hello world", 8);
+        // 7 visible chars + '…' + reset
+        assert_eq!(result, "hello w…\x1b[0m");
+    }
+
+    #[test]
+    fn truncate_to_width_preserves_ansi_in_kept_prefix() {
+        // Color codes don't count toward visible width.
+        let styled = "\x1b[31mhello world\x1b[0m";
+        let result = truncate_to_width(styled, 8);
+        assert_eq!(result, "\x1b[31mhello w…\x1b[0m");
+    }
+
+    #[test]
+    fn truncate_to_width_below_two_returns_empty() {
+        assert_eq!(truncate_to_width("anything", 0), "");
+        assert_eq!(truncate_to_width("anything", 1), "");
+    }
+
+    #[test]
+    fn truncate_to_width_two_keeps_one_char_plus_ellipsis() {
+        let result = truncate_to_width("hello", 2);
+        assert_eq!(result, "h…\x1b[0m");
     }
 }

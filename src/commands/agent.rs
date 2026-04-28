@@ -7,8 +7,8 @@ use crate::ui::AgentUI;
 use crate::{Message, Provider, Role};
 
 use super::menu::{
-    confirm_yn, read_input_line, read_multiline_input, read_multiline_input_prefilled,
-    select_from_menu,
+    confirm_yn, menu_viewport_height, read_input_line, read_multiline_input,
+    read_multiline_input_prefilled, render_menu_viewport, select_from_menu,
 };
 
 fn build_agent_menu_lines(selected: usize) -> Vec<String> {
@@ -80,8 +80,16 @@ pub async fn run_agent_menu(
         "browse official agents" => browse_official_agents(ui, show_error).await,
         "view all agents" => view_all_agents(messages, show_error),
         "edit agent" => {
-            let name = agents::loaded_agent_name().unwrap_or_default();
-            edit_agent_prompt(&name, true, messages, show_error).unwrap_or(false)
+            let Some(name) = agents::loaded_agent_name() else {
+                return false;
+            };
+            // Resolve the on-disk entry so the edit lands at the same origin
+            // that `read_agent` would load from (local file when one exists).
+            let Some(entry) = agents::list_agents().into_iter().find(|e| e.name == name) else {
+                show_error(&format!("Agent '{name}' file not found on disk."));
+                return false;
+            };
+            edit_agent_prompt(&entry, true, messages, show_error).unwrap_or(false)
         }
         "unload agent" => unload_agent_action(messages),
         _ => false,
@@ -355,11 +363,14 @@ fn build_agents_list_lines(
                 padded.with(Color::DarkGrey)
             )
         };
-        let badge = if e.is_official() {
-            format!("  {}", "[official]".with(Color::Cyan))
-        } else {
-            String::new()
-        };
+        let mut badge = format!(
+            "  {}",
+            format!("[{}]", e.origin.label()).with(Color::DarkGrey)
+        );
+        if e.is_official() {
+            use std::fmt::Write;
+            let _ = write!(badge, "  {}", "[official]".with(Color::Cyan));
+        }
         let line = if is_selected {
             format!("  {} {name_styled}{badge}", "›".with(Color::Cyan))
         } else {
@@ -389,19 +400,24 @@ fn select_agent_from_list(entries: &[agents::AgentEntry]) -> AgentListAction {
 
     let loaded_name = agents::loaded_agent_name();
     let mut selected: usize = 0;
+    let mut scroll_offset: usize = 0;
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
-    let mut lines = build_agents_list_lines(selected, entries, loaded_name.as_deref());
-    let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
+    let max_visible = menu_viewport_height();
     let hint = "↑/↓ navigate · l/enter load · v view · e edit · d delete · esc cancel";
-    let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-    let _ = stdout.flush();
-    let mut rendered = lines.len() + 2;
+
+    let lines = build_agents_list_lines(selected, entries, loaded_name.as_deref());
+    let _ = write!(stdout, "\r\n");
+    let mut rendered = render_menu_viewport(
+        &mut stdout,
+        &lines,
+        &mut scroll_offset,
+        0,
+        max_visible,
+        hint,
+    );
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -447,18 +463,15 @@ fn select_agent_from_list(entries: &[agents::AgentEntry]) -> AgentListAction {
             continue;
         }
 
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(rendered as u16),
-            terminal::Clear(ClearType::FromCursorDown),
+        let lines = build_agents_list_lines(selected, entries, loaded_name.as_deref());
+        rendered = render_menu_viewport(
+            &mut stdout,
+            &lines,
+            &mut scroll_offset,
+            rendered,
+            max_visible,
+            hint,
         );
-        lines = build_agents_list_lines(selected, entries, loaded_name.as_deref());
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-        let _ = stdout.flush();
-        rendered = lines.len() + 2;
     };
 
     // +1 consumes the leading `\r\n` written before the first render so the
@@ -511,18 +524,23 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
                     continue;
                 };
                 println!();
+                let origin_tag = format!("[{}]", entry.origin.label())
+                    .with(Color::DarkGrey)
+                    .to_string();
                 let title = if entry.is_official() {
                     format!(
-                        "  {} {}  {}",
+                        "  {} {}  {}  {}",
                         "agent:".with(Color::Cyan),
                         entry.name.as_str().with(Color::Magenta),
+                        origin_tag,
                         "[official]".with(Color::Cyan)
                     )
                 } else {
                     format!(
-                        "  {} {}",
+                        "  {} {}  {}",
                         "agent:".with(Color::Cyan),
-                        entry.name.as_str().with(Color::Magenta)
+                        entry.name.as_str().with(Color::Magenta),
+                        origin_tag
                     )
                 };
                 println!("{title}");
@@ -542,14 +560,18 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
             AgentListAction::Edit(i) => {
                 let entry = &entries[i];
                 let is_loaded = agents::loaded_agent_name().as_deref() == Some(entry.name.as_str());
-                if edit_agent_prompt(&entry.name, is_loaded, messages, show_error) == Some(true) {
+                if edit_agent_prompt(entry, is_loaded, messages, show_error) == Some(true) {
                     return true;
                 }
                 // Return to the list
             }
             AgentListAction::Delete(i) => {
                 let entry = &entries[i];
-                if !confirm_yn(&format!("delete agent \"{}\"?", entry.name)) {
+                if !confirm_yn(&format!(
+                    "delete {} agent \"{}\"?",
+                    entry.origin.label(),
+                    entry.name
+                )) {
                     continue;
                 }
                 // If deleting the currently loaded agent, unload it first
@@ -557,7 +579,7 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
                     agents::unload_agent();
                     rebuild_system_prompt(messages);
                 }
-                if let Err(e) = agents::delete_agent(&entry.name) {
+                if let Err(e) = agents::delete_agent_entry(entry) {
                     show_error(&format!("Failed to delete agent: {e}"));
                 } else {
                     println!();
@@ -569,24 +591,27 @@ fn view_all_agents(messages: &mut [Message], show_error: &dyn Fn(&str)) -> bool 
     }
 }
 
-/// Edit an agent's prompt. Returns `Some(true)` if the system prompt was rebuilt,
-/// `Some(false)` if saved but agent not loaded, `None` if cancelled.
+/// Edit an agent's prompt at its on-disk location. Returns `Some(true)` if
+/// the system prompt was rebuilt, `Some(false)` if saved but agent not
+/// loaded, `None` if cancelled. The rewrite stays at `entry.path` so a
+/// local-origin agent edit doesn't silently fork into the global catalogue.
 fn edit_agent_prompt(
-    name: &str,
+    entry: &agents::AgentEntry,
     is_loaded: bool,
     messages: &mut [Message],
     show_error: &dyn Fn(&str),
 ) -> Option<bool> {
-    let Ok(current_prompt) = agents::read_agent(name) else {
+    let Ok(current_prompt) = std::fs::read_to_string(&entry.path) else {
         show_error("Failed to read agent file.");
         return None;
     };
 
     println!();
     println!(
-        "  {} {}",
+        "  {} {}  {}",
         "editing agent:".with(Color::Cyan),
-        name.with(Color::Magenta)
+        entry.name.as_str().with(Color::Magenta),
+        format!("[{}]", entry.origin.label()).with(Color::DarkGrey)
     );
     println!();
     println!(
@@ -600,13 +625,13 @@ fn edit_agent_prompt(
         return None;
     }
 
-    if let Err(e) = agents::save_agent(name, &new_prompt) {
+    if let Err(e) = agents::save_agent_entry(entry, &new_prompt) {
         show_error(&format!("Failed to save agent: {e}"));
         return None;
     }
 
     let rebuilt = if is_loaded {
-        agents::load_agent(name, &new_prompt);
+        agents::load_agent(&entry.name, &new_prompt);
         rebuild_system_prompt(messages);
         true
     } else {
@@ -617,7 +642,7 @@ fn edit_agent_prompt(
     println!(
         "  {} agent \"{}\" updated",
         "✓".with(Color::Green),
-        name.with(Color::Magenta)
+        entry.name.as_str().with(Color::Magenta)
     );
     println!();
     Some(rebuilt)
@@ -911,20 +936,24 @@ fn select_remote_agent(entries: &[&RemoteAgent], initial: usize) -> Option<Remot
     };
 
     let mut selected: usize = initial.min(entries.len().saturating_sub(1));
+    let mut scroll_offset: usize = 0;
     let _ = terminal::enable_raw_mode();
     let mut stdout = std::io::stdout();
     let _ = execute!(stdout, cursor::Hide);
 
+    let max_visible = menu_viewport_height();
     let hint = "↑/↓ navigate · p/enter pull · v view · esc back";
 
-    let mut lines = build_remote_agents_list_lines(selected, entries);
+    let lines = build_remote_agents_list_lines(selected, entries);
     let _ = write!(stdout, "\r\n");
-    for line in &lines {
-        let _ = write!(stdout, "{line}\r\n");
-    }
-    let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-    let _ = stdout.flush();
-    let mut rendered = lines.len() + 2;
+    let mut rendered = render_menu_viewport(
+        &mut stdout,
+        &lines,
+        &mut scroll_offset,
+        0,
+        max_visible,
+        hint,
+    );
 
     let result = loop {
         if !event::poll(std::time::Duration::from_millis(100)).unwrap_or(false) {
@@ -960,18 +989,15 @@ fn select_remote_agent(entries: &[&RemoteAgent], initial: usize) -> Option<Remot
             continue;
         }
 
-        let _ = execute!(
-            stdout,
-            cursor::MoveUp(rendered as u16),
-            terminal::Clear(ClearType::FromCursorDown),
+        let lines = build_remote_agents_list_lines(selected, entries);
+        rendered = render_menu_viewport(
+            &mut stdout,
+            &lines,
+            &mut scroll_offset,
+            rendered,
+            max_visible,
+            hint,
         );
-        lines = build_remote_agents_list_lines(selected, entries);
-        for line in &lines {
-            let _ = write!(stdout, "{line}\r\n");
-        }
-        let _ = write!(stdout, "\r\n  {}\r\n", hint.with(Color::DarkGrey));
-        let _ = stdout.flush();
-        rendered = lines.len() + 2;
     };
 
     // +1 consumes the leading `\r\n` written before the first render so the
@@ -1010,12 +1036,16 @@ pub fn print_agents_cli(category: Option<&str>) {
     }
     let max_name = filtered.iter().map(|e| e.name.len()).max().unwrap_or(0);
     for e in &filtered {
-        let badge = if e.is_official() { " [official]" } else { "" };
+        let origin_badge = format!(" [{}]", e.origin.label());
+        let official_badge = if e.is_official() { " [official]" } else { "" };
         match e.description.as_deref() {
             Some(desc) if !desc.is_empty() => {
-                println!("{:<max_name$}{badge}  {desc}", e.name);
+                println!(
+                    "{:<max_name$}{origin_badge}{official_badge}  {desc}",
+                    e.name
+                );
             }
-            _ => println!("{:<max_name$}{badge}", e.name),
+            _ => println!("{:<max_name$}{origin_badge}{official_badge}", e.name),
         }
     }
 }

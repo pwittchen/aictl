@@ -9,6 +9,7 @@
 //! procedure. This module only handles parsing, CRUD, and name validation —
 //! the runtime injection happens in [`crate::run::run_agent_turn`].
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::config::config_get;
@@ -21,6 +22,31 @@ pub mod remote;
 /// else (missing, `user`, or a user-supplied string) renders without the
 /// badge.
 pub const OFFICIAL_SOURCE: &str = "aictl-official";
+
+/// Where on disk a skill directory lives. Mirrors [`crate::agents::Origin`]
+/// so the listing UI can render the same `global` / `local` / `local
+/// (claude)` badge for both subsystems.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// `~/.aictl/skills/<name>/SKILL.md` — the per-user catalogue.
+    Global,
+    /// `<cwd>/.aictl/skills/<name>/SKILL.md` — project-local override.
+    Local,
+    /// `<cwd>/.claude/skills/<name>/SKILL.md` — legacy local fallback when
+    /// the project has no `.aictl/` directory.
+    LocalClaude,
+}
+
+impl Origin {
+    /// Human-readable label for listings (`global` / `local` / `local (claude)`).
+    pub fn label(self) -> &'static str {
+        match self {
+            Origin::Global => "global",
+            Origin::Local => "local",
+            Origin::LocalClaude => "local (claude)",
+        }
+    }
+}
 
 /// A loaded skill, ready to be injected as a transient system message.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +62,11 @@ pub struct SkillEntry {
     pub description: String,
     pub source: Option<String>,
     pub category: Option<String>,
+    /// Where this skill lives on disk. Drives the origin badge in listings
+    /// and lets the menu's delete action target the right directory.
+    pub origin: Origin,
+    /// Full path to the directory containing `SKILL.md`.
+    pub dir: PathBuf,
 }
 
 impl SkillEntry {
@@ -101,6 +132,23 @@ pub fn skills_dir() -> PathBuf {
     }
     let home = std::env::var("HOME").unwrap_or_default();
     PathBuf::from(format!("{home}/.aictl/skills"))
+}
+
+/// Resolve the project-local skills directory and the origin it represents,
+/// if any. Honors the `.aictl/` > `.claude/` precedence enforced by
+/// [`crate::config::local_config_root`]; returns `None` when no local root
+/// is present or its `skills/` subdirectory does not exist.
+pub fn local_skills_dir() -> Option<(PathBuf, Origin)> {
+    let (root, kind) = crate::config::local_config_root()?;
+    let dir = root.join("skills");
+    if !dir.is_dir() {
+        return None;
+    }
+    let origin = match kind {
+        crate::config::LocalRoot::Aictl => Origin::Local,
+        crate::config::LocalRoot::Claude => Origin::LocalClaude,
+    };
+    Some((dir, origin))
 }
 
 /// Path to a skill's SKILL.md, given the root skills directory.
@@ -211,10 +259,11 @@ fn find_in(dir: &Path, name: &str) -> Option<Skill> {
     })
 }
 
-/// List valid skill directories in `dir`, sorted alphabetically. Each entry
-/// has its frontmatter parsed so callers can render the `[official]` badge
-/// or filter by category without re-reading every file.
-fn list_in(dir: &Path) -> Vec<SkillEntry> {
+/// List valid skill directories in `dir` tagged with `origin`, sorted
+/// alphabetically. Each entry has its frontmatter parsed so callers can
+/// render the `[official]` badge or filter by category without re-reading
+/// every file.
+fn list_in(dir: &Path, origin: Origin) -> Vec<SkillEntry> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -241,9 +290,29 @@ fn list_in(dir: &Path) -> Vec<SkillEntry> {
                 description: parsed.description.unwrap_or_default(),
                 source: parsed.source,
                 category: parsed.category,
+                origin,
+                dir: dir.join(e.file_name()),
             })
         })
         .collect();
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    skills
+}
+
+/// Merge global + local skill listings. Local entries override global ones
+/// of the same name so the listing surfaces what `find` would actually
+/// resolve. Result is sorted alphabetically.
+fn list_combined(global_dir: &Path, local: Option<(&Path, Origin)>) -> Vec<SkillEntry> {
+    let mut by_name: HashMap<String, SkillEntry> = HashMap::new();
+    for e in list_in(global_dir, Origin::Global) {
+        by_name.insert(e.name.clone(), e);
+    }
+    if let Some((dir, origin)) = local {
+        for e in list_in(dir, origin) {
+            by_name.insert(e.name.clone(), e);
+        }
+    }
+    let mut skills: Vec<_> = by_name.into_values().collect();
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     skills
 }
@@ -258,22 +327,32 @@ fn save_in(dir: &Path, name: &str, description: &str, body: &str) -> std::io::Re
     )
 }
 
-/// Delete a skill directory from `dir`.
-fn delete_in(dir: &Path, name: &str) -> std::io::Result<()> {
-    std::fs::remove_dir_all(dir.join(name))
-}
-
-/// Find a skill by name.
+/// Find a skill by name. Local directories take priority — the
+/// `<cwd>/.aictl/skills/<name>/` (or `<cwd>/.claude/skills/<name>/` as a
+/// legacy fallback) is consulted before the per-user `~/.aictl/skills/`.
 pub fn find(name: &str) -> Option<Skill> {
+    if let Some((dir, _)) = local_skills_dir()
+        && let Some(found) = find_in(&dir, name)
+    {
+        return Some(found);
+    }
     find_in(&skills_dir(), name)
 }
 
-/// List all saved skills, sorted alphabetically.
+/// List all saved skills, sorted alphabetically. Merges the per-user
+/// catalogue with the project-local override directory, with local entries
+/// taking precedence on name collisions so the listing matches what
+/// [`find`] would resolve.
 pub fn list() -> Vec<SkillEntry> {
-    list_in(&skills_dir())
+    list_combined(
+        &skills_dir(),
+        local_skills_dir().as_ref().map(|(d, o)| (d.as_path(), *o)),
+    )
 }
 
-/// Save a skill to disk. Validates the name and rejects reserved names.
+/// Save a skill to the per-user catalogue (`~/.aictl/skills/`). Validates
+/// the name and rejects reserved names. Local-origin skills are not
+/// writable through this path; edit their files directly instead.
 pub fn save(name: &str, description: &str, body: &str) -> std::io::Result<()> {
     if !is_valid_name(name) {
         return Err(std::io::Error::new(
@@ -290,9 +369,10 @@ pub fn save(name: &str, description: &str, body: &str) -> std::io::Result<()> {
     save_in(&skills_dir(), name, description, body)
 }
 
-/// Delete a skill by name.
-pub fn delete(name: &str) -> std::io::Result<()> {
-    delete_in(&skills_dir(), name)
+/// Delete the directory backing a specific listing entry. Lets the menu act
+/// on the location the user actually saw rather than always targeting global.
+pub fn delete_entry(entry: &SkillEntry) -> std::io::Result<()> {
+    std::fs::remove_dir_all(&entry.dir)
 }
 
 #[cfg(test)]
@@ -435,7 +515,10 @@ mod tests {
         std::fs::create_dir(dir.join("bad name")).unwrap();
         // Valid name but no SKILL.md — skipped.
         std::fs::create_dir(dir.join("empty")).unwrap();
-        let names: Vec<_> = list_in(&dir).into_iter().map(|e| e.name).collect();
+        let names: Vec<_> = list_in(&dir, Origin::Global)
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
         assert_eq!(names, vec!["alpha", "mango", "zebra"]);
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -452,11 +535,12 @@ mod tests {
         .unwrap();
         save_in(&dir, "plain", "hand written", "Body.").unwrap();
 
-        let entries = list_in(&dir);
+        let entries = list_in(&dir, Origin::Global);
         let pulled = entries.iter().find(|e| e.name == "pulled").unwrap();
         assert_eq!(pulled.description, "official one");
         assert_eq!(pulled.category.as_deref(), Some("dev"));
         assert!(pulled.is_official());
+        assert_eq!(pulled.origin, Origin::Global);
 
         let plain = entries.iter().find(|e| e.name == "plain").unwrap();
         assert_eq!(plain.description, "hand written");
@@ -469,15 +553,67 @@ mod tests {
     #[test]
     fn list_missing_dir_returns_empty() {
         let missing = std::env::temp_dir().join("aictl-skills-nonexistent-zzz-000");
-        assert!(list_in(&missing).is_empty());
+        assert!(list_in(&missing, Origin::Global).is_empty());
     }
 
     #[test]
-    fn delete_removes_directory() {
+    fn delete_entry_removes_directory() {
         let dir = unique_temp_dir("del");
         save_in(&dir, "tmp", "d", "b").unwrap();
-        delete_in(&dir, "tmp").unwrap();
+        let entry = SkillEntry {
+            name: "tmp".to_string(),
+            description: "d".to_string(),
+            source: None,
+            category: None,
+            origin: Origin::Global,
+            dir: dir.join("tmp"),
+        };
+        delete_entry(&entry).unwrap();
         assert!(find_in(&dir, "tmp").is_none());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_combined_local_overrides_global() {
+        let global = unique_temp_dir("combined-global");
+        let local = unique_temp_dir("combined-local");
+        save_in(&global, "shared", "global desc", "global body").unwrap();
+        save_in(&global, "global-only", "g desc", "g body").unwrap();
+        save_in(&local, "shared", "local desc", "local body").unwrap();
+        save_in(&local, "local-only", "l desc", "l body").unwrap();
+
+        let entries = list_combined(&global, Some((local.as_path(), Origin::Local)));
+        let names: Vec<_> = entries.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names, vec!["global-only", "local-only", "shared"]);
+
+        let shared = entries.iter().find(|e| e.name == "shared").unwrap();
+        assert_eq!(shared.origin, Origin::Local);
+        assert_eq!(shared.description, "local desc");
+
+        let global_only = entries.iter().find(|e| e.name == "global-only").unwrap();
+        assert_eq!(global_only.origin, Origin::Global);
+
+        let local_only = entries.iter().find(|e| e.name == "local-only").unwrap();
+        assert_eq!(local_only.origin, Origin::Local);
+
+        std::fs::remove_dir_all(&global).ok();
+        std::fs::remove_dir_all(&local).ok();
+    }
+
+    #[test]
+    fn list_combined_without_local_returns_global_only() {
+        let global = unique_temp_dir("combined-no-local");
+        save_in(&global, "alpha", "a", "b").unwrap();
+        let entries = list_combined(&global, None);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].origin, Origin::Global);
+        std::fs::remove_dir_all(&global).ok();
+    }
+
+    #[test]
+    fn origin_label_renders_human_readable() {
+        assert_eq!(Origin::Global.label(), "global");
+        assert_eq!(Origin::Local.label(), "local");
+        assert_eq!(Origin::LocalClaude.label(), "local (claude)");
     }
 }

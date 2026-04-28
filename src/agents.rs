@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -8,6 +9,32 @@ pub mod remote;
 /// Badged as `[official]` in the REPL and `--list-agents` output. Anything else
 /// (missing, `user`, or a user-supplied string) renders without the badge.
 pub const OFFICIAL_SOURCE: &str = "aictl-official";
+
+/// Where on disk an agent file lives. Surfaces the difference between the
+/// per-user catalogue and project-local overrides so listings can render the
+/// origin badge (`global`, `local`, `local (claude)`) and so callers know
+/// which file to edit or delete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// `~/.aictl/agents/<name>` — the per-user catalogue.
+    Global,
+    /// `<cwd>/.aictl/agents/<name>` — project-local override.
+    Local,
+    /// `<cwd>/.claude/agents/<name>` — legacy local fallback when the
+    /// project has no `.aictl/` directory.
+    LocalClaude,
+}
+
+impl Origin {
+    /// Human-readable label for listings (`global` / `local` / `local (claude)`).
+    pub fn label(self) -> &'static str {
+        match self {
+            Origin::Global => "global",
+            Origin::Local => "local",
+            Origin::LocalClaude => "local (claude)",
+        }
+    }
+}
 
 /// Global state for the currently loaded agent: (name, prompt body).
 static LOADED_AGENT: Mutex<Option<(String, String)>> = Mutex::new(None);
@@ -54,6 +81,23 @@ pub fn agents_dir() -> PathBuf {
     PathBuf::from(format!("{home}/.aictl/agents"))
 }
 
+/// Resolve the project-local agents directory and the origin it represents,
+/// if any. Honors the `.aictl/` > `.claude/` precedence enforced by
+/// [`crate::config::local_config_root`]; returns `None` when no local root
+/// is present or its `agents/` subdirectory does not exist.
+pub fn local_agents_dir() -> Option<(PathBuf, Origin)> {
+    let (root, kind) = crate::config::local_config_root()?;
+    let dir = root.join("agents");
+    if !dir.is_dir() {
+        return None;
+    }
+    let origin = match kind {
+        crate::config::LocalRoot::Aictl => Origin::Local,
+        crate::config::LocalRoot::Claude => Origin::LocalClaude,
+    };
+    Some((dir, origin))
+}
+
 /// Save an agent prompt into `dir`, creating the directory if needed.
 fn save_in(dir: &Path, name: &str, prompt: &str) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
@@ -65,15 +109,13 @@ fn read_in(dir: &Path, name: &str) -> std::io::Result<String> {
     std::fs::read_to_string(dir.join(name))
 }
 
-/// Delete an agent file from `dir`.
-fn delete_in(dir: &Path, name: &str) -> std::io::Result<()> {
-    std::fs::remove_file(dir.join(name))
-}
-
-/// List entries in `dir` with valid agent names, sorted alphabetically.
+/// List entries in `dir` tagged with `origin`, sorted alphabetically.
 /// Each entry has its frontmatter parsed so the caller can render badges
-/// or filter by category without a second pass.
-fn list_in(dir: &Path) -> Vec<AgentEntry> {
+/// or filter by category without a second pass. Both `<name>` (the legacy
+/// global-catalogue format) and `<name>.md` (the convention used by remote
+/// catalogue files and project-local `.aictl/agents/` and `.claude/agents/`
+/// directories) are accepted; the suffix is stripped for the entry name.
+fn list_in(dir: &Path, origin: Origin) -> Vec<AgentEntry> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -84,17 +126,24 @@ fn list_in(dir: &Path) -> Vec<AgentEntry> {
             if !ft.is_file() {
                 return None;
             }
-            let name = e.file_name().to_string_lossy().to_string();
+            let file_name = e.file_name().to_string_lossy().to_string();
+            let name = file_name
+                .strip_suffix(".md")
+                .unwrap_or(&file_name)
+                .to_string();
             if !is_valid_name(&name) {
                 return None;
             }
-            let contents = std::fs::read_to_string(e.path()).ok().unwrap_or_default();
+            let path = e.path();
+            let contents = std::fs::read_to_string(&path).ok().unwrap_or_default();
             let meta = parse(&contents);
             Some(AgentEntry {
                 name,
                 description: meta.description,
                 source: meta.source,
                 category: meta.category,
+                origin,
+                path,
             })
         })
         .collect();
@@ -102,26 +151,69 @@ fn list_in(dir: &Path) -> Vec<AgentEntry> {
     agents
 }
 
-/// Save an agent file to disk. `prompt` is written verbatim — callers that
-/// want frontmatter must include it themselves.
+/// Merge global + local agent listings. Local entries override global ones
+/// of the same name so the listing surfaces what `read_agent` would actually
+/// load. Result is sorted alphabetically.
+fn list_combined(global_dir: &Path, local: Option<(&Path, Origin)>) -> Vec<AgentEntry> {
+    let mut by_name: HashMap<String, AgentEntry> = HashMap::new();
+    for e in list_in(global_dir, Origin::Global) {
+        by_name.insert(e.name.clone(), e);
+    }
+    if let Some((dir, origin)) = local {
+        for e in list_in(dir, origin) {
+            by_name.insert(e.name.clone(), e);
+        }
+    }
+    let mut agents: Vec<_> = by_name.into_values().collect();
+    agents.sort_by(|a, b| a.name.cmp(&b.name));
+    agents
+}
+
+/// Save an agent file to disk under the per-user catalogue
+/// (`~/.aictl/agents/`). `prompt` is written verbatim — callers that want
+/// frontmatter must include it themselves. Local-origin agents are not
+/// writable through this path; edit their files directly instead.
 pub fn save_agent(name: &str, prompt: &str) -> std::io::Result<()> {
     save_in(&agents_dir(), name, prompt)
 }
 
-/// Read an agent's raw file contents from disk (frontmatter included).
+/// Read an agent's raw file contents (frontmatter included). Local
+/// directories take priority — `<cwd>/.aictl/agents/<name>[.md]` (or
+/// `<cwd>/.claude/agents/<name>[.md]` as a legacy fallback) is consulted
+/// before the per-user `~/.aictl/agents/<name>`. Both extensionless and
+/// `.md` filenames are accepted so the same lookup works against the
+/// historical global format and the project-local `.md` convention.
 pub fn read_agent(name: &str) -> std::io::Result<String> {
+    if let Some((dir, _)) = local_agents_dir() {
+        for candidate in [dir.join(format!("{name}.md")), dir.join(name)] {
+            if candidate.exists() {
+                return std::fs::read_to_string(&candidate);
+            }
+        }
+    }
     read_in(&agents_dir(), name)
 }
 
-/// Read an agent's parsed metadata + body from disk.
+/// Read an agent's parsed metadata + body. Resolves with the same local-first
+/// precedence as [`read_agent`].
 pub fn read_agent_meta(name: &str) -> std::io::Result<AgentMeta> {
-    let raw = read_in(&agents_dir(), name)?;
+    let raw = read_agent(name)?;
     Ok(parse(&raw))
 }
 
-/// Delete an agent from disk.
-pub fn delete_agent(name: &str) -> std::io::Result<()> {
-    delete_in(&agents_dir(), name)
+/// Delete the file backing a specific listing entry. Lets the menu act on
+/// the location the user actually saw rather than always targeting global.
+pub fn delete_agent_entry(entry: &AgentEntry) -> std::io::Result<()> {
+    std::fs::remove_file(&entry.path)
+}
+
+/// Save (overwrite) the file backing a specific listing entry. Used when
+/// the menu edits an existing agent — the rewrite stays at the same origin.
+pub fn save_agent_entry(entry: &AgentEntry, prompt: &str) -> std::io::Result<()> {
+    if let Some(parent) = entry.path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&entry.path, prompt)
 }
 
 /// An entry in the agent listing.
@@ -130,6 +222,11 @@ pub struct AgentEntry {
     pub description: Option<String>,
     pub source: Option<String>,
     pub category: Option<String>,
+    /// Where this agent lives on disk. Drives the origin badge in listings
+    /// and lets edit/delete actions target the right file.
+    pub origin: Origin,
+    /// Full path to the backing file.
+    pub path: PathBuf,
 }
 
 impl AgentEntry {
@@ -205,10 +302,15 @@ pub fn parse(contents: &str) -> AgentMeta {
     meta
 }
 
-/// List all saved agents, sorted alphabetically. Each entry has its
-/// frontmatter parsed for badge/category rendering.
+/// List all saved agents, sorted alphabetically. Merges the per-user
+/// catalogue with the project-local override directory, with local entries
+/// taking precedence on name collisions so the listing matches what
+/// [`read_agent`] would resolve.
 pub fn list_agents() -> Vec<AgentEntry> {
-    list_in(&agents_dir())
+    list_combined(
+        &agents_dir(),
+        local_agents_dir().as_ref().map(|(d, o)| (d.as_path(), *o)),
+    )
 }
 
 #[cfg(test)]
@@ -311,18 +413,34 @@ mod tests {
     }
 
     #[test]
-    fn delete_removes_file() {
+    fn delete_entry_removes_file() {
         let dir = unique_temp_dir("del");
         save_in(&dir, "tempname", "x").unwrap();
-        delete_in(&dir, "tempname").unwrap();
+        let entry = AgentEntry {
+            name: "tempname".to_string(),
+            description: None,
+            source: None,
+            category: None,
+            origin: Origin::Global,
+            path: dir.join("tempname"),
+        };
+        delete_agent_entry(&entry).unwrap();
         assert!(read_in(&dir, "tempname").is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
-    fn delete_missing_returns_err() {
+    fn delete_entry_missing_returns_err() {
         let dir = unique_temp_dir("del-missing");
-        assert!(delete_in(&dir, "never-existed").is_err());
+        let entry = AgentEntry {
+            name: "never-existed".to_string(),
+            description: None,
+            source: None,
+            category: None,
+            origin: Origin::Global,
+            path: dir.join("never-existed"),
+        };
+        assert!(delete_agent_entry(&entry).is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -338,7 +456,10 @@ mod tests {
         // Subdirectories are ignored.
         std::fs::create_dir(dir.join("subdir")).unwrap();
 
-        let names: Vec<_> = list_in(&dir).into_iter().map(|e| e.name).collect();
+        let names: Vec<_> = list_in(&dir, Origin::Global)
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
         assert_eq!(names, vec!["alpha", "mango", "zebra"]);
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -354,11 +475,12 @@ mod tests {
         .unwrap();
         save_in(&dir, "plain", "Just body, no frontmatter").unwrap();
 
-        let entries = list_in(&dir);
+        let entries = list_in(&dir, Origin::Global);
         let pulled = entries.iter().find(|e| e.name == "pulled").unwrap();
         assert_eq!(pulled.description.as_deref(), Some("official one"));
         assert_eq!(pulled.category.as_deref(), Some("dev"));
         assert!(pulled.is_official());
+        assert_eq!(pulled.origin, Origin::Global);
 
         let plain = entries.iter().find(|e| e.name == "plain").unwrap();
         assert!(plain.description.is_none());
@@ -371,7 +493,67 @@ mod tests {
     #[test]
     fn list_missing_dir_returns_empty() {
         let missing = std::env::temp_dir().join("aictl-agents-nonexistent-xyz-12345");
-        assert!(list_in(&missing).is_empty());
+        assert!(list_in(&missing, Origin::Global).is_empty());
+    }
+
+    #[test]
+    fn list_combined_local_overrides_global() {
+        let global = unique_temp_dir("combined-global");
+        let local = unique_temp_dir("combined-local");
+        save_in(&global, "shared", "global body").unwrap();
+        save_in(&global, "global-only", "g").unwrap();
+        save_in(&local, "shared", "local body").unwrap();
+        save_in(&local, "local-only", "l").unwrap();
+
+        let entries = list_combined(&global, Some((local.as_path(), Origin::Local)));
+        let names: Vec<_> = entries.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names, vec!["global-only", "local-only", "shared"]);
+
+        let shared = entries.iter().find(|e| e.name == "shared").unwrap();
+        assert_eq!(shared.origin, Origin::Local);
+        assert_eq!(std::fs::read_to_string(&shared.path).unwrap(), "local body");
+
+        let global_only = entries.iter().find(|e| e.name == "global-only").unwrap();
+        assert_eq!(global_only.origin, Origin::Global);
+
+        let local_only = entries.iter().find(|e| e.name == "local-only").unwrap();
+        assert_eq!(local_only.origin, Origin::Local);
+
+        std::fs::remove_dir_all(&global).ok();
+        std::fs::remove_dir_all(&local).ok();
+    }
+
+    #[test]
+    fn list_combined_without_local_returns_global_only() {
+        let global = unique_temp_dir("combined-no-local");
+        save_in(&global, "alpha", "a").unwrap();
+        let entries = list_combined(&global, None);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].origin, Origin::Global);
+        std::fs::remove_dir_all(&global).ok();
+    }
+
+    #[test]
+    fn list_in_strips_md_suffix_from_filenames() {
+        // Project-local `.aictl/agents/` and `.claude/agents/` follow the
+        // `<name>.md` convention. The bare-name format from the global
+        // catalogue must keep working alongside it.
+        let dir = unique_temp_dir("md-suffix");
+        save_in(&dir, "with-md.md", "body 1").unwrap();
+        save_in(&dir, "without-md", "body 2").unwrap();
+        let entries = list_in(&dir, Origin::Local);
+        let names: Vec<_> = entries.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names, vec!["with-md", "without-md"]);
+        let with = entries.iter().find(|e| e.name == "with-md").unwrap();
+        assert_eq!(std::fs::read_to_string(&with.path).unwrap(), "body 1");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn origin_label_renders_human_readable() {
+        assert_eq!(Origin::Global.label(), "global");
+        assert_eq!(Origin::Local.label(), "local");
+        assert_eq!(Origin::LocalClaude.label(), "local (claude)");
     }
 
     #[test]
