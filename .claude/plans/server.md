@@ -332,10 +332,10 @@ Metrics are out of scope for Phase 1 (no Prometheus endpoint). If operators ask 
 |-----------------|--------|
 | `crates/server/` | **New** — entire crate per the skeleton in §1 |
 | `Cargo.toml` (workspace root) | Add `crates/server` to `members` |
-| `crates/engine/src/config.rs` | If not already done in Modular Architecture, accept an optional config-path argument at init time |
-| `crates/engine/src/llm/*.rs` | No change; providers are already callable from any frontend post-Modular-Architecture |
-| `crates/engine/src/llm/mod.rs` | Confirm `MODELS` and `call_<provider>` symbols are `pub`. May need to expose a small `provider_for_model(&str) -> Option<Provider>` helper if one doesn't already exist |
-| `crates/engine/src/run.rs` | Confirm `redact_outbound` is reachable as a public symbol. No agent-loop changes |
+| `crates/aictl-core/src/config.rs` | If not already done in Modular Architecture, accept an optional config-path argument at init time |
+| `crates/aictl-core/src/llm/*.rs` | No change; providers are already callable from any frontend post-Modular-Architecture |
+| `crates/aictl-core/src/llm/mod.rs` | Confirm `MODELS` and `call_<provider>` symbols are `pub`. May need to expose a small `provider_for_model(&str) -> Option<Provider>` helper if one doesn't already exist |
+| `crates/aictl-core/src/run.rs` | Confirm `redact_outbound` is reachable as a public symbol. No agent-loop changes |
 | `docs/server.md` | **New** — full API reference, request/response examples, deployment notes, OpenAI-shape mapping per provider |
 | `README.md` | Add "HTTP server" feature mention; link to `docs/server.md` |
 | `ARCH.md` | New "aictl-server" section under "Workspace layout" |

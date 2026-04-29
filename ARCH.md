@@ -2,22 +2,22 @@
 
 ## Module Structure
 
-Two-crate Cargo workspace: `crates/cli/` (binary, package `cli`, produces the `aictl` executable) and `crates/engine/` (library, package `engine`). The CLI depends on the engine via a path dependency and re-exports its modules under `crate::*` for legacy import paths. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; the engine never names a terminal type.
+Two-crate Cargo workspace: `crates/aictl-cli/` (binary, package `aictl-cli`, produces the `aictl` executable) and `crates/aictl-core/` (library, package `aictl-core`, lib name `aictl_core`). The CLI depends on the core via a path dependency and re-exports its modules under `crate::*` for legacy import paths. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; the core never names a terminal type.
 
 ```
-crates/cli/src/
- ├── main.rs            CLI args (clap) and management-flag dispatch (--version, --update, --uninstall, --config, agent/skill/session/key/model helpers, --audit-file), provider/model/key resolution, then routes to single-shot or REPL. Re-exports engine modules (config, llm, run, security, …) under crate::* so legacy paths in REPL / slash-command code keep resolving.
+crates/aictl-cli/src/
+ ├── main.rs            CLI args (clap) and management-flag dispatch (--version, --update, --uninstall, --config, agent/skill/session/key/model helpers, --audit-file), provider/model/key resolution, then routes to single-shot or REPL. Re-exports aictl-core modules (config, llm, run, security, …) under crate::* so legacy paths in REPL / slash-command code keep resolving.
  ├── repl.rs            Interactive REPL driver — reads input, dispatches slash commands, drives run_agent_turn, persists session/stats after each turn
  ├── commands.rs        REPL slash-command dispatch + CommandResult enum (/agent, /balance, /behavior, /clear, /compact, /config, /context, /copy, /exit, /gguf, /help, /history, /hooks, /info, /keys, /mcp, /memory, /mlx, /model, /ping, /plugins, /retry, /roadmap, /security, /session, /skills, /stats, /tools, /undo, /uninstall, /update, /version); unrecognized /<name> falls through to skills::find for user-authored skill invocation
- ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, hooks, info, keys, mcp, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update). MemoryMode is re-exported from engine::run.
- ├── ui.rs              PlainUI (single-shot, pipe-friendly) + InteractiveUI (REPL: termimad markdown, crossterm tool-confirm selector, indicatif progress backend, raw-mode Esc cancel listener). Re-exports engine::ui::{AgentUI, ProgressHandle, ProgressBackend, ToolApproval} so legacy crate::ui::AgentUI paths keep resolving.
+ ├── commands/          One submodule per slash command (agent, balance, behavior, clipboard, compact, config_wizard, gguf, help, history, hooks, info, keys, mcp, memory, menu, mlx, model, ping, plugins, retry, roadmap, security, session, skills, stats, tools, undo, uninstall, update). MemoryMode is re-exported from aictl_core::run.
+ ├── ui.rs              PlainUI (single-shot, pipe-friendly) + InteractiveUI (REPL: termimad markdown, crossterm tool-confirm selector, indicatif progress backend, raw-mode Esc cancel listener). Re-exports aictl_core::ui::{AgentUI, ProgressHandle, ProgressBackend, ToolApproval} so legacy crate::ui::AgentUI paths keep resolving.
  └── version_cache.rs   Cached remote-version lookup under ~/.aictl/version (TTL gating /version & banner staleness check)
 
-crates/engine/src/
- ├── lib.rs             pub mod declarations + an explicit pub use re-export block (Message, Role, ImageData, Provider, Interrupted, with_esc_cancel, build_system_prompt, run_agent_single, AgentUI, ToolApproval, ProgressHandle, ProgressBackend, WarningSink, AictlError); engine VERSION constant for User-Agent / MCP clientInfo
+crates/aictl-core/src/
+ ├── lib.rs             pub mod declarations + an explicit pub use re-export block (Message, Role, ImageData, Provider, Interrupted, with_esc_cancel, build_system_prompt, run_agent_single, AgentUI, ToolApproval, ProgressHandle, ProgressBackend, WarningSink, AictlError); core VERSION constant for User-Agent / MCP clientInfo
  ├── run.rs             run_agent_turn loop, tool-call dispatch, outbound redaction, Provider enum, Esc-cancel wiring (uses AgentUI::interruption), build_system_prompt, run_agent_single (takes &dyn AgentUI), MemoryMode enum
  ├── message.rs         Message/Role/ImageData types shared across providers
- ├── error.rs           Crate-wide AictlError (thiserror); CLI maps rustyline errors manually so engine doesn't depend on the REPL stack
+ ├── error.rs           Crate-wide AictlError (thiserror); CLI maps rustyline errors manually so the core doesn't depend on the REPL stack
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
  ├── hooks.rs           User-defined lifecycle hooks loaded from ~/.aictl/hooks.json (override via AICTL_HOOKS_FILE). Eight events (SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, Notification). Glob matcher (*, ?, |) over tool name. JSON payload on stdin; stdout JSON shapes (decision: block|approve, additionalContext, rewrittenPrompt) influence the harness; exit 2 = block. Default 60s timeout, scrubbed env, security CWD. --unrestricted does NOT bypass.
@@ -26,14 +26,14 @@ crates/engine/src/
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading; load_config returns Result so the CLI can surface a HOME-missing error
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── plugins.rs         User plugin discovery + execution under ~/.aictl/plugins/<name>/ (override via AICTL_PLUGINS_DIR), gated behind AICTL_PLUGINS_ENABLED. Plugin tools surface alongside built-ins; security gate + scrubbed_env applied identically.
- ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization. init() returns redaction-policy warnings for the CLI to surface (engine never reaches for stderr directly).
+ ├── security.rs        SecurityPolicy, shell/path/env validation, CWD jail, timeout, output sanitization. init() returns redaction-policy warnings for the CLI to surface (the core never reaches for stderr directly).
  ├── security/redaction.rs        Outbound-message redactor. RedactionPolicy (off/redact/block), Layer A regex detectors (API keys, AWS, JWT, PEM private keys, connection strings, email, phone, credit cards via Luhn, IBAN via mod-97), Layer B Shannon-entropy scanner for opaque tokens, user-defined AICTL_REDACTION_EXTRA_PATTERNS, AICTL_REDACTION_ALLOW allowlist, overlap merging by priority.
- ├── security/redaction/ner.rs    [optional, redaction-ner feature] Layer C — gline-rs-backed NER model manager + inference. Management paths (list/remove/download_model, spec parsing, status) always compiled; GLiNER loading and span-mode inference gated behind the feature. Specs: owner/repo or hf:owner/repo (default: onnx-community/gliner_small-v2.1). Models live under ~/.aictl/models/ner/<name>/{tokenizer.json,onnx/model.onnx}. Runtime warnings route through engine::ui::warn_global.
+ ├── security/redaction/ner.rs    [optional, redaction-ner feature] Layer C — gline-rs-backed NER model manager + inference. Management paths (list/remove/download_model, spec parsing, status) always compiled; GLiNER loading and span-mode inference gated behind the feature. Specs: owner/repo or hf:owner/repo (default: onnx-community/gliner_small-v2.1). Models live under ~/.aictl/models/ner/<name>/{tokenizer.json,onnx/model.onnx}. Runtime warnings route through aictl_core::ui::warn_global.
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── skills.rs          Skill storage (~/.aictl/skills/<name>/SKILL.md), frontmatter (name/description) parsing, CRUD, reserved-name guard, AICTL_SKILLS_DIR override. Skills are single-turn markdown playbooks merged into the base system prompt for one run_agent_turn call and never persisted into session history
  ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (31)
  ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, notify, run_code, shell, system_info, util, web)
- ├── ui.rs              AgentUI trait, ToolApproval, ProgressHandle + ProgressBackend (so the engine doesn't link indicatif), the WarningSink / set_warning_sink / warn_global global-warn surface. No terminal-library types in scope; concrete impls live in crates/cli/src/ui.rs.
+ ├── ui.rs              AgentUI trait, ToolApproval, ProgressHandle + ProgressBackend (so the core doesn't link indicatif), the WarningSink / set_warning_sink / warn_global global-warn surface. No terminal-library types in scope; concrete impls live in crates/aictl-cli/src/ui.rs.
  ├── stats.rs           Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
  ├── llm.rs             TokenUsage type, cost estimation (price_per_million), MODELS list, context_limit, cache_read_multiplier
  └── llm/               One submodule per provider
@@ -50,7 +50,7 @@ crates/engine/src/
      └── mlx.rs (+ mlx/) [experimental, macOS Apple Silicon only] Native MLX inference + model manager (~/.aictl/models/mlx/<name>/). Download takes &dyn AgentUI for progress reporting. Inference gated behind the `mlx` cargo feature (mlx-rs + tokenizers + minijinja + safetensors). Llama-family architectures only. Specs: mlx:owner/repo or owner/repo (Hugging Face mlx-community).
 ```
 
-Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the engine crate; the CLI declares them as `engine/<feature>` passthroughs so `cargo install --path crates/cli --features "..."` from the workspace root works unchanged.
+Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; the CLI declares them as `aictl-core/<feature>` passthroughs so `cargo install --path crates/aictl-cli --features "..."` from the workspace root works unchanged.
 
 ## Startup Flow
 
@@ -321,7 +321,7 @@ Both single-shot and REPL modes share the same loop:
  └───────────────────────────────────────────────────────────┘
 ```
 
-## Plugins (`crates/engine/src/plugins.rs`)
+## Plugins (`crates/aictl-core/src/plugins.rs`)
 
 User-installed plugin tools live under `~/.aictl/plugins/<name>/` (override
 via `AICTL_PLUGINS_DIR`) and let users add domain-specific tools without
@@ -376,7 +376,7 @@ Dispatch happens after the built-in match in `tools::execute_tool` —
 built-ins, the confirmation prompt fires unchanged, and `--unrestricted`
 bypasses validation just as it does for built-ins.
 
-## Hooks (`crates/engine/src/hooks.rs`)
+## Hooks (`crates/aictl-core/src/hooks.rs`)
 
 User-defined shell commands the harness fires at lifecycle events. Hooks
 are *harness* behavior, not LLM behavior: rules like "always run `cargo
@@ -453,7 +453,7 @@ payload, reload from disk, show file path). Toggle/save round-trips go
 through `hooks::save` + `hooks::replace` so changes take effect
 mid-session without a restart.
 
-## MCP Servers (`crates/engine/src/mcp.rs`)
+## MCP Servers (`crates/aictl-core/src/mcp.rs`)
 
 Connect to external [Model Context Protocol](https://modelcontextprotocol.io)
 servers and merge their tools into the agent loop alongside built-ins
@@ -504,7 +504,7 @@ Lifecycle (`mcp::init_with`):
 
 All servers spawn in parallel via `futures_util::future::join_all`.
 
-Wire protocol (`crates/engine/src/mcp/stdio.rs`):
+Wire protocol (`crates/aictl-core/src/mcp/stdio.rs`):
 
 - **Framing** — line-delimited JSON-RPC 2.0 (one envelope per line on
   stdin/stdout). The spec also describes a `Content-Length:` framing
@@ -599,7 +599,7 @@ config at `examples/mcp.json`.
                     └──────────────────┘
 ```
 
-Two additional providers are not wired to remote endpoints. `call_gguf()` in `crates/engine/src/llm/gguf.rs` flattens `&[Message]` into a ChatML-style prompt and runs inference in-process via `llama-cpp-2` on a `tokio::spawn_blocking` task, loading a GGUF model from `~/.aictl/models/gguf/<name>.gguf`. It is compiled in only when the `gguf` cargo feature is enabled. `call_mlx()` in `crates/engine/src/llm/mlx.rs` builds a hand-written Llama-family transformer with `mlx-rs` primitives, renders the per-model jinja chat template via `minijinja` (ChatML fallback), loads safetensors shards from `~/.aictl/models/mlx/<name>/`, and runs greedy + temperature sampling with KV cache on a `tokio::spawn_blocking` task. It is compiled in only when the `mlx` cargo feature is enabled and only on macOS+aarch64; elsewhere the function returns an error telling the user to rebuild. Both report input/output token counts and cost always resolves to $0.00.
+Two additional providers are not wired to remote endpoints. `call_gguf()` in `crates/aictl-core/src/llm/gguf.rs` flattens `&[Message]` into a ChatML-style prompt and runs inference in-process via `llama-cpp-2` on a `tokio::spawn_blocking` task, loading a GGUF model from `~/.aictl/models/gguf/<name>.gguf`. It is compiled in only when the `gguf` cargo feature is enabled. `call_mlx()` in `crates/aictl-core/src/llm/mlx.rs` builds a hand-written Llama-family transformer with `mlx-rs` primitives, renders the per-model jinja chat template via `minijinja` (ChatML fallback), loads safetensors shards from `~/.aictl/models/mlx/<name>/`, and runs greedy + temperature sampling with KV cache on a `tokio::spawn_blocking` task. It is compiled in only when the `mlx` cargo feature is enabled and only on macOS+aarch64; elsewhere the function returns an error telling the user to rebuild. Both report input/output token counts and cost always resolves to $0.00.
 
 ## UI Layer
 
@@ -848,7 +848,7 @@ Recognized keys include:
 - **Hooks**: `AICTL_HOOKS_FILE` (override the default `~/.aictl/hooks.json` path; used mainly by tests). The hook entries themselves live in the JSON file, not in `config`.
 - **MCP**: `AICTL_MCP_ENABLED` (master switch, default `false`), `AICTL_MCP_CONFIG` (override the default `~/.aictl/mcp.json` path), `AICTL_MCP_TIMEOUT` (per-call RPC timeout, default 30s), `AICTL_MCP_STARTUP_TIMEOUT` (`initialize` handshake timeout, default 10s), `AICTL_MCP_DISABLED` (comma-separated server names to skip at init), `AICTL_MCP_DENY_SERVERS` (comma-separated server names blocked at the security gate). Server entries themselves live in `mcp.json`.
 
-### API key storage (`crates/engine/src/keys.rs`)
+### API key storage (`crates/aictl-core/src/keys.rs`)
 
 API keys can live in two places: the plain-text `~/.aictl/config` file (the legacy default) or the OS-native keyring (macOS Keychain, Linux Secret Service). Lookups via `keys::get_secret(name)` check the keyring first and fall back to the config file, so users can mix the two during migration.
 
@@ -881,9 +881,9 @@ The keyring backend is selected at compile time via Cargo features: `apple-nativ
 
 ### `~/.aictl/audit/<session-id>`
 
-JSONL audit log — one JSON object per line, appended on every tool invocation. The filename mirrors the corresponding session file under `~/.aictl/sessions/` so a reviewer can read both together. Each entry carries `timestamp` (UTC, ISO-8601 seconds precision), `tool`, `input` (truncated), and an `outcome` of `executed` (with `result_summary`), `denied_by_policy` (with `reason`), `denied_by_user`, `disabled`, or `duplicate`. Written by `crates/engine/src/audit.rs::log_tool`, called from `tools::execute_tool` for the policy / duplicate / disabled / executed outcomes and from `run::handle_tool_call` for the user-denial outcome. Skipped entirely in incognito mode and in single-shot (`--message`) runs where no session id exists. Toggled via `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (default `true`); observability-only, so `--unrestricted` does not disable it.
+JSONL audit log — one JSON object per line, appended on every tool invocation. The filename mirrors the corresponding session file under `~/.aictl/sessions/` so a reviewer can read both together. Each entry carries `timestamp` (UTC, ISO-8601 seconds precision), `tool`, `input` (truncated), and an `outcome` of `executed` (with `result_summary`), `denied_by_policy` (with `reason`), `denied_by_user`, `disabled`, or `duplicate`. Written by `crates/aictl-core/src/audit.rs::log_tool`, called from `tools::execute_tool` for the policy / duplicate / disabled / executed outcomes and from `run::handle_tool_call` for the user-denial outcome. Skipped entirely in incognito mode and in single-shot (`--message`) runs where no session id exists. Toggled via `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (default `true`); observability-only, so `--unrestricted` does not disable it.
 
-The same file also carries redaction events when the redaction layer is active. These lines are written by `crates/engine/src/audit.rs::log_redaction` and carry `event: "redaction"`, `mode` (`redact` / `block`), `direction` (`outbound` / `inbound`), `source` (`system_prompt` / `user_message` / `assistant_message` / `tool_result`), and a `matches` array — one entry per detected span with `kind` (the placeholder label: `API_KEY`, `AWS_KEY`, `JWT`, `PRIVATE_KEY`, `CONNECTION_STRING`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `HIGH_ENTROPY`, `PERSON`, `LOCATION`, `ORGANIZATION`, or a user-defined name), byte `range`, `confidence`, and a scrubbed `snippet` (placeholder plus a few bytes of surrounding context — never the original secret). Same skip rules apply; toggle via the same `AICTL_SECURITY_AUDIT_LOG` key.
+The same file also carries redaction events when the redaction layer is active. These lines are written by `crates/aictl-core/src/audit.rs::log_redaction` and carry `event: "redaction"`, `mode` (`redact` / `block`), `direction` (`outbound` / `inbound`), `source` (`system_prompt` / `user_message` / `assistant_message` / `tool_result`), and a `matches` array — one entry per detected span with `kind` (the placeholder label: `API_KEY`, `AWS_KEY`, `JWT`, `PRIVATE_KEY`, `CONNECTION_STRING`, `CREDIT_CARD`, `IBAN`, `EMAIL`, `PHONE`, `HIGH_ENTROPY`, `PERSON`, `LOCATION`, `ORGANIZATION`, or a user-defined name), byte `range`, `confidence`, and a scrubbed `snippet` (placeholder plus a few bytes of surrounding context — never the original secret). Same skip rules apply; toggle via the same `AICTL_SECURITY_AUDIT_LOG` key.
 
 ### `~/.aictl/history`
 
@@ -891,7 +891,7 @@ Plain text REPL input history managed by `rustyline`. Written on REPL exit; load
 
 ### `~/.aictl/agents/<name>`
 
-Each file is an agent prompt — either pure prose or a markdown document that opens with a YAML frontmatter block (`name`, `description`, `source`, `category`). When an agent is loaded, the frontmatter is stripped and only the body is appended to the base system prompt under `# Agent: <name>`, so pulled catalogue agents don't leak their metadata to the LLM. Filenames are the agent names themselves (no extension), validated by `agents::is_valid_name` to contain only ASCII letters, digits, `_`, or `-`. Managed through `crates/engine/src/agents.rs`:
+Each file is an agent prompt — either pure prose or a markdown document that opens with a YAML frontmatter block (`name`, `description`, `source`, `category`). When an agent is loaded, the frontmatter is stripped and only the body is appended to the base system prompt under `# Agent: <name>`, so pulled catalogue agents don't leak their metadata to the LLM. Filenames are the agent names themselves (no extension), validated by `agents::is_valid_name` to contain only ASCII letters, digits, `_`, or `-`. Managed through `crates/aictl-core/src/agents.rs`:
 - `save_agent(name, prompt)` — creates `~/.aictl/agents/` if needed and writes the file verbatim
 - `read_agent(name)` — raw file contents (frontmatter included) for edit round-trips
 - `read_agent_meta(name)` — parsed `AgentMeta` (body + optional frontmatter fields)
@@ -902,11 +902,11 @@ Entries with `source: aictl-official` render an `[official]` badge in both the `
 
 A global `Mutex<Option<(name, body)>>` in `agents.rs` holds at most one *loaded* agent for the current process; it is populated via `--agent <name>` at startup or via the `/agent` REPL menu, and cleared via `/agent → unload`.
 
-The sibling `crates/engine/src/agents/remote.rs` module fetches the first-party catalogue on demand from the project repo under `.aictl/agents/*.md` via GitHub's trees API (+ raw.githubusercontent.com for bodies), with no API key required. Consumed by the REPL's `/agent → Browse official agents` entry and by `--pull-agent <name>` (add `--force` to overwrite). Pulls write a single `.md` file straight to `~/.aictl/agents/<name>` (stripping the extension); the catalogue itself is never bundled into the binary, so adding an agent to the repo is the full release.
+The sibling `crates/aictl-core/src/agents/remote.rs` module fetches the first-party catalogue on demand from the project repo under `.aictl/agents/*.md` via GitHub's trees API (+ raw.githubusercontent.com for bodies), with no API key required. Consumed by the REPL's `/agent → Browse official agents` entry and by `--pull-agent <name>` (add `--force` to overwrite). Pulls write a single `.md` file straight to `~/.aictl/agents/<name>` (stripping the extension); the catalogue itself is never bundled into the binary, so adding an agent to the repo is the full release.
 
 ### `~/.aictl/skills/<name>/SKILL.md`
 
-Each skill lives in its own directory so future bundled resources (scripts, templates) can sit alongside the markdown without a layout migration. The file begins with YAML-ish frontmatter (`name`, `description`) followed by the markdown body — the procedure the LLM should follow when the skill is invoked. Managed entirely through `crates/engine/src/skills.rs`:
+Each skill lives in its own directory so future bundled resources (scripts, templates) can sit alongside the markdown without a layout migration. The file begins with YAML-ish frontmatter (`name`, `description`) followed by the markdown body — the procedure the LLM should follow when the skill is invoked. Managed entirely through `crates/aictl-core/src/skills.rs`:
 
 - `find(name)` — load one skill (directory name is authoritative; entries whose frontmatter `name` disagrees are skipped to avoid silent drift)
 - `list()` — enumerate directories that contain a parseable `SKILL.md`, sorted alphabetically; each entry carries the name + one-line description for the menu
@@ -917,13 +917,13 @@ The skills directory defaults to `~/.aictl/skills/` and can be redirected with `
 
 ### `~/.aictl/models/gguf/<name>.gguf`
 
-Each file is a GGUF weight file for the native GGUF provider (`crates/engine/src/llm/gguf.rs`). The directory is created lazily on the first `--pull-gguf-model` or `/gguf → pull model`; by default it does not exist and no GGUF models are available. Downloads stream to `<name>.gguf.part` via `reqwest` with a `futures-util` async chunk loop and an `indicatif` progress bar, then atomically rename to `<name>.gguf` on success — an interrupted download never leaves a half-written model in place. Names are validated against `[A-Za-z0-9._-]+` and default to the GGUF file's stem (overridable at download time).
+Each file is a GGUF weight file for the native GGUF provider (`crates/aictl-core/src/llm/gguf.rs`). The directory is created lazily on the first `--pull-gguf-model` or `/gguf → pull model`; by default it does not exist and no GGUF models are available. Downloads stream to `<name>.gguf.part` via `reqwest` with a `futures-util` async chunk loop and an `indicatif` progress bar, then atomically rename to `<name>.gguf` on success — an interrupted download never leaves a half-written model in place. Names are validated against `[A-Za-z0-9._-]+` and default to the GGUF file's stem (overridable at download time).
 
 Management functions (all safe to compile without the `gguf` feature): `list_models()` scans `*.gguf`, `model_path(name)` resolves to the on-disk path, `remove_model(name)` deletes one file, `clear_models()` wipes the directory. `download_model(spec, override_name)` parses three spec forms — `hf:owner/repo/file.gguf`, `owner/repo:file.gguf`, and raw `https://…/file.gguf` — all routed through the same streaming download. `call_gguf()` is feature-gated: with `--features gguf` it loads the GGUF via `llama-cpp-2` on a `tokio::spawn_blocking` task, flattens messages into a ChatML-style prompt, and runs sampling up to 4096 new tokens; without the feature it returns an error telling the user to rebuild.
 
 ### `~/.aictl/models/mlx/<name>/`
 
-Each subdirectory is a Hugging Face MLX model snapshot for the native MLX provider (`crates/engine/src/llm/mlx.rs`), containing at minimum `config.json`, `tokenizer.json`, `tokenizer_config.json`, and one or more `*.safetensors` files (with `model.safetensors.index.json` for sharded models). The parent `~/.aictl/models/mlx/` directory is created lazily on the first `--pull-mlx-model` or `/mlx → pull model`. Downloads walk the Hugging Face tree API, skip non-essential files (READMEs, images, alternate weight formats), and stream each file with a per-file `indicatif` progress bar into a `<name>.part/` staging directory that is renamed atomically on success.
+Each subdirectory is a Hugging Face MLX model snapshot for the native MLX provider (`crates/aictl-core/src/llm/mlx.rs`), containing at minimum `config.json`, `tokenizer.json`, `tokenizer_config.json`, and one or more `*.safetensors` files (with `model.safetensors.index.json` for sharded models). The parent `~/.aictl/models/mlx/` directory is created lazily on the first `--pull-mlx-model` or `/mlx → pull model`. Downloads walk the Hugging Face tree API, skip non-essential files (READMEs, images, alternate weight formats), and stream each file with a per-file `indicatif` progress bar into a `<name>.part/` staging directory that is renamed atomically on success.
 
 Management functions (all safe to compile without the `mlx` feature, on every platform): `list_models()` enumerates subdirectories that contain a `config.json`, `model_path(name)` resolves to the directory, `remove_model(name)` recursively deletes one (with a defence-in-depth check that the canonical path is inside `models/mlx/`), `clear_models()` wipes every subdirectory, `model_size(name)` reports total on-disk bytes for the `/mlx` view. `download_model(spec, override_name)` parses two spec forms — `mlx:owner/repo` and `owner/repo` — both resolved against `huggingface.co/<owner>/<repo>`. `call_mlx()` is feature-gated: with `--features mlx` on `macos`+`aarch64` it builds a hand-written Llama-family transformer with `mlx-rs` primitives, hand-installs the quantized embedding (the `MaybeQuantized<Embedding>` derive doesn't expose its params), translates `q_proj.weight` → `q_proj.inner.weight` so safetensors keys match `QuantizedLinear`'s nested layout, renders the per-model jinja chat template via `minijinja` (ChatML fallback), and runs temperature-sampled generation with KV cache up to 4096 new tokens on a `tokio::spawn_blocking` task; without the feature or off Apple Silicon it returns a clear error telling the user how to enable native inference.
 
@@ -931,7 +931,7 @@ Management functions (all safe to compile without the `mlx` feature, on every pl
 
 Each subdirectory is a user-installed plugin tool, holding a `plugin.toml`
 manifest plus an executable entrypoint (any language). Discovery,
-manifest parsing, and subprocess execution live in `crates/engine/src/plugins.rs` —
+manifest parsing, and subprocess execution live in `crates/aictl-core/src/plugins.rs` —
 see the **Plugins** section above for the full design. The directory is
 not created by aictl; users drop plugins in by hand. Override the
 discovery root with `AICTL_PLUGINS_DIR` (used by tests). The whole
@@ -943,7 +943,7 @@ file to silence one.
 
 ### `~/.aictl/hooks.json`
 
-User-defined lifecycle hooks loaded by `crates/engine/src/hooks.rs::init` at startup.
+User-defined lifecycle hooks loaded by `crates/aictl-core/src/hooks.rs::init` at startup.
 Top-level JSON object whose keys are event names and values are arrays
 of hook entries `{ matcher, command, timeout, enabled }`. Underscore-
 prefixed top-level keys (`_comment`, etc.) are silently skipped so the
@@ -957,7 +957,7 @@ above for the wire protocol and event semantics.
 
 ### `~/.aictl/sessions/`
 
-Holds one JSON file per saved conversation plus a single `.names` index file. Managed entirely through `crates/engine/src/session.rs`.
+Holds one JSON file per saved conversation plus a single `.names` index file. Managed entirely through `crates/aictl-core/src/session.rs`.
 
 **Session files** — filename is a UUID v4 generated from `/dev/urandom` (with a time-based fallback), produced by `session::generate_uuid()`. Content is pretty-printed JSON written by `save_messages`:
 

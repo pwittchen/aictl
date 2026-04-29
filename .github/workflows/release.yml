@@ -50,8 +50,8 @@ jobs:
               { print }
             ' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
             # Cargo.lock has one entry per workspace member.
-            sed -i '/^name = "cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
-            sed -i '/^name = "engine"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            sed -i '/^name = "aictl-cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            sed -i '/^name = "aictl-core"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             changed=1
           fi
           if ! grep -q "v$tag_version ·" website/index.html; then

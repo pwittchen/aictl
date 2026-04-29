@@ -6,8 +6,8 @@
 //! [`ui::AgentUI`] trait that frontends (CLI, future server / desktop)
 //! implement.
 //!
-//! Frontend code lives in sibling crates (`crates/cli`, future
-//! `crates/server`, …) and depends on this crate. The engine itself
+//! Frontend code lives in sibling crates (`crates/aictl-cli`, future
+//! `crates/aictl-server`, …) and depends on this crate. The core itself
 //! does not link `crossterm`, `rustyline`, `termimad`, `indicatif`, or
 //! any other terminal library — every side-effect call goes through the
 //! [`ui::AgentUI`] trait.
@@ -52,7 +52,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 //
 // Names commonly bare-imported by call sites (and historically routed
 // through the binary's `pub(crate) use ...` chain). Re-exporting them
-// at the crate root keeps `engine::Message`, `engine::Provider`,
+// at the crate root keeps `aictl_core::Message`, `aictl_core::Provider`,
 // etc. ergonomic for frontend code without paving over the modular
 // structure.
 

@@ -49,13 +49,13 @@ The server writes a structured request log to `~/.aictl/server.log` by default; 
 - Likely framework: `axum` (already in the Tokio ecosystem) for low-overhead async routing and SSE support.
 - Reuse the existing `llm::call_<provider>` functions directly — the server is a thin translation layer between OpenAI's request/response schema and each provider's native format. There is no `HttpUI`, no `AgentUI` consumer, no agent loop wiring on the server.
 - Coding agent mode and every other CLI/REPL feature (slash commands, agents, skills, plugins, hooks, sessions, tool dispatch) stay CLI-only. The server has no surface for them.
-- The provider implementations already live in the workspace's `engine` crate, so `aictl-server` would consume them the same way `cli` does today — a new workspace member with a path dependency on `engine`.
+- The provider implementations already live in the workspace's `aictl-core` crate, so `aictl-server` would consume them the same way `aictl-cli` does today — a new workspace member with a path dependency on `aictl-core`.
 
 ---
 
 ## Desktop
 
-Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. The workspace already exposes a frontend-agnostic `engine` crate; `aictl-desktop` would be a new workspace member that depends on it the same way `cli` does today.
+Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. The workspace already exposes a frontend-agnostic `aictl-core` crate; `aictl-desktop` would be a new workspace member that depends on it the same way `aictl-cli` does today.
 
 ### Core API stabilization
 
@@ -63,7 +63,7 @@ Define clean public types for the desktop to consume: `AgentLoop`, `Conversation
 
 ### GUI framework: Tauri v2
 
-Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap the `engine` crate. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
+Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap the `aictl-core` crate. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
 
 ### Desktop `AgentUI` implementation
 
@@ -75,7 +75,7 @@ In the CLI it's a blocking y/N prompt. In the desktop, the agent loop should `aw
 
 ### Phased rollout
 
-1. Stabilize the core API — channel-based event interface on top of the existing `engine` crate.
+1. Stabilize the core API — channel-based event interface on top of the existing `aictl-core` crate.
 2. Scaffold the desktop app — Tauri + minimal frontend, send a message and see the response.
 3. Feature parity incrementally — sessions, agents, tool approval dialogs, settings, stats, one at a time.
 

@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "aictl-cli"
 description = "AI agent for the terminal"
 version.workspace = true
 edition.workspace = true
@@ -7,19 +7,18 @@ repository.workspace = true
 authors.workspace = true
 license-file.workspace = true
 
-# Workspace package name is short ("cli") so paths stay tidy alongside
-# `engine`; the binary keeps the public name users invoke from the shell.
+# The binary keeps the public name users invoke from the shell.
 [[bin]]
 name = "aictl"
 path = "src/main.rs"
 
 [dependencies]
-engine = { path = "../engine" }
+aictl-core = { path = "../aictl-core" }
 
-# Frontend deps. The core engine deliberately does not link any of these
+# Frontend deps. The core crate deliberately does not link any of these
 # — every side-effect call goes through the `aictl_core::AgentUI` trait.
 # The CLI's REPL, status banner, progress bars, and Esc cancellation all
-# live in `crates/cli/src/ui.rs`.
+# live in `crates/aictl-cli/src/ui.rs`.
 clap = { version = "4", features = ["derive"] }
 crossterm = "0.29"
 indicatif = "0.18"
@@ -44,6 +43,6 @@ tempfile = "3"
 
 [features]
 default = []
-gguf = ["engine/gguf"]
-mlx = ["engine/mlx"]
-redaction-ner = ["engine/redaction-ner"]
+gguf = ["aictl-core/gguf"]
+mlx = ["aictl-core/mlx"]
+redaction-ner = ["aictl-core/redaction-ner"]

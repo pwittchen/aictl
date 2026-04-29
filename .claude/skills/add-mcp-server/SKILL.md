@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Edit, Write
 
 Help the user wire a new MCP (Model Context Protocol) server into their personal aictl config at `~/.aictl/mcp.json`. The aictl harness spawns each enabled stdio server at startup, completes the JSON-RPC `initialize` handshake, calls `tools/list`, and exposes every discovered tool to the agent under the name `mcp__<server>__<tool>`. This skill captures intent, drafts a safe entry, and edits the file in place — preserving every existing server.
 
-Source of truth for MCP semantics: `crates/engine/src/mcp/config.rs` (parser) and `crates/engine/src/mcp.rs` (lifecycle). Reference example: `examples/mcp.json`. When in doubt, read those before answering.
+Source of truth for MCP semantics: `crates/aictl-core/src/mcp/config.rs` (parser) and `crates/aictl-core/src/mcp.rs` (lifecycle). Reference example: `examples/mcp.json`. When in doubt, read those before answering.
 
 ## Prerequisite: opt in to MCP
 

@@ -1,5 +1,5 @@
 [package]
-name = "engine"
+name = "aictl-core"
 description = "Core agent engine for aictl — provider calls, tools, security, sessions"
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ authors.workspace = true
 license-file.workspace = true
 
 [lib]
-name = "engine"
+name = "aictl_core"
 path = "src/lib.rs"
 
 [dependencies]

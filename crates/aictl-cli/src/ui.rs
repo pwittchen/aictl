@@ -1,7 +1,7 @@
-//! Terminal frontend implementations of [`engine::ui::AgentUI`].
+//! Terminal frontend implementations of [`aictl_core::ui::AgentUI`].
 //!
 //! The trait, [`ToolApproval`], [`ProgressHandle`], and the warning
-//! sink machinery all live in the engine crate. This module supplies
+//! sink machinery all live in the `aictl-core` crate. This module supplies
 //! the two terminal flavours used by the CLI binary:
 //!
 //! * [`PlainUI`] — single-shot / piped / scriptable output; no colors,
@@ -21,13 +21,13 @@ use std::time::Duration;
 use crossterm::style::{Attribute, Color, Stylize};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use engine::llm::TokenUsage;
-use engine::tools::ToolCall;
+use aictl_core::llm::TokenUsage;
+use aictl_core::tools::ToolCall;
 
-// Re-export the engine-side trait + types so legacy `crate::ui::AgentUI`
+// Re-export the core-side trait + types so legacy `crate::ui::AgentUI`
 // / `crate::ui::ToolApproval` paths keep resolving in REPL and slash-
 // command code without an import sweep.
-pub use engine::ui::{AgentUI, ProgressBackend, ProgressHandle, ToolApproval};
+pub use aictl_core::ui::{AgentUI, ProgressBackend, ProgressHandle, ToolApproval};
 
 const PAD: &str = "  ";
 const PIPE: &str = "│";
@@ -76,7 +76,7 @@ fn first_input_line(input: &str) -> String {
 }
 
 /// Write `text` to `out`, translating every bare `\n` into `\r\n`. Used by the
-/// streaming path because [`engine::with_esc_cancel`] holds the terminal in
+/// streaming path because [`aictl_core::with_esc_cancel`] holds the terminal in
 /// crossterm raw mode for the duration of the LLM call — in raw mode a lone
 /// line-feed moves the cursor down but does not reset it to column 0, so
 /// multi-line streamed output otherwise marches off to the right.
@@ -385,9 +385,9 @@ impl InteractiveUI {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
             .unwrap_or_default();
-        let tools_info = if engine::tools::tools_enabled() {
+        let tools_info = if aictl_core::tools::tools_enabled() {
             let tools_count =
-                engine::tools::TOOL_COUNT - engine::security::policy().disabled_tools.len();
+                aictl_core::tools::TOOL_COUNT - aictl_core::security::policy().disabled_tools.len();
             format!("{tools_count} tools")
         } else {
             "tools disabled".to_string()
@@ -398,19 +398,21 @@ impl InteractiveUI {
             m[2].with(Color::Cyan),
             format!("{memory} memory").with(Color::DarkGrey),
             "·".with(Color::DarkGrey),
-            tools_info.as_str().with(if engine::tools::tools_enabled() {
-                Color::DarkGrey
-            } else {
-                Color::Yellow
-            }),
+            tools_info
+                .as_str()
+                .with(if aictl_core::tools::tools_enabled() {
+                    Color::DarkGrey
+                } else {
+                    Color::Yellow
+                }),
             "·".with(Color::DarkGrey),
             format!("dir: {cwd}/").as_str().with(Color::DarkGrey),
         );
 
         // Line 3: security info
         let mut next = 3;
-        if engine::security::policy().enabled {
-            let pol = engine::security::policy();
+        if aictl_core::security::policy().enabled {
+            let pol = aictl_core::security::policy();
             let cwd_jail = if pol.paths.restrict_to_cwd {
                 "on"
             } else {
@@ -426,7 +428,7 @@ impl InteractiveUI {
             } else {
                 format!("{}s", pol.resources.shell_timeout_secs)
             };
-            let disabled = if engine::tools::tools_enabled() {
+            let disabled = if aictl_core::tools::tools_enabled() {
                 pol.disabled_tools.len().to_string()
             } else {
                 "all".to_string()
@@ -450,8 +452,8 @@ impl InteractiveUI {
         next += 1;
 
         // Key storage backend line
-        let backend = engine::keys::backend_name();
-        let (locked, plain, both, _unset) = engine::keys::counts();
+        let backend = aictl_core::keys::backend_name();
+        let (locked, plain, both, _unset) = aictl_core::keys::counts();
         let backend_color = if backend == "plain text" {
             Color::Yellow
         } else {
@@ -476,14 +478,14 @@ impl InteractiveUI {
 
         // Plugins / MCP line — emitted when either has something to report.
         let mut extras: Vec<String> = Vec::new();
-        let plugin_list = engine::plugins::list();
+        let plugin_list = aictl_core::plugins::list();
         if !plugin_list.is_empty() {
             extras.push(format!("plugins: {} loaded", plugin_list.len()));
         }
-        if engine::mcp::enabled() {
-            let n_servers = engine::mcp::list().len();
+        if aictl_core::mcp::enabled() {
+            let n_servers = aictl_core::mcp::list().len();
             if n_servers > 0 {
-                let n_failed = engine::mcp::failed_count();
+                let n_failed = aictl_core::mcp::failed_count();
                 if n_failed > 0 {
                     extras.push(format!("mcp: {n_servers} servers ({n_failed} failed)"));
                 } else {
@@ -501,14 +503,14 @@ impl InteractiveUI {
         }
 
         // Line 4: session / incognito info
-        if engine::session::is_incognito() {
+        if aictl_core::session::is_incognito() {
             eprintln!(
                 "{PAD}{} {}{}",
                 PIPE.with(Color::DarkGrey),
                 m[next].with(Color::Cyan),
                 "incognito mode: sessions are not saved".with(Color::Yellow),
             );
-        } else if let Some((id, name)) = engine::session::current_info() {
+        } else if let Some((id, name)) = aictl_core::session::current_info() {
             let label = name
                 .as_deref()
                 .map_or_else(|| id.clone(), |n| format!("{id} ({n})"));

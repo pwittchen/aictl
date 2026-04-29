@@ -2,9 +2,9 @@ use crossterm::style::{Color, Stylize};
 
 use super::menu::select_from_menu;
 
-// Type definition lives in the engine crate alongside the agent-loop
+// Type definition lives in the aictl-core crate alongside the agent-loop
 // code that consumes it; this module only adds the interactive picker.
-pub use engine::run::MemoryMode;
+pub use aictl_core::run::MemoryMode;
 
 const MEMORY_MODES: &[(&str, &str)] = &[
     ("long-term", "all messages, no optimization"),

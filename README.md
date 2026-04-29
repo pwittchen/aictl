@@ -47,13 +47,13 @@ Installing a prebuilt binary has no prerequisites beyond `curl`. Building from s
 ```bash
 git clone git@github.com:pwittchen/aictl.git
 cd aictl
-cargo install --path crates/cli
+cargo install --path crates/aictl-cli
 ```
 
 To install with all features run:
 
 ```bash
-cargo install --path crates/cli --features "gguf mlx redaction-ner"
+cargo install --path crates/aictl-cli --features "gguf mlx redaction-ner"
 ```
 
 This installs the `aictl` binary to `~/.cargo/bin/`.
@@ -81,19 +81,19 @@ Examples:
 ```bash
 # GGUF only
 cargo build --release --features gguf
-cargo install --path crates/cli --features gguf
+cargo install --path crates/aictl-cli --features gguf
 
 # MLX only (macOS Apple Silicon)
 cargo build --release --features mlx
-cargo install --path crates/cli --features mlx
+cargo install --path crates/aictl-cli --features mlx
 
 # NER-backed redaction only (Layer C of the redaction pipeline)
 cargo build --release --features redaction-ner
-cargo install --path crates/cli --features redaction-ner
+cargo install --path crates/aictl-cli --features redaction-ner
 
 # All three (GGUF + MLX + NER-backed redaction)
 cargo build --release --features "gguf mlx redaction-ner"
-cargo install --path crates/cli --features "gguf mlx redaction-ner"
+cargo install --path crates/aictl-cli --features "gguf mlx redaction-ner"
 ```
 
 Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, `--pull-ner-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model or enable NER-backed redaction prints a clear error telling you which feature to rebuild with.
@@ -760,7 +760,7 @@ Native inference is gated behind the `gguf` cargo feature. **Prebuilt binaries p
 When building from source, the `gguf` feature is **off by default** to keep a plain `cargo install aictl` / `cargo build` working without a C/C++ toolchain. Opt in explicitly:
 
 ```bash
-cargo install --path crates/cli --features gguf
+cargo install --path crates/aictl-cli --features gguf
 # or
 cargo build --release --features gguf
 ```
@@ -815,7 +815,7 @@ The macOS Apple Silicon prebuilt binary on GitHub Releases ships with `--feature
 Native inference is gated behind the `mlx` cargo feature. When building from source, the `mlx` feature is **off by default**. Opt in explicitly (Apple Silicon only):
 
 ```bash
-cargo install --path crates/cli --features mlx
+cargo install --path crates/aictl-cli --features mlx
 # or
 cargo build --release --features mlx
 ```
@@ -947,7 +947,7 @@ The agent loop runs for up to 20 iterations. LLM reasoning is printed to stderr;
 
 ### Security
 
-All tool calls pass through a configurable security policy (`crates/engine/src/security.rs`) before execution. By default:
+All tool calls pass through a configurable security policy (`crates/aictl-core/src/security.rs`) before execution. By default:
 
 - **Shell command blocking**: dangerous commands are blocked (`rm`, `sudo`, `dd`, `mkfs`, `nc`, etc.). Command substitution (`$(...)`, backticks) is blocked. Compound commands (`|`, `&&`, `||`, `;`) are split and each segment is validated independently.
 - **CWD jail**: file tools (`read_file`, `write_file`, `remove_file`, `edit_file`, `create_directory`, `list_directory`, `search_files`, `find_files`) can only operate within the working directory. Path traversal via `..` is defeated by canonicalization.

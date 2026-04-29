@@ -176,7 +176,7 @@ install_from_source() {
   step "Building and installing aictl from source..."
   info "This may take a minute on first install.\n"
   # `--bin aictl` disambiguates which target to install: the workspace
-  # has two members (`cli`, `engine`) and only `cli` ships a binary.
+  # has two members (`aictl-cli`, `aictl-core`) and only `aictl-cli` ships a binary.
   cargo install --git "https://github.com/${REPO}.git" --bin aictl
 }
 

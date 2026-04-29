@@ -7,12 +7,12 @@ mod version_cache;
 
 use clap::Parser;
 
-// CLI is a thin frontend over the engine crate. Re-export the engine's
+// CLI is a thin frontend over the aictl-core crate. Re-export the core's
 // modules under crate-relative paths so legacy `crate::config::…` /
 // `crate::tools::…` references in the REPL and slash-command handlers
 // keep working without an enormous import sweep.
-pub(crate) use engine::{Message, Provider, Role, build_system_prompt, with_esc_cancel};
-pub(crate) use engine::{
+pub(crate) use aictl_core::{Message, Provider, Role, build_system_prompt, with_esc_cancel};
+pub(crate) use aictl_core::{
     agents, audit, config, error, hooks, keys, llm, mcp, message, plugins, run, security, session,
     skills, stats, tools,
 };
