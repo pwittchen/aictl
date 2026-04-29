@@ -500,12 +500,14 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
             </p>
           </article>
           <article class="card">
-            <h3>Audit log</h3>
+            <h3>Server log</h3>
             <p>
-              Every dispatch is recorded as
-              <code>gateway:&lt;provider&gt;</code> in
-              <code>~/.aictl/audit/</code>, with the per-request UUID
-              as the session id.
+              Two sinks share one event source: JSON-Lines appended to
+              <code>~/.aictl/server.log</code> (override with
+              <code>AICTL_SERVER_LOG_FILE</code>, empty disables) and
+              human-readable lines on stderr. Level via
+              <code>AICTL_SERVER_LOG_LEVEL</code>; rotation is the
+              operator's job.
             </p>
           </article>
           <article class="card">
