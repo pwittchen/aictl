@@ -4,15 +4,21 @@
 
 `aictl-server` is a **pure LLM proxy**. It exposes the provider catalogue over HTTP via an OpenAI-compatible gateway and nothing else. Agent functionality stays in the CLI for now.
 
+The new crate is named **`aictl-server`** (binary `aictl-server`), added as a third workspace member alongside `aictl-core` and `aictl-cli`. It reads the same `~/.aictl/config` file the CLI reads, so a user runs both side-by-side against one set of provider keys; server-only knobs (all prefixed `AICTL_SERVER_*`, e.g. `AICTL_SERVER_BIND`, `AICTL_SERVER_MASTER_KEY`) live next to the existing CLI keys in that file rather than in a separate config.
+
 Specifically, the server:
 
 - **Does** expose the OpenAI-compatible gateway (`/v1/chat/completions`, `/v1/completions`, `/v1/models`) routing to every supported provider.
-- **Does** apply outbound redaction and audit on the proxy path.
+- **Does** apply outbound **redaction** on the proxy path — the same `run::redact_outbound` pipeline the CLI uses, with the same `~/.aictl/config` knobs (`security_redaction_*`).
+- **Does** apply **prompt-injection blocking** on every incoming `messages[]` body — the same `security::detect_prompt_injection` guard the CLI uses, with the same `~/.aictl/config` knobs.
+- **Does** apply **audit** on the proxy path via the existing `audit::log_tool` writer.
 - **Does** require a master API key on every request (auto-generated on first startup if not configured).
 - **Does** write a structured server log.
 - **Does not** run the agent loop (`run::run_agent_turn`) or expose any endpoint that does.
-- **Does not** dispatch tools, list/load agents or skills, manage sessions, or surface plugins/hooks/slash commands.
+- **Does not** dispatch tools, list/load agents or skills, manage sessions, or surface plugins/hooks/slash commands. None of the agentic functions from the CLI live here.
 - **Does not** implement an `HttpUI` against `AgentUI` — there is no `AgentUI` consumer on the server side.
+
+The defensive controls the CLI already provides at the network boundary (redaction + prompt-injection guard) are reused verbatim — no fork, no second implementation, no second config file. Operators tune them once in `~/.aictl/config` and both surfaces pick up the change.
 
 If a future product need calls for HTTP-accessible agent loops, that becomes a separate plan.
 
@@ -80,13 +86,13 @@ Re-evaluate whether to support a per-request provider key override (`Authorizati
 
 ### 1. Crate skeleton
 
-Under the existing workspace (post-Modular-Architecture split):
+Under the existing workspace (post-Modular-Architecture split). The new crate is **`aictl-server`** (package name and binary name both `aictl-server`), a sibling to `aictl-core` (library) and `aictl-cli` (CLI binary):
 
 ```
 crates/
-├── engine/             # existing library
-├── cli/                # existing CLI binary
-└── server/             # NEW (package: aictl-server)
+├── aictl-core/         # existing library (engine: providers, redaction, prompt-injection, audit, …)
+├── aictl-cli/          # existing CLI binary
+└── aictl-server/       # NEW (package & binary: aictl-server)
     ├── Cargo.toml
     └── src/
         ├── main.rs            # clap, server startup, graceful shutdown
@@ -108,7 +114,7 @@ crates/
 
 There is intentionally no `ui.rs`, `routes/chat.rs`, `routes/agents.rs`, `routes/skills.rs`, `routes/sessions.rs`, or `routes/tools.rs` — those would have served an agent endpoint, which is out of scope.
 
-`crates/server/Cargo.toml` depends on `engine = { path = "../engine" }`. Runtime deps beyond what engine already pulls in: `axum`, `tower`, `tower-http` (for `RequestBodyLimit`, `TraceLayer`, `TimeoutLayer`), `tokio` (inherits features from engine), `futures`, `serde`/`serde_json` (already in engine), `async-stream` for SSE body construction. No `rustyline`, `termimad`, `crossterm`, `indicatif`, `dialoguer`.
+`crates/aictl-server/Cargo.toml` depends on `aictl-core = { path = "../aictl-core" }`. Runtime deps beyond what `aictl-core` already pulls in: `axum`, `tower`, `tower-http` (for `RequestBodyLimit`, `TraceLayer`, `TimeoutLayer`), `tokio` (inherits features from `aictl-core`), `futures`, `serde`/`serde_json` (already in `aictl-core`), `async-stream` for SSE body construction. No `rustyline`, `termimad`, `crossterm`, `indicatif`, `dialoguer`.
 
 Binary name is `aictl-server` (`[[bin]] name = "aictl-server"`). No subcommand inside `aictl`. See the roadmap section "Separate binaries vs. one binary" for the rationale.
 
@@ -127,19 +133,20 @@ Pin axum to `0.8.x`. Upgrade cost is low but semver breaks between minor lines a
 
 ### 3. Configuration
 
-Every server knob lives in `~/.aictl/config` (or the `--config <path>` override). CLI flags override config. The CLI-style `config_get`/`config_set` helpers in `engine::config` work unchanged; the server adds a narrow set of new keys:
+Every server knob lives in **the same `~/.aictl/config` file the CLI reads** (or the `--config <path>` override). There is no separate server config file — operators edit one file, and the CLI and `aictl-server` both pick up the change. CLI flags override config. The CLI-style `config_get`/`config_set` helpers in `aictl_core::config` work unchanged; the server adds a narrow set of new keys (all prefixed `AICTL_SERVER_*`) that sit alongside the existing CLI keys:
 
 ```
-server_bind=127.0.0.1:7878           # default; any non-loopback change still requires the master key
-server_master_key=<key>              # required on every request; auto-generated on first startup if absent
-server_cors_origins=                 # comma-separated; empty = CORS off (default)
-server_request_timeout=120           # per-request wall-clock timeout, seconds; 0 disables
-server_body_limit_bytes=2097152      # per-request body cap; 2 MiB default
-server_max_concurrent_requests=32    # global concurrency semaphore; rejects 503 when saturated
-server_shutdown_timeout=20           # drain grace period on SIGTERM, seconds
-server_sse_keepalive=15              # SSE keepalive interval, seconds (0 disables)
-server_log_level=info                # trace|debug|info|warn|error
-server_log_file=~/.aictl/server.log  # structured log destination; empty = stderr only
+AICTL_SERVER_BIND=127.0.0.1:7878           # default; any non-loopback change still requires the master key
+AICTL_SERVER_MASTER_KEY=<key>              # required on every request; auto-generated on first startup if absent
+AICTL_SERVER_CORS_ORIGINS=                 # comma-separated; empty = CORS off (default)
+AICTL_SERVER_REQUEST_TIMEOUT=120           # per-request wall-clock timeout, seconds; 0 disables
+AICTL_SERVER_BODY_LIMIT_BYTES=2097152      # per-request body cap; 2 MiB default
+AICTL_SERVER_MAX_CONCURRENT_REQUESTS=32    # global concurrency semaphore; rejects 503 when saturated
+AICTL_SERVER_SHUTDOWN_TIMEOUT=20           # drain grace period on SIGTERM, seconds
+AICTL_SERVER_SSE_KEEPALIVE=15              # SSE keepalive interval, seconds (0 disables)
+AICTL_SERVER_LOG_LEVEL=info                # trace|debug|info|warn|error
+AICTL_SERVER_LOG_FILE=~/.aictl/server.log  # JSON-Lines log file destination; empty = terminal sink only
+AICTL_SERVER_LOG_BODIES=true               # log redacted request/response bodies; false drops body lines at the source
 ```
 
 CLI flags on `aictl-server` mirror the important ones and follow the existing long-form-only convention:
@@ -147,11 +154,11 @@ CLI flags on `aictl-server` mirror the important ones and follow the existing lo
 ```
 aictl-server \
   --config <path>           # override ~/.aictl/config
-  --bind <addr:port>        # override server_bind
-  --master-key <value>      # override server_master_key (prefer config for persistence)
+  --bind <addr:port>        # override AICTL_SERVER_BIND
+  --master-key <value>      # override AICTL_SERVER_MASTER_KEY (prefer config for persistence)
   --quiet                   # suppress startup banner on stderr
-  --log-level <level>       # override server_log_level
-  --log-file <path>         # override server_log_file
+  --log-level <level>       # override AICTL_SERVER_LOG_LEVEL
+  --log-file <path>         # override AICTL_SERVER_LOG_FILE
 ```
 
 Note: `--unrestricted` is **not** a server flag. It exists in the CLI to disable `security::validate_tool`, but the server does not dispatch tools, so the flag has nothing to gate.
@@ -160,17 +167,17 @@ The existing `engine::config` loader uses `OnceLock<RwLock<HashMap>>` and hard-c
 
 ### 4. Authentication and network binding
 
-The master API key (`server_master_key`) is required on every request **regardless of bind address**. There is no loopback-bypass. The CLI's "user owns the machine" model does not transfer here: the moment a process listens on a port, anything on the loopback interface (other users on a shared host, browser-based attacks via DNS rebinding) can reach it. A single key is the simplest defense and costs nothing.
+The master API key (`AICTL_SERVER_MASTER_KEY`) is required on every request **regardless of bind address**. There is no loopback-bypass. The CLI's "user owns the machine" model does not transfer here: the moment a process listens on a port, anything on the loopback interface (other users on a shared host, browser-based attacks via DNS rebinding) can reach it. A single key is the simplest defense and costs nothing.
 
 **Master-key handling on startup** (`master_key.rs`):
 
 1. If `--master-key <value>` is provided, use it for this launch. Do not persist it.
-2. Else if `server_master_key` is set in the active config, use it.
-3. Else generate a new key: 32 bytes of OS-randomness, base64url-encoded with no padding. Persist via `engine::config::config_set("server_master_key", …)` and print exactly once to stderr (and to `server_log_file`) at startup, prefixed with a clear marker:
+2. Else if `AICTL_SERVER_MASTER_KEY` is set in the active config, use it.
+3. Else generate a new key: 32 bytes of OS-randomness, base64url-encoded with no padding. Persist via `engine::config::config_set("AICTL_SERVER_MASTER_KEY", …)` and print exactly once to stderr (and to `AICTL_SERVER_LOG_FILE`) at startup, prefixed with a clear marker:
 
    ```
    [server] generated new master API key — set Authorization: Bearer <key>
-   [server] persisted to ~/.aictl/config (server_master_key)
+   [server] persisted to ~/.aictl/config (AICTL_SERVER_MASTER_KEY)
    ```
 
    Subsequent launches reuse the persisted key silently.
@@ -179,42 +186,72 @@ Operators rotate by removing the config entry (next launch regenerates) or by wr
 
 Every request except `GET /healthz` requires `Authorization: Bearer <master-key>`. Comparison is constant-time (`subtle::ConstantTimeEq` or equivalent) to avoid timing oracles. Missing header → 401; wrong key → 401 with an identical response body so the distinction can't be enumerated.
 
-**Bind defaults**: `127.0.0.1:7878`. Operators who set a non-loopback bind get the same auth requirement (the master key). A startup warning is printed when `server_bind` resolves to a non-loopback address so accidental `0.0.0.0` from a container template is at least visible in the log.
+**Bind defaults**: `127.0.0.1:7878`. Operators who set a non-loopback bind get the same auth requirement (the master key). A startup warning is printed when `AICTL_SERVER_BIND` resolves to a non-loopback address so accidental `0.0.0.0` from a container template is at least visible in the log.
 
-**CORS**: off by default. If `server_cors_origins` is set, `tower-http::cors::CorsLayer` adds the configured origins with credentials allowed.
+**CORS**: off by default. If `AICTL_SERVER_CORS_ORIGINS` is set, `tower-http::cors::CorsLayer` adds the configured origins with credentials allowed.
 
 **TLS**: not terminated by the server in v1. Operators put nginx/Caddy in front if they need HTTPS. Rustls termination is a Phase 2 optional add-on.
 
 ### 5. Server log
 
-The server writes a structured request log on top of (and separate from) the existing `audit::log_tool` records. Where the audit log is a per-session JSONL trail of every provider dispatch (kept for parity with the CLI), the **server log** is the operational record an admin actually reads when something goes wrong.
+The server writes a structured request log on top of (and separate from) the existing `audit::log_tool` records. Where the audit log is a per-session JSONL trail of every provider dispatch (kept for parity with the CLI), the **server log** is the operational record an admin actually reads when something goes wrong, and it captures full request and response bodies so an operator can see exactly what crossed the wire.
 
-Destination resolution: `--log-file` overrides `server_log_file`; empty value (or unset) means stderr only; otherwise the file is opened append-only with a `BufWriter`.
+#### Two sinks, one event source
 
-Each log line is one JSON object (`tracing-subscriber`'s `json` formatter). Required fields:
+Every log event is dispatched to two formatters at once:
 
-- `timestamp` (RFC 3339, UTC)
-- `level` (`info` / `warn` / `error` etc.)
-- `request_id` (per-request UUID; surfaced in `X-Request-Id` response header)
-- `method`, `path`, `status`
-- `elapsed_ms`
-- `model` (when known), `provider` (when known)
-- `upstream_request_id` (from the provider's response, when surfaced)
-- `bytes_in`, `bytes_out`
-- `client_ip` (from the socket — `X-Forwarded-*` is not trusted)
-- `error_code` and `trace_id` on failures
+1. **File sink** — append-only JSON-Lines (`tracing-subscriber`'s `json` formatter), one event per line. Machine-readable, pipeable into `jq`, ingestible by log shippers. Path: `AICTL_SERVER_LOG_FILE` (default `~/.aictl/server.log`); `--log-file` overrides; empty value disables the file sink and leaves only the terminal sink.
+2. **Terminal sink** — human-readable, ANSI-colored, written to stderr. Format:
 
-Server-internal events (startup banner, master-key generation marker, shutdown drain progress) log at `info`. Failed-auth attempts log at `warn` with the source IP. Provider errors log at `error` with the trace ID.
+   ```
+   [LEVEL] YYYY-MM-DDTHH:MM:SS.sssZ <message> <key=value …>
+   ```
 
-Redaction note: the log never includes raw prompt content or full response bodies. If a payload preview is helpful (e.g., for malformed-JSON diagnostics), it is run through the same `redaction` pipeline that protects outbound provider calls before being attached. Bodies that fail redaction are logged as `<redacted>` rather than risking PII leakage to the file.
+   `LEVEL` is left-aligned and color-coded:
 
-Log level is set by `server_log_level` (`trace` / `debug` / `info` / `warn` / `error`) or `--log-level`. Default `info`. Rotation is the operator's responsibility (`logrotate` or systemd journal); the server does not rotate the file itself in v1.
+   - `[INFO]`  — default terminal foreground (no color)
+   - `[WARN]`  — **yellow**
+   - `[ERROR]` — **red**
+   - `[DEBUG]` / `[TRACE]` — dim/grey, only emitted when `AICTL_SERVER_LOG_LEVEL` allows
+
+   Colors come from `tracing-subscriber`'s `ansi` feature; auto-disabled when stderr is not a TTY (CI, redirected output) or when `NO_COLOR` is set, so piped output stays clean.
+
+#### What gets logged
+
+For every gateway request:
+
+- One `[INFO]` line at request start: `request received` with `request_id`, `method`, `path`, `client_ip`, `model` (parsed from body), `bytes_in`.
+- One `[INFO]` line for the **request body** (post-redaction): `request body` with the full redacted `messages[]` payload pretty-printed in the terminal, JSON-stringified in the file.
+- One `[INFO]` line for the **response body** (post-redaction for non-stream; assembled from streamed deltas for SSE): `response body` with the upstream reply attached.
+- One `[INFO]` line at request end: `request completed` with `status`, `elapsed_ms`, `bytes_out`, `upstream_request_id`.
+
+For non-request events:
+
+- `[INFO]` — startup banner, master-key generation marker, shutdown drain progress, config reload.
+- `[WARN]` — failed-auth attempts (with source IP), prompt-injection rejection, body-size cap exceeded, non-loopback bind detection, slow-upstream warning past a soft threshold.
+- `[ERROR]` — provider 5xx, request timeout, internal panics caught by the panic hook, audit-writer failures.
+
+Required JSON fields on every event (file sink):
+
+- `timestamp` (RFC 3339, UTC), `level`, `request_id` (per-request UUID; surfaced in `X-Request-Id` response header), `method`, `path`, `status`, `elapsed_ms`, `model`, `provider`, `upstream_request_id`, `bytes_in`, `bytes_out`, `client_ip` (from the socket — `X-Forwarded-*` is not trusted), `error_code` and `trace_id` on failures, `body` (redacted) when the event is a request/response body line.
+
+#### Redaction is mandatory before either sink
+
+Both the request body line and the response body line pass through `aictl_core::run::redact_outbound` (request) / a matching inbound redactor (response) **before formatting**. The same regex bank, entropy pass, and optional NER that protect outbound provider calls also protect the log file and terminal output. Bodies that fail redaction are emitted as `<redacted>` rather than risking PII leakage. This applies identically to the file sink and the terminal sink — there is no "trusted" sink.
+
+A config knob `AICTL_SERVER_LOG_BODIES` (default `true`) lets operators in highly sensitive environments disable the body lines entirely while keeping the metadata lines. When false, the request/response body lines are dropped at the source, not just suppressed at the formatter.
+
+#### Levels and rotation
+
+Log level is set by `AICTL_SERVER_LOG_LEVEL` (`trace` / `debug` / `info` / `warn` / `error`) or `--log-level`. Default `info`. The level applies to both sinks.
+
+Rotation is the operator's responsibility (`logrotate` or systemd journal); the server does not rotate the file itself in v1. The file is opened append-only with a `BufWriter`; SIGTERM flushes it as part of graceful shutdown.
 
 ### 6. Request concurrency and timeout
 
-A global `tokio::sync::Semaphore` seeded with `server_max_concurrent_requests` gates every non-health route. On saturation the request returns 503 immediately rather than queueing; clients that care about backpressure handle retry themselves. The semaphore permit is held for the full request duration, including the streaming response body.
+A global `tokio::sync::Semaphore` seeded with `AICTL_SERVER_MAX_CONCURRENT_REQUESTS` gates every non-health route. On saturation the request returns 503 immediately rather than queueing; clients that care about backpressure handle retry themselves. The semaphore permit is held for the full request duration, including the streaming response body.
 
-Each request gets a `tokio::time::timeout(server_request_timeout)` wrapped around the upstream provider future. On expiry the HTTP response is terminated with a 504 (or, for streams already in progress, a final SSE `error` frame with `code: "timeout"`) and the semaphore permit is released.
+Each request gets a `tokio::time::timeout(AICTL_SERVER_REQUEST_TIMEOUT)` wrapped around the upstream provider future. On expiry the HTTP response is terminated with a 504 (or, for streams already in progress, a final SSE `error` frame with `code: "timeout"`) and the semaphore permit is released.
 
 Per-turn provider timeouts (`AICTL_LLM_TIMEOUT`, default 30s) continue to apply inside the engine. The request timeout is the outer cap covering the full request lifecycle.
 
@@ -274,12 +311,12 @@ Authenticated. Returns `engine::stats` aggregates — tokens per provider, reque
 
 ### 8. Security gate, redaction, and audit
 
-The server is a thin HTTP transport over `engine::llm::*` with redaction and audit layered in. There is no `security::validate_tool` call site here because the server does not dispatch tools — tool calls returned by upstream providers go straight back to the client.
+The server is a thin HTTP transport over `aictl_core::llm::*` with redaction, prompt-injection blocking, and audit layered in. **All three controls reuse the modules the CLI already ships** — no fork, no parallel implementation, configured by the same `~/.aictl/config` keys. There is no `security::validate_tool` call site here because the server does not dispatch tools — tool calls returned by upstream providers go straight back to the client.
 
-- **Redaction**: `run::redact_outbound` runs right before provider dispatch on every gateway request. Local providers (Ollama/GGUF/MLX) skip unless `AICTL_SECURITY_REDACTION_LOCAL=true`.
-- **Audit**: every gateway dispatch is logged via `audit::log_tool` as `gateway:<provider>` with the per-request UUID as the session id. Audit always runs, even with redaction in pass-through mode.
+- **Redaction**: `aictl_core::run::redact_outbound` runs right before provider dispatch on every gateway request. Same regex bank, same entropy pass, same optional NER as the CLI. Local providers (Ollama/GGUF/MLX) skip unless `AICTL_SECURITY_REDACTION_LOCAL=true`. Tuned via the existing `security_redaction_*` config keys.
+- **Prompt-injection guard**: `aictl_core::security::detect_prompt_injection` runs on every incoming `messages[]` body — the same guard the CLI invokes inside `run::run_agent_turn`. On match, the request is rejected with 400 `code: "prompt_injection"`. This protects against poisoned prompts being forwarded upstream on the operator's billing. Tuned via the existing prompt-injection config keys; toggling the guard in `~/.aictl/config` affects the CLI and the server identically.
+- **Audit**: every gateway dispatch is logged via `aictl_core::audit::log_tool` as `gateway:<provider>` with the per-request UUID as the session id. Audit always runs, even with redaction in pass-through mode.
 - **CWD jail**: not relevant. There is no working-directory-scoped tool execution.
-- **Prompt-injection guard**: `detect_prompt_injection` runs on every incoming `messages[]` body. On match, the request is rejected with 400 `code: "prompt_injection"`. This protects against poisoned prompts being forwarded upstream on the operator's billing.
 
 ### 9. Errors
 
@@ -300,7 +337,7 @@ pub enum ApiError {
 }
 ```
 
-Every error body is `{"error": {"code": "...", "message": "..."}}` — stable machine-parseable shape that mirrors OpenAI's error envelope so SDK error handlers keep working. `code` values are documented in `docs/server.md`.
+Every error body is `{"error": {"code": "...", "message": "..."}}` — stable machine-parseable shape that mirrors OpenAI's error envelope so SDK error handlers keep working. `code` values are documented in `SERVER.md`.
 
 Stable error codes for the gateway:
 - `prompt_injection`, `provider_unavailable`, `provider_rate_limited`, `model_not_found`, `redaction_blocked`, `body_too_large`, `body_malformed`, `tools_unsupported_for_provider`, `auth_missing`, `auth_invalid`.
@@ -312,7 +349,7 @@ Internal errors log the full error with a generated trace ID; the response surfa
 SIGINT / SIGTERM triggers:
 
 1. Stop accepting new connections (`axum_server::Handle::graceful_shutdown`).
-2. Wait up to `server_shutdown_timeout` seconds for in-flight requests to complete.
+2. Wait up to `AICTL_SERVER_SHUTDOWN_TIMEOUT` seconds for in-flight requests to complete.
 3. On timeout, cancel remaining requests with a final `error` SSE frame (for streams) or 503 (for non-streaming).
 4. Flush audit / stats / log writers (file-backed with `BufWriter`; explicit flush to be safe).
 5. Release provider HTTP clients (drops `reqwest::Client`).
@@ -322,46 +359,131 @@ A `/v1/shutdown` admin endpoint is deferred. Operators signal the process.
 
 ### 11. Observability
 
-Structured logging via `tracing` + `tracing-subscriber` with the `json` feature for production, `fmt` for dev. Fields on every request span: `method`, `path`, `status`, `elapsed_ms`, `request_id`, `model` (if any), `provider` (if any). Log levels controlled by `server_log_level`.
+Structured logging via `tracing` + `tracing-subscriber` with the `json` feature for production, `fmt` for dev. Fields on every request span: `method`, `path`, `status`, `elapsed_ms`, `request_id`, `model` (if any), `provider` (if any). Log levels controlled by `AICTL_SERVER_LOG_LEVEL`.
 
 Metrics are out of scope for Phase 1 (no Prometheus endpoint). If operators ask for it, Phase 2 adds `GET /metrics` via `metrics-exporter-prometheus`. Until then, `/v1/stats` covers the LLM-specific telemetry, and request-level metrics come out of structured logs.
 
-### 12. Integration points
+### 12. Documentation & install distribution
+
+The server is documented in three coordinated places, each with a clear role.
+
+#### `SERVER.md` (repo root) — canonical reference
+
+A new top-level `SERVER.md` is the single source of truth for the server. It sits next to `README.md`, `ARCH.md`, `ROADMAP.md`, and `CLAUDE.md` rather than under `docs/` so the repo's docs layout stays flat. It covers:
+
+- Scope and non-goals (mirrors §"Scope" of this plan in user-facing prose).
+- Install (one-liner via `install-server.sh`, manual binary download, build-from-source).
+- Configuration: every `AICTL_SERVER_*` knob with default, type, and explanation.
+- Master-key handling: auto-generation, persistence, rotation procedure.
+- Complete REST API reference: every endpoint, request schema, response schema, SSE event shape, error envelope, every documented `code` value, status-code table.
+- OpenAI-shape mapping per provider (request translation, response translation, tool-call passthrough caveats).
+- Security model: redaction, prompt-injection guard, master-key gate, audit log, what is **not** protected (e.g., the master key still grants full proxy access).
+- Deployment: systemd unit example, Docker example, nginx reverse-proxy snippet for SSE (`proxy_buffering off` etc.), TLS guidance.
+- Troubleshooting and FAQ.
+
+`README.md` does not duplicate this content. It gets a short "HTTP server (`aictl-server`)" subsection with a one-line description and a "see [SERVER.md](SERVER.md) for full docs" link.
+
+#### `install-server.sh` — one-liner installer
+
+A new `install-server.sh` script sits at the repo root next to the existing `install.sh`. Behavior:
+
+- Detects platform (`uname -s` / `uname -m`) — supports macOS arm64/x86_64 and Linux x86_64/arm64. Refuses cleanly on unsupported platforms with a one-line "build from source" hint.
+- Resolves the latest `aictl-server` GitHub release (or a pinned `--version` flag) and downloads the matching artifact.
+- Verifies the artifact (checksum file shipped alongside the release).
+- Installs to `/usr/local/bin/aictl-server` by default; `--prefix <dir>` overrides.
+- Idempotent: re-running upgrades in place. No-op if the installed version already matches.
+- Prints next-step guidance: where the config file lives (`~/.aictl/config`), default bind (`127.0.0.1:7878`), the master-key auto-generation behavior on first launch, and the `aictl-server --help` reminder.
+- No interactive prompts. Must work in `curl … | sh` pipelines.
+- Exit codes: `0` success / already up-to-date, `1` unsupported platform, `2` download/verify failure.
+
+The script does **not** write to `~/.aictl/config`. Master-key generation happens on first server launch (per §4), not at install time, so install is reversible by deleting the binary.
+
+#### Website — dedicated "Server" page at `aictl.app/server`
+
+A new `website/server.html` becomes the public-facing landing for `aictl-server`. URL on prod: `https://aictl.app/server`. Content:
+
+- Hero with one-line value prop ("OpenAI-compatible LLM proxy with built-in redaction and prompt-injection blocking").
+- One-liner install with a copy-to-clipboard button:
+
+  ```
+  curl -fsSL https://aictl.app/server/install.sh | sh
+  ```
+
+- Quickstart: launch the server, point an OpenAI SDK at it, send a request — three code blocks.
+- Complete REST API reference (same content as `SERVER.md`'s API section, formatted for the web). Endpoints, request/response schemas, SSE event shape, error envelope, status-code + `code` value table.
+- Configuration reference table (`AICTL_SERVER_*` knobs).
+- Security model summary with a link out to the redaction / prompt-injection sections of the main site.
+- "Read the full reference" link to `SERVER.md` on GitHub.
+
+A **"Server"** entry is added to the top-nav on every existing page (`index.html`, `guides.html`) and to the mobile drawer, pointing at `server.html`. Both desktop nav (`<nav class="nav__links">`) and mobile drawer (`<nav class="nav__drawer-links">`) must be updated together — they are kept in lock-step in the existing markup.
+
+#### Build pipeline
+
+`website/build.ts` already minifies a fixed list of HTML pages and copies `../install.sh` to `dist/install.sh`. Two extensions:
+
+1. **Page list**: add `server.html` to the `for (const page of [...])` loop so it is minified alongside `index.html` and `guides.html`.
+2. **Server-install copy**: after the existing `install.sh` copy, create `dist/server/` (via `mkdir`) and copy `../install-server.sh` to `dist/server/install.sh` — the rename happens at build time. Production layout:
+
+   ```
+   dist/
+   ├── index.html
+   ├── guides.html
+   ├── server.html
+   ├── install.sh           # CLI installer (existing)
+   └── server/
+       └── install.sh       # server installer (renamed from install-server.sh)
+   ```
+
+   On prod this resolves to:
+   - `https://aictl.app/server`            → the `server.html` page
+   - `https://aictl.app/server/install.sh` → the server installer (renamed during build)
+   - `https://aictl.app/install.sh`        → the existing CLI installer (unchanged)
+
+   The hosting platform must serve `server.html` at the `/server` path (Cloudflare Pages and most static hosts do this via `clean_urls` / extension stripping; if not, ship a `_redirects` or equivalent).
+
+3. **`website/CLAUDE.md`**: extend the "load-bearing rules" note about `install.sh` so it also covers `install-server.sh`. Future maintainers must not move either file without updating `build.ts`.
+
+### 13. Integration points
 
 | File / location | Change |
 |-----------------|--------|
-| `crates/server/` | **New** — entire crate per the skeleton in §1 |
-| `Cargo.toml` (workspace root) | Add `crates/server` to `members` |
+| `crates/aictl-server/` | **New** — entire crate (package & binary `aictl-server`) per the skeleton in §1 |
+| `Cargo.toml` (workspace root) | Add `crates/aictl-server` to `members` |
 | `crates/aictl-core/src/config.rs` | If not already done in Modular Architecture, accept an optional config-path argument at init time |
 | `crates/aictl-core/src/llm/*.rs` | No change; providers are already callable from any frontend post-Modular-Architecture |
 | `crates/aictl-core/src/llm/mod.rs` | Confirm `MODELS` and `call_<provider>` symbols are `pub`. May need to expose a small `provider_for_model(&str) -> Option<Provider>` helper if one doesn't already exist |
 | `crates/aictl-core/src/run.rs` | Confirm `redact_outbound` is reachable as a public symbol. No agent-loop changes |
-| `docs/server.md` | **New** — full API reference, request/response examples, deployment notes, OpenAI-shape mapping per provider |
-| `README.md` | Add "HTTP server" feature mention; link to `docs/server.md` |
+| `SERVER.md` (repo root) | **New** — full server documentation: scope, install, configuration, complete REST API reference, request/response examples, OpenAI-shape mapping per provider, deployment notes, security model. This is the canonical server reference; `docs/server.md` is **not** used (repo-root placement parallels `README.md` / `ARCH.md` / `ROADMAP.md` / `CLAUDE.md`) |
+| `README.md` | Add an "HTTP server" feature mention with a one-line summary and a prominent link to `SERVER.md` for full details |
 | `ARCH.md` | New "aictl-server" section under "Workspace layout" |
-| `CLAUDE.md` | Add `crates/server` to the module map |
+| `CLAUDE.md` | Add `crates/aictl-server` to the module map; cross-link `SERVER.md` |
 | `ROADMAP.md` | Remove the "Server" section once Phase 1 ships |
-| Website (`website/index.html`, `website/guides.html`) | "Server mode" section under Extensibility |
+| `install-server.sh` (repo root) | **New** — one-liner installer for the server binary, sibling to the existing `install.sh`. Detects platform, fetches the latest `aictl-server` release artifact, drops it on `$PATH`, prints next-step guidance (config location, default bind, master-key generation note). Idempotent and safe to re-run for upgrades |
+| `website/server.html` | **New** — dedicated "Server" landing page on `aictl.app/server` with: hero / value prop, install one-liner pointing at `https://aictl.app/server/install.sh`, full REST API reference (every endpoint, request schema, response schema, SSE shape, error envelope, status codes), configuration table (`AICTL_SERVER_*` keys), security model summary, and link back to `SERVER.md` for canonical docs |
+| `website/index.html`, `website/guides.html` | Add **"Server"** entry to the top-nav (`<nav class="nav__links">`) and to the mobile drawer (`<nav class="nav__drawer-links">`), pointing at `server.html`. Both desktop and mobile menus must be updated together — the existing nav structure has them in lock-step |
+| `website/build.ts` | Extend the build to: (a) include `server.html` in the page-minification loop alongside `index.html` and `guides.html`; (b) copy `../install-server.sh` from the parent repo into `dist/server/install.sh` (creating `dist/server/` first), mirroring the existing `../install.sh → dist/install.sh` step. End result: prod URLs are `https://aictl.app/server` (the page) and `https://aictl.app/server/install.sh` (the script), with the file renamed during build (`install-server.sh` in the repo, `install.sh` under the `server/` path on prod) |
+| `website/CLAUDE.md` | Update the "load-bearing rules" note about `install.sh` to also cover `install-server.sh` so future maintainers don't move it without updating `build.ts` |
+| `website/llms.txt` | Add the new `https://aictl.app/server` URL to the LLM-friendly site index |
 
-### 13. Testing strategy
+### 14. Testing strategy
 
-- **Unit tests (`crates/server/src/**`)**:
+- **Unit tests (`crates/aictl-server/src/**`)**:
   - `auth.rs`: token present/missing, constant-time compare, missing-header behavior.
   - `master_key.rs`: load existing, generate-and-persist on first run, `--master-key` precedence.
   - `openai.rs`: round-trip translation per provider for `/v1/chat/completions` request and response shapes; tool-call passthrough where supported, 400 where not.
   - `sse.rs`: frame construction matches OpenAI delta shape; keepalive timing (use `tokio::time::pause` for determinism); final `[DONE]` frame.
   - `error.rs`: every `ApiError` variant maps to the documented status + code, OpenAI-shaped envelope.
-- **Integration tests (`crates/server/tests/`)**:
+- **Integration tests (`crates/aictl-server/tests/`)**:
   - Spin the server on an ephemeral port with a mock LLM provider (already used by `engine` tests).
   - `test_chat_completions_non_streaming`: POST `/v1/chat/completions` with `stream: false`, assert response shape matches OpenAI schema.
   - `test_chat_completions_streaming`: POST with `stream: true`, consume SSE, assert `data: {...}` deltas and final `data: [DONE]`.
   - `test_models_lists_catalogue`: `GET /v1/models` returns the engine catalogue plus locally detected models.
   - `test_auth_missing_header_401` / `test_auth_wrong_token_401` / `test_auth_correct_token_200`.
   - `test_master_key_generated_on_first_start`: empty config, server starts, key is persisted, second launch reuses it.
-  - `test_body_size_cap`: POST body larger than `server_body_limit_bytes` → 413.
+  - `test_body_size_cap`: POST body larger than `AICTL_SERVER_BODY_LIMIT_BYTES` → 413.
   - `test_concurrent_cap`: fill the semaphore; next request → 503.
   - `test_request_timeout`: slow mock provider → 504 (or terminating SSE error frame).
-  - `test_cors_off_default`: `OPTIONS` request without `server_cors_origins` set → 404, not 204.
+  - `test_cors_off_default`: `OPTIONS` request without `AICTL_SERVER_CORS_ORIGINS` set → 404, not 204.
   - `test_prompt_injection`: known-bad prompt → 400 `prompt_injection`.
   - `test_redaction_runs_outbound`: prompt containing a fake API key reaches the mock provider with the key redacted; audit log records the redacted form.
   - `test_gateway_routes_to_anthropic`: OpenAI-shaped request with `model=claude-sonnet-4-6` reaches the Anthropic mock.
@@ -370,7 +492,7 @@ Metrics are out of scope for Phase 1 (no Prometheus endpoint). If operators ask 
 - **Smoke test in CI**: spin the server, send one POST `/v1/chat/completions`, verify it works against a mock provider.
 - **Load test (manual, pre-release)**: `wrk` or `oha` against `/v1/chat/completions` with a mock provider at 100 rps for 60s. Look for memory leaks, file-handle growth, audit-writer contention.
 
-### 14. Deployment posture
+### 15. Deployment posture
 
 Not strictly in scope for the plan, but worth recording:
 
@@ -383,7 +505,7 @@ Not strictly in scope for the plan, but worth recording:
 
 ## Phase 2 — operational hardening (outline)
 
-- Optional TLS termination via `rustls` behind `server_tls_cert` / `server_tls_key`. Operators who don't want a reverse proxy get TLS natively.
+- Optional TLS termination via `rustls` behind `AICTL_SERVER_TLS_CERT` / `AICTL_SERVER_TLS_KEY`. Operators who don't want a reverse proxy get TLS natively.
 - Rate limiting via `tower_governor` or equivalent. Token-bucket per bearer token + per IP. Surfaces as `429 too_many_requests`.
 - `GET /metrics` Prometheus endpoint via `metrics-exporter-prometheus`. Emits per-request latency histograms, per-provider request counters, in-flight gauge.
 - Multi-config presets: `--config-preset <name>` loads `~/.aictl/configs/<name>` so a single binary can switch between pre-baked policies at launch.
@@ -436,20 +558,20 @@ Final sign-off for Phase 1 requires:
 
 1. `cargo build --workspace` clean on default features and `--all-features`.
 2. `cargo lint --workspace` clean.
-3. `cargo test --workspace` clean including every integration test in §13.
-4. Grep for forbidden symbols in `crates/server`:
+3. `cargo test --workspace` clean including every integration test in §14.
+4. Grep for forbidden symbols in `crates/aictl-server`:
    ```bash
-   grep -rE 'rustyline::|termimad::|indicatif::|crossterm::|dialoguer::' crates/server/src/
+   grep -rE 'rustyline::|termimad::|indicatif::|crossterm::|dialoguer::' crates/aictl-server/src/
    ```
    Returns empty.
-5. Grep for agent-loop entry points in `crates/server`:
+5. Grep for agent-loop entry points in `crates/aictl-server`:
    ```bash
-   grep -rE 'run_agent_turn|run_agent_single|AgentUI|ToolApproval' crates/server/src/
+   grep -rE 'run_agent_turn|run_agent_single|AgentUI|ToolApproval' crates/aictl-server/src/
    ```
    Returns empty. The server must not reach into the agent loop.
 6. Smoke: launch `aictl-server` against a fresh `~/.aictl/config` with a single Anthropic key, point the OpenAI Python SDK at the server, run `client.chat.completions.create(model="claude-sonnet-4-6", ...)`, confirm the reply and that redaction ran (inspect audit log).
-7. Master-key generation: launch with no `server_master_key` configured, confirm key is generated, printed once, persisted to config, and a second launch reuses it silently.
-8. Shutdown: `SIGTERM` drains an in-flight streaming request within `server_shutdown_timeout`, flushes audit + log, exits 0.
+7. Master-key generation: launch with no `AICTL_SERVER_MASTER_KEY` configured, confirm key is generated, printed once, persisted to config, and a second launch reuses it silently.
+8. Shutdown: `SIGTERM` drains an in-flight streaming request within `AICTL_SERVER_SHUTDOWN_TIMEOUT`, flushes audit + log, exits 0.
 
 ## Open questions
 
