@@ -395,6 +395,10 @@ body.nav-open {
   color: var(--accent);
 }
 
+.hero__title--server {
+  font-size: clamp(48px, 11vw, 160px);
+}
+
 .hero__subtitle {
   max-width: 640px;
   margin: 0;
