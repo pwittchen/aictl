@@ -120,3 +120,47 @@ Before reporting a task as done, the agent should automatically review its own c
 - `list_directory` should show file sizes and support recursive tree view (depth-limited).
 - Tool output truncation at 10KB is too aggressive for large files — consider 50-100KB with smart truncation (keep first/last N lines, summarize middle).
 - Per-tool output size limits instead of a single global cap.
+
+---
+
+## CLI as aictl-server client
+
+Allow `aictl-cli` to route LLM traffic through a single `aictl-server` instance instead of talking to each provider directly. The user points the CLI at a server URL plus a master key; the CLI then uses the OpenAI-compatible `/v1/chat/completions` endpoint as its only upstream and lets the server fan out to the underlying providers. This is purely additive — the existing direct-to-provider path stays the default and untouched.
+
+### Goals
+
+- One server, one credential — instead of configuring API keys for OpenAI, Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai etc. on every CLI host, the user configures only the server URL + master key.
+- Centralized auditing, redaction, and stats — the server already runs `redact_outbound`, `detect_prompt_injection`, and `audit::log_tool` on the proxy path; CLI clients inherit that boundary for free.
+- Zero regression — when no server is configured, the CLI behaves exactly as it does today. Every existing provider, flag, and config key keeps working.
+
+### Configuration
+
+- New config keys in `~/.aictl/config`:
+  - `server_url` — base URL of the `aictl-server` instance (e.g. `http://127.0.0.1:8787`). Empty/unset means "use direct providers" (current behavior).
+  - `server_master_key` — plain-text master key by default, mirroring how other API keys are stored. When the user runs `/keys` and locks the keys, this value moves to the keyring under the same naming scheme as provider keys (e.g. `AICTL_SERVER_MASTER_KEY`) and is removed from the plain config.
+- `keys::get_secret("AICTL_SERVER_MASTER_KEY")` follows the existing keyring-first / config-fallback resolution so no new lookup path is needed.
+- New CLI flags (long-form only, matching project convention): `--server-url <URL>` and `--server-master-key <KEY>` for one-shot overrides without touching config.
+
+### Routing
+
+- Add a routing decision at the top of `run::run_agent_turn` (or wherever `Provider` is resolved): if `server_url` is set, all provider calls go through a new `llm/server_proxy.rs` module that speaks OpenAI-compatible chat completions to the server. The `Provider` enum stays unchanged for the model catalogue / pricing / `/balance` UI; only the dispatch target changes.
+- The proxy client mirrors `llm/openai.rs` (streaming + buffered, `on_token` callback, `TokenUsage` accounting) but always points at `${server_url}/v1/chat/completions` with `Authorization: Bearer ${master_key}`. Model names are forwarded as-is — the server already routes by model prefix.
+- Tool-call XML, redaction, security gate, audit log, and session storage stay in the CLI exactly as today. The server is just the LLM transport.
+
+### `/balance` and `/v1/stats`
+
+- When a server is configured, `/balance` and `--list-balances` should hit `${server_url}/v1/stats` (master-key gated) instead of probing each provider individually. Local providers (Ollama/GGUF/MLX) still resolve locally — they never go through the server.
+- `/stats` continues to read the local `~/.aictl/stats` file; the server has its own independent stats.
+
+### UX touches
+
+- `/info` and the status banner show the active server URL (or "direct providers" when unset) so users always know which path is live.
+- `/keys` gains a `aictl-server master key` row alongside the provider keys, with the same lock/unlock behavior.
+- `/config` exposes `server_url` and `server_master_key` so they can be set from the REPL without editing the file.
+- Health check on first use: a `GET ${server_url}/healthz` probe with a short timeout, surfaced as a clear error ("server unreachable, falling back to direct providers? [y/N]") rather than a mid-turn failure.
+
+### Out of scope (initial cut)
+
+- No automatic failover from server → direct providers if the server is down — fail loudly instead, the user picked a routing mode.
+- No multi-server load balancing or per-model server selection. One server URL, all models.
+- MCP tools, plugins, hooks, and agents remain CLI-local — the server is purely an LLM proxy and does not host these subsystems.
