@@ -67,6 +67,12 @@ jobs:
             sed -i "s/v[0-9][0-9.]*\( ·[^<]*<\/div>\)/v$tag_version\1/" website/server.html
             changed=1
           fi
+          # /healthz response example carries its own JSON `"version": "X.Y.Z"`
+          # literal — bump it too so the docs match what the server returns.
+          if ! grep -q "\"version\"</span><span class=\"tok-p\">:</span> <span class=\"tok-s\">\"$tag_version\"" website/server.html; then
+            sed -i "s|\(\"version\"</span><span class=\"tok-p\">:</span> <span class=\"tok-s\">\)\"[0-9][0-9.]*\"|\1\"$tag_version\"|" website/server.html
+            changed=1
+          fi
           if [ "$changed" = "1" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
