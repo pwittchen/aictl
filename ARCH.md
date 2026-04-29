@@ -2,7 +2,7 @@
 
 ## Module Structure
 
-Two-crate Cargo workspace: `crates/aictl-cli/` (binary, package `aictl-cli`, produces the `aictl` executable) and `crates/aictl-core/` (library, package `aictl-core`, lib name `aictl_core`). The CLI depends on the core via a path dependency and re-exports its modules under `crate::*` for legacy import paths. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; the core never names a terminal type.
+Three-crate Cargo workspace: `crates/aictl-cli/` (binary, package `aictl-cli`, produces the `aictl` executable), `crates/aictl-core/` (library, package `aictl-core`, lib name `aictl_core`), and `crates/aictl-server/` (binary, package & binary `aictl-server`, OpenAI-compatible HTTP LLM proxy — see [SERVER.md](SERVER.md)). The CLI and server both depend on `aictl-core` via a path dependency. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; HTTP deps (`axum`, `tower-http`, `tracing-subscriber`) only live in the server; the core never names a terminal or HTTP type.
 
 ```
 crates/aictl-cli/src/
@@ -50,7 +50,25 @@ crates/aictl-core/src/
      └── mlx.rs (+ mlx/) [experimental, macOS Apple Silicon only] Native MLX inference + model manager (~/.aictl/models/mlx/<name>/). Download takes &dyn AgentUI for progress reporting. Inference gated behind the `mlx` cargo feature (mlx-rs + tokenizers + minijinja + safetensors). Llama-family architectures only. Specs: mlx:owner/repo or owner/repo (Hugging Face mlx-community).
 ```
 
-Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; the CLI declares them as `aictl-core/<feature>` passthroughs so `cargo install --path crates/aictl-cli --features "..."` from the workspace root works unchanged.
+```
+crates/aictl-server/src/
+ ├── main.rs            CLI flags (clap), `~/.aictl/config` load, `tracing` subscriber init, master-key resolve, axum router build, graceful shutdown on SIGINT/SIGTERM
+ ├── config.rs          ServerConfig — reads AICTL_SERVER_BIND, AICTL_SERVER_REQUEST_TIMEOUT, AICTL_SERVER_BODY_LIMIT_BYTES, AICTL_SERVER_MAX_CONCURRENT_REQUESTS, AICTL_SERVER_SHUTDOWN_TIMEOUT, AICTL_SERVER_SSE_KEEPALIVE, AICTL_SERVER_LOG_LEVEL/FILE/BODIES, AICTL_SERVER_CORS_ORIGINS via aictl_core::config::config_get
+ ├── master_key.rs      Load-or-generate AICTL_SERVER_MASTER_KEY: --master-key flag wins, then config, otherwise 32 bytes from getrandom + base64url, persisted via config_set
+ ├── auth.rs            from_fn middleware enforcing Authorization: Bearer <master-key> on every authenticated route. Constant-time compare; failed attempts logged with client_ip.
+ ├── error.rs           ApiError enum (BadRequest/Unauthorized/Forbidden/PayloadTooLarge/UnprocessableEntity/TooManyRequests/InternalError/ServiceUnavailable/GatewayTimeout) with IntoResponse impl that emits OpenAI-shaped {"error":{"code","message"}} envelopes; from_aictl_error maps engine errors
+ ├── log.rs             tracing-subscriber init: stderr fmt layer (ANSI when TTY) + optional JSON-Lines file layer
+ ├── state.rs           AppState (master_key, ServerConfig, tokio Semaphore for the global concurrency cap, started_at)
+ ├── openai.rs          OpenAI request/response translation. ChatCompletionRequest, CompletionRequest, ChatCompletionResponse, ChatCompletionChunk, ModelsList. to_internal converts OpenAI messages to aictl_core::Message; resolve_provider matches model names against MODELS + locally available Ollama/GGUF/MLX. reject_tool_request blocks tool-calling fields (Phase 1).
+ ├── sse.rs             SSE framing helpers (data_event, done_event, error_event)
+ └── routes/
+     ├── gateway.rs     POST /v1/chat/completions + /v1/completions: prompt-injection guard, redact_outbound, audit::log_tool as gateway:<provider>, dispatch to aictl_core::llm::call_<provider>. Streaming: spawns provider call, fans out TokenSink deltas as data: {…delta…} frames, ends with [DONE]
+     ├── models.rs      GET /v1/models — engine MODELS plus locally available Ollama/GGUF/MLX
+     ├── stats.rs       GET /v1/stats — aictl_core::stats today/month/overall
+     └── health.rs      GET /healthz (no auth)
+```
+
+Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; the CLI and server declare them as `aictl-core/<feature>` passthroughs so `cargo install --path crates/aictl-cli --features "..."` from the workspace root works unchanged.
 
 ## Startup Flow
 

@@ -34,7 +34,7 @@ async function main() {
   }
 
   // Minify HTML (whitespace + HTML comments, preserving pre/code content).
-  for (const page of ["index.html", "guides.html"]) {
+  for (const page of ["index.html", "guides.html", "server.html"]) {
     let html = await readFile(join(root, page), "utf8");
     const blocks: string[] = [];
     html = html.replace(/<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/g, (m) => {
@@ -53,11 +53,17 @@ async function main() {
   // Copy install.sh from the parent repo so the site can serve it for one-liner installs.
   await copyFile(join(root, "..", "install.sh"), join(dist, "install.sh"));
 
+  // Mirror the same step for install-server.sh — produced under
+  // `dist/server/install.sh` so https://aictl.app/server/install.sh
+  // resolves alongside the existing CLI installer at /install.sh.
+  await mkdir(join(dist, "server"), { recursive: true });
+  await copyFile(join(root, "..", "install-server.sh"), join(dist, "server", "install.sh"));
+
   // Copy llms.txt for LLM-friendly site metadata (https://llmstxt.org/).
   await copyFile(join(root, "llms.txt"), join(dist, "llms.txt"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "guides.html", "style.css", "script.js", "install.sh", "llms.txt"]) {
+  for (const f of ["index.html", "guides.html", "server.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/aictl-cli", "crates/aictl-core"]
+members = ["crates/aictl-cli", "crates/aictl-core", "crates/aictl-server"]
 resolver = "3"
 
 # Shared package metadata. Both crates reference these via

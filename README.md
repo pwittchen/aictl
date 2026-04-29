@@ -100,6 +100,16 @@ Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and C
 
 The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it. The macOS Apple Silicon (`aarch64`) release additionally ships with `--features mlx` and includes a sibling `mlx.metallib` file alongside the binary (MLX needs the Metal library at runtime); every other platform's release contains just the `aictl` binary.
 
+## HTTP server (`aictl-server`)
+
+A second binary in this workspace, `aictl-server`, exposes the same provider catalogue over an OpenAI-compatible HTTP endpoint with redaction, prompt-injection blocking, audit, and a master-key gate. Pure proxy — no agent loop, no tools, no agents/skills/sessions. See [SERVER.md](SERVER.md) for the full reference.
+
+```sh
+curl -fsSL https://aictl.app/server/install.sh | sh
+aictl-server     # listens on 127.0.0.1:7878 by default; prints master key on first launch
+aictl --serve    # convenience shortcut from the CLI; forwards trailing args after `--`
+```
+
 ## Uninstall
 
 ### Binary release (installed via `install.sh`)

@@ -2,7 +2,7 @@
 
 Guidance for Claude Code when working in this repository.
 
-See [README.md](README.md) for user-facing docs and [ARCH.md](ARCH.md) for architecture detail. This file is the compact reference for code changes.
+See [README.md](README.md) for user-facing docs, [ARCH.md](ARCH.md) for architecture detail, and [SERVER.md](SERVER.md) for the HTTP server (`aictl-server`). This file is the compact reference for code changes.
 
 ## Build & Run
 
@@ -17,12 +17,13 @@ cargo test                     # run tests across the workspace
 
 ## Workspace layout
 
-Two-crate Cargo workspace:
+Three-crate Cargo workspace:
 
 - `crates/aictl-core/` — package `aictl-core`, library crate (lib name `aictl_core`). Hosts the agent loop, providers, tools, security, sessions, audit log, MCP/plugin/hook systems, and the `aictl_core::ui::AgentUI` trait that frontends implement. Does not link any terminal library; every side effect routes through `AgentUI` (or `aictl_core::ui::warn_global` for runtime warnings).
 - `crates/aictl-cli/` — package `aictl-cli`, binary crate (`[[bin]] name = "aictl"`). Hosts the REPL, slash-command UI, status banner, and the `PlainUI` / `InteractiveUI` impls of `AgentUI` (crossterm + indicatif + termimad + rustyline live here). Re-exports `aictl-core`'s modules under `crate::*` for legacy import paths.
+- `crates/aictl-server/` — package `aictl-server`, binary crate (`[[bin]] name = "aictl-server"`). OpenAI-compatible HTTP LLM proxy: `POST /v1/chat/completions`, `POST /v1/completions`, `GET /v1/models`, `GET /v1/stats`, `GET /healthz`. Pure proxy — no agent loop, no tool dispatch, no agents/skills/sessions. Reuses `aictl_core::run::redact_outbound` and `aictl_core::security::detect_prompt_injection` on the proxy path; logs every dispatch via `audit::log_tool` as `gateway:<provider>`. Master-key gate on every authenticated route; auto-generates and persists `AICTL_SERVER_MASTER_KEY` on first launch. axum 0.8 + tower-http live here only — they never enter `aictl-core`. See [SERVER.md](SERVER.md) for the full reference.
 
-Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; the CLI declares them as `aictl-core/<feature>` passthroughs.
+Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; the CLI and server declare them as `aictl-core/<feature>` passthroughs.
 
 ## Module map
 

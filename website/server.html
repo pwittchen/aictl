@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>aictl-server — OpenAI-compatible LLM proxy</title>
+  <meta name="description" content="aictl-server is an HTTP LLM proxy with built-in redaction, prompt-injection blocking, and audit. Point any OpenAI SDK at it to call Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models." />
+  <meta name="theme-color" content="#1f2228" />
+  <meta property="og:title" content="aictl-server — OpenAI-compatible LLM proxy" />
+  <meta property="og:description" content="An HTTP LLM proxy with redaction, prompt-injection blocking, and audit. One endpoint for every aictl-supported provider." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aictl.app/server" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="index.html" class="nav__brand">aictl<span class="nav__caret">_</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#providers">Providers</a>
+        <a href="index.html#tools">Tools</a>
+        <a href="index.html#compare">Compare</a>
+        <a href="index.html#install">Install</a>
+        <a href="guides.html">Guides</a>
+        <a href="server.html">Server</a>
+        <a href="index.html#license">License</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="#install">Install</a>
+      <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
+        <span class="nav__toggle-lines" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="nav__backdrop" data-nav-backdrop hidden></div>
+  <aside class="nav__drawer" id="nav-drawer" aria-hidden="true" aria-label="Mobile menu">
+    <div class="nav__drawer-head">
+      <span class="nav__drawer-brand">aictl<span class="nav__caret">_</span></span>
+      <button class="nav__close" type="button" aria-label="Close menu" data-nav-close>&times;</button>
+    </div>
+    <nav class="nav__drawer-links" aria-label="Mobile primary">
+      <a href="index.html#features" data-nav-link>Features</a>
+      <a href="index.html#providers" data-nav-link>Providers</a>
+      <a href="index.html#tools" data-nav-link>Tools</a>
+      <a href="index.html#compare" data-nav-link>Compare</a>
+      <a href="index.html#install" data-nav-link>Install</a>
+      <a href="guides.html" data-nav-link>Guides</a>
+      <a href="server.html" data-nav-link>Server</a>
+      <a href="index.html#license" data-nav-link>License</a>
+      <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener" data-nav-link>Source</a>
+    </nav>
+    <a class="btn btn--primary nav__drawer-cta" href="#install" data-nav-link>Install</a>
+  </aside>
+
+  <main>
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="tag">AICTL · v0.34.4 · Rust · HTTP LLM proxy · OpenAI-compatible</div>
+        <h1 class="hero__title">server</h1>
+        <p class="hero__subtitle">
+          An HTTP LLM proxy with built-in redaction, prompt-injection
+          blocking, and audit. Point any OpenAI SDK at it to call
+          Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai,
+          Ollama, GGUF, or MLX models — one endpoint, one master key.
+        </p>
+
+        <div class="cmd" role="region" aria-label="Install command">
+          <span class="cmd__prompt">$</span>
+          <code id="install-cmd">curl -fsSL https://aictl.app/server/install.sh | sh</code>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd" aria-label="Copy install command">Copy</button>
+        </div>
+
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#install">Get started</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">Read SERVER.md</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener"><svg class="btn__icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd"><g transform="translate(-140 -7559)"><g transform="translate(56 160)"><path d="M94,7399 C99.523,7399 104,7403.59 104,7409.253 C104,7413.782 101.138,7417.624 97.167,7418.981 C96.66,7419.082 96.48,7418.762 96.48,7418.489 C96.48,7418.151 96.492,7417.047 96.492,7415.675 C96.492,7414.719 96.172,7414.095 95.813,7413.777 C98.04,7413.523 100.38,7412.656 100.38,7408.718 C100.38,7407.598 99.992,7406.684 99.35,7405.966 C99.454,7405.707 99.797,7404.664 99.252,7403.252 C99.252,7403.252 98.414,7402.977 96.505,7404.303 C95.706,7404.076 94.85,7403.962 94,7403.958 C93.15,7403.962 92.295,7404.076 91.497,7404.303 C89.586,7402.977 88.746,7403.252 88.746,7403.252 C88.203,7404.664 88.546,7405.707 88.649,7405.966 C88.01,7406.684 87.619,7407.598 87.619,7408.718 C87.619,7412.646 89.954,7413.526 92.175,7413.785 C91.889,7414.041 91.63,7414.493 91.54,7415.156 C90.97,7415.418 89.522,7415.871 88.63,7414.304 C88.63,7414.304 88.101,7413.319 87.097,7413.247 C87.097,7413.247 86.122,7413.234 87.029,7413.87 C87.029,7413.87 87.684,7414.185 88.139,7415.37 C88.139,7415.37 88.726,7417.2 91.508,7416.58 C91.513,7417.437 91.522,7418.245 91.522,7418.489 C91.522,7418.76 91.338,7419.077 90.839,7418.982 C86.865,7417.627 84,7413.783 84,7409.253 C84,7403.59 88.478,7399 94,7399"/></g></g></g></svg>View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="install">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// install</span>
+          <h2 class="section__title">One liner</h2>
+          <p class="section__lead">
+            macOS arm64/x86_64 and Linux x86_64/arm64 ship as prebuilt
+            binaries. The installer detects your platform, downloads
+            the matching artifact from the latest GitHub release, and
+            drops it on <code>$PATH</code>. Unsupported platforms fall
+            back to <code>cargo install</code>.
+          </p>
+        </header>
+
+        <div class="cmd" role="region" aria-label="Install command duplicate" style="max-width: none;">
+          <span class="cmd__prompt">$</span>
+          <code id="install-cmd-2">curl -fsSL https://aictl.app/server/install.sh | sh</code>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd-2" aria-label="Copy install command">Copy</button>
+        </div>
+
+        <div class="grid grid--2" style="margin-top: 48px;">
+          <article class="card">
+            <h3>First launch</h3>
+            <p>
+              On first launch the server generates a 32-byte master API
+              key, persists it to <code>~/.aictl/config</code> as
+              <code>AICTL_SERVER_MASTER_KEY</code>, and prints it once
+              to stderr. Copy it — every authenticated request needs
+              <code>Authorization: Bearer &lt;key&gt;</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Shared config</h3>
+            <p>
+              The server reads the same <code>~/.aictl/config</code> the
+              CLI reads. Provider keys, redaction rules, and the
+              prompt-injection guard are tuned once and apply to both
+              surfaces.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="quickstart">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// quickstart</span>
+          <h2 class="section__title">Send your first request</h2>
+          <p class="section__lead">
+            Start the server, point an OpenAI SDK at it, send a request.
+            The model id picks the upstream provider — Anthropic,
+            Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF,
+            or MLX.
+          </p>
+        </header>
+
+        <div class="cmd" role="region" aria-label="Run server" style="max-width: none;">
+          <span class="cmd__prompt">$</span>
+          <code id="srv-cmd-run">aictl-server</code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-run" aria-label="Copy run command">Copy</button>
+        </div>
+
+        <p class="api-errors" style="margin-top: 16px;">
+          If you have the CLI installed, <code>aictl --serve</code> is a
+          convenience shortcut that locates the sibling
+          <code>aictl-server</code> binary and runs it. Trailing args
+          forward verbatim, e.g.
+          <code>aictl --serve -- --bind 0.0.0.0:7878 --quiet</code>.
+        </p>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-python"><span class="tok-c"># Python — point the OpenAI SDK at the proxy.</span>
+<span class="tok-k">from</span> openai <span class="tok-k">import</span> OpenAI
+
+client <span class="tok-p">=</span> OpenAI<span class="tok-p">(</span>
+    api_key<span class="tok-p">=</span><span class="tok-s">"&lt;AICTL_SERVER_MASTER_KEY&gt;"</span><span class="tok-p">,</span>
+    base_url<span class="tok-p">=</span><span class="tok-s">"http://127.0.0.1:7878/v1"</span><span class="tok-p">,</span>
+<span class="tok-p">)</span>
+
+reply <span class="tok-p">=</span> client<span class="tok-p">.</span>chat<span class="tok-p">.</span>completions<span class="tok-p">.</span>create<span class="tok-p">(</span>
+    model<span class="tok-p">=</span><span class="tok-s">"claude-sonnet-4-6"</span><span class="tok-p">,</span>
+    messages<span class="tok-p">=[{</span><span class="tok-s">"role"</span><span class="tok-p">:</span> <span class="tok-s">"user"</span><span class="tok-p">,</span> <span class="tok-s">"content"</span><span class="tok-p">:</span> <span class="tok-s">"Hello"</span><span class="tok-p">}],</span>
+<span class="tok-p">)</span>
+<span class="tok-k">print</span><span class="tok-p">(</span>reply<span class="tok-p">.</span>choices<span class="tok-p">[</span><span class="tok-n">0</span><span class="tok-p">].</span>message<span class="tok-p">.</span>content<span class="tok-p">)</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-python" aria-label="Copy Python example">Copy</button>
+        </div>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-curl"><span class="tok-c"># Plain curl — same endpoint, same master key, any provider.</span>
+curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Content-Type: application/json"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-d</span> <span class="tok-s">'{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-curl" aria-label="Copy curl example">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="api">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// rest api</span>
+          <h2 class="section__title">Endpoints</h2>
+          <p class="section__lead" style="line-height: 2;">
+            Five endpoints. Every authenticated request needs<br>
+            <code>Authorization: Bearer &lt;master-key&gt;</code>.<br>
+            <code>GET /healthz</code> is the only auth-free route.
+          </p>
+        </header>
+
+        <div class="api-list">
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--post">POST</span>
+              <code class="api-endpoint__path">/v1/chat/completions</code>
+              <span class="api-endpoint__auth">auth required</span>
+            </div>
+            <p class="api-endpoint__desc">
+              OpenAI-shaped chat endpoint. The <code>model</code> field
+              picks the provider. <code>stream: true</code> returns SSE
+              in OpenAI's <code>data: {"choices":[{"delta":...}]}</code>
+              shape, ending with <code>data: [DONE]</code>.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-chat">curl <span class="tok-k">-X</span> POST http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Content-Type: application/json"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-d</span> <span class="tok-s">'{
+    "model": "claude-sonnet-4-6",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-chat" aria-label="Copy chat request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-chat"><span class="tok-p">{</span>
+  <span class="tok-k">"id"</span><span class="tok-p">:</span> <span class="tok-s">"chatcmpl-7f3a92..."</span><span class="tok-p">,</span>
+  <span class="tok-k">"object"</span><span class="tok-p">:</span> <span class="tok-s">"chat.completion"</span><span class="tok-p">,</span>
+  <span class="tok-k">"created"</span><span class="tok-p">:</span> <span class="tok-n">1714411200</span><span class="tok-p">,</span>
+  <span class="tok-k">"model"</span><span class="tok-p">:</span> <span class="tok-s">"claude-sonnet-4-6"</span><span class="tok-p">,</span>
+  <span class="tok-k">"choices"</span><span class="tok-p">:</span> <span class="tok-p">[{</span>
+    <span class="tok-k">"index"</span><span class="tok-p">:</span> <span class="tok-n">0</span><span class="tok-p">,</span>
+    <span class="tok-k">"message"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"role"</span><span class="tok-p">:</span> <span class="tok-s">"assistant"</span><span class="tok-p">,</span> <span class="tok-k">"content"</span><span class="tok-p">:</span> <span class="tok-s">"Hi!"</span><span class="tok-p">},</span>
+    <span class="tok-k">"finish_reason"</span><span class="tok-p">:</span> <span class="tok-s">"stop"</span>
+  <span class="tok-p">}],</span>
+  <span class="tok-k">"usage"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"prompt_tokens"</span><span class="tok-p">:</span> <span class="tok-n">8</span><span class="tok-p">,</span> <span class="tok-k">"completion_tokens"</span><span class="tok-p">:</span> <span class="tok-n">2</span><span class="tok-p">,</span> <span class="tok-k">"total_tokens"</span><span class="tok-p">:</span> <span class="tok-n">10</span><span class="tok-p">}</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-chat" aria-label="Copy chat response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--post">POST</span>
+              <code class="api-endpoint__path">/v1/completions</code>
+              <span class="api-endpoint__auth">auth required</span>
+            </div>
+            <p class="api-endpoint__desc">
+              Legacy text-completion API. The prompt is wrapped in a
+              single user message and routed through the same provider
+              selection logic.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-completions">curl <span class="tok-k">-X</span> POST http://127.0.0.1:7878/v1/completions <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Content-Type: application/json"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-d</span> <span class="tok-s">'{
+    "model": "gpt-4o-mini",
+    "prompt": "Once upon a time"
+  }'</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-completions" aria-label="Copy completion request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-completions"><span class="tok-p">{</span>
+  <span class="tok-k">"id"</span><span class="tok-p">:</span> <span class="tok-s">"cmpl-3a91..."</span><span class="tok-p">,</span>
+  <span class="tok-k">"object"</span><span class="tok-p">:</span> <span class="tok-s">"text_completion"</span><span class="tok-p">,</span>
+  <span class="tok-k">"created"</span><span class="tok-p">:</span> <span class="tok-n">1714411200</span><span class="tok-p">,</span>
+  <span class="tok-k">"model"</span><span class="tok-p">:</span> <span class="tok-s">"gpt-4o-mini"</span><span class="tok-p">,</span>
+  <span class="tok-k">"choices"</span><span class="tok-p">:</span> <span class="tok-p">[{</span>
+    <span class="tok-k">"index"</span><span class="tok-p">:</span> <span class="tok-n">0</span><span class="tok-p">,</span>
+    <span class="tok-k">"text"</span><span class="tok-p">:</span> <span class="tok-s">" in a faraway land..."</span><span class="tok-p">,</span>
+    <span class="tok-k">"finish_reason"</span><span class="tok-p">:</span> <span class="tok-s">"stop"</span>
+  <span class="tok-p">}],</span>
+  <span class="tok-k">"usage"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"prompt_tokens"</span><span class="tok-p">:</span> <span class="tok-n">5</span><span class="tok-p">,</span> <span class="tok-k">"completion_tokens"</span><span class="tok-p">:</span> <span class="tok-n">20</span><span class="tok-p">,</span> <span class="tok-k">"total_tokens"</span><span class="tok-p">:</span> <span class="tok-n">25</span><span class="tok-p">}</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-completions" aria-label="Copy completion response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--get">GET</span>
+              <code class="api-endpoint__path">/v1/models</code>
+              <span class="api-endpoint__auth">auth required</span>
+            </div>
+            <p class="api-endpoint__desc">
+              Lists every model in the catalogue plus locally available
+              Ollama / GGUF / MLX models, with <code>context_window</code>
+              and an <code>available</code> flag (true when the upstream
+              key is configured).
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-models">curl http://127.0.0.1:7878/v1/models <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-models" aria-label="Copy models request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-models"><span class="tok-p">{</span>
+  <span class="tok-k">"object"</span><span class="tok-p">:</span> <span class="tok-s">"list"</span><span class="tok-p">,</span>
+  <span class="tok-k">"data"</span><span class="tok-p">:</span> <span class="tok-p">[</span>
+    <span class="tok-p">{</span>
+      <span class="tok-k">"id"</span><span class="tok-p">:</span> <span class="tok-s">"claude-sonnet-4-6"</span><span class="tok-p">,</span>
+      <span class="tok-k">"object"</span><span class="tok-p">:</span> <span class="tok-s">"model"</span><span class="tok-p">,</span>
+      <span class="tok-k">"owned_by"</span><span class="tok-p">:</span> <span class="tok-s">"Anthropic"</span><span class="tok-p">,</span>
+      <span class="tok-k">"context_window"</span><span class="tok-p">:</span> <span class="tok-n">200000</span><span class="tok-p">,</span>
+      <span class="tok-k">"available"</span><span class="tok-p">:</span> <span class="tok-n">true</span>
+    <span class="tok-p">},</span>
+    <span class="tok-p">{</span>
+      <span class="tok-k">"id"</span><span class="tok-p">:</span> <span class="tok-s">"gpt-4o-mini"</span><span class="tok-p">,</span>
+      <span class="tok-k">"object"</span><span class="tok-p">:</span> <span class="tok-s">"model"</span><span class="tok-p">,</span>
+      <span class="tok-k">"owned_by"</span><span class="tok-p">:</span> <span class="tok-s">"OpenAI"</span><span class="tok-p">,</span>
+      <span class="tok-k">"context_window"</span><span class="tok-p">:</span> <span class="tok-n">128000</span><span class="tok-p">,</span>
+      <span class="tok-k">"available"</span><span class="tok-p">:</span> <span class="tok-n">true</span>
+    <span class="tok-p">}</span>
+  <span class="tok-p">]</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-models" aria-label="Copy models response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--get">GET</span>
+              <code class="api-endpoint__path">/v1/stats</code>
+              <span class="api-endpoint__auth">auth required</span>
+            </div>
+            <p class="api-endpoint__desc">
+              Returns the same usage aggregates the CLI's
+              <code>/stats</code> command shows — today, this month,
+              overall.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-stats">curl http://127.0.0.1:7878/v1/stats <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-stats" aria-label="Copy stats request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-stats"><span class="tok-p">{</span>
+  <span class="tok-k">"today"</span><span class="tok-p">:</span> <span class="tok-p">{</span>
+    <span class="tok-k">"sessions"</span><span class="tok-p">:</span> <span class="tok-n">0</span><span class="tok-p">,</span>
+    <span class="tok-k">"requests"</span><span class="tok-p">:</span> <span class="tok-n">12</span><span class="tok-p">,</span>
+    <span class="tok-k">"llm_calls"</span><span class="tok-p">:</span> <span class="tok-n">12</span><span class="tok-p">,</span>
+    <span class="tok-k">"tool_calls"</span><span class="tok-p">:</span> <span class="tok-n">0</span><span class="tok-p">,</span>
+    <span class="tok-k">"input_tokens"</span><span class="tok-p">:</span> <span class="tok-n">1840</span><span class="tok-p">,</span>
+    <span class="tok-k">"output_tokens"</span><span class="tok-p">:</span> <span class="tok-n">412</span><span class="tok-p">,</span>
+    <span class="tok-k">"cost_usd"</span><span class="tok-p">:</span> <span class="tok-n">0.018</span><span class="tok-p">,</span>
+    <span class="tok-k">"models"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"claude-sonnet-4-6"</span><span class="tok-p">:</span> <span class="tok-n">8</span><span class="tok-p">,</span> <span class="tok-k">"gpt-4o-mini"</span><span class="tok-p">:</span> <span class="tok-n">4</span><span class="tok-p">}</span>
+  <span class="tok-p">},</span>
+  <span class="tok-k">"this_month"</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-c">/* same shape */</span> <span class="tok-p">},</span>
+  <span class="tok-k">"overall"</span><span class="tok-p">:</span> <span class="tok-p">{</span> <span class="tok-c">/* same shape */</span> <span class="tok-p">}</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-stats" aria-label="Copy stats response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--get">GET</span>
+              <code class="api-endpoint__path">/healthz</code>
+              <span class="api-endpoint__auth api-endpoint__auth--public">public</span>
+            </div>
+            <p class="api-endpoint__desc">
+              Liveness probe. Returns <code>status</code>,
+              <code>version</code>, <code>uptime_secs</code>, and
+              <code>active_requests</code>.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-healthz">curl http://127.0.0.1:7878/healthz</code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-healthz" aria-label="Copy healthz request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-healthz"><span class="tok-p">{</span>
+  <span class="tok-k">"status"</span><span class="tok-p">:</span> <span class="tok-s">"ok"</span><span class="tok-p">,</span>
+  <span class="tok-k">"version"</span><span class="tok-p">:</span> <span class="tok-s">"0.34.4"</span><span class="tok-p">,</span>
+  <span class="tok-k">"uptime_secs"</span><span class="tok-p">:</span> <span class="tok-n">3812</span><span class="tok-p">,</span>
+  <span class="tok-k">"active_requests"</span><span class="tok-p">:</span> <span class="tok-n">0</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-healthz" aria-label="Copy healthz response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <p class="api-errors">
+          Every error response is
+          <code>{"error":{"code":"…","message":"…"}}</code> — the same
+          envelope OpenAI uses, so existing SDK error handlers keep
+          working unchanged.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="config">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// configuration</span>
+          <h2 class="section__title">Knobs</h2>
+          <p class="section__lead">
+            Every server-only key lives in <code>~/.aictl/config</code>
+            with the <code>AICTL_SERVER_*</code> prefix. CLI flags
+            override config; config overrides defaults.
+          </p>
+        </header>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-config"><span class="tok-k">AICTL_SERVER_BIND</span><span class="tok-p">=</span><span class="tok-s">127.0.0.1:7878</span>          <span class="tok-c"># listen address</span>
+<span class="tok-k">AICTL_SERVER_MASTER_KEY</span><span class="tok-p">=</span><span class="tok-s">&lt;auto-generated&gt;</span>  <span class="tok-c"># bearer token</span>
+<span class="tok-k">AICTL_SERVER_REQUEST_TIMEOUT</span><span class="tok-p">=</span><span class="tok-n">120</span>          <span class="tok-c"># per-request seconds; 0 disables</span>
+<span class="tok-k">AICTL_SERVER_BODY_LIMIT_BYTES</span><span class="tok-p">=</span><span class="tok-n">2097152</span>     <span class="tok-c"># 2 MiB</span>
+<span class="tok-k">AICTL_SERVER_MAX_CONCURRENT_REQUESTS</span><span class="tok-p">=</span><span class="tok-n">32</span>   <span class="tok-c"># 503 when saturated</span>
+<span class="tok-k">AICTL_SERVER_SHUTDOWN_TIMEOUT</span><span class="tok-p">=</span><span class="tok-n">20</span>          <span class="tok-c"># SIGTERM drain seconds</span>
+<span class="tok-k">AICTL_SERVER_SSE_KEEPALIVE</span><span class="tok-p">=</span><span class="tok-n">15</span>             <span class="tok-c"># 0 disables</span>
+<span class="tok-k">AICTL_SERVER_LOG_LEVEL</span><span class="tok-p">=</span><span class="tok-s">info</span>               <span class="tok-c"># trace|debug|info|warn|error</span>
+<span class="tok-k">AICTL_SERVER_LOG_FILE</span><span class="tok-p">=</span><span class="tok-s">~/.aictl/server.log</span> <span class="tok-c"># empty disables file sink</span>
+<span class="tok-k">AICTL_SERVER_LOG_BODIES</span><span class="tok-p">=</span><span class="tok-n">true</span>              <span class="tok-c"># log redacted bodies</span>
+<span class="tok-k">AICTL_SERVER_CORS_ORIGINS</span><span class="tok-p">=</span>                <span class="tok-c"># empty = CORS off</span>
+<span class="tok-k">AICTL_SERVER_RATE_LIMIT_RPM</span><span class="tok-p">=</span><span class="tok-n">0</span>             <span class="tok-c"># per-IP req/min; 0 disables</span>
+<span class="tok-k">AICTL_SERVER_RATE_LIMIT_BURST</span><span class="tok-p">=</span><span class="tok-n">0</span>           <span class="tok-c"># bucket capacity; 0 = RPM</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-config" aria-label="Copy configuration example">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// security</span>
+          <h2 class="section__title">Defense in depth</h2>
+          <p class="section__lead">
+            The same redaction and prompt-injection controls the CLI
+            ships run on every gateway request — same regex bank, same
+            entropy pass, same optional NER, same config.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Master-key gate</h3>
+            <p>
+              Constant-time bearer-token compare. Both wrong-token and
+              missing-token surface as the same 401 body so the
+              distinction can't be enumerated.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Outbound redaction</h3>
+            <p>
+              <code>aictl_core::run::redact_outbound</code> runs on
+              every gateway request. Local providers (Ollama / GGUF /
+              MLX) skip unless
+              <code>AICTL_SECURITY_REDACTION_LOCAL=true</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Prompt-injection guard</h3>
+            <p>
+              Every user message passes through
+              <code>security::detect_prompt_injection</code>. Matches
+              get rejected with 400
+              <code>prompt_injection</code> so poisoned prompts can't
+              burn the operator's tokens.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Audit log</h3>
+            <p>
+              Every dispatch is recorded as
+              <code>gateway:&lt;provider&gt;</code> in
+              <code>~/.aictl/audit/</code>, with the per-request UUID
+              as the session id.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Rate limit (optional)</h3>
+            <p>
+              Per-client-IP token bucket configurable via
+              <code>AICTL_SERVER_RATE_LIMIT_RPM</code> and
+              <code>AICTL_SERVER_RATE_LIMIT_BURST</code>. Off by
+              default. Saturation returns 429 with a
+              <code>Retry-After</code> header. The global concurrency
+              cap (<code>AICTL_SERVER_MAX_CONCURRENT_REQUESTS</code>)
+              operates independently and remains the primary
+              backpressure mechanism.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Concurrency cap</h3>
+            <p>
+              A global semaphore caps in-flight requests at
+              <code>AICTL_SERVER_MAX_CONCURRENT_REQUESTS</code>
+              (default 32). Saturation returns 503 immediately rather
+              than queueing — clients that care about backpressure
+              handle retry themselves.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="reference">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// reference</span>
+          <h2 class="section__title">Read the full spec</h2>
+          <p class="section__lead">
+            <a class="api-doc-link" href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">SERVER.md</a>
+            on GitHub is the canonical reference: every endpoint,
+            request schema, response schema, SSE shape, error envelope,
+            status-code table, OpenAI-shape mapping per provider, and
+            deployment notes (systemd, nginx reverse proxy with
+            <code>proxy_buffering off</code>, Docker).
+          </p>
+        </header>
+
+        <div class="hero__actions" style="justify-content: flex-start;">
+          <a class="btn btn--primary" href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">Open SERVER.md</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener"><svg class="btn__icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd"><g transform="translate(-140 -7559)"><g transform="translate(56 160)"><path d="M94,7399 C99.523,7399 104,7403.59 104,7409.253 C104,7413.782 101.138,7417.624 97.167,7418.981 C96.66,7419.082 96.48,7418.762 96.48,7418.489 C96.48,7418.151 96.492,7417.047 96.492,7415.675 C96.492,7414.719 96.172,7414.095 95.813,7413.777 C98.04,7413.523 100.38,7412.656 100.38,7408.718 C100.38,7407.598 99.992,7406.684 99.35,7405.966 C99.454,7405.707 99.797,7404.664 99.252,7403.252 C99.252,7403.252 98.414,7402.977 96.505,7404.303 C95.706,7404.076 94.85,7403.962 94,7403.958 C93.15,7403.962 92.295,7404.076 91.497,7404.303 C89.586,7402.977 88.746,7403.252 88.746,7403.252 C88.203,7404.664 88.546,7405.707 88.649,7405.966 C88.01,7406.684 87.619,7407.598 87.619,7408.718 C87.619,7412.646 89.954,7413.526 92.175,7413.785 C91.889,7414.041 91.63,7414.493 91.54,7415.156 C90.97,7415.418 89.522,7415.871 88.63,7414.304 C88.63,7414.304 88.101,7413.319 87.097,7413.247 C87.097,7413.247 86.122,7413.234 87.029,7413.87 C87.029,7413.87 87.684,7414.185 88.139,7415.37 C88.139,7415.37 88.726,7417.2 91.508,7416.58 C91.513,7417.437 91.522,7418.245 91.522,7418.489 C91.522,7418.76 91.338,7419.077 90.839,7418.982 C86.865,7417.627 84,7413.783 84,7409.253 C84,7403.59 88.478,7399 94,7399"/></g></g></g></svg>View on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">aictl<span class="nav__caret">_</span></div>
+      <div class="footer__links">
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/pwittchen/aictl/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+        <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+      <div class="footer__meta">
+        PolyForm Noncommercial · built by <a href="https://wittchen.io" target="_blank" rel="noopener">Piotr Wittchen</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

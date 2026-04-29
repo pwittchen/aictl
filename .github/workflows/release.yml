@@ -52,6 +52,7 @@ jobs:
             # Cargo.lock has one entry per workspace member.
             sed -i '/^name = "aictl-cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             sed -i '/^name = "aictl-core"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            sed -i '/^name = "aictl-server"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             changed=1
           fi
           if ! grep -q "v$tag_version ·" website/index.html; then
@@ -62,10 +63,14 @@ jobs:
             sed -i "s/v[0-9][0-9.]*\( ·[^<]*<\/div>\)/v$tag_version\1/" website/guides.html
             changed=1
           fi
+          if ! grep -q "v$tag_version ·" website/server.html; then
+            sed -i "s/v[0-9][0-9.]*\( ·[^<]*<\/div>\)/v$tag_version\1/" website/server.html
+            changed=1
+          fi
           if [ "$changed" = "1" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add Cargo.toml Cargo.lock website/index.html website/guides.html
+            git add Cargo.toml Cargo.lock website/index.html website/guides.html website/server.html
             git commit -m "Bump version to $tag_version"
             git push origin HEAD:master
           fi
@@ -78,19 +83,27 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: aictl-linux-x86_64
+            server_artifact: aictl-server-linux-x86_64
             features: gguf redaction-ner
+            server_features: redaction-ner
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
             artifact: aictl-linux-aarch64
+            server_artifact: aictl-server-linux-aarch64
             features: gguf redaction-ner
+            server_features: redaction-ner
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: aictl-darwin-x86_64
+            server_artifact: aictl-server-darwin-x86_64
             features: gguf redaction-ner
+            server_features: redaction-ner
           - target: aarch64-apple-darwin
             os: macos-15
             artifact: aictl-darwin-aarch64
+            server_artifact: aictl-server-darwin-aarch64
             features: gguf mlx redaction-ner
+            server_features: redaction-ner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -116,12 +129,19 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}-${{ matrix.features }}
+          key: ${{ matrix.target }}-${{ matrix.features }}-${{ matrix.server_features }}
 
-      - name: Build
-        run: cargo build --release --features "${{ matrix.features }}" --target ${{ matrix.target }}
+      - name: Build aictl (CLI)
+        run: cargo build --release -p aictl-cli --features "${{ matrix.features }}" --target ${{ matrix.target }}
 
-      - name: Package
+      - name: Build aictl-server
+        # Server is the LLM proxy — no inference (`gguf` / `mlx`) needed,
+        # so it ships much smaller than the CLI. `redaction-ner` is kept
+        # because the server applies the same outbound redaction on the
+        # proxy path that the CLI does at the network boundary.
+        run: cargo build --release -p aictl-server --features "${{ matrix.server_features }}" --target ${{ matrix.target }}
+
+      - name: Package aictl (CLI)
         shell: bash
         run: |
           bin_src="target/${{ matrix.target }}/release/aictl"
@@ -146,11 +166,24 @@ jobs:
             echo "asset=${{ matrix.artifact }}" >> "$GITHUB_ENV"
           fi
 
-      - name: Upload artifact
+      - name: Package aictl-server
+        shell: bash
+        run: |
+          bin_src="target/${{ matrix.target }}/release/aictl-server"
+          cp "$bin_src" "${{ matrix.server_artifact }}"
+          echo "server_asset=${{ matrix.server_artifact }}" >> "$GITHUB_ENV"
+
+      - name: Upload aictl artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ env.asset }}
+
+      - name: Upload aictl-server artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.server_artifact }}
+          path: ${{ env.server_asset }}
 
   release:
     needs: build

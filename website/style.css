@@ -483,6 +483,111 @@ body.nav-open {
 .tok-c { color: var(--fg-50); font-style: italic; }
 .tok-p { color: var(--fg-50); }
 
+/* REST API endpoint list (SERVER docs) */
+.api-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.api-endpoint {
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color 120ms ease;
+}
+
+.api-endpoint:hover { border-color: var(--border-strong); }
+
+.api-endpoint__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.api-endpoint__method {
+  display: inline-block;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.api-endpoint__method--get { color: var(--accent); border-color: var(--accent); }
+.api-endpoint__method--post { color: var(--fg); border-color: var(--fg); }
+
+.api-endpoint__path {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--fg);
+  background: transparent;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.api-endpoint__auth {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--fg-50);
+  flex-shrink: 0;
+}
+
+.api-endpoint__auth--public { color: var(--accent); }
+
+.api-endpoint__desc {
+  margin: 0;
+  color: var(--fg-70);
+  line-height: 1.6;
+}
+
+.api-endpoint__samples {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.api-endpoint__sample-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--fg-50);
+  margin-bottom: 6px;
+}
+
+.api-errors {
+  margin: 32px 0 0;
+  padding: 16px 20px;
+  background: var(--bg-alt);
+  border-left: 2px solid var(--border-strong);
+  color: var(--fg-70);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Inline doc link — used in the SERVER reference section so the
+   in-prose link reads as a link instead of inheriting body color. */
+.api-doc-link {
+  color: var(--accent);
+  border-bottom: 1px solid currentColor;
+}
+.api-doc-link:hover { color: var(--fg); }
+
 /* Sections */
 .section {
   padding: 96px 0;

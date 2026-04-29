@@ -27,6 +27,7 @@
         <a href="index.html#compare">Compare</a>
         <a href="index.html#install">Install</a>
         <a href="guides.html">Guides</a>
+        <a href="server.html">Server</a>
         <a href="index.html#license">License</a>
         <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
       </nav>
@@ -50,6 +51,7 @@
       <a href="index.html#compare" data-nav-link>Compare</a>
       <a href="index.html#install" data-nav-link>Install</a>
       <a href="guides.html" data-nav-link>Guides</a>
+      <a href="server.html" data-nav-link>Server</a>
       <a href="index.html#license" data-nav-link>License</a>
       <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener" data-nav-link>Source</a>
     </nav>
@@ -98,6 +100,7 @@
           <li><a href="#security">Security</a></li>
           <li><a href="#local-models">Local models</a></li>
           <li><a href="#examples">Examples</a></li>
+          <li><a href="server.html">HTTP proxy server</a></li>
           <li><a href="#uninstall">Update &amp; uninstall</a></li>
         </ul>
       </div>
@@ -1216,10 +1219,44 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
       </div>
     </section>
 
+    <section class="section section--alt" id="server">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 15 http proxy</span>
+          <h2 class="section__title">HTTP proxy server</h2>
+          <p class="section__lead">
+            A sibling binary that exposes the same providers behind a
+            single OpenAI-compatible HTTP endpoint, with built-in
+            redaction, prompt-injection blocking, audit, and a
+            master-key gate. Pure proxy — agents, skills, sessions, and
+            slash commands stay CLI-only.
+          </p>
+        </header>
+
+        <div class="cmd" role="region" aria-label="Server install command" style="max-width: none;">
+          <span class="cmd__prompt">$</span>
+          <code id="g-cmd-server-install">curl -fsSL https://aictl.app/server/install.sh | sh</code>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-server-install" aria-label="Copy server install command">Copy</button>
+        </div>
+
+        <p class="section__note" style="margin-top: 16px;">
+          If the CLI is already installed, <code>aictl --serve</code> is
+          a convenience shortcut that locates the sibling
+          <code>aictl-server</code> binary and runs it (trailing args
+          forward verbatim).
+        </p>
+
+        <div class="hero__actions" style="justify-content: flex-start; margin-top: 32px;">
+          <a class="btn btn--primary" href="server.html">Server docs</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">SERVER.md</a>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="uninstall">
       <div class="container">
         <header class="section__head">
-          <span class="section__kicker">// 15 update &amp; uninstall</span>
+          <span class="section__kicker">// 16 update &amp; uninstall</span>
           <h2 class="section__title">Update &amp; uninstall</h2>
           <p class="section__lead">
             Keep aictl current, or remove it cleanly when you are

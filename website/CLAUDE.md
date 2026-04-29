@@ -42,4 +42,4 @@ When adding or modifying components, cross-reference `DESIGN.md` sections 4 (com
 ## Conventions
 
 - Long-form only, no frameworks, no dependencies beyond `bun-types`. Don't introduce React/Vue/Tailwind/etc.
-- The `install.sh` copy step in `build.ts` depends on the file living at `../install.sh` — don't move it without updating the build.
+- The `install.sh` and `install-server.sh` copy steps in `build.ts` depend on the files living at `../install.sh` and `../install-server.sh` — don't move either without updating the build. The server installer is renamed at build time (`install-server.sh` in the repo, `dist/server/install.sh` on prod) so `https://aictl.app/server/install.sh` resolves to it.

@@ -8,13 +8,16 @@ aictl is written in Rust and ships as one binary with no runtime dependencies on
 
 - [Home](https://aictl.app/index.html): Overview, features, providers, tools, comparison with other AI coding tools, install steps, license.
 - [Guides](https://aictl.app/guides.html): End-to-end documentation — install, configuration, API keys, secure key storage, providers and models, usage modes, REPL commands, CLI flags, agents, skills, plugins, hooks, sessions, security policy.
-- [install.sh](https://aictl.app/install.sh): The one-liner installer script (`curl -sSf https://aictl.app/install.sh | sh`).
+- [Server](https://aictl.app/server): aictl-server, an OpenAI-compatible HTTP LLM proxy with built-in redaction, prompt-injection blocking, and audit. Pure proxy — no agent loop. Pairs with the CLI against the same `~/.aictl/config`.
+- [install.sh](https://aictl.app/install.sh): The CLI one-liner installer (`curl -sSf https://aictl.app/install.sh | sh`).
+- [server/install.sh](https://aictl.app/server/install.sh): The server one-liner installer (`curl -fsSL https://aictl.app/server/install.sh | sh`).
 
 ## Source
 
 - [GitHub repository](https://github.com/pwittchen/aictl): Full source code.
 - [README](https://github.com/pwittchen/aictl/blob/master/README.md): User-facing documentation.
 - [ARCH.md](https://github.com/pwittchen/aictl/blob/master/ARCH.md): Architecture notes.
+- [SERVER.md](https://github.com/pwittchen/aictl/blob/master/SERVER.md): aictl-server canonical reference (REST API, configuration, security, deployment).
 - [ROADMAP](https://github.com/pwittchen/aictl/blob/master/ROADMAP.md): Planned work.
 - [Releases](https://github.com/pwittchen/aictl/releases): Prebuilt binaries for macOS and Linux on x86_64 and aarch64.
 - [Issues](https://github.com/pwittchen/aictl/issues): Bug reports and feature requests.

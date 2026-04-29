@@ -272,6 +272,18 @@ struct Cli {
     /// because it is not a user-facing flag.
     #[arg(long = "mock", hide = true)]
     mock: bool,
+
+    /// Launch the bundled `aictl-server` HTTP LLM proxy if it's installed.
+    /// Convenience shortcut so users don't have to remember the second
+    /// binary name. Forwards any trailing args to the server, e.g.
+    /// `aictl --serve -- --bind 0.0.0.0:7878 --quiet`. See SERVER.md.
+    #[arg(long = "serve")]
+    serve: bool,
+
+    /// Trailing args forwarded verbatim to `aictl-server` when `--serve`
+    /// is set. Anything after `--` lands here.
+    #[arg(last = true)]
+    serve_args: Vec<String>,
 }
 
 #[tokio::main]
@@ -282,6 +294,13 @@ async fn main() {
     }
 
     let cli = Cli::parse();
+
+    // Handle `--serve` before any heavyweight init: the server has
+    // its own startup (security, redaction, MCP guards don't apply
+    // to a pure proxy) and we don't want to double-initialize them.
+    if cli.serve {
+        commands::run_serve_cli(&cli.serve_args);
+    }
 
     let redaction_warnings = security::init(cli.unrestricted);
     if cli.unrestricted {

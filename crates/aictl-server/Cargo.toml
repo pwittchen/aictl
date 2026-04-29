@@ -1,0 +1,53 @@
+[package]
+name = "aictl-server"
+description = "OpenAI-compatible HTTP LLM proxy for aictl"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+license-file.workspace = true
+
+[[bin]]
+name = "aictl-server"
+path = "src/main.rs"
+
+[dependencies]
+aictl-core = { path = "../aictl-core" }
+
+# HTTP framework. Pinned to 0.8.x — semver breaks between minor lines
+# are real, lock it explicitly. See plan §2.
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "tower-log", "matched-path"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["limit", "cors", "timeout", "trace"] }
+
+# Async runtime + streaming.
+tokio = { version = "1", features = ["full"] }
+async-stream = "0.3"
+futures = "0.3"
+
+# JSON / serde.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "fmt", "env-filter", "ansi"] }
+
+# CLI.
+clap = { version = "4", features = ["derive"] }
+
+# Master key generation: 32 bytes from the OS RNG, base64url-encoded.
+getrandom = "0.3"
+base64 = "0.22"
+
+# Per-request UUIDs surfaced in `X-Request-Id` and the structured log.
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = []
+gguf = ["aictl-core/gguf"]
+mlx = ["aictl-core/mlx"]
+redaction-ner = ["aictl-core/redaction-ner"]

@@ -27,6 +27,7 @@
         <a href="#compare">Compare</a>
         <a href="#install">Install</a>
         <a href="guides.html">Guides</a>
+        <a href="server.html">Server</a>
         <a href="#license">License</a>
         <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
       </nav>
@@ -50,6 +51,7 @@
       <a href="#compare" data-nav-link>Compare</a>
       <a href="#install" data-nav-link>Install</a>
       <a href="guides.html" data-nav-link>Guides</a>
+      <a href="server.html" data-nav-link>Server</a>
       <a href="#license" data-nav-link>License</a>
       <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener" data-nav-link>Source</a>
     </nav>
@@ -396,6 +398,34 @@
             and Unix tools. Other Unix-likes (FreeBSD, uncommon Linux
             architectures) can build from source with a Rust toolchain.
           </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="server">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// server</span>
+          <h2 class="section__title">HTTP proxy mode</h2>
+          <p class="section__lead">
+            A second binary, <code>aictl-server</code>, exposes the same
+            provider catalogue over an OpenAI-compatible HTTP endpoint
+            with built-in redaction, prompt-injection blocking, and
+            audit. Pure proxy — no agent loop, no tools, no
+            agents/skills/sessions. Point any OpenAI SDK at it and call
+            every supported provider behind one master key.
+          </p>
+        </header>
+
+        <div class="cmd" role="region" aria-label="Server install command">
+          <span class="cmd__prompt">$</span>
+          <code id="server-install-cmd">curl -fsSL https://aictl.app/server/install.sh | sh</code>
+          <button class="cmd__copy" type="button" data-copy="#server-install-cmd" aria-label="Copy server install command">Copy</button>
+        </div>
+
+        <div class="hero__actions" style="justify-content: flex-start; margin-top: 32px;">
+          <a class="btn btn--primary" href="server.html">Read more</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl/blob/master/SERVER.md" target="_blank" rel="noopener">SERVER.md</a>
         </div>
       </div>
     </section>

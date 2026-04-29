@@ -15,6 +15,19 @@ pub mod zai;
 
 use std::sync::Arc;
 
+/// Look up the provider for a known model name. Performs an exact-match
+/// against [`MODELS`]; returns the lowercase provider tag (`"openai"`,
+/// `"anthropic"`, `"gemini"`, …) on hit. Local providers (Ollama, GGUF,
+/// MLX) are not in [`MODELS`] — callers handle those separately by
+/// listing locally available models.
+#[must_use]
+pub fn provider_for_model(model: &str) -> Option<&'static str> {
+    MODELS
+        .iter()
+        .find(|(_, name, _)| *name == model)
+        .map(|(provider, _, _)| *provider)
+}
+
 /// Callback invoked once per delta chunk during streaming inference.
 ///
 /// Receives **incremental** deltas (never cumulative text). Each provider's
