@@ -58,7 +58,7 @@ cargo install --path crates/aictl-server
 cargo install --path crates/aictl-server --features "gguf mlx redaction-ner"
 ```
 
-`cargo install --path` puts the binary at `~/.cargo/bin/aictl-server`. Make sure `~/.cargo/bin` is on your `$PATH` (rustup adds it by default). To uninstall: `cargo uninstall aictl-server`.
+`cargo install --path` puts the binary at `~/.cargo/bin/aictl-server`. Make sure `~/.cargo/bin` is on your `$PATH` (rustup adds it by default). To uninstall: `aictl-server --uninstall` (removes the binary from `~/.cargo/bin/`, `~/.local/bin/`, `/usr/local/bin/`, and `$AICTL_INSTALL_DIR`; leaves `~/.aictl/` untouched), or `cargo uninstall aictl-server` for a cargo-managed install.
 
 ### First launch
 

@@ -33,6 +33,7 @@ mod rate_limit;
 mod routes;
 mod sse;
 mod state;
+mod uninstall;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -76,11 +77,20 @@ struct Cli {
     /// Override `AICTL_SERVER_LOG_FILE` (empty disables the file sink).
     #[arg(long)]
     log_file: Option<PathBuf>,
+    /// Remove the `aictl-server` binary from `~/.cargo/bin/`,
+    /// `~/.local/bin/`, `/usr/local/bin/` (and `$AICTL_INSTALL_DIR` if
+    /// set) and exit. Leaves `~/.aictl/` untouched.
+    #[arg(long = "uninstall")]
+    uninstall: bool,
 }
 
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    if cli.uninstall {
+        uninstall::run();
+    }
 
     if cli.config.is_some() {
         // Plan §3: the engine config loader hard-codes `~/.aictl/config`.
