@@ -592,6 +592,20 @@ body.nav-open {
 }
 .api-doc-link:hover { color: var(--fg); }
 
+/* Preview */
+.preview {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.preview__img {
+  display: block;
+  width: 100%;
+  max-width: 858px;
+  height: auto;
+}
+
 /* Sections */
 .section {
   padding: 96px 0;
@@ -605,6 +619,12 @@ body.nav-open {
 .section__head {
   max-width: 720px;
   margin: 0 0 64px;
+}
+
+.section__head--center {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
 
 .section__kicker {
