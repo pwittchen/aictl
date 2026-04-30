@@ -420,7 +420,7 @@ body.nav-open {
   align-items: center;
   gap: 12px;
   width: 100%;
-  max-width: 760px;
+  max-width: 757px;
   padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1027,7 +1027,13 @@ body.nav-open {
   .section__head { margin-bottom: 40px; }
   .footer__inner { flex-direction: column; align-items: flex-start; }
   .footer__links { width: 100%; }
-  .hero__actions .btn { flex: 1; min-width: 0; }
+  .hero__actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 757px;
+  }
+  .hero__actions .btn { width: 100%; }
 }
 
 @media (max-width: 720px) {
