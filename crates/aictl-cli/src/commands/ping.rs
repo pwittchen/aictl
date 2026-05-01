@@ -193,7 +193,7 @@ async fn probe_aictl_server() -> PingResult {
             let detail = if e.is_timeout() {
                 "timeout".to_string()
             } else if e.is_connect() {
-                "connect failed".to_string()
+                "not running".to_string()
             } else {
                 "error".to_string()
             };
