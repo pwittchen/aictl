@@ -168,10 +168,7 @@ async fn maybe_update_server(show_error: &dyn Fn(&str)) {
     }
 
     println!();
-    println!(
-        "  {} updating aictl-server...",
-        "↓".with(Color::Cyan),
-    );
+    println!("  {} updating aictl-server...", "↓".with(Color::Cyan),);
     println!();
 
     let status = tokio::process::Command::new("sh")
