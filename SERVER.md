@@ -147,6 +147,7 @@ The `AICTL_CLIENT_*` vs `AICTL_SERVER_*` split is deliberate: a single host may 
 | `AICTL_SERVER_LOG_LEVEL` | `info` | `trace`/`debug`/`info`/`warn`/`error`. |
 | `AICTL_SERVER_LOG_FILE` | `~/.aictl/server.log` | JSON-Lines log file. Empty disables the file sink (terminal sink stays on). |
 | `AICTL_SERVER_LOG_BODIES` | `true` | Log redacted request/response bodies. `false` drops body lines at the source. |
+| `AICTL_SERVER_AUDIT_FILE` | `~/.aictl/server-audit.log` | Per-process audit log (JSON-Lines). Every gateway dispatch and redaction event lands here. Empty string disables disk audit even when the toggle is on. Suppressed entirely by `AICTL_SERVER_SECURITY_AUDIT_LOG=false`. |
 | `AICTL_SERVER_CORS_ORIGINS` | _(empty)_ | Comma-separated origin list. Empty = CORS off. |
 | `AICTL_SERVER_RATE_LIMIT_RPM` | `0` | Per-client-IP requests per minute. `0` disables (only the global concurrency cap applies). |
 | `AICTL_SERVER_RATE_LIMIT_BURST` | `0` | Token-bucket capacity (max consecutive requests). `0` falls back to the RPM value, so the bucket holds one minute of tokens. |
@@ -181,6 +182,7 @@ Tool-dispatch knobs (CWD jail, shell allow/block lists, blocked env vars, disabl
 | `--quiet` | Suppress startup banner. |
 | `--log-level <level>` | Override `AICTL_SERVER_LOG_LEVEL`. |
 | `--log-file <path>` | Override `AICTL_SERVER_LOG_FILE`. |
+| `--audit-file <path>` | Override `AICTL_SERVER_AUDIT_FILE`. |
 
 `--unrestricted` is intentionally absent — the server does not dispatch tools, so there is nothing to gate.
 
@@ -295,7 +297,7 @@ Every error response is `{"error": {"code": "…", "message": "…"}}` — the s
 - **Rate limit (optional)**: per-client-IP token bucket via `AICTL_SERVER_RATE_LIMIT_RPM` and `AICTL_SERVER_RATE_LIMIT_BURST`. Off by default. Saturation returns 429 with a `Retry-After: <seconds>` header. Buckets are keyed by the request's source IP (read from the socket — `X-Forwarded-*` is not trusted), so the limiter only behaves as expected when the server is reached directly. Behind a reverse proxy every request appears to come from the proxy's IP — terminate the limit at the proxy or trust the proxy to set its own.
 - **Redaction**: `aictl_core::run::redact_outbound` runs on every gateway request, with the same regex bank, entropy pass, and optional NER as the CLI. Local providers (Ollama/GGUF/MLX) skip unless `AICTL_SECURITY_REDACTION_LOCAL=true`.
 - **Prompt-injection guard**: `aictl_core::security::detect_prompt_injection` runs on every user message; matches surface as 400 `prompt_injection` so poisoned prompts can't burn the operator's tokens.
-- **Audit**: every dispatch is logged as `gateway:<provider>` to `~/.aictl/audit/` via `audit::log_tool`, with the per-request UUID as the session id.
+- **Audit**: every successful gateway dispatch is logged as `gateway:<provider>` (with the per-request UUID as the result tag) and every redaction event as `redaction` to a per-process JSON-Lines file at `AICTL_SERVER_AUDIT_FILE` (default `~/.aictl/server-audit.log`). Toggle via `AICTL_SERVER_SECURITY_AUDIT_LOG`; override the path with `--audit-file <path>`. Unlike the CLI's session-keyed audit scheme, the server uses one file for the whole process — there is no session id.
 
 The master key grants full proxy access — there is no second tier of credentials. Rotate by editing the config file.
 

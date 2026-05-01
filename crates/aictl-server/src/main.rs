@@ -77,6 +77,13 @@ struct Cli {
     /// Override `AICTL_SERVER_LOG_FILE` (empty disables the file sink).
     #[arg(long)]
     log_file: Option<PathBuf>,
+    /// Override `AICTL_SERVER_AUDIT_FILE` (per-process audit log path).
+    /// Defaults to `~/.aictl/server-audit.log`. The audit subsystem
+    /// itself can still be disabled via
+    /// `AICTL_SERVER_SECURITY_AUDIT_LOG=false`; this flag only controls
+    /// where the file lands when audit is on.
+    #[arg(long = "audit-file")]
+    audit_file: Option<PathBuf>,
     /// Remove the `aictl-server` binary from `~/.cargo/bin/`,
     /// `~/.local/bin/`, `/usr/local/bin/` (and `$AICTL_INSTALL_DIR` if
     /// set) and exit. Leaves `~/.aictl/` untouched.
@@ -119,9 +126,28 @@ async fn main() {
         cli.bind.clone(),
         cli.log_level.clone(),
         cli.log_file.clone(),
+        cli.audit_file.clone(),
     );
 
     log::init(&server_config.log_level, server_config.log_file.as_deref());
+
+    // Pin a per-process audit file before any gateway dispatch could
+    // run. The CLI's session-keyed audit scheme
+    // (`~/.aictl/audit/<session-id>`) does not apply here because the
+    // server has no notion of a session — without this override the
+    // `audit::log_tool` calls in `routes::gateway` early-return.
+    //
+    // We only set the override when the audit toggle is on, so an
+    // operator who switched audit off via
+    // `AICTL_SERVER_SECURITY_AUDIT_LOG=false` continues to get no
+    // disk writes (the override would otherwise force-enable the
+    // subsystem — its semantics for the CLI's `--audit-file` flag,
+    // which is a single-shot opt-in).
+    if aictl_core::audit::enabled()
+        && let Some(path) = server_config.audit_file.as_deref()
+    {
+        aictl_core::audit::set_file_override(path);
+    }
 
     // Initialize the engine's security policy and redaction pipeline so
     // the prompt-injection guard and `redact_outbound` use the user's

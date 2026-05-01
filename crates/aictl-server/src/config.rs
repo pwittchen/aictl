@@ -19,6 +19,14 @@ pub const DEFAULT_MAX_CONCURRENT_REQUESTS: usize = 32;
 pub const DEFAULT_SHUTDOWN_TIMEOUT_SECS: u64 = 20;
 pub const DEFAULT_SSE_KEEPALIVE_SECS: u64 = 15;
 pub const DEFAULT_LOG_LEVEL: &str = "info";
+/// Default per-process audit file. The CLI's session-based scheme
+/// (`~/.aictl/audit/<session-id>`) does not apply to the server because
+/// the proxy has no notion of a long-lived session — `session::current_id()`
+/// is always `None` in this binary, so without an explicit override the
+/// `audit::log_tool` calls in the gateway are silent no-ops. Pinning a
+/// per-process file here makes every `gateway:<provider>` dispatch and
+/// every `redaction` event visible on disk.
+pub const DEFAULT_AUDIT_FILE: &str = "~/.aictl/server-audit.log";
 /// Per-IP rate limit in requests-per-minute. `0` disables — the
 /// global concurrency cap (`AICTL_SERVER_MAX_CONCURRENT_REQUESTS`)
 /// remains in effect either way.
@@ -43,6 +51,12 @@ pub struct ServerConfig {
     pub cors_origins: Vec<String>,
     pub rate_limit_rpm: u32,
     pub rate_limit_burst: u32,
+    /// Resolved per-process audit log path. Pinned at startup via
+    /// `audit::set_file_override` when audit logging is enabled so
+    /// gateway dispatches actually reach disk. `None` when the
+    /// operator explicitly cleared `AICTL_SERVER_AUDIT_FILE` (the
+    /// audit subsystem then stays disabled regardless of the toggle).
+    pub audit_file: Option<PathBuf>,
 }
 
 impl ServerConfig {
@@ -54,6 +68,7 @@ impl ServerConfig {
         bind_override: Option<String>,
         log_level_override: Option<String>,
         log_file_override: Option<PathBuf>,
+        audit_file_override: Option<PathBuf>,
     ) -> Self {
         let bind_str = bind_override
             .or_else(|| config_get("AICTL_SERVER_BIND"))
@@ -129,6 +144,20 @@ impl ServerConfig {
             .and_then(|v| v.parse::<u32>().ok())
             .unwrap_or(DEFAULT_RATE_LIMIT_BURST);
 
+        // Audit file resolution mirrors `log_file`: CLI override > config
+        // > default. Empty string in config means "disabled" (operator
+        // explicitly cleared the path, e.g. to suppress disk writes
+        // even when the toggle stays on).
+        let audit_file = if let Some(p) = audit_file_override {
+            Some(p)
+        } else {
+            match config_get("AICTL_SERVER_AUDIT_FILE") {
+                Some(raw) if raw.is_empty() => None,
+                Some(raw) => Some(expand_home(&raw)),
+                None => Some(expand_home(DEFAULT_AUDIT_FILE)),
+            }
+        };
+
         Self {
             bind,
             request_timeout,
@@ -142,6 +171,7 @@ impl ServerConfig {
             cors_origins,
             rate_limit_rpm,
             rate_limit_burst,
+            audit_file,
         }
     }
 }
@@ -213,6 +243,11 @@ pub fn log_startup_config(cfg: &ServerConfig, quiet: bool) {
         .as_ref()
         .map_or_else(|| "(stderr only)".to_string(), |p| p.display().to_string());
 
+    let audit_file_display = cfg
+        .audit_file
+        .as_ref()
+        .map_or_else(|| "(disabled)".to_string(), |p| p.display().to_string());
+
     let cors_display = if cfg.cors_origins.is_empty() {
         "(off)".to_string()
     } else {
@@ -251,6 +286,7 @@ pub fn log_startup_config(cfg: &ServerConfig, quiet: bool) {
         enabled = sec.enabled,
         injection_guard = sec.injection_guard,
         audit_log = audit::enabled(),
+        audit_file = %audit_file_display,
     );
 
     let red = redaction::policy();
@@ -280,12 +316,17 @@ pub fn log_startup_config(cfg: &ServerConfig, quiet: bool) {
 
     if !quiet {
         eprintln!(
-            "[server] startup posture: security={} injection_guard={} audit={} redaction={:?}{} cors={}",
+            "[server] startup posture: security={} injection_guard={} audit={} (file={}) redaction={:?}{} cors={}",
             sec.enabled,
             sec.injection_guard,
             audit::enabled(),
+            audit_file_display,
             red.mode,
-            if red.ner_requested { " ner=requested" } else { "" },
+            if red.ner_requested {
+                " ner=requested"
+            } else {
+                ""
+            },
             cors_display,
         );
         eprintln!(
@@ -329,9 +370,7 @@ pub async fn log_startup_models(quiet: bool) {
     let mut unconfigured_by_provider: BTreeMap<String, usize> = BTreeMap::new();
     for m in &models.data {
         if m.available {
-            *available_by_provider
-                .entry(m.owned_by.clone())
-                .or_insert(0) += 1;
+            *available_by_provider.entry(m.owned_by.clone()).or_insert(0) += 1;
         } else {
             *unconfigured_by_provider
                 .entry(m.owned_by.clone())
@@ -374,9 +413,7 @@ pub async fn log_startup_models(quiet: bool) {
             "[server] models: {available_total} available out of {total} (configured: {configured_providers})"
         );
         if !unconfigured_providers.is_empty() {
-            eprintln!(
-                "[server] unconfigured providers (no API key): {unconfigured_providers}"
-            );
+            eprintln!("[server] unconfigured providers (no API key): {unconfigured_providers}");
         }
     }
 }
