@@ -301,6 +301,7 @@ fn build_router(state: Arc<AppState>) -> Router {
 
     Router::new()
         .route("/healthz", get(routes::health::healthz))
+        .route("/openapi.json", get(routes::openapi::spec))
         .merge(authed)
         .layer(DefaultBodyLimit::max(server_config.body_limit_bytes))
         .layer(RequestBodyLimitLayer::new(server_config.body_limit_bytes))

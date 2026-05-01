@@ -1,0 +1,476 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "aictl-server",
+    "summary": "OpenAI-compatible HTTP LLM proxy for aictl.",
+    "description": "Pure proxy. Translates OpenAI-shaped requests into each upstream provider's native format (Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, MLX) and back, with built-in outbound redaction, prompt-injection blocking, and per-process audit. No agent loop, no tool dispatch. See SERVER.md for the full reference.",
+    "version": "${VERSION}",
+    "license": {
+      "name": "PolyForm Noncommercial 1.0.0",
+      "url": "https://github.com/pwittchen/aictl/blob/master/LICENSE"
+    },
+    "contact": {
+      "name": "aictl",
+      "url": "https://aictl.app"
+    }
+  },
+  "externalDocs": {
+    "description": "SERVER.md",
+    "url": "https://github.com/pwittchen/aictl/blob/master/SERVER.md"
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:7878", "description": "Default loopback bind." }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "chat",   "description": "OpenAI-shaped chat and completion endpoints." },
+    { "name": "models", "description": "Model catalogue." },
+    { "name": "stats",  "description": "Usage aggregates." },
+    { "name": "system", "description": "Health and discovery." }
+  ],
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "tags": ["chat"],
+        "summary": "Chat completion",
+        "description": "OpenAI-shaped chat endpoint. The `model` field selects the upstream provider (exact match against `GET /v1/models`). `stream: true` returns Server-Sent Events.\n\nTool-calling passthrough (`tools`, `tool_choice`, legacy `functions`) is not implemented in this phase and is rejected with `400 tools_unsupported_for_provider`.",
+        "operationId": "chatCompletions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatCompletionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Buffered chat completion or an SSE stream when `stream: true`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatCompletionResponse" }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Sequence of `data: <ChatCompletionChunk>` lines terminated by `data: [DONE]`. Final usage chunk uses OpenAI's empty-`choices` + `usage` shape."
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/GatewayTimeout" }
+        }
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "tags": ["chat"],
+        "summary": "Legacy text completion",
+        "description": "Wraps the prompt in a single user message and routes it through the same provider-selection logic as `/v1/chat/completions`.",
+        "operationId": "completions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CompletionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Buffered text completion or an SSE stream when `stream: true`.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CompletionResponse" }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Same SSE shape as `/v1/chat/completions`."
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/GatewayTimeout" }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": ["models"],
+        "summary": "List models",
+        "description": "Returns every model from the cloud catalogue plus locally available Ollama / GGUF / MLX models. The `available` flag is `true` when the upstream API key is configured (or, for local providers, when the model file is present).",
+        "operationId": "listModels",
+        "responses": {
+          "200": {
+            "description": "OpenAI-shaped model list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ModelsList" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/v1/stats": {
+      "get": {
+        "tags": ["stats"],
+        "summary": "Usage aggregates",
+        "description": "Returns the same usage aggregates the CLI's `/stats` command shows — today, this month, overall.",
+        "operationId": "stats",
+        "responses": {
+          "200": {
+            "description": "Aggregate usage figures.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatsResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Liveness probe",
+        "description": "Auth-free liveness endpoint. Always returns 200 while the process is up.",
+        "operationId": "healthz",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Process is up.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Health" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["system"],
+        "summary": "OpenAPI spec",
+        "description": "Auth-free. Serves this OpenAPI 3.1 document so SDK generators and discovery tools can introspect the API surface without a master key.",
+        "operationId": "openapiSpec",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Master API key. Auto-generated on first launch and persisted to `~/.aictl/config` as `AICTL_SERVER_MASTER_KEY`."
+      }
+    },
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model id from `GET /v1/models`. Picks the upstream provider.",
+            "examples": ["claude-sonnet-4-6", "gpt-4o-mini"]
+          },
+          "messages": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/ChatMessage" }
+          },
+          "stream":      { "type": "boolean", "default": false, "description": "When true, response is `text/event-stream`." },
+          "temperature": { "type": "number", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." },
+          "top_p":       { "type": "number", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." },
+          "max_tokens":  { "type": "integer", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." },
+          "tools":       { "type": "array", "nullable": true, "description": "Rejected with `400 tools_unsupported_for_provider` in this phase.", "items": { "type": "object" } },
+          "tool_choice": { "description": "Rejected with `400 tools_unsupported_for_provider` unless null or `\"none\"`." },
+          "functions":   { "type": "array", "nullable": true, "description": "Legacy field. Rejected with `400 tools_unsupported_for_provider`.", "items": { "type": "object" } }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "developer", "user", "assistant"],
+            "description": "`developer` is treated as `system`. `tool` and `function` roles are rejected in this phase."
+          },
+          "content": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "$ref": "#/components/schemas/ChatContentPart" } }
+            ],
+            "description": "Plain string or OpenAI's content-parts array. Only the `text` parts are forwarded — image/audio parts are dropped."
+          }
+        }
+      },
+      "ChatContentPart": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "examples": ["text"] },
+          "text": { "type": "string", "nullable": true }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices", "usage"],
+        "properties": {
+          "id":      { "type": "string", "examples": ["chatcmpl-7f3a92..."] },
+          "object":  { "type": "string", "const": "chat.completion" },
+          "created": { "type": "integer", "format": "int64" },
+          "model":   { "type": "string" },
+          "choices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ChatCompletionChoice" }
+          },
+          "usage":   { "$ref": "#/components/schemas/Usage" }
+        }
+      },
+      "ChatCompletionChoice": {
+        "type": "object",
+        "required": ["index", "message", "finish_reason"],
+        "properties": {
+          "index":         { "type": "integer", "minimum": 0 },
+          "message":       { "$ref": "#/components/schemas/ChatCompletionResponseMessage" },
+          "finish_reason": { "type": "string", "enum": ["stop"] }
+        }
+      },
+      "ChatCompletionResponseMessage": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role":    { "type": "string", "const": "assistant" },
+          "content": { "type": "string" }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "required": ["prompt_tokens", "completion_tokens", "total_tokens"],
+        "properties": {
+          "prompt_tokens":     { "type": "integer", "format": "int64", "description": "Total input tokens (fresh prompt + cache-creation + cache-read)." },
+          "completion_tokens": { "type": "integer", "format": "int64" },
+          "total_tokens":      { "type": "integer", "format": "int64" },
+          "prompt_tokens_details": {
+            "$ref": "#/components/schemas/PromptTokensDetails",
+            "description": "Only present when cache tokens were involved."
+          }
+        }
+      },
+      "PromptTokensDetails": {
+        "type": "object",
+        "required": ["cached_tokens"],
+        "properties": {
+          "cached_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cache-read + cache-creation tokens. Used by the CLI's billing math to apply the per-model cache discount."
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": { "type": "string", "examples": ["gpt-4o-mini"] },
+          "prompt": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          },
+          "stream":      { "type": "boolean", "default": false },
+          "temperature": { "type": "number", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." },
+          "top_p":       { "type": "number", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." },
+          "max_tokens":  { "type": "integer", "nullable": true, "description": "Accepted for API compatibility; not currently forwarded to providers." }
+        }
+      },
+      "CompletionResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices", "usage"],
+        "properties": {
+          "id":      { "type": "string", "examples": ["cmpl-3a91..."] },
+          "object":  { "type": "string", "const": "text_completion" },
+          "created": { "type": "integer", "format": "int64" },
+          "model":   { "type": "string" },
+          "choices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CompletionChoice" }
+          },
+          "usage": { "$ref": "#/components/schemas/Usage" }
+        }
+      },
+      "CompletionChoice": {
+        "type": "object",
+        "required": ["index", "text", "finish_reason"],
+        "properties": {
+          "index":         { "type": "integer", "minimum": 0 },
+          "text":          { "type": "string" },
+          "finish_reason": { "type": "string", "enum": ["stop"] }
+        }
+      },
+      "ModelsList": {
+        "type": "object",
+        "required": ["object", "data"],
+        "properties": {
+          "object": { "type": "string", "const": "list" },
+          "data":   { "type": "array", "items": { "$ref": "#/components/schemas/ModelEntry" } }
+        }
+      },
+      "ModelEntry": {
+        "type": "object",
+        "required": ["id", "object", "owned_by", "context_window", "available"],
+        "properties": {
+          "id":             { "type": "string", "examples": ["claude-sonnet-4-6"] },
+          "object":         { "type": "string", "const": "model" },
+          "owned_by":       { "type": "string", "examples": ["Anthropic", "OpenAI", "Google", "xAI", "Mistral", "DeepSeek", "Moonshot", "Z.ai", "Ollama", "GGUF", "MLX"] },
+          "context_window": { "type": "integer", "format": "int64" },
+          "available":      { "type": "boolean", "description": "True when the upstream API key is configured (cloud) or the model file is present (local)." }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "required": ["today", "this_month", "overall"],
+        "properties": {
+          "today":      { "$ref": "#/components/schemas/DayStats" },
+          "this_month": { "$ref": "#/components/schemas/DayStats" },
+          "overall":    { "$ref": "#/components/schemas/DayStats" }
+        }
+      },
+      "DayStats": {
+        "type": "object",
+        "description": "Aggregate counters from `aictl_core::stats`. Fields mirror the CLI's `/stats` view; concrete shape may evolve, so consume defensively.",
+        "additionalProperties": true,
+        "properties": {
+          "sessions":      { "type": "integer", "format": "int64" },
+          "requests":      { "type": "integer", "format": "int64" },
+          "llm_calls":     { "type": "integer", "format": "int64" },
+          "tool_calls":    { "type": "integer", "format": "int64" },
+          "input_tokens":  { "type": "integer", "format": "int64" },
+          "output_tokens": { "type": "integer", "format": "int64" },
+          "cost_usd":      { "type": "number", "format": "double" },
+          "models":        { "type": "object", "additionalProperties": { "type": "integer", "format": "int64" } }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": ["status", "version", "uptime_secs", "active_requests"],
+        "properties": {
+          "status":          { "type": "string", "const": "ok" },
+          "version":         { "type": "string", "examples": ["${VERSION}"] },
+          "uptime_secs":     { "type": "integer", "format": "int64", "minimum": 0 },
+          "active_requests": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine code. See SERVER.md § Errors for the full list.",
+                "examples": [
+                  "auth_invalid",
+                  "body_malformed",
+                  "body_too_large",
+                  "concurrency_cap_reached",
+                  "forbidden",
+                  "gateway_timeout",
+                  "internal_error",
+                  "model_not_found",
+                  "not_found",
+                  "prompt_injection",
+                  "provider_auth_failed",
+                  "provider_key_not_configured",
+                  "provider_unavailable",
+                  "rate_limited",
+                  "redaction_blocked",
+                  "service_unavailable",
+                  "tools_unsupported_for_provider"
+                ]
+              },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Request rejected. See `error.code` — `body_malformed`, `model_not_found`, `prompt_injection`, `redaction_blocked`, or `tools_unsupported_for_provider`.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Unauthorized": {
+        "description": "Missing or wrong `Authorization: Bearer` header.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "Forbidden": {
+        "description": "Upstream provider rejected the substituted key (`provider_auth_failed`).",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "PayloadTooLarge": {
+        "description": "Request body exceeded `AICTL_SERVER_BODY_LIMIT_BYTES`.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "TooManyRequests": {
+        "description": "Per-IP token bucket exhausted. Response carries `Retry-After: <seconds>`.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until the bucket has at least one token again.",
+            "schema": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "InternalError": {
+        "description": "Server-side error. The trace id is embedded in the message for log correlation.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ServiceUnavailable": {
+        "description": "Provider unavailable, no provider key configured, or the global concurrency cap is saturated.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "GatewayTimeout": {
+        "description": "Upstream provider exceeded the per-request timeout.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      }
+    }
+  }
+}

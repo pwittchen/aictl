@@ -8,7 +8,7 @@ Pure proxy. No agent loop, no tool dispatch, no agents/skills/sessions, no slash
 
 **Does**
 
-- Expose `POST /v1/chat/completions`, `POST /v1/completions`, `GET /v1/models`, `GET /v1/stats`, `GET /healthz`.
+- Expose `POST /v1/chat/completions`, `POST /v1/completions`, `GET /v1/models`, `GET /v1/stats`, `GET /healthz`, `GET /openapi.json`.
 - Translate OpenAI-shaped requests into each provider's native format and back.
 - Apply outbound redaction (`run::redact_outbound`) on every gateway request.
 - Apply the prompt-injection guard (`security::detect_prompt_injection`) on every user message.
@@ -196,7 +196,7 @@ Rotate by editing `~/.aictl/config` (set or remove the entry — removal causes 
 
 ## REST API
 
-Every authenticated request must carry `Authorization: Bearer <master-key>`. Unauthenticated requests get a `401` with an OpenAI-shaped error envelope. `GET /healthz` is the only auth-free route.
+Every authenticated request must carry `Authorization: Bearer <master-key>`. Unauthenticated requests get a `401` with an OpenAI-shaped error envelope. `GET /healthz` and `GET /openapi.json` are the only auth-free routes.
 
 ### `POST /v1/chat/completions`
 
@@ -266,6 +266,18 @@ No auth. Returns `{"status":"ok","version":"…","uptime_secs":…,"active_reque
 ### `GET /v1/stats`
 
 Authenticated. Returns the `aictl_core::stats` aggregates (today / month / overall).
+
+### `GET /openapi.json`
+
+No auth. Serves the OpenAPI 3.1 description of every route above (request/response schemas, error envelope, security scheme, status-code table). Point Swagger UI, Redoc, `openapi-generator`, or any SDK generator at `http://127.0.0.1:7878/openapi.json` to introspect the surface or generate a typed client. The spec embeds the running server version under `info.version`.
+
+Render it locally with one Docker command:
+
+```sh
+docker run --rm -p 8080:8080 \
+  -e SWAGGER_JSON_URL=http://host.docker.internal:7878/openapi.json \
+  swaggerapi/swagger-ui
+```
 
 ## Errors
 

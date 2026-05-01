@@ -193,9 +193,9 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
           <span class="section__kicker">// rest api</span>
           <h2 class="section__title">Endpoints</h2>
           <p class="section__lead" style="line-height: 2;">
-            Five endpoints. Every authenticated request needs<br>
+            Six endpoints. Every authenticated request needs<br>
             <code>Authorization: Bearer &lt;master-key&gt;</code>.<br>
-            <code>GET /healthz</code> is the only auth-free route.
+            <code>GET /healthz</code> and <code>GET /openapi.json</code> are the only auth-free routes.
           </p>
         </header>
 
@@ -418,6 +418,40 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
               </div>
             </div>
           </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--get">GET</span>
+              <code class="api-endpoint__path">/openapi.json</code>
+              <span class="api-endpoint__auth api-endpoint__auth--public">public</span>
+            </div>
+            <p class="api-endpoint__desc">
+              OpenAPI 3.1 description of every route above &mdash;
+              request and response schemas, error envelope, security
+              scheme, status-code table. Point Swagger UI, Redoc, or any
+              SDK generator at it to introspect the surface or generate
+              a typed client. The running server version is embedded
+              under <code>info.version</code>.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-openapi">curl http://127.0.0.1:7878/openapi.json</code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-openapi" aria-label="Copy OpenAPI spec request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Render with Swagger UI</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-swagger">docker run <span class="tok-k">--rm</span> <span class="tok-k">-p</span> 8080:8080 <span class="tok-p">\</span>
+  <span class="tok-k">-e</span> SWAGGER_JSON_URL<span class="tok-p">=</span>http://host.docker.internal:7878/openapi.json <span class="tok-p">\</span>
+  swaggerapi/swagger-ui</code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-swagger" aria-label="Copy Swagger UI command">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
 
         <p class="api-errors">
@@ -600,7 +634,11 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
             request schema, response schema, SSE shape, error envelope,
             status-code table, OpenAI-shape mapping per provider, and
             deployment notes (systemd, nginx reverse proxy with
-            <code>proxy_buffering off</code>, Docker).
+            <code>proxy_buffering off</code>, Docker). For
+            machine-readable schemas, the running server publishes a
+            full OpenAPI 3.1 document at
+            <code>GET /openapi.json</code> &mdash; feed it to Swagger
+            UI, Redoc, or any SDK generator.
           </p>
         </header>
 
