@@ -11,6 +11,8 @@ const TABS = [
   "Agents",
   "Skills",
   "Tools",
+  "Plugins",
+  "MCP",
   "Stats",
   "Settings",
 ] as const;
