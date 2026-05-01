@@ -78,7 +78,7 @@ The CLI exposes ~30 slash commands and ~25 CLI flags. The desktop is not a slash
 | `--auto` / unrestricted | Settings → Security: "Auto-approve tool calls" toggle (per-window override via toolbar) |
 | `--quiet` | N/A (no piping) |
 | Tool approval auto-accept-once | "Always allow this tool" checkbox in the approval modal |
-| Launch CWD as jail root | Settings → Workspace pane + first-run picker; persisted as `desktop_workspace` in `~/.aictl/config`. See §5.4. |
+| Launch CWD as jail root | Settings → Workspace pane + first-run picker; persisted as `AICTL_WORKING_DIR_DESKTOP` in `~/.aictl/config`. Independent of the CLI's optional `AICTL_WORKING_DIR` — see §5.4. |
 
 ### Dropped (don't translate)
 
@@ -278,31 +278,31 @@ The agent loop site (`crates/aictl-core/src/run.rs`, search `confirm_tool`) gets
 
 ### 5.4 Desktop workspace as CWD jail root
 
-**Problem.** The CLI inherits CWD from the launching shell — `security::working_dir()` returns it, and the jail in `SecurityPolicy::validate_tool` constrains every shell/file path against it. A desktop app launched from `/Applications/aictl.app` has no meaningful CWD: every tool call would either jail to the app bundle (useless) or escape entirely (unsafe). Both are wrong.
+**Problem.** The CLI takes its working directory from `--cwd`, then `AICTL_WORKING_DIR` in `~/.aictl/config`, then the launching shell's CWD — every step is optional, with the launch dir as a sane fallback. A desktop app launched from `/Applications/aictl.app` has no meaningful launch CWD: every tool call would either jail to the app bundle (useless) or escape entirely (unsafe). Both are wrong, and the CLI's "fall back to launch dir" leg is not safe to copy.
 
-**Solution.** A single configured workspace path that becomes the CWD jail root for every tool call from the desktop. Stored in `~/.aictl/config` so it round-trips with the CLI's other settings, configurable from the desktop's Settings → Workspace pane and from a first-run onboarding card.
+**Solution.** A single configured workspace path that becomes the CWD jail root for every tool call from the desktop. Stored in `~/.aictl/config` so it round-trips with the user's other settings, configurable from the desktop's Settings → Workspace pane and from a first-run onboarding card. **Independent of the CLI's `AICTL_WORKING_DIR`** — desktop and CLI may set the same path or different paths; neither key influences the other.
 
-**Config key.** `desktop_workspace` — absolute path to a folder. Env override: `AICTL_DESKTOP_WORKSPACE`. The CLI ignores this key (it has its own launch CWD).
+**Config key.** `AICTL_WORKING_DIR_DESKTOP` — absolute path to a folder. **Required** for the desktop (no fallback): if unset, the desktop refuses to dispatch any CWD-relative tool call and the composer is locked until a workspace is picked. Contrast with the CLI's `AICTL_WORKING_DIR`, which is **optional** and falls back to the launch CWD. The CLI ignores `AICTL_WORKING_DIR_DESKTOP` and the desktop ignores `AICTL_WORKING_DIR` — the keys are namespaced by binary on purpose so a user can pin the desktop to `~/projects/myapp` while keeping the CLI workspace-agnostic (or vice versa).
 
-**Role plumbing.** Extend `config::Role` with a `Desktop` variant. The desktop's `main` calls `set_role(Role::Desktop)` after `load_config`, mirroring `aictl-server`. `config_get_scoped` is generalized to handle three roles:
+**Role plumbing.** Extend `config::Role` with a `Desktop` variant. The desktop's `main` calls `set_role(Role::Desktop)` after `load_config`, mirroring `aictl-server`. The CLI's existing `apply_cwd_override` (added with `--cwd` / `AICTL_WORKING_DIR`) stays role=Cli and is untouched.
 
-- `Role::Cli` → only `cli_key` consulted (today's behaviour, unchanged).
-- `Role::Server` → `server_key` first, fall back to `cli_key` (today's behaviour, unchanged).
-- `Role::Desktop` → `desktop_key` first, fall back to `cli_key`.
+`security::load_policy` resolves the jail root by role with no cross-binary fallback:
 
-`security::load_policy` reads `config_get_scoped("desktop_workspace", "working_dir")` for the jail root. When `role == Desktop` and both keys are unset, `load_policy` returns a policy with `enabled = true` and a sentinel `working_dir` value (e.g., `PathBuf::new()`) that causes `validate_tool` to reject every CWD-relative tool call with a clear "no workspace selected" error. Fail loud, not silent.
+- `Role::Cli` → `std::env::current_dir()` (already anchored by `apply_cwd_override` if `--cwd` / `AICTL_WORKING_DIR` was set).
+- `Role::Server` → unchanged; the server has no tool dispatch and the jail is irrelevant.
+- `Role::Desktop` → `config_get("AICTL_WORKING_DIR_DESKTOP")` only. When the key is unset or points at a non-directory, `load_policy` returns a policy with `enabled = true` and a sentinel `working_dir` value (e.g., `PathBuf::new()`) that causes `validate_tool` to reject every CWD-relative tool call with a clear "no workspace selected" error. Fail loud, not silent. The desktop deliberately does **not** fall back to `AICTL_WORKING_DIR` — that key is the CLI's, and silently inheriting it could surprise a user who set it for a different purpose.
 
 **Tool-call enforcement.** No new dispatch code is needed. `SecurityPolicy::validate_tool` already checks every shell/file path against `working_dir()` (`crates/aictl-core/src/security.rs:774`, `:824`). When `role == Desktop`, `working_dir()` returns the configured workspace, so `exec_shell`, `read_file`, `write_file`, `list_files`, `grep_files`, etc. all jail naturally. The existing `mcp__*` exemption (CLAUDE.md: "the CWD jail does not apply to MCP tools because the server runs in its own process") still applies — MCP servers spawned by the desktop carry their own privileges and cannot be jailed by us.
 
-**Onboarding.** First launch with no `desktop_workspace` set shows a full-window empty state — "Choose a workspace folder" with a native folder picker via `tauri-plugin-dialog`. Until a workspace is picked, the composer is disabled and the chat surface explains why. This matches how editors (VS Code, Zed) handle the empty state and avoids the "where am I writing files?" footgun.
+**Onboarding.** First launch with no `AICTL_WORKING_DIR_DESKTOP` set shows a full-window empty state — "Choose a workspace folder" with a native folder picker via `tauri-plugin-dialog`. Until a workspace is picked, the composer is disabled and the chat surface explains why. This matches how editors (VS Code, Zed) handle the empty state and avoids the "where am I writing files?" footgun. The desktop never auto-fills from the CLI's `AICTL_WORKING_DIR` — even when both binaries share `~/.aictl/config`, the user must explicitly pick a desktop workspace.
 
 **Switching workspaces.** Settings → Workspace pane lets the user change the path. The change applies to subsequent tool calls only — no in-flight cancellation. Changing the workspace also invalidates any per-tool "always allow" grants (they're scoped to the workspace, not to the app), so the next `exec_shell` re-prompts in the new context. The currently active session is **not** swapped out — sessions are workspace-agnostic, but a banner in the chat header notes that the workspace changed mid-conversation.
 
 **Visibility.** The workspace path appears truncated in the title bar (full path on hover) and in the sidebar header. Clicking either opens the Workspace pane.
 
-**IPC.** Three commands (added to §7.1): `get_workspace`, `set_workspace { path }`, `pick_workspace` (opens the native folder picker, returns the picked path; the webview then calls `set_workspace`).
+**IPC.** Three commands (added to §7.1): `get_workspace`, `set_workspace { path }`, `pick_workspace` (opens the native folder picker, returns the picked path; the webview then calls `set_workspace`). All three operate exclusively on `AICTL_WORKING_DIR_DESKTOP`; the CLI's `AICTL_WORKING_DIR` is never read or written by the desktop.
 
-**Reuse for `aictl-server` later.** If the server ever grows a tool-dispatch path (it does not today), the same `Role::Desktop`-style scoping applies — a `server_workspace` key, paired with a real role check. Out of scope here, called out so the role-handling change in `config_get_scoped` is shaped to accommodate it.
+**Reuse for `aictl-server` later.** If the server ever grows a tool-dispatch path (it does not today), the same per-binary key pattern applies — an `AICTL_WORKING_DIR_SERVER` key, read only when `role == Server`. Out of scope here, called out so the role-aware lookup in `security::load_policy` is shaped to accommodate it without retrofitting cross-key fallbacks.
 
 ---
 
@@ -396,8 +396,8 @@ All commands return `Result<T, String>`. The frontend wraps each in a typed help
 | `version` / `check_for_update` | — | version + remote version | |
 | `reveal_audit_log` / `reveal_config_dir` | — | `void` | Spawns Finder via `tauri-plugin-shell`. |
 | `compact_session` / `clear_chat` / `retry_last` / `undo_last` | `{ session_id }` | — | |
-| `get_workspace` | — | `{ path: string \| null }` | Reads `desktop_workspace` from config. |
-| `set_workspace` | `{ path: string }` | `void` | Validates the path exists and is a directory, then `config_set("desktop_workspace", path)`. Emits `workspace_changed`. |
+| `get_workspace` | — | `{ path: string \| null }` | Reads `AICTL_WORKING_DIR_DESKTOP` from config. Never falls back to the CLI's `AICTL_WORKING_DIR`. |
+| `set_workspace` | `{ path: string }` | `void` | Validates the path exists and is a directory, then `config_set("AICTL_WORKING_DIR_DESKTOP", path)`. Emits `workspace_changed`. |
 | `pick_workspace` | — | `{ path: string \| null }` | Opens the native folder picker via `tauri-plugin-dialog`. Webview calls `set_workspace` with the result. |
 
 ### 7.2 Events (Rust → webview)
@@ -476,7 +476,7 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 - Add `AgentEvent` enum to `aictl-core::ui::events`.
 - Add `confirm_tool_async` default-implemented method on `AgentUI`.
 - Add helper `aictl_core::run::run_agent_session` (collapsing duplicate call sites in CLI).
-- Add `Role::Desktop` variant + `desktop_workspace` config key + role-aware `working_dir` resolution in `security::load_policy` (§5.4). Cover with unit tests asserting that role=Desktop with no workspace produces a sentinel policy that rejects CWD-relative tool calls, and role=Cli still uses `std::env::current_dir`.
+- Add `Role::Desktop` variant + `AICTL_WORKING_DIR_DESKTOP` config key + role-aware `working_dir` resolution in `security::load_policy` (§5.4). Cover with unit tests asserting that role=Desktop with no workspace produces a sentinel policy that rejects CWD-relative tool calls, role=Desktop ignores the CLI's `AICTL_WORKING_DIR` (no cross-binary fallback), and role=Cli still resolves through `apply_cwd_override` → `std::env::current_dir`.
 - Verify CLI tests still pass (`cargo test --workspace`).
 
 **Exit criterion**: CLI behaviour unchanged; new types compile; `aictl-core::ui::events::AgentEvent` is `Serialize`; `Role::Desktop` switches the jail root.
@@ -546,7 +546,7 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 - **Frontend tests**: Vitest for component-level reactivity (markdown render, tool approval modal). No e2e suite in v1 — manual smoke test.
 - **Manual macOS smoke test checklist** (in the crate's README):
   1. Fresh install, no `~/.aictl/` — first-run flow renders an onboarding state with a "Set up provider" button that opens Settings → Provider & Models, and a "Choose workspace" card that opens the folder picker. Composer stays disabled until both are set.
-  2. Existing CLI user — opens the desktop, sees the same model, same sessions, same agents. Workspace prompt still appears (the CLI never wrote `desktop_workspace`).
+  2. Existing CLI user — opens the desktop, sees the same model, same sessions, same agents. Workspace prompt still appears even if `AICTL_WORKING_DIR` is set in config: that key is the CLI's; the desktop reads `AICTL_WORKING_DIR_DESKTOP` only.
   3. Session created in desktop is loadable from CLI and vice versa.
   4. Tool approval round-trip with `read_file`, `exec_shell`, and an `mcp__*` tool — confirm the file/shell calls are rejected when targeting paths outside the workspace, and the MCP call is unaffected by the jail.
   5. Switch workspace mid-conversation via Settings → Workspace; next `exec_shell` re-prompts (no carry-over of "always allow") and runs in the new directory.
@@ -568,7 +568,7 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 | Keychain prompts on every key read | The keyring crate caches; if the per-prompt friction is bad, gate behind one "Allow always" prompt at install time. |
 | Hooks that read stdin and spawn subprocesses | Already shell-isolated by `aictl_core::hooks` — desktop inherits the existing security boundary verbatim. |
 | User points workspace at `/`, `~`, or another sensitive root | `set_workspace` warns (but does not block) when the path is `/`, `~`, `~/Desktop`, `~/Documents`, or any folder containing more than N immediate children — the user can still proceed, but they're told what they're enabling. The jail is only as tight as the picked folder. |
-| Stale `desktop_workspace` after the folder is moved or deleted | On startup, the desktop checks the configured workspace exists and is a directory; if not, it warns once and re-shows the picker. The agent loop also re-validates per turn — a workspace that vanishes mid-session disables further tool calls until re-picked. |
+| Stale `AICTL_WORKING_DIR_DESKTOP` after the folder is moved or deleted | On startup, the desktop checks the configured workspace exists and is a directory; if not, it warns once and re-shows the picker. The agent loop also re-validates per turn — a workspace that vanishes mid-session disables further tool calls until re-picked. |
 
 ### Open questions to resolve before Phase 2
 
