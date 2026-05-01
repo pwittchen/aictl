@@ -6,7 +6,7 @@ resolver = "3"
 # `field.workspace = true` so the release workflow only has to bump
 # the version in one place.
 [workspace.package]
-version = "0.36.2"
+version = "0.36.3"
 edition = "2024"
 repository = "https://github.com/pwittchen/aictl"
 authors = ["Piotr Wittchen"]
