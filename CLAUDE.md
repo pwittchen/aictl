@@ -67,6 +67,7 @@ Submodule trees: `llm/` (providers) and `tools/` (tool impls) live under `crates
 ## Conventions
 
 - Rust edition 2024, default rustfmt and clippy settings.
+- After finishing work, run `cargo lint` and fix any warnings, then run `cargo fmt` to re-format code if needed.
 - Commit messages follow `.claude/skills/commit/SKILL.md` — no AI attribution, imperative mood, short for small changes.
 - After implementing a feature or fixing a bug, check `ROADMAP.md` — remove the item if resolved.
 - Claude Code skills live in `.claude/skills/` — `/commit`, `/update-docs`, `/evaluate-rust-quality`, `/evaluate-rust-security`, `/evaluate-rust-performance`. Evaluation reports land in `.claude/reports/`.
