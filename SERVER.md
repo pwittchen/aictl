@@ -153,6 +153,25 @@ The `AICTL_CLIENT_*` vs `AICTL_SERVER_*` split is deliberate: a single host may 
 
 Provider keys (`LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, …) live under their existing CLI names — the server reads them via `keys::get_secret`, so keyring-stored keys work the same as plain-text fallback.
 
+### Server-scoped security and redaction
+
+The server can run a different security / redaction posture than the CLI on the same host without forking `~/.aictl/config`. For every flag that makes sense in a pure HTTP proxy, an `AICTL_SERVER_*` form takes precedence over the matching `AICTL_*` form when the engine is loaded inside `aictl-server`. Unset server overrides fall through to the shared key, so a single-host setup needs no duplication.
+
+Tool-dispatch knobs (CWD jail, shell allow/block lists, blocked env vars, disabled tools, max-write byte cap, shell timeout) are intentionally **not** mirrored: the server does not run tools, so those flags have no meaning here.
+
+| Server key | Falls back to | Default | Description |
+|-----|-----|-----|-----|
+| `AICTL_SERVER_SECURITY` | `AICTL_SECURITY` | `true` | Master enable for the security subsystem (the prompt-injection guard + audit). `false`/`0` turns it off entirely. |
+| `AICTL_SERVER_SECURITY_INJECTION_GUARD` | `AICTL_SECURITY_INJECTION_GUARD` | `true` | Run `detect_prompt_injection` on every user message before dispatch. |
+| `AICTL_SERVER_SECURITY_AUDIT_LOG` | `AICTL_SECURITY_AUDIT_LOG` | `true` | Append `gateway:<provider>` entries to `~/.aictl/audit/<request-id>`. |
+| `AICTL_SERVER_SECURITY_REDACTION` | `AICTL_SECURITY_REDACTION` | `off` | `off` / `redact` / `block`. `redact` rewrites detected secrets in-place; `block` returns 400 `redaction_blocked`. |
+| `AICTL_SERVER_SECURITY_REDACTION_LOCAL` | `AICTL_SECURITY_REDACTION_LOCAL` | `false` | When `false`, local-provider dispatches (Ollama / GGUF / MLX from the server's host) skip the redaction pass. Set `true` to enforce redaction even on in-host traffic. |
+| `AICTL_SERVER_REDACTION_DETECTORS` | `AICTL_REDACTION_DETECTORS` | _(empty = all)_ | Comma-separated subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`. |
+| `AICTL_SERVER_REDACTION_EXTRA_PATTERNS` | `AICTL_REDACTION_EXTRA_PATTERNS` | _(empty)_ | Semicolon-separated `NAME=REGEX` pairs → rewritten as `[REDACTED:NAME]`. |
+| `AICTL_SERVER_REDACTION_ALLOW` | `AICTL_REDACTION_ALLOW` | _(empty)_ | Semicolon-separated allowlist regexes — matches survive Layer-A/B redaction. |
+| `AICTL_SERVER_REDACTION_NER` | `AICTL_REDACTION_NER` | `false` | Enable Layer-C NER. Requires the `redaction-ner` cargo feature plus a pulled model. |
+| `AICTL_SERVER_REDACTION_NER_MODEL` | `AICTL_REDACTION_NER_MODEL` | `onnx-community/gliner_small-v2.1` | NER model name (or `owner/repo`). The server can ship a different model from the CLI without forking config. |
+
 ### CLI flags
 
 | Flag | Description |

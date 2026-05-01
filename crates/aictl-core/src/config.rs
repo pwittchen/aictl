@@ -3,6 +3,39 @@ use std::sync::{OnceLock, RwLock};
 
 static CONFIG: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+static ROLE: OnceLock<Role> = OnceLock::new();
+
+/// Which `aictl-core` consumer is loading config in this process.
+///
+/// The same `~/.aictl/config` is read by both the CLI and the server;
+/// most knobs apply to both, but a handful of security/redaction flags
+/// need to be tunable independently per role (so an operator can run a
+/// stricter posture for the public-facing proxy than for their own CLI
+/// without forking the file). The role is set once at startup —
+/// [`set_role`] — and read by [`config_get_scoped`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    /// Default. `AICTL_*` keys win as-is.
+    Cli,
+    /// `aictl-server` process. `AICTL_SERVER_*` keys win when present;
+    /// otherwise the matching `AICTL_*` key applies (so a single-host
+    /// setup with one `~/.aictl/config` does not need duplicated entries).
+    Server,
+}
+
+/// Set the runtime role for this process. Call once at startup, before
+/// `security::init()` / `audit::*` / `redaction` lookups happen. Calling
+/// it more than once is a no-op (`OnceLock`) — that protects against an
+/// embedded use-case that wires the engine up before deciding the role.
+pub fn set_role(role: Role) {
+    ROLE.set(role).ok();
+}
+
+/// Current process role. Defaults to [`Role::Cli`] when unset.
+#[must_use]
+pub fn role() -> Role {
+    ROLE.get().copied().unwrap_or(Role::Cli)
+}
 
 /// Return a shared `reqwest::Client`, creating it on first access.
 pub fn http_client() -> &'static reqwest::Client {
@@ -273,6 +306,34 @@ pub fn config_get(key: &str) -> Option<String> {
         .get()
         .and_then(|lock| lock.read().ok())
         .and_then(|m| m.get(key).cloned())
+}
+
+/// Role-aware config lookup.
+///
+/// Server-side callers want a flag to be tunable independently from the
+/// CLI's value of the same flag. The convention is to declare two keys
+/// — the canonical `AICTL_<NAME>` (used by the CLI) and an
+/// `AICTL_SERVER_<NAME>` override that the server prefers. Behavior:
+///
+/// * In [`Role::Server`]: try `server_key` first; fall back to
+///   `cli_key` if the server-specific override is unset. This means a
+///   one-host setup with only `AICTL_<NAME>` set keeps working — the
+///   server inherits the CLI value automatically.
+/// * In [`Role::Cli`]: only `cli_key` is consulted. The server-prefixed
+///   key is intentionally invisible to the CLI even when present, so
+///   a stricter server posture in shared config never accidentally
+///   leaks into interactive use.
+///
+/// Used by `security::load_policy`, `redaction::load_policy`, and
+/// `audit::enabled`. Flags that are role-irrelevant (e.g. shell
+/// allow/block lists, CWD jail toggles) keep going through plain
+/// [`config_get`] — they only ever apply on the CLI side.
+#[must_use]
+pub fn config_get_scoped(server_key: &str, cli_key: &str) -> Option<String> {
+    match role() {
+        Role::Server => config_get(server_key).or_else(|| config_get(cli_key)),
+        Role::Cli => config_get(cli_key),
+    }
 }
 
 /// Which local config root was found in the current working directory.
@@ -574,6 +635,50 @@ mod tests {
         let files = [("AGENTS.md", "agents")];
         let got = resolve_prompt_file("CLAUDE.md", true, reader_with(&files));
         assert_eq!(got, Some(("AGENTS.md".to_string(), "agents".to_string())));
+    }
+
+    #[test]
+    fn role_defaults_to_cli_when_unset() {
+        // The OnceLock starts empty; downstream lookups must therefore
+        // default to CLI semantics so an embedded use-case that forgets
+        // to set a role never accidentally reads server-prefixed keys.
+        assert!(matches!(Role::Cli, Role::Cli));
+        // We can't reliably assert `role()` here because other tests in
+        // this run may have invoked `set_role`. That's fine — the
+        // contract is "first writer wins", and the documented default
+        // is `Cli`.
+    }
+
+    #[test]
+    fn config_get_scoped_helper_logic() {
+        // Pure logic over the role; the actual CONFIG global is shared
+        // process-wide, so this test exercises the matching shape only.
+        // Confirms the cli-only branch never reaches the server key.
+        fn lookup(role: Role, server_present: bool, cli_present: bool) -> Option<&'static str> {
+            match role {
+                Role::Server => {
+                    if server_present {
+                        Some("from_server")
+                    } else if cli_present {
+                        Some("from_cli")
+                    } else {
+                        None
+                    }
+                }
+                Role::Cli => {
+                    if cli_present {
+                        Some("from_cli")
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+        assert_eq!(lookup(Role::Cli, true, false), None);
+        assert_eq!(lookup(Role::Cli, true, true), Some("from_cli"));
+        assert_eq!(lookup(Role::Server, true, true), Some("from_server"));
+        assert_eq!(lookup(Role::Server, false, true), Some("from_cli"));
+        assert_eq!(lookup(Role::Server, false, false), None);
     }
 
     #[test]

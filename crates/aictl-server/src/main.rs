@@ -108,6 +108,13 @@ async fn main() {
         std::process::exit(1);
     }
 
+    // Tag this process as the server role *before* the security /
+    // redaction / audit subsystems read config. That makes
+    // `AICTL_SERVER_SECURITY_*` and `AICTL_SERVER_REDACTION_*` win for
+    // their respective lookups; absent overrides fall through to the
+    // shared `AICTL_*` keys so single-host setups keep working.
+    aictl_core::config::set_role(aictl_core::config::Role::Server);
+
     let server_config = ServerConfig::load(
         cli.bind.clone(),
         cli.log_level.clone(),
@@ -154,6 +161,19 @@ async fn main() {
     }
 
     let state = AppState::new(resolved.key, server_config.clone());
+
+    // Log every resolved knob (server-side `AICTL_SERVER_*` plus the
+    // role-scoped security / redaction / audit posture) before
+    // accepting connections so an operator inspecting the log file —
+    // or watching stderr in the foreground — can see exactly which
+    // policies are in force without grepping config or curling
+    // `/healthz`. Secrets (master key, provider keys, allowlist
+    // content) are not included on purpose.
+    config::log_startup_config(&server_config, cli.quiet);
+    // Probe the model catalogue too so the operator sees how many
+    // models are available and which providers are actually
+    // configured — same numbers `GET /v1/models` would return.
+    config::log_startup_models(cli.quiet).await;
 
     let app = build_router(state.clone());
 

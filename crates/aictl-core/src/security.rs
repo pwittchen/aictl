@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::config::config_get;
+use crate::config::{config_get, config_get_scoped};
 use crate::tools::ToolCall;
 
 pub mod redaction;
@@ -165,10 +165,21 @@ pub fn policy() -> &'static SecurityPolicy {
 }
 
 fn load_policy() -> SecurityPolicy {
-    let enabled = config_get("AICTL_SECURITY").is_none_or(|v| v != "false" && v != "0");
+    // Master enable + injection guard are role-scoped: the server can
+    // be hardened or relaxed independently of the CLI's posture via
+    // `AICTL_SERVER_SECURITY` / `AICTL_SERVER_SECURITY_INJECTION_GUARD`.
+    // Every other knob below is shell/path/env machinery that only
+    // matters in the CLI's tool-dispatch loop and stays on the
+    // unprefixed key — the server has no tools to validate.
+    let enabled =
+        config_get_scoped("AICTL_SERVER_SECURITY", "AICTL_SECURITY")
+            .is_none_or(|v| v != "false" && v != "0");
 
-    let injection_guard =
-        config_get("AICTL_SECURITY_INJECTION_GUARD").is_none_or(|v| v != "false" && v != "0");
+    let injection_guard = config_get_scoped(
+        "AICTL_SERVER_SECURITY_INJECTION_GUARD",
+        "AICTL_SECURITY_INJECTION_GUARD",
+    )
+    .is_none_or(|v| v != "false" && v != "0");
 
     let restrict_to_cwd =
         config_get("AICTL_SECURITY_CWD_RESTRICT").is_none_or(|v| v != "false" && v != "0");

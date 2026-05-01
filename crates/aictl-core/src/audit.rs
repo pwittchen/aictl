@@ -25,7 +25,7 @@ use std::sync::OnceLock;
 
 use serde_json::{Value, json};
 
-use crate::config::config_get;
+use crate::config::config_get_scoped;
 use crate::security::redaction::{Match, RedactionDirection, RedactionMode, RedactionSource};
 use crate::session;
 use crate::tools::ToolCall;
@@ -66,15 +66,22 @@ pub enum Outcome<'a> {
     DuplicateCall,
 }
 
-/// Returns whether audit logging is enabled. Default: on. Configurable via
-/// `AICTL_SECURITY_AUDIT_LOG` in `~/.aictl/config` (accepts `false` / `0`).
-/// An explicit `--audit-file` override force-enables the subsystem so the
-/// flag does what its name suggests even if config has it switched off.
+/// Returns whether audit logging is enabled. Default: on.
+/// Configurable via `AICTL_SECURITY_AUDIT_LOG` (accepts `false` / `0`)
+/// in `~/.aictl/config`. The server-side process additionally honors
+/// `AICTL_SERVER_SECURITY_AUDIT_LOG` so the proxy's audit posture can
+/// differ from the CLI's. An explicit `--audit-file` override
+/// force-enables the subsystem so the flag does what its name suggests
+/// even if config has it switched off.
 pub fn enabled() -> bool {
     if override_path().is_some() {
         return true;
     }
-    config_get("AICTL_SECURITY_AUDIT_LOG").is_none_or(|v| v != "false" && v != "0")
+    config_get_scoped(
+        "AICTL_SERVER_SECURITY_AUDIT_LOG",
+        "AICTL_SECURITY_AUDIT_LOG",
+    )
+    .is_none_or(|v| v != "false" && v != "0")
 }
 
 /// `~/.aictl/audit/`, creating it on first access.

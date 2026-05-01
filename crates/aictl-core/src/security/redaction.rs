@@ -52,7 +52,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::config::config_get;
+use crate::config::config_get_scoped;
 
 pub mod ner;
 
@@ -331,28 +331,51 @@ pub fn policy() -> &'static RedactionPolicy {
 }
 
 fn load_policy() -> (RedactionPolicy, Vec<String>) {
+    // Every redaction knob honors the `AICTL_SERVER_*` override when
+    // the engine is running inside `aictl-server`, so the proxy can run
+    // a stricter (or weaker) data-leak posture than the operator's
+    // interactive CLI without forking `~/.aictl/config`. When the
+    // server-prefixed key is unset the lookup falls through to the
+    // shared `AICTL_*` value.
     let mut warnings = Vec::new();
-    let mode = match config_get("AICTL_SECURITY_REDACTION").as_deref() {
+    let mode = match config_get_scoped(
+        "AICTL_SERVER_SECURITY_REDACTION",
+        "AICTL_SECURITY_REDACTION",
+    )
+    .as_deref()
+    {
         Some("redact") => RedactionMode::Redact,
         Some("block") => RedactionMode::Block,
         _ => RedactionMode::Off,
     };
 
-    let skip_local =
-        config_get("AICTL_SECURITY_REDACTION_LOCAL").is_none_or(|v| v != "true" && v != "1");
+    let skip_local = config_get_scoped(
+        "AICTL_SERVER_SECURITY_REDACTION_LOCAL",
+        "AICTL_SECURITY_REDACTION_LOCAL",
+    )
+    .is_none_or(|v| v != "true" && v != "1");
 
     let enabled_detectors = parse_csv(
-        &config_get("AICTL_REDACTION_DETECTORS").unwrap_or_default(),
+        &config_get_scoped(
+            "AICTL_SERVER_REDACTION_DETECTORS",
+            "AICTL_REDACTION_DETECTORS",
+        )
+        .unwrap_or_default(),
         ',',
     );
 
     let extra_patterns = parse_extra_patterns(
-        &config_get("AICTL_REDACTION_EXTRA_PATTERNS").unwrap_or_default(),
+        &config_get_scoped(
+            "AICTL_SERVER_REDACTION_EXTRA_PATTERNS",
+            "AICTL_REDACTION_EXTRA_PATTERNS",
+        )
+        .unwrap_or_default(),
         &mut warnings,
     );
 
     let allowlist: Vec<Regex> = parse_csv(
-        &config_get("AICTL_REDACTION_ALLOW").unwrap_or_default(),
+        &config_get_scoped("AICTL_SERVER_REDACTION_ALLOW", "AICTL_REDACTION_ALLOW")
+            .unwrap_or_default(),
         ';',
     )
     .into_iter()
@@ -368,7 +391,7 @@ fn load_policy() -> (RedactionPolicy, Vec<String>) {
     .collect();
 
     let ner_requested = matches!(
-        config_get("AICTL_REDACTION_NER").as_deref(),
+        config_get_scoped("AICTL_SERVER_REDACTION_NER", "AICTL_REDACTION_NER").as_deref(),
         Some("true" | "1")
     );
 

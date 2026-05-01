@@ -42,7 +42,7 @@
 
 use std::path::PathBuf;
 
-use crate::config::config_get;
+use crate::config::config_get_scoped;
 use crate::error::AictlError;
 use crate::ui::AgentUI;
 
@@ -106,10 +106,17 @@ pub fn model_files(name: &str) -> Option<(PathBuf, PathBuf)> {
 /// Resolve the active NER model name from config, falling back to
 /// [`DEFAULT_NER_MODEL`]. Strips any owner prefix (`owner/repo` →
 /// `repo`) to match the `list_models()` / `model_dir()` naming scheme.
+///
+/// Honors `AICTL_SERVER_REDACTION_NER_MODEL` when running inside the
+/// server so the proxy can ship a different (e.g. larger) NER model
+/// than the CLI without forking config.
 #[must_use]
 pub fn configured_model_name() -> String {
-    let raw =
-        config_get("AICTL_REDACTION_NER_MODEL").unwrap_or_else(|| DEFAULT_NER_MODEL.to_string());
+    let raw = config_get_scoped(
+        "AICTL_SERVER_REDACTION_NER_MODEL",
+        "AICTL_REDACTION_NER_MODEL",
+    )
+    .unwrap_or_else(|| DEFAULT_NER_MODEL.to_string());
     default_name_from_spec(&raw).unwrap_or(raw)
 }
 
