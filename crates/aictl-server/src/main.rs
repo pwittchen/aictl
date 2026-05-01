@@ -220,23 +220,17 @@ async fn main() {
     // Probe the model catalogue too so the operator sees how many
     // models are available and which providers are actually
     // configured — same numbers `GET /v1/models` would return.
-    config::log_startup_models(cli.quiet).await;
+    config::log_startup_models().await;
 
     let app = build_router(state.clone());
 
     let addr = server_config.bind;
-    if !cli.quiet {
-        eprintln!(
-            "[server] aictl-server {} listening on http://{}",
-            aictl_core::VERSION,
-            addr
-        );
-    }
     tracing::info!(
         event = "server_listening",
         bind = %addr,
         version = aictl_core::VERSION,
     );
+    config::log_startup_endpoints(&addr);
     if state.rate_limiter.is_some() {
         tracing::info!(
             event = "rate_limit_enabled",

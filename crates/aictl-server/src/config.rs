@@ -353,7 +353,7 @@ pub fn log_startup_config(cfg: &ServerConfig, quiet: bool) {
 /// model file is on disk).
 ///
 /// Async because Ollama is probed over HTTP.
-pub async fn log_startup_models(quiet: bool) {
+pub async fn log_startup_models() {
     use std::collections::BTreeMap;
 
     let models = crate::openai::list_models().await;
@@ -407,13 +407,42 @@ pub async fn log_startup_models(quiet: bool) {
         configured_providers = %configured_providers,
         unconfigured_providers = %unconfigured_providers,
     );
+}
 
-    if !quiet {
-        eprintln!(
-            "[server] models: {available_total} available out of {total} (configured: {configured_providers})"
-        );
-        if !unconfigured_providers.is_empty() {
-            eprintln!("[server] unconfigured providers (no API key): {unconfigured_providers}");
-        }
-    }
+/// HTTP endpoints exposed by the server. Mirrors the route table built
+/// in `main::build_router` — keep these in sync. The `auth` flag splits
+/// the entry between the `public` and `auth` fields of the startup log
+/// so an operator can see at a glance which paths require the master key.
+const ENDPOINTS: &[(&str, &str, bool, &str)] = &[
+    ("GET", "/healthz", false, "liveness probe"),
+    ("GET", "/openapi.json", false, "OpenAPI 3.1 spec"),
+    ("POST", "/v1/chat/completions", true, "chat completions"),
+    ("POST", "/v1/completions", true, "text completions"),
+    ("GET", "/v1/models", true, "model catalogue"),
+    ("GET", "/v1/stats", true, "dispatch stats"),
+];
+
+/// Log every HTTP endpoint the server exposes as a single structured
+/// tracing event (mirroring the one-line shape of `startup_config` /
+/// `startup_security` / `startup_models`). Public (no-auth) and
+/// master-key-protected paths land in separate fields so the auth
+/// posture stays obvious without inline annotations.
+pub fn log_startup_endpoints(bind: &SocketAddr) {
+    let join = |want_auth: bool| -> String {
+        ENDPOINTS
+            .iter()
+            .filter(|(_, _, auth, _)| *auth == want_auth)
+            .map(|(method, path, _, _)| format!("{method} {path}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let public = join(false);
+    let authed = join(true);
+
+    tracing::info!(
+        event = "startup_endpoints",
+        bind = %bind,
+        public = %public,
+        auth = %authed,
+    );
 }
