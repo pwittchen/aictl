@@ -110,6 +110,26 @@ aictl-server     # listens on 127.0.0.1:7878 by default; prints master key on fi
 aictl --serve    # convenience shortcut from the CLI; forwards trailing args after `--`
 ```
 
+### Use `aictl-server` as the upstream
+
+The CLI can also point at an `aictl-server` instance instead of talking to each provider directly. With this set, the operator configures provider keys (`LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, …) once on the server, and every CLI host carries only a single master key.
+
+```sh
+aictl --client-url http://127.0.0.1:7878 --client-master-key sk-aictl-…
+```
+
+Or persist it:
+
+```sh
+# In ~/.aictl/config — note the AICTL_CLIENT_* prefix (the CLI's view).
+# The server's own AICTL_SERVER_MASTER_KEY is a separate key; the same
+# machine can host both roles without ambiguity.
+AICTL_CLIENT_HOST=http://127.0.0.1:7878
+AICTL_CLIENT_MASTER_KEY=sk-aictl-…
+```
+
+`AICTL_CLIENT_MASTER_KEY` participates in the same `/keys` lock/unlock/clear lifecycle as the provider keys, so it can move into the OS keyring like any other secret. Local providers (`Ollama`, `GGUF`, `MLX`) bypass the server unconditionally — the proxy hop would be pointless.
+
 ## Uninstall
 
 ### Binary release (installed via `install.sh`)

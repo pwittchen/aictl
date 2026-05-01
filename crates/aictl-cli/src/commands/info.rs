@@ -57,6 +57,23 @@ pub fn print_info(
     );
     println!("  {} {provider}", "provider: ".with(Color::Cyan));
     println!("  {} {model}", "model:    ".with(Color::Cyan));
+    // Routing reflects what the active provider is, not whether
+    // `AICTL_CLIENT_HOST` happens to be set. Implicit routing was
+    // intentionally removed — the proxy is opt-in via the
+    // `aictl-server` provider only.
+    let routing_display = if provider == "aictl-server" {
+        match crate::config::client_url() {
+            Some(url) => format!("aictl-server ({url})")
+                .with(Color::Yellow)
+                .to_string(),
+            None => "aictl-server (URL not configured)"
+                .with(Color::Red)
+                .to_string(),
+        }
+    } else {
+        "direct".with(Color::DarkGrey).to_string()
+    };
+    println!("  {} {routing_display}", "routing:  ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior: ".with(Color::Cyan));
     println!("  {} {memory}", "memory:   ".with(Color::Cyan));
     let timeout_secs = crate::config::llm_timeout().as_secs();

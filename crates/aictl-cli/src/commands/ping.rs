@@ -67,10 +67,15 @@ pub async fn run_ping() {
         }
     });
 
-    let (cloud_results, ollama_result) = tokio::join!(join_all(cloud_futures), probe_ollama());
+    let (cloud_results, ollama_result, aictl_server_result) = tokio::join!(
+        join_all(cloud_futures),
+        probe_ollama(),
+        probe_aictl_server(),
+    );
 
     let mut all: Vec<PingResult> = cloud_results;
     all.push(ollama_result);
+    all.push(aictl_server_result);
 
     let max_name = all.iter().map(|r| r.provider.len()).max().unwrap_or(0);
     let max_detail = all.iter().map(|r| r.detail.len()).max().unwrap_or(0);
@@ -163,6 +168,91 @@ fn probe_request(name: &str, key: &str) -> reqwest::RequestBuilder {
             .get("https://api.z.ai/api/paas/v4/models")
             .header("Authorization", format!("Bearer {key}")),
         _ => unreachable!("unknown provider {name} in probe_request"),
+    }
+}
+
+/// Probe the configured `aictl-server` (`AICTL_CLIENT_HOST`) — `GET /healthz`
+/// is auth-free, so this works whether or not the master key is set, but
+/// when both URL and key are present we additionally verify the master
+/// key is accepted by hitting the authenticated `/v1/models` route.
+async fn probe_aictl_server() -> PingResult {
+    let Some(url) = crate::config::client_url() else {
+        return PingResult {
+            provider: "aictl-server",
+            status: PingStatus::NoKey,
+            detail: "AICTL_CLIENT_HOST not set".to_string(),
+            elapsed: None,
+        };
+    };
+    let client = crate::config::http_client();
+    let start = Instant::now();
+    let healthz = format!("{}/healthz", url.trim_end_matches('/'));
+    let resp = match client.get(&healthz).timeout(PING_TIMEOUT).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            let detail = if e.is_timeout() {
+                "timeout".to_string()
+            } else if e.is_connect() {
+                "connect failed".to_string()
+            } else {
+                "error".to_string()
+            };
+            return PingResult {
+                provider: "aictl-server",
+                status: PingStatus::NotRunning,
+                detail,
+                elapsed: None,
+            };
+        }
+    };
+    if !resp.status().is_success() {
+        return PingResult {
+            provider: "aictl-server",
+            status: PingStatus::Fail,
+            detail: format!("HTTP {}", resp.status().as_u16()),
+            elapsed: Some(start.elapsed()),
+        };
+    }
+    // Healthz passed. If a master key is configured, also exercise the
+    // authenticated path so a stale/wrong key surfaces as a clear fail
+    // rather than waiting until the user runs a chat call.
+    if let Some(master_key) = keys::get_secret("AICTL_CLIENT_MASTER_KEY")
+        && !master_key.is_empty()
+    {
+        let auth_url = format!("{}/v1/models", url.trim_end_matches('/'));
+        match client
+            .get(&auth_url)
+            .header("Authorization", format!("Bearer {master_key}"))
+            .timeout(PING_TIMEOUT)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => PingResult {
+                provider: "aictl-server",
+                status: PingStatus::Ok,
+                detail: "running, key accepted".to_string(),
+                elapsed: Some(start.elapsed()),
+            },
+            Ok(r) => PingResult {
+                provider: "aictl-server",
+                status: PingStatus::Fail,
+                detail: format!("auth HTTP {}", r.status().as_u16()),
+                elapsed: Some(start.elapsed()),
+            },
+            Err(_) => PingResult {
+                provider: "aictl-server",
+                status: PingStatus::Fail,
+                detail: "auth probe failed".to_string(),
+                elapsed: Some(start.elapsed()),
+            },
+        }
+    } else {
+        PingResult {
+            provider: "aictl-server",
+            status: PingStatus::Ok,
+            detail: "running (no master key set)".to_string(),
+            elapsed: Some(start.elapsed()),
+        }
     }
 }
 

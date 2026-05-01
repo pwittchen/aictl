@@ -79,6 +79,45 @@ pub fn llm_timeout() -> std::time::Duration {
     }
 }
 
+// --- aictl-server client routing ---
+
+/// Resolved base URL of the `aictl-server` instance the CLI should route
+/// non-local LLM calls through. `None` means "use direct providers"
+/// (the default). Reads `AICTL_CLIENT_HOST` from `~/.aictl/config` and
+/// strips a trailing slash so callers can append `/v1/...` without a
+/// double-slash.
+///
+/// The URL never lives in the keyring — it's not a secret. Only the
+/// master key (`AICTL_CLIENT_MASTER_KEY`) does.
+#[must_use]
+pub fn client_url() -> Option<String> {
+    let raw = config_get("AICTL_CLIENT_HOST")?;
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Resolved `(server_url, master_key)` pair when `aictl-server` routing
+/// is fully configured, else `None`.
+///
+/// Returns `Some` only when both the URL and the master key are present.
+/// The master key is resolved via [`crate::keys::get_secret`] so it
+/// transparently follows the keyring → plain-config fallback. The
+/// lookup never falls back to `AICTL_SERVER_MASTER_KEY` — the server's
+/// own key belongs to the server role and is intentionally separate.
+#[must_use]
+pub fn active_server() -> Option<(String, String)> {
+    let url = client_url()?;
+    let key = crate::keys::get_secret("AICTL_CLIENT_MASTER_KEY")?;
+    if key.is_empty() {
+        return None;
+    }
+    Some((url, key))
+}
+
 // --- Spinner phrases ---
 
 pub const SPINNER_PHRASES: &[&str] = &[
@@ -367,6 +406,22 @@ pub fn config_set(key: &str, value: &str) {
     }
 }
 
+/// Override a config key in the in-memory cache for the rest of this
+/// process **without** writing to disk. Intended for CLI flag
+/// overlays that should not persist between runs (e.g.
+/// `--client-url`, `--client-master-key`). Empty `value` removes the
+/// key from the cache, restoring whatever was loaded from `~/.aictl/config`.
+pub fn config_overlay(key: &str, value: &str) {
+    let cell = CONFIG.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Ok(mut m) = cell.write() {
+        if value.is_empty() {
+            m.remove(key);
+        } else {
+            m.insert(key.to_string(), value.to_string());
+        }
+    }
+}
+
 /// Remove a key from ~/.aictl/config and the in-memory cache.
 /// Returns true if the key existed in either location.
 pub fn config_unset(key: &str) -> bool {
@@ -519,6 +574,27 @@ mod tests {
         let files = [("AGENTS.md", "agents")];
         let got = resolve_prompt_file("CLAUDE.md", true, reader_with(&files));
         assert_eq!(got, Some(("AGENTS.md".to_string(), "agents".to_string())));
+    }
+
+    #[test]
+    fn client_url_strips_trailing_slash() {
+        // Pure unit test against the trim logic, independent of the
+        // global config cache (which is process-wide and shared across
+        // the test suite).
+        let cases = [
+            ("http://127.0.0.1:7878/", "http://127.0.0.1:7878"),
+            ("http://127.0.0.1:7878", "http://127.0.0.1:7878"),
+            ("  http://x:1/  ", "http://x:1"),
+        ];
+        for (input, expected) in cases {
+            let trimmed = input.trim().trim_end_matches('/');
+            assert_eq!(trimmed, expected);
+        }
+        // Empty / whitespace-only inputs collapse to the empty string,
+        // which `client_url` reports as `None`.
+        for empty in ["", "   ", "/"] {
+            assert!(empty.trim().trim_end_matches('/').is_empty());
+        }
     }
 
     #[test]

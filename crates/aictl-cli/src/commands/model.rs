@@ -23,6 +23,7 @@ fn build_combined_models(
     ollama_models: &[String],
     local_models: &[String],
     mlx_models: &[String],
+    aictl_server_models: &[String],
 ) -> Vec<MenuModel> {
     let mut combined: Vec<MenuModel> = MODELS
         .iter()
@@ -57,6 +58,16 @@ fn build_combined_models(
         });
     }
 
+    for m in aictl_server_models {
+        combined.push(MenuModel {
+            provider: "aictl-server".to_string(),
+            model: m.clone(),
+            // The "key" for aictl-server is the master bearer; surface
+            // the same name `keys::get_secret` will use to resolve it.
+            api_key_name: "AICTL_CLIENT_MASTER_KEY".to_string(),
+        });
+    }
+
     combined
 }
 
@@ -64,8 +75,14 @@ fn build_combined_models(
 /// header line (provider name) or a model line with its index into MODELS.
 /// Returns `(lines, model_indices)` where `model_indices[i]` maps selectable
 /// row `i` to its position in MODELS.
+///
+/// `current_provider` is matched alongside `current_model` so the green
+/// dot marker only appears on one row even when the same model id is
+/// served by multiple providers (e.g. `claude-opus-4-7` listed under
+/// both Anthropic and `aictl-server`).
 fn build_menu_lines(
     selected: usize,
+    current_provider: &str,
     current_model: &str,
     models: &[MenuModel],
 ) -> (Vec<String>, Vec<usize>) {
@@ -87,13 +104,14 @@ fn build_menu_lines(
                 "ollama" => "Ollama:",
                 "gguf" => "Native GGUF:",
                 "mlx" => "Native MLX (Apple Silicon):",
+                "aictl-server" => "aictl-server:",
                 _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));
         }
 
         let is_selected = sel_row == selected;
-        let is_current = entry.model == current_model;
+        let is_current = entry.provider == current_provider && entry.model == current_model;
 
         let marker = if is_current { "●" } else { " " };
         let name = if is_selected {
@@ -149,19 +167,25 @@ fn entry_to_tuple(entry: &MenuModel) -> (Provider, String, String) {
         "ollama" => Provider::Ollama,
         "gguf" => Provider::Gguf,
         "mlx" => Provider::Mlx,
+        "aictl-server" => Provider::AictlServer,
         _ => unreachable!(),
     };
     (provider, entry.model.clone(), entry.api_key_name.clone())
 }
 
 /// Paged provider → model picker over the full `combined` list.
-fn run_browse(combined: &[MenuModel], current_model: &str) -> Option<(Provider, String, String)> {
+fn run_browse(
+    combined: &[MenuModel],
+    current_provider: &str,
+    current_model: &str,
+) -> Option<(Provider, String, String)> {
     let initial = combined
         .iter()
-        .position(|m| m.model == current_model)
+        .position(|m| m.provider == current_provider && m.model == current_model)
+        .or_else(|| combined.iter().position(|m| m.model == current_model))
         .unwrap_or(0);
     let selected = select_from_menu(combined.len(), initial, |sel| {
-        build_menu_lines(sel, current_model, combined).0
+        build_menu_lines(sel, current_provider, current_model, combined).0
     })?;
     Some(entry_to_tuple(&combined[selected]))
 }
@@ -171,6 +195,7 @@ fn run_browse(combined: &[MenuModel], current_model: &str) -> Option<(Provider, 
 /// filtered list with the same format as the browse path.
 fn run_search(
     combined: &[MenuModel],
+    current_provider: &str,
     current_model: &str,
     pre_query: Option<String>,
 ) -> Option<(Provider, String, String)> {
@@ -213,10 +238,11 @@ fn run_search(
 
     let initial = filtered
         .iter()
-        .position(|m| m.model == current_model)
+        .position(|m| m.provider == current_provider && m.model == current_model)
+        .or_else(|| filtered.iter().position(|m| m.model == current_model))
         .unwrap_or(0);
     let selected = select_from_menu(filtered.len(), initial, |sel| {
-        build_menu_lines(sel, current_model, &filtered).0
+        build_menu_lines(sel, current_provider, current_model, &filtered).0
     })?;
     Some(entry_to_tuple(&filtered[selected]))
 }
@@ -227,29 +253,44 @@ fn run_search(
 /// With `initial_query = Some(q)`, skips straight to the filtered search
 /// results (used by `/model search <query>` for scripted switching).
 ///
-/// `ollama_models` / `local_models` / `mlx_models` are dynamically fetched
-/// runtime model names (empty when the corresponding backend isn't
-/// available). Returns `(Provider, model_name, api_key_config_key)` or
-/// `None` if the user cancelled with Esc.
+/// `ollama_models` / `local_models` / `mlx_models` / `aictl_server_models`
+/// are dynamically fetched runtime model names (empty when the
+/// corresponding backend isn't available or unconfigured).
+///
+/// `current_provider` is the lowercase tag for the currently selected
+/// provider (`"openai"`, `"aictl-server"`, …) — needed alongside
+/// `current_model` so the green "you are here" dot lands on exactly one
+/// row when the same model id appears under multiple providers.
+///
+/// Returns `(Provider, model_name, api_key_config_key)` or `None` if
+/// the user cancelled with Esc.
 pub fn select_model(
+    current_provider: &str,
     current_model: &str,
     ollama_models: &[String],
     local_models: &[String],
     mlx_models: &[String],
+    aictl_server_models: &[String],
     initial_query: Option<&str>,
 ) -> Option<(Provider, String, String)> {
-    let combined = build_combined_models(ollama_models, local_models, mlx_models);
+    let combined =
+        build_combined_models(ollama_models, local_models, mlx_models, aictl_server_models);
 
     if let Some(q) = initial_query {
-        return run_search(&combined, current_model, Some(q.to_string()));
+        return run_search(
+            &combined,
+            current_provider,
+            current_model,
+            Some(q.to_string()),
+        );
     }
 
     let sel = select_from_menu(TOP_MENU_ITEMS.len(), 0, |s| {
         build_simple_menu_lines(TOP_MENU_ITEMS, s)
     })?;
     match sel {
-        0 => run_browse(&combined, current_model),
-        1 => run_search(&combined, current_model, None),
+        0 => run_browse(&combined, current_provider, current_model),
+        1 => run_search(&combined, current_provider, current_model, None),
         _ => unreachable!(),
     }
 }

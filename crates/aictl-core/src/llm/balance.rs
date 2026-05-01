@@ -71,6 +71,13 @@ pub enum BalanceStatus {
 }
 
 /// Probe every provider in `BALANCE_PROVIDERS` concurrently.
+///
+/// `aictl-server` is intentionally not probed here: the server's
+/// `/v1/stats` reports dispatch counts, not upstream balances, and
+/// mixing those two figures into the same table is misleading. Pick
+/// `--provider aictl-server` (or `/model`) to route LLM traffic
+/// through the server; balance probes always read direct upstream
+/// endpoints with the operator's local keys.
 pub async fn fetch_all() -> Vec<Balance> {
     let futures = BALANCE_PROVIDERS
         .iter()

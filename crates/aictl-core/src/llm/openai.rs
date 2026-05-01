@@ -4,37 +4,42 @@ use crate::error::AictlError;
 use crate::llm::{TokenSink, TokenUsage};
 use crate::{Message, Role};
 
+// Visibility note: the request/response shapes are `pub(crate)` because
+// `llm::server_proxy` reuses them when relaying chat completions to an
+// `aictl-server` upstream. Both ends speak the OpenAI shape, and
+// duplicating the structs would let them drift independently.
+
 #[derive(Serialize)]
-struct OpenAiRequest {
-    model: String,
-    messages: Vec<OpenAiMessage>,
+pub(crate) struct OpenAiRequest {
+    pub model: String,
+    pub messages: Vec<OpenAiMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<bool>,
+    pub stream: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    stream_options: Option<StreamOptions>,
+    pub stream_options: Option<StreamOptions>,
 }
 
 #[derive(Serialize)]
-struct StreamOptions {
-    include_usage: bool,
+pub(crate) struct StreamOptions {
+    pub include_usage: bool,
 }
 
 #[derive(Serialize)]
-struct OpenAiMessage {
-    role: String,
-    content: OpenAiContent,
+pub(crate) struct OpenAiMessage {
+    pub role: String,
+    pub content: OpenAiContent,
 }
 
 #[derive(Serialize)]
 #[serde(untagged)]
-enum OpenAiContent {
+pub(crate) enum OpenAiContent {
     Text(String),
     Parts(Vec<OpenAiContentPart>),
 }
 
 #[derive(Serialize)]
 #[serde(untagged)]
-enum OpenAiContentPart {
+pub(crate) enum OpenAiContentPart {
     Text {
         #[serde(rename = "type")]
         part_type: String,
@@ -48,41 +53,41 @@ enum OpenAiContentPart {
 }
 
 #[derive(Serialize)]
-struct OpenAiImageUrl {
-    url: String,
+pub(crate) struct OpenAiImageUrl {
+    pub url: String,
 }
 
 #[derive(Deserialize)]
-struct OpenAiResponseMessage {
-    content: String,
+pub(crate) struct OpenAiResponseMessage {
+    pub content: String,
 }
 
 #[derive(Deserialize)]
-struct OpenAiResponse {
-    choices: Vec<OpenAiChoice>,
-    usage: Option<OpenAiUsage>,
+pub(crate) struct OpenAiResponse {
+    pub choices: Vec<OpenAiChoice>,
+    pub usage: Option<OpenAiUsage>,
 }
 
 #[derive(Deserialize)]
-struct OpenAiChoice {
-    message: OpenAiResponseMessage,
+pub(crate) struct OpenAiChoice {
+    pub message: OpenAiResponseMessage,
 }
 
 #[derive(Deserialize)]
-struct OpenAiUsage {
-    prompt_tokens: u64,
-    completion_tokens: u64,
+pub(crate) struct OpenAiUsage {
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
     #[serde(default)]
-    prompt_tokens_details: Option<OpenAiPromptTokensDetails>,
+    pub prompt_tokens_details: Option<OpenAiPromptTokensDetails>,
 }
 
 #[derive(Deserialize, Default)]
-struct OpenAiPromptTokensDetails {
+pub(crate) struct OpenAiPromptTokensDetails {
     #[serde(default)]
-    cached_tokens: u64,
+    pub cached_tokens: u64,
 }
 
-fn build_messages(messages: &[Message]) -> Vec<OpenAiMessage> {
+pub(crate) fn build_messages(messages: &[Message]) -> Vec<OpenAiMessage> {
     messages
         .iter()
         .map(|m| {
@@ -115,8 +120,10 @@ fn build_messages(messages: &[Message]) -> Vec<OpenAiMessage> {
 
 /// Pull a `TokenUsage` out of any streamed event JSON that carries `OpenAI`'s
 /// `usage` object. Returns `None` for events without it (most of them).
-/// Shared with grok/mistral/zai which use the same shape.
-pub(crate) fn parse_openai_usage(v: &serde_json::Value) -> Option<TokenUsage> {
+/// Shared with grok/mistral/zai which use the same shape, and with
+/// `llm::server_proxy` (and a server-side roundtrip test) so the CLI's
+/// proxy path bills cached input at the discounted rate.
+pub fn parse_openai_usage(v: &serde_json::Value) -> Option<TokenUsage> {
     let u = v.get("usage")?;
     let prompt = u.get("prompt_tokens")?.as_u64()?;
     let completion = u

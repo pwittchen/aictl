@@ -10,6 +10,7 @@ pub mod mlx;
 pub mod mock;
 pub mod ollama;
 pub mod openai;
+pub mod server_proxy;
 pub mod stream;
 pub mod zai;
 

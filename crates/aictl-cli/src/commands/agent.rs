@@ -308,6 +308,22 @@ async fn create_agent_with_ai(
             .await
         }
         Provider::Mock => unreachable!("Provider::Mock is test-only and never selected at runtime"),
+        Provider::AictlServer => {
+            let Some((url, key)) = crate::config::active_server() else {
+                show_error(
+                    "aictl-server provider selected but AICTL_CLIENT_HOST / AICTL_CLIENT_MASTER_KEY are not configured",
+                );
+                return false;
+            };
+            crate::with_esc_cancel(
+                ui,
+                tokio::time::timeout(
+                    llm_timeout,
+                    crate::llm::server_proxy::call(&url, &key, model, &gen_messages, None),
+                ),
+            )
+            .await
+        }
     };
 
     ui.stop_spinner();

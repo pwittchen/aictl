@@ -9,12 +9,44 @@
 //! exposes the lock/unlock/clear actions that migrate keys between the two
 //! storage backends.
 
+use std::collections::HashMap;
+use std::sync::{OnceLock, RwLock};
+
 use crate::config::{config_get, config_set, config_unset};
 
 /// Service name used for all aictl entries in the system keyring.
 const SERVICE_NAME: &str = "aictl";
 
+/// Process-local secret overrides that take precedence over both the
+/// keyring and the plain config. Populated by CLI flags like
+/// `--client-master-key` so a one-shot override beats the persisted
+/// value without modifying the keyring or rewriting the config.
+static SECRET_OVERRIDES: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
+
+fn overrides() -> &'static RwLock<HashMap<String, String>> {
+    SECRET_OVERRIDES.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+/// Set a process-local override for a secret. Empty `value` clears any
+/// existing override for `name`. Not persisted; never writes to the
+/// keyring or to `~/.aictl/config`.
+pub fn override_secret(name: &str, value: &str) {
+    if let Ok(mut m) = overrides().write() {
+        if value.is_empty() {
+            m.remove(name);
+        } else {
+            m.insert(name.to_string(), value.to_string());
+        }
+    }
+}
+
 /// All API key config names that aictl knows how to store securely.
+///
+/// `AICTL_CLIENT_MASTER_KEY` participates in the same lock/unlock/clear
+/// lifecycle as the provider keys: the CLI presents it to its
+/// `aictl-server` upstream as a Bearer token. The server's own
+/// `AICTL_SERVER_MASTER_KEY` is intentionally absent — that secret
+/// belongs to the server's lifecycle, not the CLI client's.
 pub const KEY_NAMES: &[&str] = &[
     "LLM_ANTHROPIC_API_KEY",
     "LLM_OPENAI_API_KEY",
@@ -25,6 +57,7 @@ pub const KEY_NAMES: &[&str] = &[
     "LLM_KIMI_API_KEY",
     "LLM_ZAI_API_KEY",
     "FIRECRAWL_API_KEY",
+    "AICTL_CLIENT_MASTER_KEY",
 ];
 
 /// Where a given key is stored.
@@ -83,8 +116,19 @@ pub fn backend_name() -> &'static str {
     }
 }
 
-/// Read a secret. Tries the keyring first, then the plain-text config.
+/// Read a secret. Resolution order:
+///   1. Process-local override (set via [`override_secret`] from a CLI flag).
+///   2. System keyring.
+///   3. Plain-text `~/.aictl/config`.
+///
+/// Returns `None` (or `Some("")` filtered out by the caller) when the
+/// secret is not present in any layer.
 pub fn get_secret(name: &str) -> Option<String> {
+    if let Ok(m) = overrides().read()
+        && let Some(v) = m.get(name)
+    {
+        return Some(v.clone());
+    }
     if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, name)
         && let Ok(value) = entry.get_password()
     {
@@ -330,11 +374,22 @@ mod tests {
             "LLM_KIMI_API_KEY",
             "LLM_ZAI_API_KEY",
             "FIRECRAWL_API_KEY",
+            "AICTL_CLIENT_MASTER_KEY",
         ] {
             assert!(
                 KEY_NAMES.contains(&expected),
                 "missing expected key: {expected}"
             );
         }
+    }
+
+    #[test]
+    fn key_names_excludes_server_master_key() {
+        // Plan §3: the server's own key belongs to the server role and
+        // must never leak into the CLI's lock/unlock/clear lifecycle.
+        assert!(
+            !KEY_NAMES.contains(&"AICTL_SERVER_MASTER_KEY"),
+            "AICTL_SERVER_MASTER_KEY must not appear in CLI KEY_NAMES"
+        );
     }
 }

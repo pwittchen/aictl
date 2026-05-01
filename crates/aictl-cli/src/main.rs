@@ -273,6 +273,20 @@ struct Cli {
     #[arg(long = "mock", hide = true)]
     mock: bool,
 
+    /// Route every non-local LLM call through this `aictl-server` URL for
+    /// this invocation. Overrides `AICTL_CLIENT_HOST`. Empty string ("")
+    /// disables routing for this run even if `AICTL_CLIENT_HOST` is set.
+    /// Not persisted.
+    #[arg(long = "client-url", value_name = "URL")]
+    client_url: Option<String>,
+
+    /// Master key the CLI presents to the configured `aictl-server` for
+    /// this invocation. Overrides `AICTL_CLIENT_MASTER_KEY` from config or
+    /// the keyring. Not persisted. Visible in shell history and `ps`; the
+    /// persistent path is `/keys` or `--config`.
+    #[arg(long = "client-master-key", value_name = "KEY")]
+    client_master_key: Option<String>,
+
     /// Launch the bundled `aictl-server` HTTP LLM proxy if it's installed.
     /// Convenience shortcut so users don't have to remember the second
     /// binary name. Forwards any trailing args to the server, e.g.
@@ -301,6 +315,12 @@ async fn main() {
     if cli.serve {
         commands::run_serve_cli(&cli.serve_args);
     }
+
+    // Apply per-process overrides for the aictl-server client routing
+    // before anything reads config — `config_set` writes through to the
+    // in-memory cache. The flags do not persist to disk between runs:
+    // the overlay is wiped when the process exits.
+    apply_client_overrides(cli.client_url.as_deref(), cli.client_master_key.as_deref());
 
     let redaction_warnings = security::init(cli.unrestricted);
     if cli.unrestricted {
@@ -684,6 +704,30 @@ fn exit_with_error(msg: &str) -> ! {
     std::process::exit(1);
 }
 
+/// Apply ephemeral `--client-url` / `--client-master-key` overrides
+/// for this process. Both feed the routing decision in
+/// `aictl_core::run::run_agent_turn` only when the user picks
+/// `--provider aictl-server` (otherwise the values are inert). Neither
+/// is persisted — the URL goes into the in-memory config cache only,
+/// and the master key into the keys-module override map (which beats
+/// both keyring and plain-config lookup).
+///
+/// We deliberately don't error out here when only one of the two is
+/// set: the dispatch site only consults `active_server()` when
+/// `Provider::AictlServer` is the active provider, and surfaces a
+/// clear error from there if the pair is incomplete. Treating the
+/// keys as inert for every other provider keeps `AICTL_CLIENT_HOST`
+/// from becoming effectively obligatory once configured.
+fn apply_client_overrides(client_url: Option<&str>, client_master_key: Option<&str>) {
+    if let Some(url) = client_url {
+        let trimmed = url.trim().trim_end_matches('/');
+        config::config_overlay("AICTL_CLIENT_HOST", trimmed);
+    }
+    if let Some(key) = client_master_key {
+        keys::override_secret("AICTL_CLIENT_MASTER_KEY", key.trim());
+    }
+}
+
 fn resolve_provider(override_: Option<Provider>) -> Provider {
     override_.unwrap_or_else(|| {
         match config_get("AICTL_PROVIDER").as_deref() {
@@ -698,9 +742,10 @@ fn resolve_provider(override_: Option<Provider>) -> Provider {
             Some("ollama") => Provider::Ollama,
             Some("gguf") => Provider::Gguf,
             Some("mlx") => Provider::Mlx,
+            Some("aictl-server") => Provider::AictlServer,
             Some(other) => {
                 exit_with_error(&format!(
-                    "invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'gguf', or 'mlx')"
+                    "invalid AICTL_PROVIDER value '{other}' (expected 'openai', 'anthropic', 'gemini', 'grok', 'mistral', 'deepseek', 'kimi', 'zai', 'ollama', 'gguf', 'mlx', or 'aictl-server')"
                 ));
             }
             None => exit_with_error(
@@ -727,6 +772,13 @@ fn resolve_api_key(provider: &Provider) -> String {
     ) {
         return String::new();
     }
+    // `Provider::AictlServer` carries the master key separately (via
+    // `config::active_server()`), not as a per-provider API key. The
+    // dispatch branch in `run::run_agent_turn` reads it directly; the
+    // generic `api_key` argument is unused on that path.
+    if matches!(provider, Provider::AictlServer) {
+        return String::new();
+    }
     let key_name = match provider {
         Provider::Openai => "LLM_OPENAI_API_KEY",
         Provider::Anthropic => "LLM_ANTHROPIC_API_KEY",
@@ -736,7 +788,11 @@ fn resolve_api_key(provider: &Provider) -> String {
         Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
         Provider::Kimi => "LLM_KIMI_API_KEY",
         Provider::Zai => "LLM_ZAI_API_KEY",
-        Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
+        Provider::Ollama
+        | Provider::Gguf
+        | Provider::Mlx
+        | Provider::Mock
+        | Provider::AictlServer => unreachable!(),
     };
     keys::get_secret(key_name).unwrap_or_else(|| {
         exit_with_error(&format!(

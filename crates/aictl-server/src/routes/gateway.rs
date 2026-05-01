@@ -214,6 +214,19 @@ async fn call_provider(
                 reason: "mock_provider_disabled",
             });
         }
+        Provider::AictlServer => {
+            // The server cannot route a request back to itself — that
+            // would be an infinite loop. The CLI's explicit
+            // `aictl-server` provider is meaningful only on the client
+            // side; if a request arrives here with that provider tag
+            // the operator has misconfigured something.
+            return Err(ApiError::BadRequest {
+                code: "model_not_found",
+                message:
+                    "model resolves to the aictl-server provider — server cannot proxy to itself"
+                        .to_string(),
+            });
+        }
     };
     res.map_err(from_aictl_error)
 }
@@ -258,6 +271,9 @@ async fn dispatch_provider(
         Provider::Mlx => aictl_core::llm::mlx::call_mlx(&model, &messages, Some(sink)).await,
         Provider::Mock => Err(aictl_core::AictlError::Other(
             "mock provider disabled".to_string(),
+        )),
+        Provider::AictlServer => Err(aictl_core::AictlError::Other(
+            "aictl-server cannot proxy back to itself".to_string(),
         )),
     }
 }
@@ -326,7 +342,7 @@ async fn stream_chat(
                         yield Ok(make_event(&frame));
                     }
                     match join {
-                        Ok(Ok((_text, _usage))) => {
+                        Ok(Ok((_text, usage))) => {
                             let _final_text = collected_for_stream
                                 .lock()
                                 .map(|g| g.clone())
@@ -334,6 +350,17 @@ async fn stream_chat(
                             audit_dispatch(&provider_for_stream, &request_id_for_stream, &messages_for_audit);
                             let final_frame = openai::final_chunk(&request_id_for_stream, &model_for_stream);
                             yield Ok(make_event(&final_frame));
+                            // Trailing usage frame so SDK clients (and
+                            // the CLI proxy path) can compute costs the
+                            // same way they would on the buffered path.
+                            // OpenAI itself emits this shape when
+                            // `stream_options.include_usage = true`;
+                            // we always send it because the cost is
+                            // already known and dropping it would force
+                            // every stream client to re-tokenize
+                            // locally.
+                            let usage_frame = openai::usage_chunk(&request_id_for_stream, &model_for_stream, &usage);
+                            yield Ok(make_event(&usage_frame));
                             yield Ok(crate::sse::done_event());
                             break;
                         }
@@ -397,6 +424,7 @@ fn provider_tag(p: &Provider) -> &'static str {
         Provider::Gguf => "gguf",
         Provider::Mlx => "mlx",
         Provider::Mock => "mock",
+        Provider::AictlServer => "aictl-server",
     }
 }
 

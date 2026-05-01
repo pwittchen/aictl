@@ -148,6 +148,19 @@ pub struct ChatCompletionUsage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub total_tokens: u64,
+    /// Detail breakdown matching OpenAI's shape. Carries
+    /// `cached_tokens` so a CLI client can correctly bill cached input
+    /// at the discounted rate. Anthropic's cache-creation tokens are
+    /// folded in alongside cache-read here as a single
+    /// "non-fresh-prompt" figure — both flow through the same accounting
+    /// path on the way back into `aictl_core::TokenUsage`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_tokens_details: Option<PromptTokensDetails>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PromptTokensDetails {
+    pub cached_tokens: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -176,6 +189,14 @@ pub struct ChatCompletionChunk {
     pub created: u64,
     pub model: String,
     pub choices: Vec<ChatCompletionChunkChoice>,
+    /// Optional `usage` payload carried on the final chunk when
+    /// `stream_options.include_usage = true` — the CLI's
+    /// `parse_openai_usage` reads it from any event that has it. Empty
+    /// `choices` is the standard shape OpenAI uses for the usage-only
+    /// trailer, so the CLI's existing parser handles it without
+    /// special-casing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<ChatCompletionUsage>,
 }
 
 #[derive(Debug, Serialize)]
@@ -298,6 +319,9 @@ pub fn key_name_for_provider(provider: &Provider) -> Option<&'static str> {
         Provider::Kimi => Some("LLM_KIMI_API_KEY"),
         Provider::Zai => Some("LLM_ZAI_API_KEY"),
         Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => None,
+        // The server never resolves a model to `AictlServer` (it's a
+        // client-side identity), so it has no key name on this surface.
+        Provider::AictlServer => None,
     }
 }
 
@@ -342,8 +366,6 @@ pub fn wrap_chat_response(
     content: String,
     usage: &TokenUsage,
 ) -> ChatCompletionResponse {
-    let prompt_tokens =
-        usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens;
     ChatCompletionResponse {
         id: format!("chatcmpl-{request_id}"),
         object: "chat.completion",
@@ -357,11 +379,7 @@ pub fn wrap_chat_response(
             },
             finish_reason: "stop",
         }],
-        usage: ChatCompletionUsage {
-            prompt_tokens,
-            completion_tokens: usage.output_tokens,
-            total_tokens: prompt_tokens + usage.output_tokens,
-        },
+        usage: build_usage(usage),
     }
 }
 
@@ -372,8 +390,6 @@ pub fn wrap_completion_response(
     text: String,
     usage: &TokenUsage,
 ) -> CompletionResponse {
-    let prompt_tokens =
-        usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens;
     CompletionResponse {
         id: format!("cmpl-{request_id}"),
         object: "text_completion",
@@ -384,10 +400,34 @@ pub fn wrap_completion_response(
             text,
             finish_reason: "stop",
         }],
-        usage: ChatCompletionUsage {
-            prompt_tokens,
-            completion_tokens: usage.output_tokens,
-            total_tokens: prompt_tokens + usage.output_tokens,
+        usage: build_usage(usage),
+    }
+}
+
+/// Translate the engine's [`TokenUsage`] into OpenAI's `usage` shape.
+///
+/// `prompt_tokens` is the *total* input the model saw — fresh prompt
+/// plus cache-creation plus cache-read — matching how OpenAI reports
+/// it. `prompt_tokens_details.cached_tokens` exposes the
+/// already-cached share so a downstream client (notably the CLI's
+/// `parse_openai_usage`) can subtract it back out and apply the
+/// per-model cache-read discount instead of billing the full input
+/// rate. Anthropic's cache-creation tokens are folded in here too so
+/// the round-trip is lossless on remote-billing math; the CLI's
+/// per-model multiplier stays accurate.
+fn build_usage(usage: &TokenUsage) -> ChatCompletionUsage {
+    let cached = usage.cache_creation_input_tokens + usage.cache_read_input_tokens;
+    let prompt_tokens = usage.input_tokens + cached;
+    ChatCompletionUsage {
+        prompt_tokens,
+        completion_tokens: usage.output_tokens,
+        total_tokens: prompt_tokens + usage.output_tokens,
+        prompt_tokens_details: if cached == 0 {
+            None
+        } else {
+            Some(PromptTokensDetails {
+                cached_tokens: cached,
+            })
         },
     }
 }
@@ -412,6 +452,7 @@ pub fn chunk(
             },
             finish_reason: None,
         }],
+        usage: None,
     }
 }
 
@@ -427,6 +468,24 @@ pub fn final_chunk(request_id: &str, model: &str) -> ChatCompletionChunk {
             delta: ChatCompletionChunkDelta::default(),
             finish_reason: Some("stop"),
         }],
+        usage: None,
+    }
+}
+
+/// Trailing OpenAI-shape "usage-only" chunk emitted right before
+/// `data: [DONE]` so the CLI client (or any other OpenAI SDK consumer)
+/// can read the same token totals as the buffered path. Matches the
+/// shape OpenAI itself emits when `stream_options.include_usage =
+/// true`: empty `choices`, populated `usage`.
+#[must_use]
+pub fn usage_chunk(request_id: &str, model: &str, usage: &TokenUsage) -> ChatCompletionChunk {
+    ChatCompletionChunk {
+        id: format!("chatcmpl-{request_id}"),
+        object: "chat.completion.chunk",
+        created: now_secs(),
+        model: model.to_string(),
+        choices: vec![],
+        usage: Some(build_usage(usage)),
     }
 }
 
@@ -630,5 +689,68 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// `build_usage` must round-trip through the CLI's parser: the
+    /// `cached_tokens` detail field is what lets the CLI bill cached
+    /// input at the discounted rate per `aictl_core::cache_read_multiplier`.
+    /// Drop the detail (or fold cache into raw `prompt_tokens` only) and
+    /// the CLI silently bills cache reads at full input price — that's
+    /// the bug this guard protects against.
+    #[test]
+    fn build_usage_roundtrip_preserves_cache_breakdown() {
+        let original = TokenUsage {
+            input_tokens: 100,
+            output_tokens: 200,
+            cache_creation_input_tokens: 50,
+            cache_read_input_tokens: 30,
+        };
+        let wire = build_usage(&original);
+        // OpenAI shape: prompt_tokens is *total* prompt-side; cached
+        // shows up under prompt_tokens_details.
+        assert_eq!(wire.prompt_tokens, 180);
+        assert_eq!(wire.completion_tokens, 200);
+        assert_eq!(wire.total_tokens, 380);
+        assert_eq!(
+            wire.prompt_tokens_details.as_ref().map(|d| d.cached_tokens),
+            Some(80),
+        );
+
+        // Pipe it through the CLI's parser by serializing to JSON the
+        // same way the HTTP response would.
+        let json = serde_json::json!({
+            "usage": {
+                "prompt_tokens": wire.prompt_tokens,
+                "completion_tokens": wire.completion_tokens,
+                "total_tokens": wire.total_tokens,
+                "prompt_tokens_details": {
+                    "cached_tokens": wire.prompt_tokens_details.as_ref().unwrap().cached_tokens,
+                },
+            },
+        });
+        let parsed = aictl_core::llm::openai::parse_openai_usage(&json).unwrap();
+        // Fresh input is total prompt minus cached.
+        assert_eq!(parsed.input_tokens, 100);
+        assert_eq!(parsed.output_tokens, 200);
+        // Round-tripping over the OpenAI shape collapses Anthropic's
+        // cache-creation + cache-read into one bucket; the CLI bills
+        // both via the cache-read multiplier. That's a small fidelity
+        // loss vs. talking to Anthropic directly (cache writes are
+        // billed at 1.25× input there) but matches what every other
+        // OpenAI-shape consumer sees.
+        assert_eq!(parsed.cache_read_input_tokens, 80);
+        assert_eq!(parsed.cache_creation_input_tokens, 0);
+    }
+
+    #[test]
+    fn build_usage_skips_detail_when_no_cache_tokens() {
+        let usage = TokenUsage {
+            input_tokens: 10,
+            output_tokens: 20,
+            ..TokenUsage::default()
+        };
+        let wire = build_usage(&usage);
+        assert_eq!(wire.prompt_tokens, 10);
+        assert!(wire.prompt_tokens_details.is_none());
     }
 }

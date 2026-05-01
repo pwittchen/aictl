@@ -5,6 +5,12 @@ use crate::llm::MODELS;
 use super::menu::{confirm_yn, read_input_line, select_from_menu};
 
 /// All providers and their API key config key names.
+///
+/// `aictl-server`'s "key name" is `AICTL_CLIENT_MASTER_KEY` — that's
+/// what the wizard prompts for when the user picks this provider, and
+/// what the `/keys` lifecycle moves between plain config and the
+/// keyring. The URL itself (`AICTL_CLIENT_HOST`) is prompted separately
+/// because it's not a secret.
 const PROVIDERS: &[(&str, &str)] = &[
     ("anthropic", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "LLM_OPENAI_API_KEY"),
@@ -15,6 +21,7 @@ const PROVIDERS: &[(&str, &str)] = &[
     ("kimi", "LLM_KIMI_API_KEY"),
     ("zai", "LLM_ZAI_API_KEY"),
     ("ollama", ""),
+    ("aictl-server", "AICTL_CLIENT_MASTER_KEY"),
 ];
 
 fn build_provider_menu_lines(selected: usize) -> Vec<String> {
@@ -33,6 +40,7 @@ fn build_provider_menu_lines(selected: usize) -> Vec<String> {
                 "kimi" => "Kimi",
                 "zai" => "Z.ai",
                 "ollama" => "Ollama (local, no API key)",
+                "aictl-server" => "aictl-server (HTTP proxy)",
                 _ => name,
             };
             if is_selected {
@@ -97,14 +105,30 @@ pub fn run_config_wizard(from_repl: bool) {
         return;
     };
     let is_ollama = provider_name == "ollama";
+    let is_aictl_server = provider_name == "aictl-server";
 
-    let Some(model) = wizard_select_model(provider_name, is_ollama) else {
+    let Some(model) = wizard_select_model(provider_name, is_ollama, is_aictl_server) else {
         return;
     };
 
     let mut keys_to_save: Vec<(String, String)> = Vec::new();
 
-    if !is_ollama {
+    if is_aictl_server {
+        // The server URL is not a secret — prompt and save it as a
+        // regular config entry. The master key takes the API-key slot
+        // below so it participates in the same lock/unlock lifecycle as
+        // any other secret.
+        match wizard_aictl_server_host() {
+            StepOutcome::Abort => return,
+            StepOutcome::Skip => {}
+            StepOutcome::Save(k, v) => crate::config::config_set(&k, &v),
+        }
+        match wizard_primary_api_key(provider_name, api_key_name) {
+            StepOutcome::Abort => return,
+            StepOutcome::Skip => {}
+            StepOutcome::Save(k, v) => keys_to_save.push((k, v)),
+        }
+    } else if !is_ollama {
         match wizard_primary_api_key(provider_name, api_key_name) {
             StepOutcome::Abort => return,
             StepOutcome::Skip => {}
@@ -171,11 +195,19 @@ fn wizard_select_provider() -> Option<(&'static str, &'static str)> {
 }
 
 /// Step 2. Returns the selected model name, or `None` if the user cancelled
-/// or no models are available. Ollama asks for a free-form name; other
-/// providers show the `MODELS` catalog.
-fn wizard_select_model(provider_name: &str, is_ollama: bool) -> Option<String> {
+/// or no models are available. Ollama and aictl-server ask for a
+/// free-form name (the server forwards it to whichever upstream the
+/// model resolves to); other providers show the `MODELS` catalog.
+fn wizard_select_model(
+    provider_name: &str,
+    is_ollama: bool,
+    is_aictl_server: bool,
+) -> Option<String> {
     if is_ollama {
         return wizard_enter_ollama_model();
+    }
+    if is_aictl_server {
+        return wizard_enter_aictl_server_model();
     }
     let models_for_provider: Vec<&str> = MODELS
         .iter()
@@ -201,6 +233,69 @@ fn wizard_select_model(provider_name: &str, is_ollama: bool) -> Option<String> {
         return None;
     };
     Some(models_for_provider[model_idx].to_string())
+}
+
+fn wizard_enter_aictl_server_model() -> Option<String> {
+    println!();
+    println!(
+        "  {}",
+        "Enter model name to send to aictl-server (e.g. claude-opus-4-7, gpt-4o):"
+            .with(Color::White)
+    );
+    println!(
+        "  {}",
+        "The server picks the upstream provider from the model name.".with(Color::DarkGrey)
+    );
+    let Some(m) = read_input_line("model:", false) else {
+        print_cancelled();
+        return None;
+    };
+    let m = m.trim().to_string();
+    if m.is_empty() {
+        println!();
+        println!("  {} no model specified, skipping", "⚠".with(Color::Yellow));
+        println!();
+        return None;
+    }
+    Some(m)
+}
+
+fn wizard_aictl_server_host() -> StepOutcome {
+    println!();
+    if crate::config::client_url().is_some() {
+        println!(
+            "  {} {}",
+            "Enter aictl-server URL:".with(Color::White),
+            "(currently set — press Enter to keep)".with(Color::DarkGrey),
+        );
+    } else {
+        println!(
+            "  {} {}",
+            "Enter aictl-server URL (e.g. http://127.0.0.1:7878):".with(Color::White),
+            "(required)".with(Color::DarkGrey),
+        );
+    }
+    let Some(host) = read_input_line("AICTL_CLIENT_HOST:", false) else {
+        print_cancelled();
+        return StepOutcome::Abort;
+    };
+    let host = host.trim().to_string();
+    if host.is_empty() {
+        if crate::config::client_url().is_none() {
+            println!();
+            println!(
+                "  {} aictl-server URL is required, aborting",
+                "✗".with(Color::Red)
+            );
+            println!();
+            return StepOutcome::Abort;
+        }
+        return StepOutcome::Skip;
+    }
+    StepOutcome::Save(
+        "AICTL_CLIENT_HOST".to_string(),
+        host.trim_end_matches('/').to_string(),
+    )
 }
 
 fn wizard_enter_ollama_model() -> Option<String> {
@@ -276,7 +371,11 @@ fn wizard_other_api_keys(current_provider: &str) -> Option<Vec<(String, String)>
     );
     let mut collected: Vec<(String, String)> = Vec::new();
     for &(prov, key_name) in PROVIDERS {
-        if prov == current_provider || prov == "ollama" || key_name.is_empty() {
+        if prov == current_provider
+            || prov == "ollama"
+            || prov == "aictl-server"
+            || key_name.is_empty()
+        {
             continue;
         }
         let label = provider_label(prov);
@@ -419,6 +518,7 @@ fn provider_label(prov: &str) -> &'static str {
         "kimi" => "Kimi",
         "zai" => "Z.ai",
         "ollama" => "Ollama",
+        "aictl-server" => "aictl-server",
         _ => "",
     }
 }

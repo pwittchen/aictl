@@ -91,12 +91,80 @@ pub enum Provider {
     Ollama,
     Gguf,
     Mlx,
+    /// Explicit `aictl-server` upstream. Selected via
+    /// `--provider aictl-server` (or `AICTL_PROVIDER=aictl-server`); the
+    /// model name is forwarded verbatim and dispatch always goes through
+    /// [`crate::llm::server_proxy::call`] using `AICTL_CLIENT_HOST` +
+    /// `AICTL_CLIENT_MASTER_KEY`.
+    ///
+    /// Distinct from the *implicit* routing the same proxy module
+    /// supports: setting `AICTL_CLIENT_HOST` while keeping
+    /// `--provider openai` (etc.) still routes those calls through the
+    /// server, with the model staying part of the upstream provider's
+    /// catalogue. This variant is the "use the server's own model
+    /// catalogue" mode — shown in `/model` and `/ping` like any other
+    /// provider, and the model list comes from `${url}/v1/models`.
+    #[value(name = "aictl-server")]
+    AictlServer,
     /// Scripted provider used by the integration tests. Hidden from the CLI
     /// via `#[value(skip)]` so users can never select it; the actual dispatch
     /// in `run_agent_turn` is cfg-gated so non-test builds can't route here.
     #[value(skip)]
     #[allow(dead_code)]
     Mock,
+}
+
+impl Provider {
+    /// True for providers that run on the local machine (`Ollama`, `Gguf`,
+    /// `Mlx`). When `aictl-server` routing is configured, local providers
+    /// still bypass the server — they live in the same process or on the
+    /// same host, so a network round-trip would be pointless and would
+    /// also leak the server's identity into traffic that never had to
+    /// leave the machine.
+    ///
+    /// `AictlServer` is **not** local — it speaks HTTP to a separate
+    /// process (possibly on a different host) and goes through
+    /// [`crate::llm::server_proxy`].
+    #[must_use]
+    pub fn is_local(&self) -> bool {
+        matches!(self, Self::Ollama | Self::Gguf | Self::Mlx)
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::Provider;
+
+    /// Exhaustive coverage gate for [`Provider::is_local`]. New variants
+    /// must explicitly answer the local-vs-remote question here so a
+    /// future provider can't accidentally route through `aictl-server`
+    /// (or skip it) by default.
+    #[test]
+    fn is_local_exhaustive_per_variant() {
+        for v in [
+            Provider::Openai,
+            Provider::Anthropic,
+            Provider::Gemini,
+            Provider::Grok,
+            Provider::Mistral,
+            Provider::Deepseek,
+            Provider::Kimi,
+            Provider::Zai,
+            // AictlServer speaks HTTP to a separate process — its own
+            // dispatch branch routes through `server_proxy::call`, not
+            // a local module.
+            Provider::AictlServer,
+        ] {
+            assert!(!v.is_local(), "{v:?} must not be local");
+        }
+        for v in [Provider::Ollama, Provider::Gguf, Provider::Mlx] {
+            assert!(v.is_local(), "{v:?} must be local");
+        }
+        // Mock is bag-of-tricks for tests; treat it as remote so the
+        // routing branch in run_agent_turn handles it like any other
+        // non-local provider when active_server is configured.
+        assert!(!Provider::Mock.is_local());
+    }
 }
 
 // --- Esc key interrupt support ---
@@ -765,138 +833,176 @@ pub async fn run_agent_turn(
         };
         let rx_opt = stream_ctx.as_mut().map(|(rx, _)| rx);
 
-        let (result, streamed) = match provider {
-            Provider::Openai => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::openai::call_openai(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
+        // Routing decision: only `Provider::AictlServer` dispatches
+        // through the proxy. Picking any other provider (including
+        // when `AICTL_CLIENT_HOST` happens to be set in config) goes
+        // straight to the per-provider module — the user explicitly
+        // chose that provider, so the request belongs there. To use
+        // the proxy, switch to `--provider aictl-server` (or the
+        // matching `/model` entry).
+        let server_route = if matches!(provider, Provider::AictlServer) {
+            if let Some(pair) = config::active_server() {
+                Some(pair)
+            } else {
+                ui.stop_spinner();
+                return Err(AictlError::Other(
+                    "provider 'aictl-server' selected but AICTL_CLIENT_HOST and/or AICTL_CLIENT_MASTER_KEY are not configured. Set both via /config (or --client-url and --client-master-key) and try again.".to_string(),
+                ));
             }
-            Provider::Anthropic => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::anthropic::call_anthropic(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Gemini => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::gemini::call_gemini(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Grok => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::grok::call_grok(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Mistral => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::mistral::call_mistral(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Deepseek => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::deepseek::call_deepseek(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Kimi => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::kimi::call_kimi(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Zai => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::zai::call_zai(api_key, model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Ollama => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::ollama::call_ollama(model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Gguf => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::gguf::call_gguf(model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Mlx => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::mlx::call_mlx(model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
-            }
-            Provider::Mock => {
-                run_provider_call(
-                    tokio::time::timeout(
-                        llm_timeout,
-                        llm::mock::call_mock(model, llm_messages, sink),
-                    ),
-                    rx_opt,
-                    ui,
-                )
-                .await
+        } else {
+            None
+        };
+
+        let (result, streamed) = if let Some((server_url, master_key)) = server_route {
+            run_provider_call(
+                tokio::time::timeout(
+                    llm_timeout,
+                    llm::server_proxy::call(&server_url, &master_key, model, llm_messages, sink),
+                ),
+                rx_opt,
+                ui,
+            )
+            .await
+        } else {
+            match provider {
+                Provider::Openai => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::openai::call_openai(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Anthropic => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::anthropic::call_anthropic(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Gemini => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::gemini::call_gemini(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Grok => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::grok::call_grok(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Mistral => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::mistral::call_mistral(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Deepseek => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::deepseek::call_deepseek(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Kimi => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::kimi::call_kimi(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Zai => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::zai::call_zai(api_key, model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Ollama => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::ollama::call_ollama(model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Gguf => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::gguf::call_gguf(model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Mlx => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::mlx::call_mlx(model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                Provider::Mock => {
+                    run_provider_call(
+                        tokio::time::timeout(
+                            llm_timeout,
+                            llm::mock::call_mock(model, llm_messages, sink),
+                        ),
+                        rx_opt,
+                        ui,
+                    )
+                    .await
+                }
+                // Handled at the top of the routing decision above —
+                // `Provider::AictlServer` always takes the server route
+                // and never falls through to the per-provider match.
+                Provider::AictlServer => unreachable!(
+                    "Provider::AictlServer is dispatched via the explicit_server branch above"
+                ),
             }
         };
         let call_elapsed = call_start.elapsed();

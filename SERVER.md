@@ -114,6 +114,23 @@ print(reply.choices[0].message.content)
 
 The same SDK call works against any model in `GET /v1/models` — the server picks the right upstream provider and substitutes its own configured key.
 
+### Connecting `aictl-cli` to `aictl-server`
+
+The CLI can route every non-local LLM call through this server instead of holding upstream provider keys itself. Set two values in the *CLI's* `~/.aictl/config`:
+
+```ini
+AICTL_CLIENT_HOST=http://127.0.0.1:7878
+AICTL_CLIENT_MASTER_KEY=<value of AICTL_SERVER_MASTER_KEY from the server>
+```
+
+Or pass them per-launch without persisting:
+
+```sh
+aictl --client-url http://127.0.0.1:7878 --client-master-key sk-aictl-…
+```
+
+The `AICTL_CLIENT_*` vs `AICTL_SERVER_*` split is deliberate: a single host may run both roles, and the CLI side stores the *connection* key (what it presents to *some* server) under a name distinct from the server's *own* master key. Locking via `/keys` moves `AICTL_CLIENT_MASTER_KEY` into the OS keyring just like any provider key. Local providers (Ollama / GGUF / MLX) always bypass the server. `/balance` reads the server's `/v1/stats` aggregate when routing is active.
+
 ## Configuration
 
 `aictl-server` reads the same `~/.aictl/config` file the CLI reads. Server-only knobs are prefixed `AICTL_SERVER_*` and sit alongside the existing CLI keys.

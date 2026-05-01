@@ -302,7 +302,7 @@ async fn dispatch_slash_command(
             ReplAction::Continue
         }
         commands::CommandResult::Info => {
-            let pname = format!("{provider:?}").to_lowercase();
+            let pname = provider_display_name(provider);
             let ollama_models = llm::ollama::list_models().await;
             commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
             ReplAction::Continue
@@ -605,9 +605,24 @@ async fn handle_model_switch(
     let ollama_models = llm::ollama::list_models().await;
     let local_models = llm::gguf::list_models();
     let mlx_models = llm::mlx::list_models();
-    let Some((new_provider, new_model, api_key_name)) =
-        commands::select_model(model, &ollama_models, &local_models, &mlx_models, query)
-    else {
+    // Pull the server's catalogue when routing is configured. Failures
+    // (server down, auth wrong) just produce an empty list — the static
+    // catalogue still drives the menu.
+    let aictl_server_models = if let Some((url, key)) = config::active_server() {
+        llm::server_proxy::fetch_models(&url, &key).await
+    } else {
+        Vec::new()
+    };
+    let current_provider_name = provider_display_name(provider);
+    let Some((new_provider, new_model, api_key_name)) = commands::select_model(
+        &current_provider_name,
+        model,
+        &ollama_models,
+        &local_models,
+        &mlx_models,
+        &aictl_server_models,
+        query,
+    ) else {
         return;
     };
     if matches!(
@@ -625,6 +640,21 @@ async fn handle_model_switch(
         *provider = new_provider;
         *model = new_model;
         *api_key = String::new();
+    } else if matches!(new_provider, Provider::AictlServer) {
+        // The "key" for aictl-server is the master bearer; resolve it
+        // through the same `keys::get_secret` path so config / keyring
+        // / `--client-master-key` overlays all work.
+        let Some(master_key) = keys::get_secret(&api_key_name) else {
+            ui.show_error(&format!(
+                "{api_key_name} is not set — set AICTL_CLIENT_HOST and AICTL_CLIENT_MASTER_KEY first (via /config, --client-master-key, or by editing ~/.aictl/config)"
+            ));
+            return;
+        };
+        config_set("AICTL_PROVIDER", "aictl-server");
+        config_set("AICTL_MODEL", &new_model);
+        *provider = new_provider;
+        *model = new_model;
+        *api_key = master_key;
     } else {
         let Some(new_api_key) = keys::get_secret(&api_key_name) else {
             ui.show_error(&format!(
@@ -641,7 +671,7 @@ async fn handle_model_switch(
         *model = new_model;
         *api_key = new_api_key;
     }
-    let pname = format!("{provider:?}").to_lowercase();
+    let pname = provider_display_name(provider);
     println!();
     println!("  {} switched to {pname}/{model}", "✓".with(Color::Green));
     println!();
@@ -711,6 +741,17 @@ async fn handle_user_turn(
     session::save_current(messages);
 }
 
+/// Lowercase display name for a [`Provider`]. The default Debug-derived
+/// form would be `aictlserver` for the new variant; keep the canonical
+/// `aictl-server` (matching `--provider`, `AICTL_PROVIDER`, and the
+/// model menu's section header).
+fn provider_display_name(provider: &Provider) -> String {
+    match provider {
+        Provider::AictlServer => "aictl-server".to_string(),
+        _ => format!("{provider:?}").to_lowercase(),
+    }
+}
+
 fn provider_from_str(name: &str) -> Option<Provider> {
     Some(match name {
         "openai" => Provider::Openai,
@@ -724,6 +765,7 @@ fn provider_from_str(name: &str) -> Option<Provider> {
         "ollama" => Provider::Ollama,
         "gguf" => Provider::Gguf,
         "mlx" => Provider::Mlx,
+        "aictl-server" => Provider::AictlServer,
         _ => return None,
     })
 }
@@ -738,6 +780,10 @@ fn provider_api_key_name(provider: &Provider) -> &'static str {
         Provider::Deepseek => "LLM_DEEPSEEK_API_KEY",
         Provider::Kimi => "LLM_KIMI_API_KEY",
         Provider::Zai => "LLM_ZAI_API_KEY",
+        // AictlServer's "key" is the master bearer (`AICTL_CLIENT_MASTER_KEY`),
+        // not a per-provider API key — but it is still a secret the
+        // /keys lifecycle and `keys::get_secret` know how to resolve.
+        Provider::AictlServer => "AICTL_CLIENT_MASTER_KEY",
         Provider::Ollama | Provider::Gguf | Provider::Mlx | Provider::Mock => unreachable!(),
     }
 }
@@ -913,7 +959,7 @@ pub(crate) async fn run_interactive(
     };
 
     InteractiveUI::print_welcome(
-        &format!("{provider:?}").to_lowercase(),
+        &provider_display_name(&provider),
         &model,
         memory,
         &version_info,
