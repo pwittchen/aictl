@@ -226,7 +226,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--update` | Update to the latest version |
 | `--uninstall` | Remove the aictl binary from `~/.cargo/bin/aictl`, `~/.local/bin/aictl`, and `$AICTL_INSTALL_DIR/aictl` (if set) and exit. Leaves `~/.aictl/` untouched |
 | `--config` | Interactive configuration wizard — set provider, model, and API keys step by step |
-| `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, or `mlx`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
+| `--provider` | LLM provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, `mlx`, or `aictl-server`). Falls back to `AICTL_PROVIDER` in `~/.aictl/config` |
 | `--model` | Model name (e.g. `gpt-4o`). Falls back to `AICTL_MODEL` in `~/.aictl/config` |
 | `--message` | Message to send (omit for interactive mode) |
 | `--agent` | Load a saved agent by name (works in both single-shot and interactive modes) |
@@ -263,6 +263,9 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--list-hooks` | Print configured hooks (event, matcher, command, status) and exit. Reads from `~/.aictl/hooks.json` (override via `AICTL_HOOKS_FILE`) |
 | `--list-mcp` | Print configured MCP servers (name, state, tool count) and exit. Reads from `~/.aictl/mcp.json` (override via `AICTL_MCP_CONFIG`). When `AICTL_MCP_ENABLED=false` the listing is empty with a hint about the master switch |
 | `--mcp-server` | Restrict this session to only the named MCP server (every other configured server is force-disabled for the process). Effective only when `AICTL_MCP_ENABLED=true` |
+| `--client-url` | Route every non-local LLM call through this `aictl-server` URL for this invocation. Overrides `AICTL_CLIENT_HOST`. Empty string (`""`) disables routing for this run even if `AICTL_CLIENT_HOST` is set. Not persisted |
+| `--client-master-key` | Master key the CLI presents to the configured `aictl-server` for this invocation. Overrides `AICTL_CLIENT_MASTER_KEY` from config or the keyring. Not persisted (visible in shell history and `ps` — the persistent path is `/keys` or `--config`) |
+| `--serve` | Launch the bundled `aictl-server` HTTP LLM proxy if it's installed. Convenience shortcut from the CLI; trailing args after `--` are forwarded verbatim, e.g. `aictl --serve -- --bind 0.0.0.0:7878 --quiet`. See [SERVER.md](SERVER.md) |
 
 CLI flags take priority over config file values.
 
@@ -513,7 +516,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 
 | Key | Description |
 |-----|-------------|
-| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, or `mlx`) |
+| `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, `mlx`, or `aictl-server`) |
 | `AICTL_MODEL` | Default model name |
 | `AICTL_MEMORY` | Memory mode: `long-term` (all messages, default) or `short-term` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
@@ -524,6 +527,8 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
 | `AICTL_SKILLS_DIR` | Override the location of the skills directory (default: `~/.aictl/skills`) |
+| `AICTL_CLIENT_HOST` | Base URL of an upstream `aictl-server` (e.g. `http://127.0.0.1:7878`). Used only when the active provider is `aictl-server`; otherwise inert. Empty/unset = direct providers (the default) |
+| `AICTL_CLIENT_MASTER_KEY` | Bearer token presented to the configured `aictl-server`. Same `/keys` lock/unlock/clear lifecycle as the provider keys. Distinct from the server's own `AICTL_SERVER_MASTER_KEY` so a single host can run both roles unambiguously |
 
 #### API keys
 

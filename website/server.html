@@ -456,6 +456,44 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
 <span class="tok-k">AICTL_SERVER_RATE_LIMIT_BURST</span><span class="tok-p">=</span><span class="tok-n">0</span>           <span class="tok-c"># bucket capacity; 0 = RPM</span></code>
           <button class="cmd__copy" type="button" data-copy="#srv-cmd-config" aria-label="Copy configuration example">Copy</button>
         </div>
+
+        <p class="api-errors" style="margin-top: 32px;">
+          Server-scoped security flags. Each takes precedence over the
+          matching <code>AICTL_*</code> form when the engine is loaded
+          inside <code>aictl-server</code>; unset overrides fall through
+          to the shared key, so a single-host setup needs no
+          duplication. Tool-dispatch knobs (CWD jail, shell allow/block
+          lists, blocked env vars, disabled tools, max-write byte cap,
+          shell timeout) are intentionally <em>not</em> mirrored — the
+          server does not run tools.
+        </p>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-config-security"><span class="tok-k">AICTL_SERVER_SECURITY</span><span class="tok-p">=</span><span class="tok-n">true</span>                  <span class="tok-c"># master switch (injection guard + audit); false/0 disables</span>
+<span class="tok-k">AICTL_SERVER_SECURITY_INJECTION_GUARD</span><span class="tok-p">=</span><span class="tok-n">true</span>  <span class="tok-c"># run detect_prompt_injection on every user message</span>
+<span class="tok-k">AICTL_SERVER_SECURITY_AUDIT_LOG</span><span class="tok-p">=</span><span class="tok-n">true</span>        <span class="tok-c"># gateway:&lt;provider&gt; + redaction events to the audit log</span>
+<span class="tok-k">AICTL_SERVER_SECURITY_REDACTION</span><span class="tok-p">=</span><span class="tok-s">off</span>         <span class="tok-c"># off|redact|block (block → 400 redaction_blocked)</span>
+<span class="tok-k">AICTL_SERVER_SECURITY_REDACTION_LOCAL</span><span class="tok-p">=</span><span class="tok-n">false</span> <span class="tok-c"># also redact for local providers (Ollama/GGUF/MLX)</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-config-security" aria-label="Copy server-scoped security configuration example">Copy</button>
+        </div>
+
+        <p class="api-errors" style="margin-top: 32px;">
+          Server-scoped redaction tuning. Same precedence rule as the
+          security flags above — unset server overrides fall through to
+          the matching <code>AICTL_REDACTION_*</code> key. Detector
+          subsetting, custom patterns, allowlists, and the optional
+          Layer-C NER model can be tuned independently for the proxy
+          without forking the CLI's config.
+        </p>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-config-redaction"><span class="tok-k">AICTL_SERVER_REDACTION_DETECTORS</span><span class="tok-p">=</span>                        <span class="tok-c"># empty = all; subset of api_key,aws,jwt,private_key,connection_string,credit_card,iban,email,phone,high_entropy</span>
+<span class="tok-k">AICTL_SERVER_REDACTION_EXTRA_PATTERNS</span><span class="tok-p">=</span>                   <span class="tok-c"># semicolon-separated NAME=REGEX pairs → [REDACTED:NAME]</span>
+<span class="tok-k">AICTL_SERVER_REDACTION_ALLOW</span><span class="tok-p">=</span>                            <span class="tok-c"># semicolon-separated allowlist regexes; matches survive Layer-A/B</span>
+<span class="tok-k">AICTL_SERVER_REDACTION_NER</span><span class="tok-p">=</span><span class="tok-n">false</span>                       <span class="tok-c"># enable Layer-C NER (requires `redaction-ner` feature + pulled model)</span>
+<span class="tok-k">AICTL_SERVER_REDACTION_NER_MODEL</span><span class="tok-p">=</span><span class="tok-s">onnx-community/gliner_small-v2.1</span>  <span class="tok-c"># NER model spec (owner/repo)</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-config-redaction" aria-label="Copy server-scoped redaction configuration example">Copy</button>
+        </div>
       </div>
     </section>
 
