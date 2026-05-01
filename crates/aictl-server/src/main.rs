@@ -34,6 +34,7 @@ mod routes;
 mod sse;
 mod state;
 mod uninstall;
+mod update;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -56,9 +57,18 @@ use crate::state::AppState;
 #[command(
     name = "aictl-server",
     version,
+    disable_version_flag = true,
     about = "OpenAI-compatible HTTP LLM proxy for aictl"
 )]
+#[allow(clippy::struct_excessive_bools)]
 struct Cli {
+    /// Print version information (with an upstream-latest check).
+    #[arg(short = 'v', long = "version")]
+    version: bool,
+    /// Update to the latest version by re-running the published install
+    /// script. Exits when the upgrade finishes.
+    #[arg(long = "update")]
+    update: bool,
     /// Override the path to the aictl config file (default `~/.aictl/config`).
     #[arg(long)]
     config: Option<PathBuf>,
@@ -92,8 +102,19 @@ struct Cli {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() {
     let cli = Cli::parse();
+
+    if cli.version {
+        update::run_version().await;
+        return;
+    }
+
+    if cli.update {
+        update::run_update_cli().await;
+        return;
+    }
 
     if cli.uninstall {
         uninstall::run();

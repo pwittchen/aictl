@@ -52,7 +52,7 @@ pub fn run_serve_cli(args: &[String]) -> ! {
     }
 }
 
-fn find_server_binary() -> Option<PathBuf> {
+pub(super) fn find_server_binary() -> Option<PathBuf> {
     if let Some(p) = sibling_of_current_exe() {
         return Some(p);
     }
