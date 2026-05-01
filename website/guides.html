@@ -118,7 +118,7 @@
         </header>
 
         <div class="install">
-          <div class="install__step">
+          <div class="install__step install__step--full">
             <div class="install__num">01</div>
             <h3>Install</h3>
             <div class="cmd">
@@ -134,34 +134,32 @@
             </p>
           </div>
 
-          <div class="install__row">
-            <div class="install__step">
-              <div class="install__num">02</div>
-              <h3>Configure</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-cmd-config">aictl --config</code>
-                <button class="cmd__copy" type="button" data-copy="#g-cmd-config" aria-label="Copy configure command">Copy</button>
-              </div>
-              <p class="install__hint">
-                Interactive wizard. Pick a provider, pick a model,
-                paste an API key. Re-runnable at any time.
-              </p>
+          <div class="install__step">
+            <div class="install__num">02</div>
+            <h3>Configure</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-cmd-config">aictl --config</code>
+              <button class="cmd__copy" type="button" data-copy="#g-cmd-config" aria-label="Copy configure command">Copy</button>
             </div>
+            <p class="install__hint">
+              Interactive wizard. Pick a provider, pick a model,
+              paste an API key. Re-runnable at any time.
+            </p>
+          </div>
 
-            <div class="install__step">
-              <div class="install__num">03</div>
-              <h3>Start chatting</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-cmd-run">aictl</code>
-                <button class="cmd__copy" type="button" data-copy="#g-cmd-run" aria-label="Copy run command">Copy</button>
-              </div>
-              <p class="install__hint">
-                Launches the interactive REPL. Type a message, or
-                use a slash command like <code>/help</code>.
-              </p>
+          <div class="install__step">
+            <div class="install__num">03</div>
+            <h3>Start chatting</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-cmd-run">aictl</code>
+              <button class="cmd__copy" type="button" data-copy="#g-cmd-run" aria-label="Copy run command">Copy</button>
             </div>
+            <p class="install__hint">
+              Launches the interactive REPL. Type a message, or
+              use a slash command like <code>/help</code>.
+            </p>
           </div>
         </div>
       </div>
@@ -1138,7 +1136,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
         </header>
 
         <div class="install">
-          <div class="install__step">
+          <div class="install__step install__step--full">
             <div class="install__num">01</div>
             <h3>Start the REPL with defaults</h3>
             <div class="cmd">
@@ -1148,71 +1146,65 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
             </div>
           </div>
 
-          <div class="install__row">
-            <div class="install__step">
-              <div class="install__num">02</div>
-              <h3>One-shot question</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-2">aictl --message "What is Rust?"</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-2" aria-label="Copy example">Copy</button>
-              </div>
-            </div>
-
-            <div class="install__step">
-              <div class="install__num">03</div>
-              <h3>Pick provider &amp; model</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-3">aictl --provider openai --model gpt-4o --message "What is Rust?"</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-3" aria-label="Copy example">Copy</button>
-              </div>
+          <div class="install__step install__step--full">
+            <div class="install__num">02</div>
+            <h3>One-shot question</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-2">aictl --message "What is Rust?"</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-2" aria-label="Copy example">Copy</button>
             </div>
           </div>
 
-          <div class="install__row">
-            <div class="install__step">
-              <div class="install__num">04</div>
-              <h3>Autonomous mode</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-4">aictl --auto --message "List files in the current directory"</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-4" aria-label="Copy example">Copy</button>
-              </div>
-              <p class="install__hint">No per-tool y/N confirmation.</p>
-            </div>
-
-            <div class="install__step">
-              <div class="install__num">05</div>
-              <h3>Quiet mode (scripts)</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-5">aictl --auto --quiet --message "What OS am I running?"</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-5" aria-label="Copy example">Copy</button>
-              </div>
-              <p class="install__hint">Final answer only — no tool log.</p>
+          <div class="install__step install__step--full">
+            <div class="install__num">03</div>
+            <h3>Pick provider &amp; model</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-3">aictl --provider openai --model gpt-4o --message "What is Rust?"</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-3" aria-label="Copy example">Copy</button>
             </div>
           </div>
 
-          <div class="install__row">
-            <div class="install__step">
-              <div class="install__num">06</div>
-              <h3>Load an agent</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-6">aictl --agent writer</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-6" aria-label="Copy example">Copy</button>
-              </div>
+          <div class="install__step install__step--full">
+            <div class="install__num">04</div>
+            <h3>Autonomous mode</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-4">aictl --auto --message "List files in the current directory"</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-4" aria-label="Copy example">Copy</button>
             </div>
+            <p class="install__hint">No per-tool y/N confirmation.</p>
+          </div>
 
-            <div class="install__step">
-              <div class="install__num">07</div>
-              <h3>Resume a session</h3>
-              <div class="cmd">
-                <span class="cmd__prompt">$</span>
-                <code id="g-ex-7">aictl --session research</code>
-                <button class="cmd__copy" type="button" data-copy="#g-ex-7" aria-label="Copy example">Copy</button>
-              </div>
+          <div class="install__step install__step--full">
+            <div class="install__num">05</div>
+            <h3>Quiet mode (scripts)</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-5">aictl --auto --quiet --message "What OS am I running?"</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-5" aria-label="Copy example">Copy</button>
+            </div>
+            <p class="install__hint">Final answer only — no tool log.</p>
+          </div>
+
+          <div class="install__step install__step--full">
+            <div class="install__num">06</div>
+            <h3>Load an agent</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-6">aictl --agent writer</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-6" aria-label="Copy example">Copy</button>
+            </div>
+          </div>
+
+          <div class="install__step install__step--full">
+            <div class="install__num">07</div>
+            <h3>Resume a session</h3>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="g-ex-7">aictl --session research</code>
+              <button class="cmd__copy" type="button" data-copy="#g-ex-7" aria-label="Copy example">Copy</button>
             </div>
           </div>
         </div>

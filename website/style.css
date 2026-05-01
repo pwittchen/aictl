@@ -799,17 +799,18 @@ body.nav-open {
 .install {
   display: grid;
   gap: 32px;
-  grid-template-columns: 1fr;
-}
-
-.install__row {
-  display: grid;
-  gap: 32px;
   grid-template-columns: repeat(2, 1fr);
 }
 
+.install__step--full {
+  grid-column: 1 / -1;
+}
+
+.install__step--full .cmd { max-width: 100%; }
+
 @media (max-width: 720px) {
-  .install__row { grid-template-columns: 1fr; }
+  .install { grid-template-columns: 1fr; }
+  .install__step--full { grid-column: auto; }
 }
 
 .install__step {
@@ -850,6 +851,12 @@ body.nav-open {
   padding-top: 48px;
   border-top: 1px solid var(--border);
 }
+
+.install__alt .cmd { max-width: 100%; }
+
+#server > .container > .cmd { max-width: 100%; }
+
+#security .cmd { max-width: 100%; }
 
 .section__note {
   margin-top: 32px;
