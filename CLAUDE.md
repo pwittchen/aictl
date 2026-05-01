@@ -10,7 +10,7 @@ See [README.md](README.md) for user-facing docs, [ARCH.md](ARCH.md) for architec
 cargo build                    # debug build (workspace, all members)
 cargo build --release          # release build
 cargo run --bin aictl -- <args># run the CLI binary with arguments
-cargo lint                     # clippy pedantic (alias in .cargo/config.toml; --workspace baked in)
+cargo lint                     # clippy pedantic (alias in .cargo/config.toml; lints default-members — desktop excluded)
 cargo fmt                      # format
 cargo test                     # run tests across the workspace
 ```
