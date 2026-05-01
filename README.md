@@ -167,7 +167,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--auto] [--quiet] [--audit-file <PATH>] [--cwd <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -238,6 +238,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--audit-file` | Write the per-line JSON audit log to an explicit path. Intended for single-shot (`--message`) runs, which otherwise have no session id to key the default `~/.aictl/audit/<session-id>` file by. Force-enables audit logging even when `AICTL_SECURITY_AUDIT_LOG=false`. Parent directories are created on demand |
+| `--cwd` | Working directory for this run. The CLI changes into this path before any tool dispatch and uses it as the CWD jail root, so file/shell tools resolve relative paths here and are restricted to this subtree. Accepts absolute, relative, and `~`-prefixed paths. Falls back to `AICTL_WORKING_DIR` in `~/.aictl/config`; when neither is set, the launch directory is used |
 | `--unrestricted` | Disable all security restrictions (use with caution) |
 | `--incognito` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
 | `--session` | Load a saved session by uuid or name on startup (interactive mode only) |

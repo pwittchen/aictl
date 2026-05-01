@@ -200,6 +200,7 @@
               <li><code>AICTL_INCOGNITO</code> — <code>true</code> to start the REPL without saving sessions (default <code>false</code>)</li>
               <li><code>AICTL_PROMPT_FILE</code> — project prompt filename loaded from the current directory (default <code>AICTL.md</code>)</li>
               <li><code>AICTL_PROMPT_FALLBACK</code> — when the primary prompt file is missing, fall back to <code>CLAUDE.md</code> then <code>AGENTS.md</code> (default <code>true</code>)</li>
+              <li><code>AICTL_WORKING_DIR</code> — persistent working directory for the CLI; used as the CWD jail root and the spawn dir for every tool call. Accepts absolute, relative, and <code>~</code>-prefixed paths. Overridden by <code>--cwd</code>; when neither is set, the launch directory is used</li>
               <li><code>AICTL_TOOLS_ENABLED</code> — <code>false</code> disables every tool; the LLM answers in plain text only (default <code>true</code>)</li>
               <li><code>AICTL_AUTO_COMPACT_THRESHOLD</code> — context usage % at which the REPL auto-compacts (1–100, default <code>80</code>)</li>
               <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>30</code>)</li>
@@ -506,6 +507,7 @@
               <li><code>--auto</code> — skip tool confirmation</li>
               <li><code>--quiet</code> — final answer only (requires <code>--auto</code>)</li>
               <li><code>--audit-file &lt;path&gt;</code> — write per-line JSON audit log to an explicit path (single-shot runs)</li>
+              <li><code>--cwd &lt;path&gt;</code> — working directory for this run; used as the CWD jail root and the spawn dir for every tool call. Overrides <code>AICTL_WORKING_DIR</code> in <code>~/.aictl/config</code>; when neither is set, the launch directory is used</li>
               <li><code>--unrestricted</code> — disable security checks</li>
               <li><code>--incognito</code> — no session save</li>
               <li><code>--balance</code> / <code>--list-balances</code> — show remaining credit / quota and exit</li>
@@ -969,7 +971,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
         <div class="grid grid--3">
           <article class="card">
             <h3>CWD jail</h3>
-            <p>File tools only operate within the current working directory. Path traversal via <code>..</code> is blocked via canonicalization.</p>
+            <p>File tools only operate within the current working directory. Path traversal via <code>..</code> is blocked via canonicalization. Pin the jail root explicitly with <code>--cwd &lt;path&gt;</code> for one run, or persist it in <code>~/.aictl/config</code> via <code>AICTL_WORKING_DIR</code> &mdash; the CLI <code>chdir</code>s into the supplied directory before any tool dispatch.</p>
           </article>
           <article class="card">
             <h3>Blocked paths</h3>

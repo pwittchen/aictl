@@ -100,6 +100,15 @@ struct Cli {
     #[arg(long = "audit-file", value_name = "PATH")]
     audit_file: Option<std::path::PathBuf>,
 
+    /// Working directory for this run. The CLI changes into this path
+    /// before any tool dispatch and uses it as the CWD jail root, so
+    /// every file/shell tool resolves relative paths here and is
+    /// restricted to this subtree. Accepts absolute, relative, and
+    /// `~`-prefixed paths. When omitted, the launch directory is used
+    /// (previous behavior).
+    #[arg(long = "cwd", value_name = "PATH")]
+    cwd: Option<std::path::PathBuf>,
+
     /// Disable security restrictions (use with caution)
     #[arg(long)]
     unrestricted: bool,
@@ -315,6 +324,12 @@ async fn main() {
     if cli.serve {
         commands::run_serve_cli(&cli.serve_args);
     }
+
+    // Anchor the process CWD before any subsystem reads the launch dir
+    // (security policy's jail root, prompt-file lookup, local-config
+    // resolution). After this point `std::env::current_dir()` returns
+    // the user-chosen path on every call site that depends on it.
+    apply_cwd_override(cli.cwd.as_deref());
 
     // Apply per-process overrides for the aictl-server client routing
     // before anything reads config — `config_set` writes through to the
@@ -702,6 +717,64 @@ async fn handle_ner_flags(cli: &Cli) -> bool {
 fn exit_with_error(msg: &str) -> ! {
     eprintln!("Error: {msg}");
     std::process::exit(1);
+}
+
+/// Apply the `--cwd` flag (or the `AICTL_WORKING_DIR` config fallback)
+/// for this process. When a path is supplied we canonicalize it
+/// (resolves symlinks and `..`, makes it absolute) and
+/// `set_current_dir` into it before any other startup code runs.
+/// Downstream subsystems already read `std::env::current_dir()` for
+/// the jail root (`security::load_policy`), the project prompt file
+/// (`config::load_prompt_file`), and project-local agent/skill
+/// overrides (`config::local_config_root`), so this single anchor
+/// flips all three at once. A bad path exits with a clear error
+/// rather than silently falling back — silent fallback would defeat
+/// the user's intent of jailing to that specific directory.
+fn apply_cwd_override(cwd: Option<&std::path::Path>) {
+    let (path, source): (std::path::PathBuf, &str) = if let Some(p) = cwd {
+        (p.to_path_buf(), "--cwd")
+    } else if let Some(raw) = config_get("AICTL_WORKING_DIR")
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        (std::path::PathBuf::from(raw), "AICTL_WORKING_DIR")
+    } else {
+        return;
+    };
+    let expanded = expand_tilde(&path);
+    let canonical = match std::fs::canonicalize(&expanded) {
+        Ok(p) => p,
+        Err(e) => exit_with_error(&format!(
+            "{source}: cannot resolve '{}': {e}",
+            expanded.display()
+        )),
+    };
+    if !canonical.is_dir() {
+        exit_with_error(&format!(
+            "{source}: '{}' is not a directory",
+            canonical.display()
+        ));
+    }
+    if let Err(e) = std::env::set_current_dir(&canonical) {
+        exit_with_error(&format!(
+            "{source}: cannot enter '{}': {e}",
+            canonical.display()
+        ));
+    }
+}
+
+fn expand_tilde(path: &std::path::Path) -> std::path::PathBuf {
+    let Some(s) = path.to_str() else {
+        return path.to_path_buf();
+    };
+    let Some(rest) = s.strip_prefix('~') else {
+        return path.to_path_buf();
+    };
+    let Ok(home) = std::env::var("HOME") else {
+        return path.to_path_buf();
+    };
+    let rest = rest.strip_prefix('/').unwrap_or(rest);
+    std::path::PathBuf::from(home).join(rest)
 }
 
 /// Apply ephemeral `--client-url` / `--client-master-key` overrides
