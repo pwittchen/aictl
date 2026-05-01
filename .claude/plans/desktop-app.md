@@ -78,6 +78,7 @@ The CLI exposes ~30 slash commands and ~25 CLI flags. The desktop is not a slash
 | `--auto` / unrestricted | Settings → Security: "Auto-approve tool calls" toggle (per-window override via toolbar) |
 | `--quiet` | N/A (no piping) |
 | Tool approval auto-accept-once | "Always allow this tool" checkbox in the approval modal |
+| Launch CWD as jail root | Settings → Workspace pane + first-run picker; persisted as `desktop_workspace` in `~/.aictl/config`. See §5.4. |
 
 ### Dropped (don't translate)
 
@@ -202,7 +203,7 @@ CI gates the desktop build on `runner.os == 'macOS'`. Linux and Windows runners 
 
 ## 5. Core API stabilization (work in `aictl-core`)
 
-The desktop uncovers two API gaps in the core:
+The desktop uncovers three API gaps in the core:
 
 ### 5.1 Channel-based event stream
 
@@ -274,6 +275,34 @@ The agent loop site (`crates/aictl-core/src/run.rs`, search `confirm_tool`) gets
 - `aictl_core::ui::warn_global` already exists — `DesktopUI` installs a sink that pushes a `Warning` event.
 - `audit::set_file_override` is not needed — the desktop uses session-keyed audit files.
 - A small helper, `aictl_core::run::run_agent_session`, is added to encapsulate "drive the agent loop on one user message, with this UI, this session, this provider"; both the CLI's `repl::run_and_display_turn` and the desktop's `chat::send_message` collapse onto it. (Nice-to-have, not blocking.)
+
+### 5.4 Desktop workspace as CWD jail root
+
+**Problem.** The CLI inherits CWD from the launching shell — `security::working_dir()` returns it, and the jail in `SecurityPolicy::validate_tool` constrains every shell/file path against it. A desktop app launched from `/Applications/aictl.app` has no meaningful CWD: every tool call would either jail to the app bundle (useless) or escape entirely (unsafe). Both are wrong.
+
+**Solution.** A single configured workspace path that becomes the CWD jail root for every tool call from the desktop. Stored in `~/.aictl/config` so it round-trips with the CLI's other settings, configurable from the desktop's Settings → Workspace pane and from a first-run onboarding card.
+
+**Config key.** `desktop_workspace` — absolute path to a folder. Env override: `AICTL_DESKTOP_WORKSPACE`. The CLI ignores this key (it has its own launch CWD).
+
+**Role plumbing.** Extend `config::Role` with a `Desktop` variant. The desktop's `main` calls `set_role(Role::Desktop)` after `load_config`, mirroring `aictl-server`. `config_get_scoped` is generalized to handle three roles:
+
+- `Role::Cli` → only `cli_key` consulted (today's behaviour, unchanged).
+- `Role::Server` → `server_key` first, fall back to `cli_key` (today's behaviour, unchanged).
+- `Role::Desktop` → `desktop_key` first, fall back to `cli_key`.
+
+`security::load_policy` reads `config_get_scoped("desktop_workspace", "working_dir")` for the jail root. When `role == Desktop` and both keys are unset, `load_policy` returns a policy with `enabled = true` and a sentinel `working_dir` value (e.g., `PathBuf::new()`) that causes `validate_tool` to reject every CWD-relative tool call with a clear "no workspace selected" error. Fail loud, not silent.
+
+**Tool-call enforcement.** No new dispatch code is needed. `SecurityPolicy::validate_tool` already checks every shell/file path against `working_dir()` (`crates/aictl-core/src/security.rs:774`, `:824`). When `role == Desktop`, `working_dir()` returns the configured workspace, so `exec_shell`, `read_file`, `write_file`, `list_files`, `grep_files`, etc. all jail naturally. The existing `mcp__*` exemption (CLAUDE.md: "the CWD jail does not apply to MCP tools because the server runs in its own process") still applies — MCP servers spawned by the desktop carry their own privileges and cannot be jailed by us.
+
+**Onboarding.** First launch with no `desktop_workspace` set shows a full-window empty state — "Choose a workspace folder" with a native folder picker via `tauri-plugin-dialog`. Until a workspace is picked, the composer is disabled and the chat surface explains why. This matches how editors (VS Code, Zed) handle the empty state and avoids the "where am I writing files?" footgun.
+
+**Switching workspaces.** Settings → Workspace pane lets the user change the path. The change applies to subsequent tool calls only — no in-flight cancellation. Changing the workspace also invalidates any per-tool "always allow" grants (they're scoped to the workspace, not to the app), so the next `exec_shell` re-prompts in the new context. The currently active session is **not** swapped out — sessions are workspace-agnostic, but a banner in the chat header notes that the workspace changed mid-conversation.
+
+**Visibility.** The workspace path appears truncated in the title bar (full path on hover) and in the sidebar header. Clicking either opens the Workspace pane.
+
+**IPC.** Three commands (added to §7.1): `get_workspace`, `set_workspace { path }`, `pick_workspace` (opens the native folder picker, returns the picked path; the webview then calls `set_workspace`).
+
+**Reuse for `aictl-server` later.** If the server ever grows a tool-dispatch path (it does not today), the same `Role::Desktop`-style scoping applies — a `server_workspace` key, paired with a real role check. Out of scope here, called out so the role-handling change in `config_get_scoped` is shaped to accommodate it.
 
 ---
 
@@ -367,12 +396,16 @@ All commands return `Result<T, String>`. The frontend wraps each in a typed help
 | `version` / `check_for_update` | — | version + remote version | |
 | `reveal_audit_log` / `reveal_config_dir` | — | `void` | Spawns Finder via `tauri-plugin-shell`. |
 | `compact_session` / `clear_chat` / `retry_last` / `undo_last` | `{ session_id }` | — | |
+| `get_workspace` | — | `{ path: string \| null }` | Reads `desktop_workspace` from config. |
+| `set_workspace` | `{ path: string }` | `void` | Validates the path exists and is a directory, then `config_set("desktop_workspace", path)`. Emits `workspace_changed`. |
+| `pick_workspace` | — | `{ path: string \| null }` | Opens the native folder picker via `tauri-plugin-dialog`. Webview calls `set_workspace` with the result. |
 
 ### 7.2 Events (Rust → webview)
 
 A single channel name, `agent_event`, carrying the `AgentEvent` enum from §5.1 plus the desktop-specific `ToolApprovalRequest`. Other emitter channels:
 
 - `session_changed` — fired when a session list mutation occurs (rename, delete, new) so all open settings panels resync.
+- `workspace_changed` — fired by `set_workspace` so the title bar, sidebar header, and any open Workspace pane resync; chat surface also re-renders the "workspace changed mid-conversation" banner if a turn is in progress.
 - `download_progress` — feature-gated GGUF/MLX downloads.
 - `update_available` — periodic update check result.
 
@@ -386,7 +419,7 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  ⌘  aictl                                  [model]  [stop]  │  ← title bar (custom, hidden traffic-lights kept)
+│  ⌘  aictl  [~/code/myproj ▾]              [model]  [stop]   │  ← title bar (custom, hidden traffic-lights kept)
 ├──────────┬──────────────────────────────────────────────────┤
 │          │                                                  │
 │ Sessions │   Conversation (message list, virtualized)       │
@@ -402,7 +435,8 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 ```
 
 - Sidebar: 240 px, collapsible to 56 px (icons only). Selected tab determines the right pane in **non-chat** modes; for chat the sidebar is just navigation and the main pane stays the conversation.
-- Title bar is custom (`titleBarStyle: "Overlay"` / `"hiddenInset"`) so the toolbar can host model picker and stop button cleanly.
+- Title bar is custom (`titleBarStyle: "Overlay"` / `"hiddenInset"`) so the toolbar can host the workspace indicator, model picker, and stop button cleanly.
+- Workspace indicator: leftmost toolbar control, GeistMono, truncated path with home-dir collapsed to `~`. Hover shows the full path; click opens Settings → Workspace. When unset (first run), it reads "No workspace" in the cyan accent and the composer is disabled.
 
 ### 8.2 Components & tokens
 
@@ -442,9 +476,10 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 - Add `AgentEvent` enum to `aictl-core::ui::events`.
 - Add `confirm_tool_async` default-implemented method on `AgentUI`.
 - Add helper `aictl_core::run::run_agent_session` (collapsing duplicate call sites in CLI).
+- Add `Role::Desktop` variant + `desktop_workspace` config key + role-aware `working_dir` resolution in `security::load_policy` (§5.4). Cover with unit tests asserting that role=Desktop with no workspace produces a sentinel policy that rejects CWD-relative tool calls, and role=Cli still uses `std::env::current_dir`.
 - Verify CLI tests still pass (`cargo test --workspace`).
 
-**Exit criterion**: CLI behaviour unchanged; new types compile; `aictl-core::ui::events::AgentEvent` is `Serialize`.
+**Exit criterion**: CLI behaviour unchanged; new types compile; `aictl-core::ui::events::AgentEvent` is `Serialize`; `Role::Desktop` switches the jail root.
 
 ### Phase 2 — Minimal chat (3–5 days)
 
@@ -452,8 +487,9 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 - Composer + message list with markdown rendering; streamed text updates live.
 - Stop button → `stop_turn`.
 - Read provider/model from existing `~/.aictl/config` — no settings UI yet, but the desktop now uses the same keys the user already has.
+- Workspace picker onboarding: `get_workspace` / `set_workspace` / `pick_workspace` commands wired up; first-run empty state with the folder picker; title-bar workspace indicator. Composer is disabled until a workspace is set, since the agent loop will refuse CWD-relative tool calls without one.
 
-**Exit criterion**: a user can install the `.app`, open it, and have a conversation that streams, with the same agent loop the CLI uses, against the same `~/.aictl/config`.
+**Exit criterion**: a user can install the `.app`, open it, pick a workspace, and have a conversation that streams, with the same agent loop the CLI uses, against the same `~/.aictl/config` — and every tool call is jailed to the picked folder.
 
 ### Phase 3 — Tool approval & sessions (3–4 days)
 
@@ -472,7 +508,8 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 
 ### Phase 5 — Settings (4–5 days)
 
-- Settings window with tabs: General, Provider & Models, Keys, Security, Memory, Hooks, MCP, Plugins, Tools, Local Models (gguf/mlx feature-gated).
+- Settings window with tabs: General, Workspace, Provider & Models, Keys, Security, Memory, Hooks, MCP, Plugins, Tools, Local Models (gguf/mlx feature-gated).
+- Workspace tab lets the user view and change the current workspace path (re-uses the Phase 2 `pick_workspace` flow), with a warning that "always allow" tool grants reset on change.
 - Each tab is a thin form over `config_get`/`config_set` and the relevant subsystem CRUD.
 - Keys use the keyring (`aictl_core::keys`) — no plain-text fallback in the GUI.
 
@@ -508,13 +545,14 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 - **Integration tests**: a Tauri-side test harness that boots a hidden window, drives `send_message` against the existing `Provider::Mock`, and asserts the event sequence. (Same Mock provider the CLI already uses for `cargo test`.)
 - **Frontend tests**: Vitest for component-level reactivity (markdown render, tool approval modal). No e2e suite in v1 — manual smoke test.
 - **Manual macOS smoke test checklist** (in the crate's README):
-  1. Fresh install, no `~/.aictl/` — first-run flow renders an onboarding state with a "Set up provider" button that opens Settings → Provider & Models.
-  2. Existing CLI user — opens the desktop, sees the same model, same sessions, same agents.
+  1. Fresh install, no `~/.aictl/` — first-run flow renders an onboarding state with a "Set up provider" button that opens Settings → Provider & Models, and a "Choose workspace" card that opens the folder picker. Composer stays disabled until both are set.
+  2. Existing CLI user — opens the desktop, sees the same model, same sessions, same agents. Workspace prompt still appears (the CLI never wrote `desktop_workspace`).
   3. Session created in desktop is loadable from CLI and vice versa.
-  4. Tool approval round-trip with `read_file`, `exec_shell`, and an `mcp__*` tool.
-  5. Streaming with a slow provider feels smooth (no jank, no torn markdown).
-  6. Stop button cancels mid-stream.
-  7. Quitting mid-turn cleans up MCP child processes (the existing `mcp::shutdown` is wired into the Tauri `RunEvent::Exit` handler).
+  4. Tool approval round-trip with `read_file`, `exec_shell`, and an `mcp__*` tool — confirm the file/shell calls are rejected when targeting paths outside the workspace, and the MCP call is unaffected by the jail.
+  5. Switch workspace mid-conversation via Settings → Workspace; next `exec_shell` re-prompts (no carry-over of "always allow") and runs in the new directory.
+  6. Streaming with a slow provider feels smooth (no jank, no torn markdown).
+  7. Stop button cancels mid-stream.
+  8. Quitting mid-turn cleans up MCP child processes (the existing `mcp::shutdown` is wired into the Tauri `RunEvent::Exit` handler).
 
 ---
 
@@ -529,6 +567,8 @@ The desktop adopts the design language defined in `website/DESIGN.md`. The websi
 | `gguf` / `mlx` feature flags differ between CLI and Desktop builds | Default desktop release builds without these — local inference is a CLI power-user feature. Advanced users can build from source with `--features gguf,mlx`. |
 | Keychain prompts on every key read | The keyring crate caches; if the per-prompt friction is bad, gate behind one "Allow always" prompt at install time. |
 | Hooks that read stdin and spawn subprocesses | Already shell-isolated by `aictl_core::hooks` — desktop inherits the existing security boundary verbatim. |
+| User points workspace at `/`, `~`, or another sensitive root | `set_workspace` warns (but does not block) when the path is `/`, `~`, `~/Desktop`, `~/Documents`, or any folder containing more than N immediate children — the user can still proceed, but they're told what they're enabling. The jail is only as tight as the picked folder. |
+| Stale `desktop_workspace` after the folder is moved or deleted | On startup, the desktop checks the configured workspace exists and is a directory; if not, it warns once and re-shows the picker. The agent loop also re-validates per turn — a workspace that vanishes mid-session disables further tool calls until re-picked. |
 
 ### Open questions to resolve before Phase 2
 
