@@ -858,6 +858,8 @@ body.nav-open {
 
 #security .cmd { max-width: 100%; }
 
+#local-models > .container > .cmd { max-width: 100%; }
+
 .section__note {
   margin-top: 32px;
   color: var(--fg-70);
