@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use crate::config::{config_get, config_get_scoped};
+use crate::config::{AICTL_WORKING_DIR_DESKTOP, Role, config_get, config_get_scoped, role};
 use crate::tools::ToolCall;
 
 pub mod redaction;
@@ -249,7 +249,7 @@ fn load_policy() -> SecurityPolicy {
             block_subshell,
         },
         paths: PathPolicy {
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            working_dir: working_dir_for_role(),
             restrict_to_cwd,
             blocked_paths,
             allowed_paths,
@@ -261,6 +261,56 @@ fn load_policy() -> SecurityPolicy {
         env: EnvPolicy { blocked_env_vars },
         disabled_tools,
     }
+}
+
+/// Resolve the CWD jail root for the current process role.
+///
+/// * `Role::Cli` and `Role::Server`: process launch directory. The CLI
+///   anchors this via `apply_cwd_override` (which reads `--cwd` /
+///   `AICTL_WORKING_DIR` and `set_current_dir`s into the resolved
+///   path); the server has no tool dispatch so the value is moot.
+/// * `Role::Desktop`: the value of `AICTL_WORKING_DIR_DESKTOP` from
+///   `~/.aictl/config`. When unset or pointing at a non-directory,
+///   returns an empty `PathBuf` sentinel — `validate_tool` interprets
+///   that as "no workspace selected" and rejects every CWD-relative
+///   tool call with a clear error.
+///
+/// Crucially, `Role::Desktop` never falls back to the CLI's
+/// `AICTL_WORKING_DIR`. The two keys are namespaced by binary so a
+/// shared `~/.aictl/config` can pin them to different folders.
+fn working_dir_for_role() -> PathBuf {
+    match role() {
+        Role::Desktop => match config_get(AICTL_WORKING_DIR_DESKTOP) {
+            Some(raw) if !raw.trim().is_empty() => {
+                let path = PathBuf::from(raw.trim());
+                if path.is_dir() {
+                    path
+                } else {
+                    // Stale or invalid configured workspace — fall through
+                    // to the sentinel so the desktop locks the composer
+                    // until the user re-picks. The desktop frontend's
+                    // startup probe also checks for this and surfaces a
+                    // re-pick UI; this is the engine-side belt to that
+                    // suspenders.
+                    PathBuf::new()
+                }
+            }
+            _ => PathBuf::new(),
+        },
+        Role::Cli | Role::Server => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    }
+}
+
+/// Whether the current security policy's working-directory anchor is
+/// the no-workspace sentinel.
+///
+/// Used by [`check_path_with`] / [`check_shell`] to short-circuit
+/// CWD-relative tool calls with a "no workspace selected" error before
+/// any path-resolution work runs. Today only the desktop role ever
+/// produces this state ([`working_dir_for_role`]), so the check is just
+/// "is the anchor empty?" — no role-coupled global lookup.
+fn has_workspace_sentinel(pol: &PathPolicy) -> bool {
+    pol.working_dir.as_os_str().is_empty()
 }
 
 fn parse_csv(s: &str) -> Vec<String> {
@@ -508,6 +558,17 @@ fn check_at_path_on_second_line(input: &str) -> Result<(), String> {
 // --- Shell command validation ---
 
 fn check_shell(command: &str) -> Result<(), String> {
+    // Desktop with no workspace selected — every shell call would run
+    // from whatever directory the .app happens to be in. Refuse before
+    // any allowlist check so the error message is the actionable one
+    // ("pick a workspace") rather than "command 'foo' is blocked".
+    if has_workspace_sentinel(&policy().paths) {
+        return Err(
+            "no workspace selected — pick a folder in Settings → Workspace before using tools"
+                .to_string(),
+        );
+    }
+
     let pol = &policy().shell;
 
     // Block command substitution patterns
@@ -757,6 +818,19 @@ fn check_path_with(path_str: &str, is_write: bool, pol: &PathPolicy) -> Result<P
     // Reject null bytes
     if path_str.contains('\0') {
         return Err("path contains null byte".to_string());
+    }
+
+    // Desktop with no workspace selected — refuse CWD-relative tool calls
+    // before any path-resolution work runs. Absolute paths still flow
+    // through the normal blocked-paths / CWD-jail checks below; without
+    // the jail anchor, every relative path would otherwise resolve under
+    // an empty PathBuf and silently escape into wherever the desktop
+    // process happens to be running.
+    if has_workspace_sentinel(pol) {
+        return Err(
+            "no workspace selected — pick a folder in Settings → Workspace before using tools"
+                .to_string(),
+        );
     }
 
     let home = std::env::var("HOME").unwrap_or_default();
@@ -1793,6 +1867,74 @@ mod tests {
             assert!(
                 err.contains("outside the working directory"),
                 "expected jail rejection for relative escaping symlink, got: {err}"
+            );
+        }
+    }
+
+    // --- Desktop "no workspace selected" sentinel ---
+    //
+    // The desktop role resolves the CWD jail root from
+    // `AICTL_WORKING_DIR_DESKTOP` rather than the launch dir, which is
+    // useless for a `.app` started from `/Applications`. When the key is
+    // unset (or points at a stale path), `working_dir_for_role` returns
+    // an empty `PathBuf` sentinel and `validate_tool` rejects every
+    // CWD-relative call until the user picks a workspace.
+    mod desktop_sentinel {
+        use super::*;
+
+        fn sentinel_path_policy() -> PathPolicy {
+            PathPolicy {
+                working_dir: PathBuf::new(),
+                restrict_to_cwd: true,
+                blocked_paths: vec![],
+                allowed_paths: vec![],
+            }
+        }
+
+        #[test]
+        fn empty_working_dir_is_treated_as_sentinel() {
+            let pol = sentinel_path_policy();
+            assert!(
+                has_workspace_sentinel(&pol),
+                "an empty working_dir must be the no-workspace sentinel"
+            );
+        }
+
+        #[test]
+        fn non_empty_working_dir_is_not_sentinel() {
+            let pol = PathPolicy {
+                working_dir: std::env::temp_dir(),
+                restrict_to_cwd: true,
+                blocked_paths: vec![],
+                allowed_paths: vec![],
+            };
+            assert!(
+                !has_workspace_sentinel(&pol),
+                "a real working_dir must never report as sentinel"
+            );
+        }
+
+        #[test]
+        fn check_path_with_sentinel_rejects_relative_paths() {
+            let pol = sentinel_path_policy();
+            let err = check_path_with("README.md", false, &pol).unwrap_err();
+            assert!(
+                err.contains("no workspace selected"),
+                "expected workspace-required error, got: {err}"
+            );
+        }
+
+        #[test]
+        fn check_path_with_sentinel_rejects_absolute_paths() {
+            // The sentinel guard runs before the path-resolution work,
+            // so even absolute paths are refused — the right answer is
+            // "pick a workspace first" rather than silently allowing
+            // arbitrary `/etc/...` reads from a desktop with no workspace.
+            let pol = sentinel_path_policy();
+            let err = check_path_with("/tmp/foo", false, &pol).unwrap_err();
+            assert!(
+                err.contains("no workspace selected"),
+                "absolute paths must also be refused under the sentinel: {err}"
             );
         }
     }

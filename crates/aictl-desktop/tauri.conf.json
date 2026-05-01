@@ -1,0 +1,42 @@
+{
+  "productName": "aictl",
+  "version": "0.36.4",
+  "identifier": "com.aictl.desktop",
+  "build": {
+    "frontendDist": "webview/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "aictl",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 720,
+        "minHeight": 480,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: blob: asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "category": "DeveloperTool",
+    "shortDescription": "AI agent on the desktop",
+    "longDescription": "aictl-desktop is the native macOS frontend for aictl, sharing config and sessions with the CLI.",
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "frameworks": []
+    }
+  },
+  "plugins": {}
+}

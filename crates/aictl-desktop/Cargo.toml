@@ -1,0 +1,51 @@
+[package]
+name = "aictl-desktop"
+description = "Native desktop frontend for aictl (macOS)"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+authors.workspace = true
+license-file.workspace = true
+
+[[bin]]
+name = "aictl-desktop"
+path = "src/main.rs"
+
+[lib]
+name = "aictl_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+aictl-core = { path = "../aictl-core" }
+
+# Tauri 2 — the engine + the handful of plugins the desktop uses today.
+# Plugin selection mirrors §2 of `.claude/plans/desktop-app.md`:
+#   * dialog       — native folder picker for the workspace onboarding
+#   * clipboard    — ⌘⇧C "copy last answer" + per-message copy
+#   * shell        — "Reveal audit log in Finder", "Open external URL"
+#   * updater      — Sparkle-style auto-update for the Phase 7 release
+tauri = { version = "2", features = ["macos-private-api", "devtools"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+
+# Async runtime + serde — needed to drive the agent loop from a
+# `#[tauri::command]` and serialize `AgentEvent` across the IPC boundary.
+tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = []
+# Pass-throughs to the engine's native-inference flags so a desktop
+# build can opt into local providers when the user explicitly asks for
+# them. The default release ships without these — see the risks table
+# in `.claude/plans/desktop-app.md` §11.
+gguf = ["aictl-core/gguf"]
+mlx = ["aictl-core/mlx"]
+redaction-ner = ["aictl-core/redaction-ner"]

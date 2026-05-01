@@ -15,6 +15,8 @@ use std::time::Duration;
 use crate::llm::TokenUsage;
 use crate::tools::ToolCall;
 
+pub mod events;
+
 /// Result of a tool-call confirmation prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolApproval {
@@ -106,6 +108,23 @@ pub trait AgentUI {
     fn show_auto_tool(&self, tool_call: &ToolCall);
     fn show_tool_result(&self, result: &str);
     fn confirm_tool(&self, tool_call: &ToolCall) -> ToolApproval;
+    /// Async sibling of [`AgentUI::confirm_tool`]. The agent loop calls
+    /// this in lieu of the synchronous variant so frontends that resolve
+    /// approval over an IPC boundary (the desktop webview, a future
+    /// hosted web UI) can `.await` a oneshot instead of blocking the
+    /// loop on a thread.
+    ///
+    /// The default impl defers to [`AgentUI::confirm_tool`] and wraps
+    /// the result in an immediately-ready future, so terminal frontends
+    /// (`PlainUI`, `InteractiveUI`) keep their synchronous prompt logic
+    /// unchanged.
+    fn confirm_tool_async<'a>(
+        &'a self,
+        tool_call: &'a ToolCall,
+    ) -> Pin<Box<dyn Future<Output = ToolApproval> + Send + 'a>> {
+        let result = self.confirm_tool(tool_call);
+        Box::pin(async move { result })
+    }
     fn show_answer(&self, text: &str);
     fn show_error(&self, text: &str);
     /// Begin a streamed response — called once just before the first

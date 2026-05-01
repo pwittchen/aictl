@@ -21,6 +21,12 @@ pub enum Role {
     /// otherwise the matching `AICTL_*` key applies (so a single-host
     /// setup with one `~/.aictl/config` does not need duplicated entries).
     Server,
+    /// `aictl-desktop` process. The Desktop role binds the security
+    /// CWD jail to a *desktop-specific* workspace key
+    /// (`AICTL_WORKING_DIR_DESKTOP`) — never falling back to the CLI's
+    /// `AICTL_WORKING_DIR`, so the desktop and CLI can be pinned to
+    /// different directories from one shared `~/.aictl/config`.
+    Desktop,
 }
 
 /// Set the runtime role for this process. Call once at startup, before
@@ -332,9 +338,28 @@ pub fn config_get(key: &str) -> Option<String> {
 pub fn config_get_scoped(server_key: &str, cli_key: &str) -> Option<String> {
     match role() {
         Role::Server => config_get(server_key).or_else(|| config_get(cli_key)),
-        Role::Cli => config_get(cli_key),
+        // The desktop has no `AICTL_DESKTOP_*` family today (the only
+        // role-scoped knob is the workspace path, which security.rs
+        // resolves directly), so it shares the CLI's lookup behavior
+        // for every flag that flows through this helper.
+        Role::Cli | Role::Desktop => config_get(cli_key),
     }
 }
+
+/// Config key that holds the desktop's pinned workspace folder.
+///
+/// `aictl-desktop` reads this on startup and writes it through the
+/// settings UI; the security policy uses it as the CWD jail root when
+/// `role() == Role::Desktop`. Intentionally distinct from
+/// [`AICTL_WORKING_DIR`] (the CLI's optional `--cwd` persistence) — the
+/// two keys never fall back to each other, so a user can pin the
+/// desktop to a project folder while keeping the CLI workspace-agnostic
+/// (or vice versa).
+pub const AICTL_WORKING_DIR_DESKTOP: &str = "AICTL_WORKING_DIR_DESKTOP";
+
+/// Config key that holds the CLI's optional anchor path (set by `--cwd`
+/// or persisted directly).
+pub const AICTL_WORKING_DIR: &str = "AICTL_WORKING_DIR";
 
 /// Which local config root was found in the current working directory.
 /// `Aictl` always wins — its presence skips `Claude` entirely so a project
@@ -665,7 +690,11 @@ mod tests {
                         None
                     }
                 }
-                Role::Cli => {
+                // Desktop currently shares the CLI's lookup behavior — it
+                // has no `AICTL_DESKTOP_*` family for any flag that flows
+                // through this helper (the workspace path is read in
+                // `security::working_dir_for_role` directly).
+                Role::Cli | Role::Desktop => {
                     if cli_present {
                         Some("from_cli")
                     } else {
@@ -679,6 +708,9 @@ mod tests {
         assert_eq!(lookup(Role::Server, true, true), Some("from_server"));
         assert_eq!(lookup(Role::Server, false, true), Some("from_cli"));
         assert_eq!(lookup(Role::Server, false, false), None);
+        // Desktop must never silently inherit a server-prefixed key.
+        assert_eq!(lookup(Role::Desktop, true, false), None);
+        assert_eq!(lookup(Role::Desktop, true, true), Some("from_cli"));
     }
 
     #[test]

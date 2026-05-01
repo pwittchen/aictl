@@ -1,5 +1,22 @@
 [workspace]
-members = ["crates/aictl-cli", "crates/aictl-core", "crates/aictl-server"]
+members = [
+    "crates/aictl-cli",
+    "crates/aictl-core",
+    "crates/aictl-desktop",
+    "crates/aictl-server",
+]
+# `aictl-desktop` is macOS-only and pulls a sizeable Tauri toolchain
+# (tauri-build, WebKit bindings, …) that the CLI / server builds do not
+# need. Keeping it out of the default member set means a bare
+# `cargo build` / `cargo lint` / `cargo test` keeps working on every
+# platform without forcing every contributor to install Tauri's deps.
+# CI builds the desktop with `cargo build -p aictl-desktop` on the macOS
+# runner only.
+default-members = [
+    "crates/aictl-cli",
+    "crates/aictl-core",
+    "crates/aictl-server",
+]
 resolver = "3"
 
 # Shared package metadata. Both crates reference these via

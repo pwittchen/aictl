@@ -569,7 +569,7 @@ async fn handle_tool_call(
         ui.show_auto_tool(tool_call);
         ui::ToolApproval::Allow
     } else {
-        ui.confirm_tool(tool_call)
+        ui.confirm_tool_async(tool_call).await
     };
 
     if approval == ui::ToolApproval::AutoAccept {
