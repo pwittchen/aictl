@@ -32,10 +32,10 @@ interface Props {
 type Tab = "workspace" | "provider" | "keys" | "general" | "about";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "workspace", label: "Workspace" },
-  { id: "provider", label: "Provider & Model" },
-  { id: "keys", label: "API Keys" },
   { id: "general", label: "General" },
+  { id: "workspace", label: "Workspace" },
+  { id: "provider", label: "Model" },
+  { id: "keys", label: "API Keys" },
   { id: "about", label: "About" },
 ];
 
@@ -55,7 +55,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const Settings: Component<Props> = (props) => {
-  const [tab, setTab] = createSignal<Tab>("workspace");
+  const [tab, setTab] = createSignal<Tab>("general");
 
   // Esc closes the overlay. The composer's own listeners are inactive
   // while the chat is masked behind the modal, so we don't need to
@@ -200,7 +200,7 @@ const ProviderTab: Component<ProviderTabProps> = (props) => {
 
   return (
     <div class="settings-tab-content">
-      <h3>Provider & Model</h3>
+      <h3>Model</h3>
       <p class="settings-hint">
         Pick which model the chat uses. The composer's dropdown points
         at the same setting.
@@ -300,13 +300,46 @@ const KeysTab: Component = () => {
     }
   };
 
+  const lock = async (name: string) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const outcome = await ipc.keysLock(name);
+      await refetch();
+      setFeedback(
+        outcome === "already_locked"
+          ? `${name} already in keyring`
+          : `${name} → keyring`,
+      );
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const unlock = async (name: string) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const outcome = await ipc.keysUnlock(name);
+      await refetch();
+      setFeedback(
+        outcome === "already_unlocked"
+          ? `${name} already in config`
+          : `${name} → config`,
+      );
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
   return (
     <div class="settings-tab-content">
       <h3>API Keys</h3>
       <p class="settings-hint">
         Stored in the system keychain when available, otherwise in
-        plain <code>~/.aictl/config</code>. Local providers (Ollama,
-        GGUF, MLX) don't need keys.
+        plain <code>~/.aictl/config</code>.
+        <br />
+        Local providers (Ollama, GGUF, MLX) don't need keys.
       </p>
       <Show when={backend()}>
         {(b) => (
@@ -359,6 +392,37 @@ const KeysTab: Component = () => {
                         >
                           {row.location === "unset" ? "Set" : "Replace"}
                         </button>
+                        <Show
+                          when={
+                            backend()?.available &&
+                            (row.location === "plain" || row.location === "both")
+                          }
+                        >
+                          <button
+                            type="button"
+                            class="ghost mini"
+                            title="Move from plain config to system keyring"
+                            onClick={() => void lock(row.name)}
+                          >
+                            Lock
+                          </button>
+                        </Show>
+                        <Show
+                          when={
+                            backend()?.available &&
+                            (row.location === "keyring" ||
+                              row.location === "both")
+                          }
+                        >
+                          <button
+                            type="button"
+                            class="ghost mini"
+                            title="Move from system keyring back to plain config"
+                            onClick={() => void unlock(row.name)}
+                          >
+                            Unlock
+                          </button>
+                        </Show>
                         <Show when={row.location !== "unset"}>
                           <button
                             type="button"

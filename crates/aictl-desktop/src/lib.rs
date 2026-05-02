@@ -90,6 +90,8 @@ pub fn run() {
             commands::settings::keys_backend,
             commands::settings::keys_set,
             commands::settings::keys_clear,
+            commands::settings::keys_lock,
+            commands::settings::keys_unlock,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

@@ -15,7 +15,7 @@
 //! (`set_workspace`, `set_active_model`) rather than this generic path.
 
 use aictl_core::config::{self, AICTL_WORKING_DIR_DESKTOP};
-use aictl_core::keys::{self, ClearOutcome, KeyLocation, SetOutcome};
+use aictl_core::keys::{self, ClearOutcome, KeyLocation, LockOutcome, SetOutcome, UnlockOutcome};
 use serde::{Deserialize, Serialize};
 
 /// Names that the desktop Settings UI is allowed to read/write through
@@ -177,6 +177,58 @@ pub fn keys_clear(args: KeyClearArgs) -> Result<&'static str, String> {
         ClearOutcome::Cleared => Ok("cleared"),
         ClearOutcome::NotPresent => Ok("not_present"),
         ClearOutcome::Error(reason) => Err(reason),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct KeyLockArgs {
+    pub name: String,
+}
+
+/// Migrate one key from plain config into the system keyring. Mirrors
+/// the CLI's `/keys → lock` action but scoped to a single row.
+#[tauri::command]
+pub fn keys_lock(args: KeyLockArgs) -> Result<&'static str, String> {
+    if !is_known_key(&args.name) {
+        return Err(format!("unknown key '{}'", args.name));
+    }
+    if !keys::backend_available() {
+        return Err(format!(
+            "system keyring is not available (backend: {})",
+            keys::backend_name()
+        ));
+    }
+    match keys::lock_key(&args.name) {
+        LockOutcome::Locked => Ok("locked"),
+        LockOutcome::AlreadyLocked => Ok("already_locked"),
+        LockOutcome::NotInConfig => Ok("not_in_config"),
+        LockOutcome::Error(reason) => Err(reason),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct KeyUnlockArgs {
+    pub name: String,
+}
+
+/// Migrate one key from the system keyring back into plain config.
+/// Mirrors the CLI's `/keys → unlock` action but scoped to a single row.
+#[tauri::command]
+pub fn keys_unlock(args: KeyUnlockArgs) -> Result<&'static str, String> {
+    if !is_known_key(&args.name) {
+        return Err(format!("unknown key '{}'", args.name));
+    }
+    if !keys::backend_available() {
+        return Err(format!(
+            "system keyring is not available (backend: {})",
+            keys::backend_name()
+        ));
+    }
+    match keys::unlock_key(&args.name) {
+        UnlockOutcome::Unlocked => Ok("unlocked"),
+        UnlockOutcome::AlreadyUnlocked => Ok("already_unlocked"),
+        UnlockOutcome::NotInKeyring => Ok("not_in_keyring"),
+        UnlockOutcome::Error(reason) => Err(reason),
     }
 }
 

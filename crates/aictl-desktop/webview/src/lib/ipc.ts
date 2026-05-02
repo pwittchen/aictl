@@ -221,6 +221,12 @@ export const ipc = {
   async keysClear(name: string) {
     return invoke<string>("keys_clear", { args: { name } });
   },
+  async keysLock(name: string) {
+    return invoke<string>("keys_lock", { args: { name } });
+  },
+  async keysUnlock(name: string) {
+    return invoke<string>("keys_unlock", { args: { name } });
+  },
 
   // -- events ----
   onAgentEvent(cb: (e: AgentEvent) => void): Promise<UnlistenFn> {
