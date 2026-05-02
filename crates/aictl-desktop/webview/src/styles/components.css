@@ -279,11 +279,45 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-faint);
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.composer .model-picker {
+  max-width: 60%;
+  padding: 5px 26px 5px 8px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-faint) 50%),
+    linear-gradient(135deg, var(--fg-faint) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 9px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.composer .model-picker:hover {
+  border-color: var(--fg-faint);
+}
+
+.composer .model-picker:focus {
+  outline: none;
+  border-color: var(--accent, var(--fg));
 }
 
 .composer button {

@@ -70,6 +70,9 @@ pub fn run() {
             commands::sessions::load_session,
             commands::sessions::delete_session,
             commands::sessions::new_incognito_session,
+            commands::models::list_models,
+            commands::models::get_active_model,
+            commands::models::set_active_model,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

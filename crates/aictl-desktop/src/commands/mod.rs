@@ -7,6 +7,7 @@
 //! calls.
 
 pub mod chat;
+pub mod models;
 pub mod sessions;
 pub mod system;
 pub mod workspace;

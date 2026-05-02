@@ -51,6 +51,16 @@ export interface SessionRow {
 
 export type ToolDecision = "allow" | "deny" | "auto_accept";
 
+export interface ModelEntry {
+  provider: string;
+  model: string;
+}
+
+export interface ActiveModel {
+  provider: string | null;
+  model: string | null;
+}
+
 export const ipc = {
   // -- workspace ----
   async getWorkspace() {
@@ -90,6 +100,17 @@ export const ipc = {
   },
   async newIncognitoSession() {
     return invoke<void>("new_incognito_session");
+  },
+
+  // -- models ----
+  async listModels() {
+    return invoke<ModelEntry[]>("list_models");
+  },
+  async getActiveModel() {
+    return invoke<ActiveModel>("get_active_model");
+  },
+  async setActiveModel(provider: string, model: string) {
+    return invoke<ActiveModel>("set_active_model", { provider, model });
   },
 
   // -- system ----
