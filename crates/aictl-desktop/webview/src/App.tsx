@@ -35,6 +35,7 @@ const App: Component = () => {
   const [busy, setBusy] = createSignal(false);
   const [pending, setPending] = createSignal<PendingApproval | null>(null);
   const [sidebarVisible, setSidebarVisible] = createSignal(true);
+  const [autoAccept, setAutoAccept] = createSignal(false);
 
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
 
@@ -151,7 +152,7 @@ const App: Component = () => {
     if (!text.trim()) return;
     append({ kind: "user", text });
     try {
-      await ipc.sendMessage(text);
+      await ipc.sendMessage(text, autoAccept());
     } catch (err) {
       append({ kind: "error", text: `${err}` });
     }
@@ -236,6 +237,8 @@ const App: Component = () => {
             <Composer
               disabled={composerDisabled()}
               onSend={send}
+              autoAccept={autoAccept()}
+              onAutoAcceptChange={setAutoAccept}
             />
           </div>
         </Show>

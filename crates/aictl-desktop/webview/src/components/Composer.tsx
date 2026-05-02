@@ -6,6 +6,8 @@ import { ipc, type ModelEntry } from "../lib/ipc";
 interface Props {
   disabled: boolean;
   onSend: (text: string) => void | Promise<void>;
+  autoAccept: boolean;
+  onAutoAcceptChange: (next: boolean) => void;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -140,6 +142,15 @@ const Composer: Component<Props> = (props) => {
               </optgroup>
             )}
           </For>
+        </select>
+        <select
+          class="auto-accept"
+          value={props.autoAccept ? "auto" : "ask"}
+          onChange={(e) => props.onAutoAcceptChange(e.currentTarget.value === "auto")}
+          title="Choose whether tool calls auto-approve or ask for confirmation."
+        >
+          <option value="ask">Ask for tools</option>
+          <option value="auto">Auto-accept tools</option>
         </select>
         <button type="button" disabled={props.disabled} onClick={submit}>
           Send <kbd>⌘↩</kbd>

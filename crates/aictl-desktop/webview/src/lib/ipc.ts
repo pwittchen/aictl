@@ -74,9 +74,13 @@ export const ipc = {
   },
 
   // -- chat ----
-  async sendMessage(text: string, sessionId?: string) {
+  async sendMessage(text: string, autoAccept: boolean, sessionId?: string) {
     return invoke<void>("send_message", {
-      args: { text, session_id: sessionId ?? null },
+      args: {
+        text,
+        session_id: sessionId ?? null,
+        auto_accept: autoAccept,
+      },
     });
   },
   async stopTurn() {

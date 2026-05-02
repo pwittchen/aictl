@@ -16,6 +16,8 @@ use crate::workspace;
 pub struct SendMessageArgs {
     pub text: String,
     pub session_id: Option<String>,
+    #[serde(default)]
+    pub auto_accept: bool,
 }
 
 #[tauri::command]
@@ -58,6 +60,7 @@ pub async fn send_message(
     let req = ChatRequest {
         user_message: args.text,
         session_id: args.session_id,
+        auto_accept: args.auto_accept,
     };
     let state_clone: Arc<AppState> = Arc::clone(&state);
     // The agent loop holds an `&dyn AgentUI` across `.await` points. The

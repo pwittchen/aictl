@@ -21,6 +21,11 @@ use crate::ui::DesktopUI;
 pub struct ChatRequest {
     pub user_message: String,
     pub session_id: Option<String>,
+    /// When `true`, every tool call in this turn is auto-approved and the
+    /// engine emits `show_auto_tool` instead of routing through
+    /// `confirm_tool_async`. Set per-send from the composer's checkbox; a
+    /// fresh `false` is the default for each turn.
+    pub auto_accept: bool,
 }
 
 /// Drive a single agent turn for the desktop. Spawned as a tokio task
@@ -52,7 +57,7 @@ pub async fn run_turn(
         content: run::build_system_prompt(),
         images: vec![],
     }];
-    let mut auto = false;
+    let mut auto = req.auto_accept;
 
     let turn = run::run_agent_turn(
         &provider,
