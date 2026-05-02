@@ -24,6 +24,9 @@ interface Props {
   workspace: WorkspaceState;
   onPickWorkspace: () => void | Promise<void>;
   onClose: () => void;
+  models: ModelEntry[];
+  activeModel: ActiveModel;
+  onChangeModel: (provider: string, model: string) => Promise<void>;
 }
 
 type Tab = "workspace" | "provider" | "keys" | "general" | "about";
@@ -106,7 +109,11 @@ const Settings: Component<Props> = (props) => {
               />
             </Show>
             <Show when={tab() === "provider"}>
-              <ProviderTab />
+              <ProviderTab
+                models={props.models}
+                activeModel={props.activeModel}
+                onChangeModel={props.onChangeModel}
+              />
             </Show>
             <Show when={tab() === "keys"}>
               <KeysTab />
@@ -156,17 +163,19 @@ const WorkspaceTab: Component<{
   </div>
 );
 
-const ProviderTab: Component = () => {
-  const [models] = createResource<ModelEntry[]>(() => ipc.listModels());
-  const [active, { refetch: refetchActive }] = createResource<ActiveModel>(() =>
-    ipc.getActiveModel(),
-  );
+interface ProviderTabProps {
+  models: ModelEntry[];
+  activeModel: ActiveModel;
+  onChangeModel: (provider: string, model: string) => Promise<void>;
+}
+
+const ProviderTab: Component<ProviderTabProps> = (props) => {
   const [error, setError] = createSignal<string | null>(null);
 
   const groups = createMemo(() => {
     const order: string[] = [];
     const buckets = new Map<string, string[]>();
-    for (const e of models() ?? []) {
+    for (const e of props.models) {
       if (!buckets.has(e.provider)) {
         buckets.set(e.provider, []);
         order.push(e.provider);
@@ -183,8 +192,7 @@ const ProviderTab: Component = () => {
   const select = async (provider: string, model: string) => {
     setError(null);
     try {
-      await ipc.setActiveModel(provider, model);
-      await refetchActive();
+      await props.onChangeModel(provider, model);
     } catch (err) {
       setError(`${err}`);
     }
@@ -201,7 +209,7 @@ const ProviderTab: Component = () => {
         <label>Active</label>
         <div class="settings-value">
           <Show
-            when={active() && active()!.provider && active()!.model}
+            when={props.activeModel.provider && props.activeModel.model}
             fallback={
               <span class="settings-empty">
                 No model selected — pick one below.
@@ -209,8 +217,9 @@ const ProviderTab: Component = () => {
             }
           >
             <code>
-              {PROVIDER_LABELS[active()!.provider!] ?? active()!.provider}{" "}
-              · {active()!.model}
+              {PROVIDER_LABELS[props.activeModel.provider!] ??
+                props.activeModel.provider}{" "}
+              · {props.activeModel.model}
             </code>
           </Show>
         </div>
@@ -227,8 +236,8 @@ const ProviderTab: Component = () => {
                 <For each={group.models}>
                   {(model) => {
                     const isActive = () =>
-                      active()?.provider === group.provider &&
-                      active()?.model === model;
+                      props.activeModel.provider === group.provider &&
+                      props.activeModel.model === model;
                     return (
                       <li>
                         <button

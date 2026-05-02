@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
-import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 
-import { ipc, type ModelEntry } from "../lib/ipc";
+import type { ActiveModel, ModelEntry } from "../lib/ipc";
 
 interface Props {
   disabled: boolean;
@@ -14,6 +14,11 @@ interface Props {
   /// re-render.
   prefill: string | null;
   onPrefillConsumed: () => void;
+  /// Model picker state lives in `App` so the Settings overlay and the
+  /// composer dropdown stay in sync — neither side owns the value.
+  models: ModelEntry[];
+  activeModel: ActiveModel;
+  onChangeModel: (provider: string, model: string) => Promise<void>;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -56,27 +61,15 @@ const groupModels = (entries: ModelEntry[]): Group[] => {
 
 const Composer: Component<Props> = (props) => {
   const [text, setText] = createSignal("");
-  const [models, setModels] = createSignal<ModelEntry[]>([]);
-  const [active, setActive] = createSignal<string>("");
   const [pickerError, setPickerError] = createSignal<string | null>(null);
 
-  const groups = createMemo(() => groupModels(models()));
+  const groups = createMemo(() => groupModels(props.models));
 
   const encode = (provider: string, model: string) => `${provider}|${model}`;
 
-  onMount(async () => {
-    try {
-      const [list, current] = await Promise.all([
-        ipc.listModels(),
-        ipc.getActiveModel(),
-      ]);
-      setModels(list);
-      if (current.provider && current.model) {
-        setActive(encode(current.provider, current.model));
-      }
-    } catch (err) {
-      setPickerError(`${err}`);
-    }
+  const activeKey = createMemo(() => {
+    const a = props.activeModel;
+    return a.provider && a.model ? encode(a.provider, a.model) : "";
   });
 
   createEffect(() => {
@@ -111,13 +104,10 @@ const Composer: Component<Props> = (props) => {
     if (sep < 0) return;
     const provider = value.slice(0, sep);
     const model = value.slice(sep + 1);
-    const previous = active();
-    setActive(value);
     setPickerError(null);
     try {
-      await ipc.setActiveModel(provider, model);
+      await props.onChangeModel(provider, model);
     } catch (err) {
-      setActive(previous);
       setPickerError(`${err}`);
     }
   };
@@ -136,12 +126,12 @@ const Composer: Component<Props> = (props) => {
       <div class="footer">
         <select
           class="model-picker"
-          value={active()}
+          value={activeKey()}
           onChange={onModelChange}
           disabled={props.disabled}
           title={pickerError() ?? "Switch active model"}
         >
-          <Show when={!active()}>
+          <Show when={!activeKey()}>
             <option value="" disabled>
               select model…
             </option>

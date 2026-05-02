@@ -3,9 +3,11 @@ import type { Component } from "solid-js";
 
 import {
   ipc,
+  type ActiveModel,
   type ActiveSession,
   type AgentEvent,
   type LoadedMessage,
+  type ModelEntry,
   type TranscriptMessage,
   type WorkspaceState,
 } from "./lib/ipc";
@@ -71,6 +73,11 @@ const App: Component = () => {
   const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
   const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
   const [showSettings, setShowSettings] = createSignal(false);
+  const [models, setModels] = createSignal<ModelEntry[]>([]);
+  const [activeModel, setActiveModel] = createSignal<ActiveModel>({
+    provider: null,
+    model: null,
+  });
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -153,6 +160,17 @@ const App: Component = () => {
       setActiveSession(await ipc.getActiveSession());
     } catch (err) {
       append({ kind: "error", text: `failed to read app state: ${err}` });
+    }
+
+    try {
+      const [list, current] = await Promise.all([
+        ipc.listModels(),
+        ipc.getActiveModel(),
+      ]);
+      setModels(list);
+      setActiveModel(current);
+    } catch (err) {
+      append({ kind: "error", text: `failed to read models: ${err}` });
     }
 
     const onKey = (e: KeyboardEvent) => {
@@ -363,6 +381,14 @@ const App: Component = () => {
   );
   const turnInFlight = createMemo(() => busy() || streaming());
 
+  /// Single writer for the active model so the composer dropdown and the
+  /// Settings → Provider tab stay in sync — whichever surface triggers
+  /// the change, both reflect it on the next render.
+  const changeModel = async (provider: string, model: string) => {
+    const next = await ipc.setActiveModel(provider, model);
+    setActiveModel(next);
+  };
+
   return (
     <div class="app" data-sidebar-hidden={String(!sidebarVisible())}>
       <Titlebar
@@ -416,6 +442,9 @@ const App: Component = () => {
               onAutoAcceptChange={setAutoAccept}
               prefill={composerPrefill()}
               onPrefillConsumed={() => setComposerPrefill(null)}
+              models={models()}
+              activeModel={activeModel()}
+              onChangeModel={changeModel}
             />
           </div>
         </Show>
@@ -435,6 +464,9 @@ const App: Component = () => {
           workspace={workspace()}
           onPickWorkspace={pickWorkspace}
           onClose={() => setShowSettings(false)}
+          models={models()}
+          activeModel={activeModel()}
+          onChangeModel={changeModel}
         />
       </Show>
     </div>
