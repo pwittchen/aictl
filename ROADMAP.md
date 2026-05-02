@@ -2,6 +2,11 @@
 
 ---
 
+## General
+
+- investigate and test audit log on desktop, remove debug logs
+- investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
+
 ## Desktop
 
 Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. The workspace already exposes a frontend-agnostic `aictl-core` crate; `aictl-desktop` would be a new workspace member that depends on it the same way `aictl-cli` does today.
