@@ -124,6 +124,9 @@ export const ipc = {
   async revealAuditLog() {
     return invoke<string>("reveal_audit_log");
   },
+  async openUrl(url: string) {
+    return invoke<void>("open_url", { url });
+  },
 
   // -- events ----
   onAgentEvent(cb: (e: AgentEvent) => void): Promise<UnlistenFn> {

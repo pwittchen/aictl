@@ -133,6 +133,31 @@ const App: Component = () => {
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
 
+    // Markdown bodies use `innerHTML`, so we can't bind per-link click
+    // handlers at render time. A single delegated listener catches every
+    // anchor click that bubbles to the document, hands the URL off to
+    // the OS default browser via the Rust opener command, and stops the
+    // webview from navigating away from the chat surface.
+    const onClick = (e: MouseEvent) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href) return;
+      const isExternal =
+        href.startsWith("http://") ||
+        href.startsWith("https://") ||
+        href.startsWith("mailto:");
+      if (!isExternal) return;
+      e.preventDefault();
+      void ipc.openUrl(href).catch((err) => {
+        append({ kind: "error", text: `failed to open link: ${err}` });
+      });
+    };
+    document.addEventListener("click", onClick);
+    onCleanup(() => document.removeEventListener("click", onClick));
+
     const offEvent = await ipc.onAgentEvent(handleEvent);
     const offWs = await ipc.onWorkspaceChanged(async () => {
       setWorkspace(await ipc.getWorkspace());

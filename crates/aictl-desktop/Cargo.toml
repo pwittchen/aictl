@@ -25,12 +25,14 @@ aictl-core = { path = "../aictl-core" }
 # Plugin selection mirrors §2 of `.claude/plans/desktop-app.md`:
 #   * dialog       — native folder picker for the workspace onboarding
 #   * clipboard    — ⌘⇧C "copy last answer" + per-message copy
-#   * shell        — "Reveal audit log in Finder", "Open external URL"
+#   * shell        — "Reveal audit log in Finder"
+#   * opener       — open markdown / external links in the default browser
 #   * updater      — Sparkle-style auto-update for the Phase 7 release
 tauri = { version = "2", features = ["macos-private-api", "devtools"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 
 # Async runtime + serde — needed to drive the agent loop from a

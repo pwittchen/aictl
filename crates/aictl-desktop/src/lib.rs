@@ -48,6 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .setup({
             let state = app_state.clone();
             move |app| {
@@ -60,6 +61,7 @@ pub fn run() {
             commands::system::version,
             commands::system::reveal_audit_log,
             commands::system::reveal_config_dir,
+            commands::system::open_url,
             commands::workspace::get_workspace,
             commands::workspace::set_workspace,
             commands::workspace::pick_workspace,
