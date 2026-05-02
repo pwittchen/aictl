@@ -2924,6 +2924,15 @@ const AboutTab: Component = () => {
           </a>
         </div>
       </div>
+      <div class="settings-row">
+        <label>Developer</label>
+        <div class="settings-value">
+          Piotr Wittchen —{" "}
+          <a href="#" onClick={(e) => { e.preventDefault(); void open("https://wittchen.io"); }}>
+            wittchen.io
+          </a>
+        </div>
+      </div>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
       </Show>
