@@ -109,6 +109,7 @@ name = "aictl-desktop"
 version = "0.36.4"
 dependencies = [
  "aictl-core",
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "tauri",

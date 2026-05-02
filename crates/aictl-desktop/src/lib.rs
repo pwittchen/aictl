@@ -95,6 +95,7 @@ pub fn run() {
             commands::settings::tools_list,
             commands::settings::tool_set_disabled,
             commands::chat::compact_chat,
+            commands::images::read_workspace_image,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

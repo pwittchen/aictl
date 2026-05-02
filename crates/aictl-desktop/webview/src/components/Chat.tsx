@@ -1,8 +1,21 @@
 import type { Component } from "solid-js";
-import { For, Show, createEffect, createMemo } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource } from "solid-js";
 
 import type { Message } from "../App";
+import { ipc } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
+
+// Tool results from `generate_image` open with this exact phrase (see
+// `crates/aictl-core/src/tools/image.rs::save_image`). Anchor on it so a
+// stray "image saved to" inside an LLM-authored summary doesn't trigger
+// a filesystem read.
+const SAVED_IMAGE_RE = /^Image saved to (\S+\.(?:png|jpe?g|gif|webp|bmp|svg))\b/i;
+
+function extractSavedImagePath(result: string | undefined): string | null {
+  if (!result) return null;
+  const match = result.match(SAVED_IMAGE_RE);
+  return match ? match[1] : null;
+}
 
 interface Props {
   messages: Message[];
@@ -71,12 +84,17 @@ const MessageView: Component<{ msg: Message }> = (props) => {
           </div>
         </div>
       );
-    case "tool":
+    case "tool": {
+      // `props.msg` is a Solid getter; a read after a sibling statement
+      // can in principle resolve to a different variant, so narrow on
+      // every access rather than caching `props.msg.result` once.
+      const result = () =>
+        props.msg.kind === "tool" ? props.msg.result : undefined;
       return (
         <div class="tool-callout">
           <span class="tag">tool · {props.msg.tool}</span>
           <div style={{ color: "var(--fg-soft)" }}>{props.msg.input}</div>
-          <Show when={props.msg.result !== undefined}>
+          <Show when={result() !== undefined}>
             <div
               style={{
                 "margin-top": "8px",
@@ -84,11 +102,15 @@ const MessageView: Component<{ msg: Message }> = (props) => {
                 "padding-top": "8px",
               }}
             >
-              {props.msg.result}
+              {result()}
             </div>
+          </Show>
+          <Show when={extractSavedImagePath(result())}>
+            {(p) => <ToolImagePreview path={p()} />}
           </Show>
         </div>
       );
+    }
     case "error":
       return (
         <div class="message" data-role="error">
@@ -112,6 +134,43 @@ const MessageView: Component<{ msg: Message }> = (props) => {
         </div>
       );
   }
+};
+
+const ToolImagePreview: Component<{ path: string }> = (props) => {
+  const [data] = createResource(
+    () => props.path,
+    (p) => ipc.readWorkspaceImage(p),
+  );
+
+  return (
+    <div style={{ "margin-top": "8px" }}>
+      <Show when={data.loading}>
+        <div style={{ color: "var(--fg-faint)", "font-size": "11px" }}>
+          loading preview…
+        </div>
+      </Show>
+      <Show when={data.error}>
+        <div style={{ color: "var(--fg-faint)", "font-size": "11px" }}>
+          preview unavailable: {String(data.error)}
+        </div>
+      </Show>
+      <Show when={data()}>
+        {(d) => (
+          <img
+            src={`data:${d().media_type};base64,${d().base64}`}
+            alt={props.path}
+            style={{
+              "max-width": "100%",
+              "max-height": "480px",
+              display: "block",
+              "border-radius": "4px",
+              border: "1px solid var(--border)",
+            }}
+          />
+        )}
+      </Show>
+    </div>
+  );
 };
 
 export default Chat;

@@ -195,6 +195,12 @@ export const ipc = {
   async version() {
     return invoke<string>("version");
   },
+  async readWorkspaceImage(path: string) {
+    return invoke<{ base64: string; media_type: string }>(
+      "read_workspace_image",
+      { path },
+    );
+  },
   async revealAuditLog() {
     return invoke<void>("reveal_audit_log");
   },

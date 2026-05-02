@@ -7,6 +7,7 @@
 //! calls.
 
 pub mod chat;
+pub mod images;
 pub mod models;
 pub mod sessions;
 pub mod settings;
