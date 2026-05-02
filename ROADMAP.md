@@ -6,6 +6,9 @@
 
 - investigate and test audit log on desktop, remove debug logs
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
+- add possibility to add new agent on desktop (manually and generated)
+- add possibility to add new skill on desktop (maunally and generated)
+- add possibility to add MCP server on desktop
 
 ## Desktop
 
