@@ -249,6 +249,27 @@ const Sidebar: Component<Props> = (props) => {
           </Show>
         </Show>
       </div>
+
+      {/*
+        Sidebar footer — non-session menu items live here so they stay
+        pinned at the bottom while the session list scrolls. Settings is
+        the only entry for now; Agents / Skills / Stats / Help land in
+        later phases of the desktop plan.
+      */}
+      <nav class="sidebar-section bottom-section">
+        <button
+          type="button"
+          class="bottom-item"
+          onClick={() => {
+            // Settings UI lands in Phase 5 of the desktop plan. Keeping
+            // the button visible now so the layout doesn't shift when
+            // the pane is implemented.
+            console.info("settings UI is not yet implemented");
+          }}
+        >
+          Settings
+        </button>
+      </nav>
     </aside>
   );
 };
