@@ -230,6 +230,16 @@ impl AgentUI for DesktopUI {
         context_pct: u8,
         memory: &str,
     ) {
+        // Mirror provider-reported token counts into AppState so the
+        // Context tab can read the latest values without a round-trip
+        // to the model. Only the most recent reading is kept — that's
+        // the value the CLI's `/context` slash command also displays.
+        self.state
+            .last_input_tokens
+            .store(usage.input_tokens, std::sync::atomic::Ordering::Relaxed);
+        self.state
+            .last_output_tokens
+            .store(usage.output_tokens, std::sync::atomic::Ordering::Relaxed);
         emit_agent(
             &self.app,
             AgentEvent::TokenUsage(TokenUsageEvent::from_usage(

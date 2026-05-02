@@ -120,8 +120,10 @@ pub fn run() {
             commands::hooks::hook_create,
             commands::skills::skills_list,
             commands::skills::skill_delete,
+            commands::skills::skill_view,
             commands::agents::agents_list,
             commands::agents::agent_delete,
+            commands::agents::agent_view,
             commands::plugins::plugins_status,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,
@@ -129,6 +131,7 @@ pub fn run() {
             commands::server::server_probe,
             commands::server::ollama_status,
             commands::server::ollama_probe,
+            commands::context::context_status,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

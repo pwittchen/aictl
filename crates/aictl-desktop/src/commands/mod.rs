@@ -8,6 +8,7 @@
 
 pub mod agents;
 pub mod chat;
+pub mod context;
 pub mod hooks;
 pub mod images;
 pub mod mcp;

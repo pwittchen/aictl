@@ -14,7 +14,9 @@ import {
   ipc,
   type ActiveModel,
   type AgentRow,
+  type AgentView,
   type ConfigEntry,
+  type ContextStatus,
   type HookRow,
   type HooksStatus,
   type KeyBackend,
@@ -28,11 +30,13 @@ import {
   type ServerStatus,
   type SessionRow,
   type SkillRow,
+  type SkillView,
   type StatsBucket,
   type StatsSnapshot,
   type ToolRow,
   type WorkspaceState,
 } from "../lib/ipc";
+import { renderMarkdown } from "../lib/markdown";
 
 interface Props {
   workspace: WorkspaceState;
@@ -45,7 +49,7 @@ interface Props {
 
 type Tab =
   | "general"
-  | "workspace"
+  | "security"
   | "provider"
   | "keys"
   | "server"
@@ -55,6 +59,7 @@ type Tab =
   | "agents"
   | "plugins"
   | "sessions"
+  | "context"
   | "stats"
   | "redaction"
   | "shell"
@@ -64,9 +69,11 @@ type Tab =
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "appearance", label: "Appearance" },
-  { id: "workspace", label: "Workspace" },
   { id: "provider", label: "Model" },
   { id: "keys", label: "API Keys" },
+  { id: "security", label: "Security" },
+  { id: "redaction", label: "Redaction" },
+  { id: "shell", label: "Shell" },
   { id: "server", label: "Server" },
   { id: "mcp", label: "MCP" },
   { id: "hooks", label: "Hooks" },
@@ -74,9 +81,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "agents", label: "Agents" },
   { id: "plugins", label: "Plugins" },
   { id: "sessions", label: "Sessions" },
+  { id: "context", label: "Context" },
   { id: "stats", label: "Stats" },
-  { id: "redaction", label: "Redaction" },
-  { id: "shell", label: "Shell" },
   { id: "about", label: "About" },
 ];
 
@@ -140,12 +146,6 @@ const Settings: Component<Props> = (props) => {
             </For>
           </nav>
           <section class="settings-content">
-            <Show when={tab() === "workspace"}>
-              <WorkspaceTab
-                workspace={props.workspace}
-                onPick={props.onPickWorkspace}
-              />
-            </Show>
             <Show when={tab() === "provider"}>
               <ProviderTab
                 models={props.models}
@@ -157,7 +157,13 @@ const Settings: Component<Props> = (props) => {
               <KeysTab />
             </Show>
             <Show when={tab() === "general"}>
-              <GeneralTab />
+              <GeneralTab
+                workspace={props.workspace}
+                onPickWorkspace={props.onPickWorkspace}
+              />
+            </Show>
+            <Show when={tab() === "security"}>
+              <SecurityTab />
             </Show>
             <Show when={tab() === "appearance"}>
               <AppearanceTab />
@@ -183,6 +189,9 @@ const Settings: Component<Props> = (props) => {
             <Show when={tab() === "sessions"}>
               <SessionsTab />
             </Show>
+            <Show when={tab() === "context"}>
+              <ContextTab />
+            </Show>
             <Show when={tab() === "stats"}>
               <StatsTab />
             </Show>
@@ -201,38 +210,6 @@ const Settings: Component<Props> = (props) => {
     </div>
   );
 };
-
-const WorkspaceTab: Component<{
-  workspace: WorkspaceState;
-  onPick: () => void | Promise<void>;
-}> = (props) => (
-  <div class="settings-tab-content">
-    <h3>Workspace</h3>
-    <p class="settings-hint">
-      The workspace folder is the CWD jail root for every tool call —
-      the agent can only read and write files inside it.
-    </p>
-    <div class="settings-row">
-      <label>Current</label>
-      <div class="settings-value">
-        <Show
-          when={props.workspace.path}
-          fallback={<span class="settings-empty">No workspace selected</span>}
-        >
-          <code>{props.workspace.path}</code>
-        </Show>
-      </div>
-    </div>
-    <Show when={props.workspace.error}>
-      <p class="settings-error">{props.workspace.error}</p>
-    </Show>
-    <div class="settings-actions">
-      <button type="button" onClick={() => void props.onPick()}>
-        {props.workspace.path ? "Change workspace…" : "Pick workspace…"}
-      </button>
-    </div>
-  </div>
-);
 
 interface ProviderTabProps {
   models: ModelEntry[];
@@ -551,7 +528,7 @@ const KeysTab: Component = () => {
   );
 };
 
-const BOOL_KEYS: { key: string; label: string; help: string }[] = [
+const SECURITY_BOOL_KEYS: { key: string; label: string; help: string }[] = [
   {
     key: "AICTL_SECURITY",
     label: "Security policy",
@@ -587,6 +564,9 @@ const BOOL_KEYS: { key: string; label: string; help: string }[] = [
     label: "Block shell metacharacters",
     help: "Refuse subshell / pipe / redirect syntax in shell commands. Off lets the agent run pipelines but loses one layer of defense.",
   },
+];
+
+const MISC_BOOL_KEYS: { key: string; label: string; help: string }[] = [
   {
     key: "AICTL_PROMPT_FALLBACK",
     label: "Project prompt-file fallback",
@@ -629,7 +609,10 @@ const NUM_KEYS: {
   },
 ];
 
-const GeneralTab: Component = () => {
+const GeneralTab: Component<{
+  workspace: WorkspaceState;
+  onPickWorkspace: () => void | Promise<void>;
+}> = (props) => {
   const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
     ipc.configDump(),
   );
@@ -749,6 +732,31 @@ const GeneralTab: Component = () => {
         <p class="settings-success">{feedback()}</p>
       </Show>
 
+      <h4 class="settings-subhead">Workspace</h4>
+      <div class="settings-row settings-row-stack">
+        <label>Workspace folder</label>
+        <p class="settings-hint">
+          The CWD jail root for every tool call — the agent can only
+          read and write files inside it.
+        </p>
+        <div class="settings-value">
+          <Show
+            when={props.workspace.path}
+            fallback={<span class="settings-empty">No workspace selected</span>}
+          >
+            <code>{props.workspace.path}</code>
+          </Show>
+        </div>
+        <Show when={props.workspace.error}>
+          <p class="settings-error">{props.workspace.error}</p>
+        </Show>
+        <div class="settings-actions">
+          <button type="button" onClick={() => void props.onPickWorkspace()}>
+            {props.workspace.path ? "Change workspace…" : "Pick workspace…"}
+          </button>
+        </div>
+      </div>
+
       <h4 class="settings-subhead">Memory</h4>
       <div class="settings-row settings-row-stack">
         <label>Conversation memory</label>
@@ -821,8 +829,70 @@ const GeneralTab: Component = () => {
       />
       <ToolsList disabled={!toolsOn()} />
 
-      <h4 class="settings-subhead">Security & misc</h4>
-      <For each={BOOL_KEYS}>
+      <h4 class="settings-subhead">Misc</h4>
+      <For each={MISC_BOOL_KEYS}>
+        {(spec) => (
+          <BoolRow
+            label={spec.label}
+            help={spec.help}
+            on={isOn(spec.key)}
+            onChange={(v) => void setBool(spec.key, v)}
+          />
+        )}
+      </For>
+    </div>
+  );
+};
+
+const SecurityTab: Component = () => {
+  const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
+    ipc.configDump(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+
+  const get = (key: string): string | null => {
+    const entry = (config() ?? []).find((e) => e.key === key);
+    return entry?.value ?? null;
+  };
+
+  const isOn = (key: string): boolean => {
+    const v = get(key);
+    if (v === null) return true;
+    return v !== "false" && v !== "0";
+  };
+
+  const setBool = async (key: string, on: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (on) {
+        await ipc.configClear(key);
+      } else {
+        await ipc.configWrite(key, "false");
+      }
+      await refetch();
+      setFeedback(`${key} = ${on ? "on" : "off"}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Security</h3>
+      <p class="settings-hint">
+        Master toggles for the security gate, audit log, prompt-injection
+        guard, and outbound redaction. Fine-grained shell / path /
+        redaction rules live in their own tabs.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={feedback()}>
+        <p class="settings-success">{feedback()}</p>
+      </Show>
+      <For each={SECURITY_BOOL_KEYS}>
         {(spec) => (
           <BoolRow
             label={spec.label}
@@ -1693,12 +1763,90 @@ const HooksTab: Component = () => {
   );
 };
 
+interface ViewerState {
+  title: string;
+  origin: string;
+  path: string;
+  body: string;
+  raw: string;
+}
+
+const PromptViewer: Component<{
+  view: ViewerState;
+  onClose: () => void;
+}> = (props) => {
+  const [mode, setMode] = createSignal<"rendered" | "source">("rendered");
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
+  return (
+    <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
+      <div class="prompt-viewer">
+        <header class="prompt-viewer-header">
+          <div>
+            <h3>{props.view.title}</h3>
+            <p class="settings-meta">
+              {props.view.origin} · <code>{props.view.path}</code>
+            </p>
+          </div>
+          <div class="prompt-viewer-actions">
+            <button
+              type="button"
+              class="prompt-viewer-toggle"
+              data-active={String(mode() === "rendered")}
+              onClick={() => setMode("rendered")}
+            >
+              Rendered
+            </button>
+            <button
+              type="button"
+              class="prompt-viewer-toggle"
+              data-active={String(mode() === "source")}
+              onClick={() => setMode("source")}
+            >
+              Source
+            </button>
+            <button
+              type="button"
+              class="settings-close"
+              aria-label="Close viewer"
+              title="Close (Esc)"
+              onClick={props.onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div class="prompt-viewer-body">
+          <Show
+            when={mode() === "rendered"}
+            fallback={<pre class="prompt-viewer-source">{props.view.raw}</pre>}
+          >
+            <div
+              class="prompt-viewer-rendered chat-markdown"
+              innerHTML={renderMarkdown(props.view.body)}
+            />
+          </Show>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SkillsTab: Component = () => {
   const [skills, { refetch }] = createResource<SkillRow[]>(() =>
     ipc.skillsList(),
   );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [viewer, setViewer] = createSignal<ViewerState | null>(null);
 
   const remove = async (row: SkillRow) => {
     setError(null);
@@ -1706,6 +1854,22 @@ const SkillsTab: Component = () => {
       await ipc.skillDelete(row.name, row.origin);
       await refetch();
       setFeedback(`deleted ${row.name}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const view = async (row: SkillRow) => {
+    setError(null);
+    try {
+      const v: SkillView = await ipc.skillView(row.name, row.origin);
+      setViewer({
+        title: v.name,
+        origin: v.origin,
+        path: v.path,
+        body: v.body,
+        raw: v.raw,
+      });
     } catch (err) {
       setError(`${err}`);
     }
@@ -1734,13 +1898,17 @@ const SkillsTab: Component = () => {
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-catalogue-table">
+          <colgroup>
+            <col />
+            <col class="settings-catalogue-origin-col" />
+            <col class="settings-catalogue-actions-col" />
+          </colgroup>
           <thead>
             <tr>
               <th>Skill</th>
               <th>Origin</th>
-              <th>Description</th>
-              <th />
+              <th class="settings-actions-col" />
             </tr>
           </thead>
           <tbody>
@@ -1748,25 +1916,40 @@ const SkillsTab: Component = () => {
               {(row) => (
                 <tr>
                   <td>
-                    <code>{row.name}</code>
-                    <Show when={row.official}> <span class="badge">official</span></Show>
+                    <div class="settings-name-cell">
+                      <code>{row.name}</code>
+                      <Show when={row.official}>
+                        <span class="badge">official</span>
+                      </Show>
+                    </div>
                   </td>
                   <td>{row.origin}</td>
-                  <td class="settings-desc">{row.description}</td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini danger"
-                      onClick={() => void remove(row)}
-                    >
-                      Delete
-                    </button>
+                  <td class="settings-actions-col">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => void view(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => void remove(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
             </For>
           </tbody>
         </table>
+      </Show>
+      <Show when={viewer()}>
+        {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
       </Show>
     </div>
   );
@@ -1778,6 +1961,7 @@ const AgentsTab: Component = () => {
   );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [viewer, setViewer] = createSignal<ViewerState | null>(null);
 
   const remove = async (row: AgentRow) => {
     setError(null);
@@ -1785,6 +1969,22 @@ const AgentsTab: Component = () => {
       await ipc.agentDelete(row.name, row.origin);
       await refetch();
       setFeedback(`deleted ${row.name}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const view = async (row: AgentRow) => {
+    setError(null);
+    try {
+      const v: AgentView = await ipc.agentView(row.name, row.origin);
+      setViewer({
+        title: v.name,
+        origin: v.origin,
+        path: v.path,
+        body: v.body,
+        raw: v.raw,
+      });
     } catch (err) {
       setError(`${err}`);
     }
@@ -1812,13 +2012,17 @@ const AgentsTab: Component = () => {
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-catalogue-table">
+          <colgroup>
+            <col />
+            <col class="settings-catalogue-origin-col" />
+            <col class="settings-catalogue-actions-col" />
+          </colgroup>
           <thead>
             <tr>
               <th>Agent</th>
               <th>Origin</th>
-              <th>Description</th>
-              <th />
+              <th class="settings-actions-col" />
             </tr>
           </thead>
           <tbody>
@@ -1826,25 +2030,40 @@ const AgentsTab: Component = () => {
               {(row) => (
                 <tr>
                   <td>
-                    <code>{row.name}</code>
-                    <Show when={row.official}> <span class="badge">official</span></Show>
+                    <div class="settings-name-cell">
+                      <code>{row.name}</code>
+                      <Show when={row.official}>
+                        <span class="badge">official</span>
+                      </Show>
+                    </div>
                   </td>
                   <td>{row.origin}</td>
-                  <td class="settings-desc">{row.description ?? ""}</td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini danger"
-                      onClick={() => void remove(row)}
-                    >
-                      Delete
-                    </button>
+                  <td class="settings-actions-col">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => void view(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => void remove(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
             </For>
           </tbody>
         </table>
+      </Show>
+      <Show when={viewer()}>
+        {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
       </Show>
     </div>
   );
@@ -2065,6 +2284,129 @@ const SessionsTab: Component = () => {
           </tbody>
         </table>
       </Show>
+    </div>
+  );
+};
+
+const ContextTab: Component = () => {
+  const [ctx, { refetch }] = createResource<ContextStatus>(() =>
+    ipc.contextStatus(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+
+  const refresh = async () => {
+    setError(null);
+    try {
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  // Bar tone tracks the same thresholds the CLI's `/context` paints
+  // with: green under 50%, yellow 50–79%, red above. Keeps the desktop
+  // and terminal at-a-glance summaries identical.
+  const tone = (pct: number): "ok" | "warn" | "danger" => {
+    if (pct >= 80) return "danger";
+    if (pct >= 50) return "warn";
+    return "ok";
+  };
+
+  const fmt = (n: number) => n.toLocaleString();
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Context</h3>
+      <p class="settings-hint">
+        Live state of the active conversation: how full the model's
+        context window is, how many messages have piled up, and where
+        the auto-compact threshold sits. Mirrors the CLI's{" "}
+        <code>/context</code>.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={ctx()}>
+        {(c) => (
+          <>
+            <div class="settings-row settings-row-stack">
+              <label>Active model</label>
+              <div class="settings-value">
+                <Show
+                  when={c().model}
+                  fallback={
+                    <span class="settings-empty">
+                      No model selected — pick one in the Model tab.
+                    </span>
+                  }
+                >
+                  <code>
+                    {c().provider ?? "?"} · {c().model}
+                  </code>
+                </Show>
+              </div>
+            </div>
+            <div class="settings-row settings-row-stack">
+              <label>Context window</label>
+              <div class="settings-context-bar">
+                <div
+                  class="settings-context-fill"
+                  data-tone={tone(c().context_pct)}
+                  style={{ width: `${Math.min(c().context_pct, 100)}%` }}
+                />
+              </div>
+              <p class="settings-meta">
+                {c().context_pct}% used — token usage{" "}
+                {c().token_pct}% · message buffer {c().message_pct}%
+              </p>
+            </div>
+            <div class="settings-row">
+              <label>Last input tokens</label>
+              <div class="settings-value">
+                <code>
+                  {fmt(c().last_input_tokens)} / {fmt(c().context_limit)}
+                </code>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Last output tokens</label>
+              <div class="settings-value">
+                <code>{fmt(c().last_output_tokens)}</code>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Messages</label>
+              <div class="settings-value">
+                <code>
+                  {c().messages} / {c().max_messages}
+                </code>
+              </div>
+            </div>
+            <div class="settings-row">
+              <label>Auto-compact at</label>
+              <div class="settings-value">
+                <code>{c().auto_compact_threshold}%</code>{" "}
+                <span class="settings-meta">
+                  ({c().auto_compact_overridden ? "overridden" : "default"})
+                </span>
+              </div>
+            </div>
+            <Show when={c().last_input_tokens === 0}>
+              <p class="settings-hint">
+                <em>
+                  No turns recorded yet — token counts populate after the
+                  first model response.
+                </em>
+              </p>
+            </Show>
+          </>
+        )}
+      </Show>
+      <div class="settings-actions">
+        <button type="button" onClick={() => void refresh()}>
+          Refresh
+        </button>
+      </div>
     </div>
   );
 };

@@ -49,6 +49,13 @@ pub struct AppState {
     next_approval_id: AtomicU64,
     /// Monotonic counter feeding [`aictl_core::ui::events::AgentEvent::ProgressBegin`].
     next_progress_id: AtomicU64,
+    /// Most recent provider-reported input-token count for the active
+    /// transcript. Updated by `DesktopUI::show_token_usage` after every
+    /// LLM call so the Context tab can report the live percentage
+    /// without a fresh round-trip to the model. Zero before the first
+    /// turn completes.
+    pub last_input_tokens: AtomicU64,
+    pub last_output_tokens: AtomicU64,
 }
 
 impl AppState {
@@ -61,6 +68,8 @@ impl AppState {
             pending_approvals: Mutex::new(HashMap::new()),
             next_approval_id: AtomicU64::new(1),
             next_progress_id: AtomicU64::new(1),
+            last_input_tokens: AtomicU64::new(0),
+            last_output_tokens: AtomicU64::new(0),
         }
     }
 

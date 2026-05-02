@@ -645,43 +645,100 @@
   border-color: var(--accent, var(--fg));
 }
 
-.composer .model-picker[disabled],
-.composer .auto-accept[disabled] {
+.composer .model-picker[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.composer .auto-accept {
+/* Auto-accept toggle: a single SVG button. Gray = ask each tool call,
+   cyan = auto-accept enabled. The confirmation message floats over
+   the chat surface (see `.auto-accept-toast`) so the icon stays
+   compact. */
+.composer .auto-accept-icon {
   margin-left: auto;
-  padding: 5px 26px 5px 8px;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: none;
+  background: transparent;
+  border: 0;
+  padding: 4px;
   cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--fg-faint) 50%),
-    linear-gradient(135deg, var(--fg-faint) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 50%,
-    calc(100% - 9px) 50%;
-  background-size:
-    5px 5px,
-    5px 5px;
-  background-repeat: no-repeat;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.composer .auto-accept:hover {
-  border-color: var(--fg-faint);
+.composer .auto-accept-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
-.composer .auto-accept:focus {
-  outline: none;
-  border-color: var(--accent, var(--fg));
+/* Pin the transparent treatment on hover too so the global
+   `.composer button:hover` background-fill doesn't bleed through. */
+.composer .auto-accept-icon:hover,
+.composer .auto-accept-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .auto-accept-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .auto-accept-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .auto-accept-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Floating confirmation toast. Mirrors the brutalist panel used by
+   `.tool-modal .panel` (same border, background, mono font) so the
+   feedback feels like part of the same UI vocabulary, but skips the
+   modal backdrop because it's transient and non-blocking. */
+.auto-accept-toast {
+  position: fixed;
+  top: calc(var(--titlebar-height, 38px) + var(--space-3));
+  right: var(--space-4);
+  z-index: 95;
+  pointer-events: none;
+  animation: auto-accept-toast 1.8s ease-out forwards;
+}
+
+.auto-accept-toast .panel {
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes auto-accept-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .composer button {
@@ -1245,6 +1302,57 @@
   flex-wrap: wrap;
 }
 
+/* Skills / Agents catalogue tables: pin the origin and actions
+   columns to fixed widths, push the name + badge apart so the badge
+   sits at the right of its column, and right-align the action
+   buttons. `vertical-align: middle` + `white-space: nowrap` on the
+   action cell keeps every row the same height so the horizontal
+   border lines line up across rows. */
+.settings-catalogue-table {
+  table-layout: fixed;
+}
+
+.settings-catalogue-table th,
+.settings-catalogue-table td {
+  vertical-align: middle;
+}
+
+.settings-catalogue-origin-col {
+  width: 120px;
+}
+
+.settings-catalogue-actions-col {
+  width: 160px;
+}
+
+.settings-actions-col {
+  text-align: right;
+}
+
+.settings-name-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.settings-catalogue-table .settings-keys-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.settings-name-cell .badge {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.settings-name-cell code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .settings-keys-actions button.ghost {
   background: transparent;
   border: 1px solid var(--border);
@@ -1451,6 +1559,207 @@
 .settings-probe span[data-status="fail"] {
   color: var(--danger);
   font-family: var(--font-mono);
+}
+
+/* Skill / agent prompt viewer modal. */
+
+.prompt-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 90;
+  padding: var(--space-5);
+}
+
+.prompt-viewer {
+  width: min(820px, 100%);
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.prompt-viewer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.prompt-viewer-header h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-viewer-header .settings-meta {
+  margin: 4px 0 0;
+}
+
+.prompt-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prompt-viewer-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-soft);
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.prompt-viewer-toggle:hover {
+  color: var(--fg);
+  border-color: var(--fg-faint);
+}
+
+.prompt-viewer-toggle[data-active="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.prompt-viewer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+.prompt-viewer-rendered {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: normal;
+}
+
+.prompt-viewer-rendered > *:first-child {
+  margin-top: 0;
+}
+
+.prompt-viewer-rendered > *:last-child {
+  margin-bottom: 0;
+}
+
+.prompt-viewer-rendered h1,
+.prompt-viewer-rendered h2,
+.prompt-viewer-rendered h3,
+.prompt-viewer-rendered h4 {
+  font-family: var(--font-mono);
+  margin: var(--space-4) 0 var(--space-2);
+  letter-spacing: 0.04em;
+}
+
+.prompt-viewer-rendered h1 {
+  font-size: 18px;
+}
+.prompt-viewer-rendered h2 {
+  font-size: 16px;
+}
+.prompt-viewer-rendered h3 {
+  font-size: 14px;
+  text-transform: uppercase;
+  color: var(--fg-soft);
+}
+.prompt-viewer-rendered h4 {
+  font-size: 13px;
+  color: var(--fg-soft);
+}
+
+.prompt-viewer-rendered p,
+.prompt-viewer-rendered ul,
+.prompt-viewer-rendered ol,
+.prompt-viewer-rendered blockquote,
+.prompt-viewer-rendered pre {
+  margin: 0 0 var(--space-3);
+}
+
+.prompt-viewer-rendered ul,
+.prompt-viewer-rendered ol {
+  padding-left: 1.5em;
+}
+
+.prompt-viewer-rendered code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--surface);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+}
+
+.prompt-viewer-rendered pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: var(--space-3);
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+.prompt-viewer-rendered pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.prompt-viewer-rendered blockquote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: var(--space-3);
+  color: var(--fg-soft);
+}
+
+.prompt-viewer-rendered a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prompt-viewer-source {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+
+.settings-context-bar {
+  height: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-context-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms ease, background-color 120ms ease;
+}
+
+.settings-context-fill[data-tone="warn"] {
+  background: #ffb454;
+}
+
+.settings-context-fill[data-tone="danger"] {
+  background: var(--danger);
 }
 
 .settings-stats-grid {

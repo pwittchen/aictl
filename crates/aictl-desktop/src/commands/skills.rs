@@ -51,3 +51,37 @@ pub fn skill_delete(args: SkillDeleteArgs) -> Result<(), String> {
         .ok_or_else(|| format!("skill '{}' ({}) not found", args.name, args.origin))?;
     skills::delete_entry(entry).map_err(|e| format!("delete: {e}"))
 }
+
+#[derive(serde::Serialize)]
+pub struct SkillView {
+    pub name: String,
+    pub description: String,
+    pub origin: String,
+    pub path: String,
+    pub raw: String,
+    pub body: String,
+}
+
+/// Read the full SKILL.md for a specific listing entry. Returns both
+/// the raw file contents (frontmatter + body) and the parsed body so
+/// the webview can render whichever feels more useful — markdown view
+/// uses `body`, the source view falls back to `raw`.
+#[tauri::command]
+pub fn skill_view(args: SkillDeleteArgs) -> Result<SkillView, String> {
+    let entries = skills::list();
+    let entry = entries
+        .iter()
+        .find(|e| e.name == args.name && e.origin.label() == args.origin)
+        .ok_or_else(|| format!("skill '{}' ({}) not found", args.name, args.origin))?;
+    let path = entry.dir.join("SKILL.md");
+    let raw = std::fs::read_to_string(&path).map_err(|e| format!("read SKILL.md: {e}"))?;
+    let parsed = skills::parse(&raw);
+    Ok(SkillView {
+        name: entry.name.clone(),
+        description: entry.description.clone(),
+        origin: entry.origin.label().to_string(),
+        path: path.display().to_string(),
+        raw,
+        body: parsed.body,
+    })
+}

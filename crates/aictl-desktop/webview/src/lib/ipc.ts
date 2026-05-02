@@ -163,6 +163,24 @@ export interface AgentRow {
   path: string;
 }
 
+export interface SkillView {
+  name: string;
+  description: string;
+  origin: string;
+  path: string;
+  raw: string;
+  body: string;
+}
+
+export interface AgentView {
+  name: string;
+  description: string | null;
+  origin: string;
+  path: string;
+  raw: string;
+  body: string;
+}
+
 export interface PluginRow {
   name: string;
   description: string;
@@ -224,6 +242,21 @@ export interface OllamaProbeResult {
   error: string | null;
   model_count: number | null;
   sample_models: string[];
+}
+
+export interface ContextStatus {
+  model: string | null;
+  provider: string | null;
+  last_input_tokens: number;
+  last_output_tokens: number;
+  context_limit: number;
+  messages: number;
+  max_messages: number;
+  token_pct: number;
+  message_pct: number;
+  context_pct: number;
+  auto_compact_threshold: number;
+  auto_compact_overridden: boolean;
 }
 
 export const ipc = {
@@ -408,6 +441,9 @@ export const ipc = {
   async skillDelete(name: string, origin: string) {
     return invoke<void>("skill_delete", { args: { name, origin } });
   },
+  async skillView(name: string, origin: string) {
+    return invoke<SkillView>("skill_view", { args: { name, origin } });
+  },
 
   // -- agents ----
   async agentsList() {
@@ -415,6 +451,9 @@ export const ipc = {
   },
   async agentDelete(name: string, origin: string) {
     return invoke<void>("agent_delete", { args: { name, origin } });
+  },
+  async agentView(name: string, origin: string) {
+    return invoke<AgentView>("agent_view", { args: { name, origin } });
   },
 
   // -- plugins ----
@@ -442,6 +481,11 @@ export const ipc = {
   },
   async ollamaProbe() {
     return invoke<OllamaProbeResult>("ollama_probe");
+  },
+
+  // -- context ----
+  async contextStatus() {
+    return invoke<ContextStatus>("context_status");
   },
 
   // -- events ----
