@@ -8,6 +8,10 @@ interface Props {
   onSend: (text: string) => void | Promise<void>;
   autoAccept: boolean;
   onAutoAcceptChange: (next: boolean) => void;
+  /// Mirror of `AICTL_TOOLS_ENABLED`. When `false` the composer hides
+  /// the auto-accept dropdown — the agent runs chat-only so there are
+  /// no tool calls to approve.
+  toolsEnabled: boolean;
   /// Set by the parent when /retry surfaces the previous prompt — the
   /// composer fills its textarea with the value and immediately calls
   /// `onPrefillConsumed` so the same prefill isn't reapplied on every
@@ -148,16 +152,20 @@ const Composer: Component<Props> = (props) => {
             )}
           </For>
         </select>
-        <select
-          class="auto-accept"
-          value={props.autoAccept ? "auto" : "ask"}
-          onChange={(e) => props.onAutoAcceptChange(e.currentTarget.value === "auto")}
-          disabled={props.disabled}
-          title="Choose whether tool calls auto-approve or ask for confirmation."
-        >
-          <option value="ask">Ask for tools</option>
-          <option value="auto">Auto-accept tools</option>
-        </select>
+        <Show when={props.toolsEnabled}>
+          <select
+            class="auto-accept"
+            value={props.autoAccept ? "auto" : "ask"}
+            onChange={(e) =>
+              props.onAutoAcceptChange(e.currentTarget.value === "auto")
+            }
+            disabled={props.disabled}
+            title="Choose whether tool calls auto-approve or ask for confirmation."
+          >
+            <option value="ask">Ask for tools</option>
+            <option value="auto">Auto-accept tools</option>
+          </select>
+        </Show>
         <button type="button" disabled={props.disabled} onClick={submit}>
           Send <kbd>⌘↩</kbd>
         </button>

@@ -73,6 +73,7 @@ const App: Component = () => {
   const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
   const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
   const [showSettings, setShowSettings] = createSignal(false);
+  const [toolsEnabled, setToolsEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
     provider: null,
@@ -81,6 +82,19 @@ const App: Component = () => {
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
+
+  // Tools master switch (`AICTL_TOOLS_ENABLED`) — read on mount and
+  // refreshed every time the Settings overlay closes so the composer's
+  // tool-approval picker can hide itself when the engine is in
+  // chat-only mode.
+  const refreshToolsEnabled = async () => {
+    try {
+      const raw = await ipc.configValue("AICTL_TOOLS_ENABLED");
+      setToolsEnabled(raw !== "false" && raw !== "0");
+    } catch {
+      setToolsEnabled(true);
+    }
+  };
 
   const handleEvent = (e: AgentEvent) => {
     switch (e.kind) {
@@ -172,6 +186,8 @@ const App: Component = () => {
     } catch (err) {
       append({ kind: "error", text: `failed to read models: ${err}` });
     }
+
+    void refreshToolsEnabled();
 
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
@@ -451,6 +467,7 @@ const App: Component = () => {
               onSend={send}
               autoAccept={autoAccept()}
               onAutoAcceptChange={setAutoAccept}
+              toolsEnabled={toolsEnabled()}
               prefill={composerPrefill()}
               onPrefillConsumed={() => setComposerPrefill(null)}
               models={models()}
@@ -474,7 +491,10 @@ const App: Component = () => {
         <Settings
           workspace={workspace()}
           onPickWorkspace={pickWorkspace}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            void refreshToolsEnabled();
+          }}
           models={models()}
           activeModel={activeModel()}
           onChangeModel={changeModel}
