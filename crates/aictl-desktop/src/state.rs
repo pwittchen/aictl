@@ -2,14 +2,16 @@
 //!
 //! Tauri commands receive `tauri::State<Arc<AppState>>`; everything that
 //! needs to live across IPC calls (the active turn's cancellation token,
-//! pending tool-approval oneshots, the current session id) lives here so
-//! commands stay short and free of `OnceLock` plumbing.
+//! pending tool-approval oneshots, the active session id, the
+//! conversation transcript) lives here so commands stay short and free
+//! of `OnceLock` plumbing.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use aictl_core::ToolApproval;
+use aictl_core::message::Message;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -26,8 +28,21 @@ pub struct AppState {
     /// on every `send_message` call; `stop_turn` cancels and clears it.
     pub turn_cancel: Mutex<Option<CancellationToken>>,
     /// Active session id used by `send_message` to load and persist
-    /// conversation history. `None` when the user is in incognito mode.
+    /// conversation history. `None` when the user is in incognito mode
+    /// or has not yet started a session.
     pub session_id: Mutex<Option<String>>,
+    /// Conversation transcript carried across turns within the same
+    /// session. The agent loop mutates this in place; on entry to
+    /// `send_message` we either reuse the in-memory copy (same session
+    /// id) or rehydrate from `~/.aictl/sessions/<id>` (new selection).
+    /// Cleared by `clear_chat` and trimmed by retry/undo.
+    pub messages: Mutex<Vec<Message>>,
+    /// `true` after the user toggled "new incognito session" — disables
+    /// `session::save_messages` so nothing lands on disk for the duration
+    /// of that conversation. The flag is also mirrored into
+    /// `session::set_incognito` so the engine's own paths (compaction,
+    /// retry, audit log) honour it.
+    pub incognito: Mutex<bool>,
     /// In-flight tool-approval requests, keyed by id.
     pub pending_approvals: Mutex<HashMap<ApprovalId, oneshot::Sender<ToolApproval>>>,
     /// Monotonic counter feeding [`AppState::pending_approvals`].
@@ -41,6 +56,8 @@ impl AppState {
         Self {
             turn_cancel: Mutex::new(None),
             session_id: Mutex::new(None),
+            messages: Mutex::new(Vec::new()),
+            incognito: Mutex::new(false),
             pending_approvals: Mutex::new(HashMap::new()),
             next_approval_id: AtomicU64::new(1),
             next_progress_id: AtomicU64::new(1),

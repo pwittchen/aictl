@@ -31,7 +31,6 @@ mod mlx;
 mod model;
 mod ping;
 mod plugins;
-mod retry;
 mod roadmap;
 mod security;
 mod serve;
@@ -39,7 +38,6 @@ mod session;
 mod skills;
 mod stats;
 mod tools;
-mod undo;
 mod uninstall;
 mod update;
 
@@ -59,15 +57,19 @@ pub use mlx::run_mlx_menu;
 pub use model::select_model;
 pub use ping::run_ping;
 pub use plugins::{print_plugins_cli, run_plugins_menu};
-pub use retry::retry_last_exchange;
 pub use roadmap::run_roadmap;
 pub use security::print_security;
 pub use serve::run_serve_cli;
 pub use session::{print_sessions_cli, run_session_menu};
 pub use skills::{SkillsMenuOutcome, print_skills_cli, run_skills_menu};
 pub use stats::run_stats_menu;
-pub use undo::undo_turns;
 pub use uninstall::{run_uninstall_cli, run_uninstall_repl};
+
+// Transcript helpers live in `aictl-core::transcript` so the desktop chat
+// toolbar can share retry/undo semantics with the CLI's slash commands.
+// The re-exports preserve the historical `commands::retry_last_exchange`
+// / `commands::undo_turns` paths used by `repl.rs`.
+pub use aictl_core::transcript::{retry_last_exchange, undo_turns};
 pub use update::{run_update, run_update_cli, run_version};
 
 /// All slash command names (without `/`), sorted alphabetically.

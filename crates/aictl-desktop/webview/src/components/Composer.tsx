@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onMount } from "solid-js";
 
 import { ipc, type ModelEntry } from "../lib/ipc";
 
@@ -8,6 +8,12 @@ interface Props {
   onSend: (text: string) => void | Promise<void>;
   autoAccept: boolean;
   onAutoAcceptChange: (next: boolean) => void;
+  /// Set by the parent when /retry surfaces the previous prompt — the
+  /// composer fills its textarea with the value and immediately calls
+  /// `onPrefillConsumed` so the same prefill isn't reapplied on every
+  /// re-render.
+  prefill: string | null;
+  onPrefillConsumed: () => void;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -70,6 +76,14 @@ const Composer: Component<Props> = (props) => {
       }
     } catch (err) {
       setPickerError(`${err}`);
+    }
+  });
+
+  createEffect(() => {
+    const value = props.prefill;
+    if (value !== null) {
+      setText(value);
+      props.onPrefillConsumed();
     }
   });
 

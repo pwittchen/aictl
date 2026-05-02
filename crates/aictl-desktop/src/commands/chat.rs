@@ -4,7 +4,11 @@
 use std::sync::Arc;
 
 use aictl_core::ToolApproval;
-use serde::Deserialize;
+use aictl_core::message::{Message, Role};
+use aictl_core::run;
+use aictl_core::session;
+use aictl_core::transcript;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tokio_util::sync::CancellationToken;
 
@@ -15,7 +19,10 @@ use crate::workspace;
 #[derive(Deserialize)]
 pub struct SendMessageArgs {
     pub text: String,
-    pub session_id: Option<String>,
+    /// `true` when the composer's mode picker is "auto-accept tools" —
+    /// the agent loop skips `confirm_tool_async` and emits `show_auto_tool`
+    /// directly. Active session lives in [`AppState::session_id`]; the
+    /// frontend no longer threads a session id through every send.
     #[serde(default)]
     pub auto_accept: bool,
 }
@@ -59,7 +66,6 @@ pub async fn send_message(
 
     let req = ChatRequest {
         user_message: args.text,
-        session_id: args.session_id,
         auto_accept: args.auto_accept,
     };
     let state_clone: Arc<AppState> = Arc::clone(&state);
@@ -126,4 +132,144 @@ pub fn tool_approval_response(
     };
     let _ = tx.send(approval);
     Ok(())
+}
+
+/// Result returned by `clear_chat` / `retry_last` / `undo_last`. The
+/// frontend re-renders the message list from `messages`; `prompt` is set
+/// by retry so the composer can pre-fill with the resubmitted text.
+#[derive(Serialize)]
+pub struct TranscriptUpdate {
+    pub messages: Vec<TranscriptMessage>,
+    pub prompt: Option<String>,
+    pub popped: usize,
+}
+
+#[derive(Serialize)]
+pub struct TranscriptMessage {
+    pub kind: String,
+    pub text: String,
+}
+
+fn project(messages: &[Message]) -> Vec<TranscriptMessage> {
+    messages
+        .iter()
+        .map(|m| match m.role {
+            Role::System => TranscriptMessage {
+                kind: "system".to_string(),
+                text: m.content.clone(),
+            },
+            Role::User => {
+                let trimmed = m.content.trim_start();
+                let kind = if trimmed.starts_with("<tool_result>") {
+                    "tool_result"
+                } else {
+                    "user"
+                };
+                TranscriptMessage {
+                    kind: kind.to_string(),
+                    text: m.content.clone(),
+                }
+            }
+            Role::Assistant => TranscriptMessage {
+                kind: "assistant".to_string(),
+                text: m.content.clone(),
+            },
+        })
+        .collect()
+}
+
+/// Persist `messages` back to the active session file (no-op when
+/// incognito or when there is no active session).
+fn persist(state: &AppState, messages: &[Message]) {
+    if *state.incognito.lock().expect("incognito mutex poisoned") {
+        return;
+    }
+    if let Some(id) = state.session_id.lock().ok().and_then(|s| s.clone()) {
+        session::save_messages(&id, messages);
+    }
+}
+
+/// Drop everything except the system prompt. Does **not** delete the
+/// session file — the next turn writes a fresh transcript over the top.
+/// Mirrors the CLI's `/clear` semantics.
+#[tauri::command]
+pub fn clear_chat(state: State<'_, Arc<AppState>>) -> Result<TranscriptUpdate, String> {
+    let mut msgs = state
+        .messages
+        .lock()
+        .map_err(|_| "messages mutex poisoned".to_string())?;
+    let system = msgs
+        .iter()
+        .find(|m| matches!(m.role, Role::System))
+        .cloned()
+        .unwrap_or_else(|| Message {
+            role: Role::System,
+            content: run::build_system_prompt(),
+            images: vec![],
+        });
+    *msgs = vec![system];
+    let projected = project(&msgs);
+    persist(&state, &msgs);
+    Ok(TranscriptUpdate {
+        messages: projected,
+        prompt: None,
+        popped: 0,
+    })
+}
+
+/// Pop the most recent user/assistant exchange and surface the original
+/// prompt back to the composer so the user can edit-and-resend (or just
+/// hit ↩ to fire the same prompt again). Returns the updated transcript
+/// alongside the prompt; the webview clears the composer of any
+/// half-typed text and writes `prompt` in.
+#[tauri::command]
+pub fn retry_last(state: State<'_, Arc<AppState>>) -> Result<TranscriptUpdate, String> {
+    let mut msgs = state
+        .messages
+        .lock()
+        .map_err(|_| "messages mutex poisoned".to_string())?;
+    let prompt =
+        transcript::retry_last_exchange(&mut msgs).ok_or_else(|| "nothing to retry".to_string())?;
+    let projected = project(&msgs);
+    persist(&state, &msgs);
+    Ok(TranscriptUpdate {
+        messages: projected,
+        prompt: Some(prompt),
+        popped: 1,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct UndoArgs {
+    /// Number of turns to peel off the end. Defaults to 1 to match
+    /// `/undo` with no argument; the sidebar lets the user request more.
+    #[serde(default = "default_undo_n")]
+    pub n: usize,
+}
+
+fn default_undo_n() -> usize {
+    1
+}
+
+#[tauri::command]
+pub fn undo_last(
+    state: State<'_, Arc<AppState>>,
+    args: UndoArgs,
+) -> Result<TranscriptUpdate, String> {
+    let n = args.n.max(1);
+    let mut msgs = state
+        .messages
+        .lock()
+        .map_err(|_| "messages mutex poisoned".to_string())?;
+    let popped = transcript::undo_turns(&mut msgs, n);
+    if popped == 0 {
+        return Err("nothing to undo".to_string());
+    }
+    let projected = project(&msgs);
+    persist(&state, &msgs);
+    Ok(TranscriptUpdate {
+        messages: projected,
+        prompt: None,
+        popped,
+    })
 }

@@ -1,13 +1,21 @@
 import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { Component } from "solid-js";
 
-import { ipc, type AgentEvent, type WorkspaceState } from "./lib/ipc";
+import {
+  ipc,
+  type ActiveSession,
+  type AgentEvent,
+  type LoadedMessage,
+  type TranscriptMessage,
+  type WorkspaceState,
+} from "./lib/ipc";
 import Chat from "./components/Chat";
 import Composer from "./components/Composer";
 import ToolApproval from "./components/ToolApproval";
 import EmptyWorkspace from "./components/EmptyWorkspace";
 import Titlebar from "./components/Titlebar";
 import Sidebar from "./components/Sidebar";
+import Toolbar from "./components/Toolbar";
 
 export type Message =
   | { kind: "user"; text: string }
@@ -23,6 +31,24 @@ export interface PendingApproval {
   input: string;
 }
 
+/// Bridge between the Rust-side session projection (system/user/assistant/
+/// tool_result) and the webview-side `Message` discriminated union. The
+/// system prompt is kept in the engine-side transcript but hidden in the
+/// chat surface — it would just be noise in a UI scrollback.
+const projectFromBackend = (rows: LoadedMessage[] | TranscriptMessage[]): Message[] => {
+  const out: Message[] = [];
+  for (const m of rows) {
+    if (m.kind === "system") continue;
+    if (m.kind === "user") out.push({ kind: "user", text: m.text });
+    else if (m.kind === "assistant") out.push({ kind: "assistant", text: m.text });
+    else if (m.kind === "tool_result") {
+      const trimmed = m.text.replace(/^<tool_result>\n?/, "").replace(/\n?<\/tool_result>\s*$/, "");
+      out.push({ kind: "tool", tool: "tool", input: "", result: trimmed });
+    }
+  }
+  return out;
+};
+
 const App: Component = () => {
   const [workspace, setWorkspace] = createSignal<WorkspaceState>({
     path: null,
@@ -36,7 +62,15 @@ const App: Component = () => {
   const [pending, setPending] = createSignal<PendingApproval | null>(null);
   const [sidebarVisible, setSidebarVisible] = createSignal(true);
   const [autoAccept, setAutoAccept] = createSignal(false);
+  const [activeSession, setActiveSession] = createSignal<ActiveSession>({
+    id: null,
+    name: null,
+    incognito: false,
+  });
+  const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
+  const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
 
+  const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
 
   const handleEvent = (e: AgentEvent) => {
@@ -55,9 +89,6 @@ const App: Component = () => {
         setStreamBuffer((b) => b + e.text);
         break;
       case "stream_suspend":
-        // Suspend means "next tokens are tool XML — don't show them" —
-        // the engine has already filtered them out before this event
-        // fires, so the surface just freezes the current buffer.
         break;
       case "stream_end": {
         const final = streamBuffer();
@@ -66,6 +97,11 @@ const App: Component = () => {
         }
         setStreaming(false);
         setStreamBuffer("");
+        // The backend just appended an assistant message and persisted
+        // the transcript; refresh the sidebar so size/mtime update and
+        // the active session shows up if this was the first turn.
+        bumpSessions();
+        void ipc.getActiveSession().then(setActiveSession);
         break;
       }
       case "reasoning":
@@ -75,9 +111,6 @@ const App: Component = () => {
         append({ kind: "tool", tool: e.tool, input: e.input });
         break;
       case "tool_result": {
-        // Attach the result to the most recent tool message if it
-        // doesn't already have one. Otherwise emit as a fresh entry —
-        // shouldn't happen but keeps the UI honest.
         setMessages((prev) => {
           const next = [...prev];
           for (let i = next.length - 1; i >= 0; i--) {
@@ -95,9 +128,6 @@ const App: Component = () => {
         setPending({ id: e.id, tool: e.tool, input: e.input });
         break;
       case "answer":
-        // Streaming path already emitted the answer via stream_end. The
-        // non-streaming path (e.g. provider that doesn't support SSE)
-        // emits `answer` without ever streaming.
         if (!streaming() && streamBuffer() === "") {
           append({ kind: "assistant", text: e.text });
         }
@@ -111,8 +141,6 @@ const App: Component = () => {
         append({ kind: "warning", text: e.text });
         break;
       default:
-        // token_usage / summary / progress are emitted by the engine
-        // but not yet rendered — Phase 6 wires up the stats sidebar.
         break;
     }
   };
@@ -120,8 +148,9 @@ const App: Component = () => {
   onMount(async () => {
     try {
       setWorkspace(await ipc.getWorkspace());
+      setActiveSession(await ipc.getActiveSession());
     } catch (err) {
-      append({ kind: "error", text: `failed to read workspace: ${err}` });
+      append({ kind: "error", text: `failed to read app state: ${err}` });
     }
 
     const onKey = (e: KeyboardEvent) => {
@@ -133,11 +162,6 @@ const App: Component = () => {
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
 
-    // Markdown bodies use `innerHTML`, so we can't bind per-link click
-    // handlers at render time. A single delegated listener catches every
-    // anchor click that bubbles to the document, hands the URL off to
-    // the OS default browser via the Rust opener command, and stops the
-    // webview from navigating away from the chat surface.
     const onClick = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
@@ -184,10 +208,6 @@ const App: Component = () => {
   };
 
   const stop = async () => {
-    // Optimistically clear UI state so the composer unlocks immediately.
-    // The backend cancels the turn asynchronously; without this, in-flight
-    // spinner_start / stream_begin events leave busy()/streaming() pinned
-    // because their matching stop/end events never fire after the abort.
     const partial = streamBuffer();
     if (partial.trim().length > 0) {
       append({ kind: "assistant", text: partial });
@@ -226,6 +246,116 @@ const App: Component = () => {
     }
   };
 
+  const switchToSession = async (id: string) => {
+    try {
+      const result = await ipc.loadSession(id);
+      setMessages(projectFromBackend(result.messages));
+      setActiveSession({
+        id: result.id,
+        name: result.name,
+        incognito: false,
+      });
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `failed to load session: ${err}` });
+    }
+  };
+
+  const startNewSession = async () => {
+    try {
+      await ipc.newSession();
+      setMessages([]);
+      setStreamBuffer("");
+      setStreaming(false);
+      setActiveSession({ id: null, name: null, incognito: false });
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const startIncognito = async () => {
+    try {
+      await ipc.newIncognitoSession();
+      setMessages([]);
+      setStreamBuffer("");
+      setStreaming(false);
+      setActiveSession({ id: null, name: null, incognito: true });
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const deleteSession = async (id: string) => {
+    try {
+      await ipc.deleteSession(id);
+      const cur = activeSession();
+      if (cur.id === id) {
+        setMessages([]);
+        setActiveSession({ id: null, name: null, incognito: false });
+      }
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const clearAllSessions = async () => {
+    try {
+      await ipc.clearSessions();
+      setMessages([]);
+      setActiveSession({ id: null, name: null, incognito: false });
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const renameSession = async (id: string, name: string) => {
+    try {
+      await ipc.renameSession(id, name);
+      bumpSessions();
+      if (activeSession().id === id) {
+        setActiveSession(await ipc.getActiveSession());
+      }
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const clearChat = async () => {
+    try {
+      const update = await ipc.clearChat();
+      setMessages(projectFromBackend(update.messages));
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const retryLast = async () => {
+    try {
+      const update = await ipc.retryLast();
+      setMessages(projectFromBackend(update.messages));
+      if (update.prompt !== null) {
+        setComposerPrefill(update.prompt);
+      }
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
+  const undoLast = async () => {
+    try {
+      const update = await ipc.undoLast(1);
+      setMessages(projectFromBackend(update.messages));
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
   const composerDisabled = createMemo(
     () => !workspace().path || busy() || streaming(),
   );
@@ -241,7 +371,16 @@ const App: Component = () => {
         sidebarVisible={sidebarVisible()}
         onToggleSidebar={() => setSidebarVisible((v) => !v)}
       />
-      <Sidebar />
+      <Sidebar
+        activeSession={activeSession()}
+        refreshKey={sessionRefreshKey()}
+        onSelectSession={switchToSession}
+        onNewSession={startNewSession}
+        onNewIncognito={startIncognito}
+        onDeleteSession={deleteSession}
+        onClearAll={clearAllSessions}
+        onRenameSession={renameSession}
+      />
       <main class="main">
         <Show
           when={workspace().path}
@@ -253,6 +392,14 @@ const App: Component = () => {
           }
         >
           <div class="chat">
+            <Toolbar
+              activeSession={activeSession()}
+              messageCount={messages().length}
+              turnInFlight={turnInFlight()}
+              onClear={clearChat}
+              onRetry={retryLast}
+              onUndo={undoLast}
+            />
             <Chat
               messages={messages()}
               streamingText={streamBuffer()}
@@ -264,6 +411,8 @@ const App: Component = () => {
               onSend={send}
               autoAccept={autoAccept()}
               onAutoAcceptChange={setAutoAccept}
+              prefill={composerPrefill()}
+              onPrefillConsumed={() => setComposerPrefill(null)}
             />
           </div>
         </Show>

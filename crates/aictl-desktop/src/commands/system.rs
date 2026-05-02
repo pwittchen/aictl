@@ -41,7 +41,9 @@ pub fn open_url(app: AppHandle, url: String) -> Result<(), String> {
         || trimmed.starts_with("https://")
         || trimmed.starts_with("mailto:");
     if !allowed {
-        return Err(format!("refusing to open url with disallowed scheme: {url}"));
+        return Err(format!(
+            "refusing to open url with disallowed scheme: {url}"
+        ));
     }
     app.opener()
         .open_url(trimmed, None::<&str>)

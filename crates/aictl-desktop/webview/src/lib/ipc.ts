@@ -47,6 +47,35 @@ export interface SessionRow {
   name: string | null;
   size: number;
   modified_secs: number;
+  active: boolean;
+}
+
+export interface LoadedMessage {
+  kind: "system" | "user" | "assistant" | "tool_result";
+  text: string;
+}
+
+export interface LoadSessionResult {
+  id: string;
+  name: string | null;
+  messages: LoadedMessage[];
+}
+
+export interface ActiveSession {
+  id: string | null;
+  name: string | null;
+  incognito: boolean;
+}
+
+export interface TranscriptMessage {
+  kind: "system" | "user" | "assistant" | "tool_result";
+  text: string;
+}
+
+export interface TranscriptUpdate {
+  messages: TranscriptMessage[];
+  prompt: string | null;
+  popped: number;
 }
 
 export type ToolDecision = "allow" | "deny" | "auto_accept";
@@ -74,11 +103,10 @@ export const ipc = {
   },
 
   // -- chat ----
-  async sendMessage(text: string, autoAccept: boolean, sessionId?: string) {
+  async sendMessage(text: string, autoAccept: boolean) {
     return invoke<void>("send_message", {
       args: {
         text,
-        session_id: sessionId ?? null,
         auto_accept: autoAccept,
       },
     });
@@ -91,19 +119,40 @@ export const ipc = {
       args: { id, decision },
     });
   },
+  async clearChat() {
+    return invoke<TranscriptUpdate>("clear_chat");
+  },
+  async retryLast() {
+    return invoke<TranscriptUpdate>("retry_last");
+  },
+  async undoLast(n = 1) {
+    return invoke<TranscriptUpdate>("undo_last", { args: { n } });
+  },
 
   // -- sessions ----
   async listSessions() {
     return invoke<SessionRow[]>("list_sessions");
   },
   async loadSession(id: string) {
-    return invoke<string>("load_session", { id });
+    return invoke<LoadSessionResult>("load_session", { id });
   },
   async deleteSession(id: string) {
     return invoke<void>("delete_session", { id });
   },
+  async clearSessions() {
+    return invoke<void>("clear_sessions");
+  },
+  async renameSession(id: string, name: string) {
+    return invoke<void>("rename_session", { args: { id, name } });
+  },
+  async newSession() {
+    return invoke<void>("new_session");
+  },
   async newIncognitoSession() {
     return invoke<void>("new_incognito_session");
+  },
+  async getActiveSession() {
+    return invoke<ActiveSession>("get_active_session");
   },
 
   // -- models ----

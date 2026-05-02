@@ -41,6 +41,7 @@ pub mod session;
 pub mod skills;
 pub mod stats;
 pub mod tools;
+pub mod transcript;
 pub mod ui;
 
 /// Engine version string, exposed for User-Agent headers and protocol

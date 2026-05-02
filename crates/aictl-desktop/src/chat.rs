@@ -12,6 +12,7 @@ use aictl_core::error::AictlError;
 use aictl_core::keys;
 use aictl_core::message::{Message, Role};
 use aictl_core::run::{self, MemoryMode, Provider};
+use aictl_core::session;
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -20,7 +21,6 @@ use crate::ui::DesktopUI;
 
 pub struct ChatRequest {
     pub user_message: String,
-    pub session_id: Option<String>,
     /// When `true`, every tool call in this turn is auto-approved and the
     /// engine emits `show_auto_tool` instead of routing through
     /// `confirm_tool_async`. Set per-send from the composer's checkbox; a
@@ -47,16 +47,28 @@ pub async fn run_turn(
         }
     };
 
-    // Conversation history. v1 does not persist sessions on the desktop
-    // (deferred to Phase 3) — each turn starts fresh, seeded with the
-    // system prompt at index 0. `run_agent_turn` does not prepend it
-    // itself; without this seed the model never sees the tool catalog
-    // and `windowed_messages` (ShortTerm memory) blows past `messages[0]`.
-    let mut messages: Vec<Message> = vec![Message {
-        role: Role::System,
-        content: run::build_system_prompt(),
-        images: vec![],
-    }];
+    // Build the working transcript. Three cases:
+    //   * Fresh session — no id, no in-memory history. Mint an id (unless
+    //     incognito), seed the system prompt, set it as `current` so
+    //     `session::save_current` from inside the engine (e.g. compaction)
+    //     lands on the right file.
+    //   * Existing session, in-memory cache populated — reuse as-is.
+    //   * Existing session, cold cache (process restart, sidebar load) —
+    //     `commands::sessions::load_session` already rehydrated
+    //     `state.messages`; we just borrow it.
+    //
+    // The agent loop appends messages in place. After the turn we save
+    // back through `session::save_messages` so the next turn (or the
+    // next process invocation) sees the same transcript.
+    let session_id = ensure_session(&state);
+    let mut messages = take_messages(&state);
+    if messages.is_empty() {
+        messages.push(Message {
+            role: Role::System,
+            content: run::build_system_prompt(),
+            images: vec![],
+        });
+    }
     let mut auto = req.auto_accept;
 
     let turn = run::run_agent_turn(
@@ -86,7 +98,16 @@ pub async fn run_turn(
         () = cancel.cancelled() => None,
     };
 
-    let _ = req.session_id; // session persistence: Phase 3.
+    // Whether the turn succeeded or was cancelled, persist whatever the
+    // agent loop appended so the user doesn't lose mid-flight progress
+    // (a tool-approved file edit still happened on disk regardless of
+    // whether the assistant's reply finished). Skip when incognito.
+    if let Some(id) = session_id.as_deref()
+        && !*state.incognito.lock().expect("incognito mutex poisoned")
+    {
+        session::save_messages(id, &messages);
+    }
+    put_messages(&state, messages);
 
     // Clear the in-flight cancel slot regardless of how the turn ended.
     if let Ok(mut slot) = state.turn_cancel.lock() {
@@ -98,6 +119,38 @@ pub async fn run_turn(
         Some(Err(e)) => ui.emit_error(&format_err(&e)),
         None => ui.emit_warning("turn cancelled"),
     }
+}
+
+/// Make sure `state.session_id` is populated. Returns the active id, or
+/// `None` if the user is in incognito mode (in which case nothing is
+/// persisted to disk). Mints a fresh UUID when no session is active and
+/// not in incognito; mirrors the value into `aictl_core::session::CURRENT`
+/// so engine paths that reach for `session::current_id()` (compaction,
+/// audit log) see it too.
+fn ensure_session(state: &AppState) -> Option<String> {
+    let incognito = *state.incognito.lock().expect("incognito mutex poisoned");
+    session::set_incognito(incognito);
+    if incognito {
+        return None;
+    }
+    let mut slot = state.session_id.lock().expect("session-id mutex poisoned");
+    if let Some(id) = slot.as_ref() {
+        let name = session::name_for(id);
+        session::set_current(id.clone(), name);
+        return Some(id.clone());
+    }
+    let id = session::generate_uuid();
+    session::set_current(id.clone(), None);
+    *slot = Some(id.clone());
+    Some(id)
+}
+
+fn take_messages(state: &AppState) -> Vec<Message> {
+    std::mem::take(&mut *state.messages.lock().expect("messages mutex poisoned"))
+}
+
+fn put_messages(state: &AppState, msgs: Vec<Message>) {
+    *state.messages.lock().expect("messages mutex poisoned") = msgs;
 }
 
 fn resolve_provider_model_key() -> Result<(Provider, String, String), String> {
