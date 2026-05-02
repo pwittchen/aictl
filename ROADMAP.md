@@ -9,6 +9,7 @@
 - add possibility to add new agent on desktop (manually and generated)
 - add possibility to add new skill on desktop (maunally and generated)
 - add possibility to add MCP server on desktop
+- for desktop app, when workspace is not set, offer path: ~/.aictl/workspace/
 
 ## Desktop
 
