@@ -16,6 +16,7 @@ import EmptyWorkspace from "./components/EmptyWorkspace";
 import Titlebar from "./components/Titlebar";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
+import Settings from "./components/Settings";
 
 export type Message =
   | { kind: "user"; text: string }
@@ -69,6 +70,7 @@ const App: Component = () => {
   });
   const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
   const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
+  const [showSettings, setShowSettings] = createSignal(false);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -380,6 +382,7 @@ const App: Component = () => {
         onDeleteSession={deleteSession}
         onClearAll={clearAllSessions}
         onRenameSession={renameSession}
+        onOpenSettings={() => setShowSettings(true)}
       />
       <main class="main">
         <Show
@@ -426,6 +429,13 @@ const App: Component = () => {
             onAlways={() => respond("auto_accept")}
           />
         )}
+      </Show>
+      <Show when={showSettings()}>
+        <Settings
+          workspace={workspace()}
+          onPickWorkspace={pickWorkspace}
+          onClose={() => setShowSettings(false)}
+        />
       </Show>
     </div>
   );

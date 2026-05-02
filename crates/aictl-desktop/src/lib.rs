@@ -82,6 +82,14 @@ pub fn run() {
             commands::models::list_models,
             commands::models::get_active_model,
             commands::models::set_active_model,
+            commands::settings::config_dump,
+            commands::settings::config_value,
+            commands::settings::config_write,
+            commands::settings::config_clear,
+            commands::settings::keys_status,
+            commands::settings::keys_backend,
+            commands::settings::keys_set,
+            commands::settings::keys_clear,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

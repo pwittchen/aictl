@@ -180,6 +180,41 @@ fn delete_keyring(name: &str) -> Result<(), String> {
     }
 }
 
+/// Where a freshly-written secret was actually persisted, returned from
+/// [`set_secret`] so callers can surface the choice to the user.
+pub enum SetOutcome {
+    /// Stored in the system keyring.
+    Keyring,
+    /// Stored in plain `~/.aictl/config` because the keyring backend is
+    /// unavailable.
+    Plain,
+    /// Storage attempt failed; contains the underlying error message.
+    Error(String),
+}
+
+/// Persist a secret. Writes to the system keyring when it is available
+/// (and clears any plain-text shadow in `~/.aictl/config` so the two
+/// stores don't disagree) and falls back to plain config otherwise.
+/// Empty `value` is rejected — callers should reach for [`clear_key`]
+/// to delete a secret.
+pub fn set_secret(name: &str, value: &str) -> SetOutcome {
+    if value.is_empty() {
+        return SetOutcome::Error("value is empty".to_string());
+    }
+    if backend_available() {
+        if let Err(e) = set_keyring(name, value) {
+            return SetOutcome::Error(e);
+        }
+        // Drop any plain-text shadow so a future read doesn't surface
+        // the stale value via the config-fallback leg of `get_secret`.
+        config_unset(name);
+        SetOutcome::Keyring
+    } else {
+        config_set(name, value);
+        SetOutcome::Plain
+    }
+}
+
 /// Outcome of a single-key `lock` operation.
 pub enum LockOutcome {
     /// Migrated the key from config to keyring.

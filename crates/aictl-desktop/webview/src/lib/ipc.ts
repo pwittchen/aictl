@@ -90,6 +90,22 @@ export interface ActiveModel {
   model: string | null;
 }
 
+export interface ConfigEntry {
+  key: string;
+  value: string | null;
+}
+
+export interface KeyRow {
+  name: string;
+  label: string;
+  location: "unset" | "plain" | "keyring" | "both";
+}
+
+export interface KeyBackend {
+  available: boolean;
+  name: string;
+}
+
 export const ipc = {
   // -- workspace ----
   async getWorkspace() {
@@ -173,8 +189,37 @@ export const ipc = {
   async revealAuditLog() {
     return invoke<string>("reveal_audit_log");
   },
+  async revealConfigDir() {
+    return invoke<string>("reveal_config_dir");
+  },
   async openUrl(url: string) {
     return invoke<void>("open_url", { url });
+  },
+
+  // -- settings ----
+  async configDump() {
+    return invoke<ConfigEntry[]>("config_dump");
+  },
+  async configValue(key: string) {
+    return invoke<string | null>("config_value", { args: { key } });
+  },
+  async configWrite(key: string, value: string) {
+    return invoke<void>("config_write", { args: { key, value } });
+  },
+  async configClear(key: string) {
+    return invoke<boolean>("config_clear", { args: { key } });
+  },
+  async keysStatus() {
+    return invoke<KeyRow[]>("keys_status");
+  },
+  async keysBackend() {
+    return invoke<KeyBackend>("keys_backend");
+  },
+  async keysSet(name: string, value: string) {
+    return invoke<string>("keys_set", { args: { name, value } });
+  },
+  async keysClear(name: string) {
+    return invoke<string>("keys_clear", { args: { name } });
   },
 
   // -- events ----

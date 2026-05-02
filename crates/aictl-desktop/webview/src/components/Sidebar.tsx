@@ -14,6 +14,7 @@ interface Props {
   onDeleteSession: (id: string) => void | Promise<void>;
   onClearAll: () => void | Promise<void>;
   onRenameSession: (id: string, name: string) => void | Promise<void>;
+  onOpenSettings: () => void;
 }
 
 const fmtRelative = (secs: number): string => {
@@ -260,12 +261,7 @@ const Sidebar: Component<Props> = (props) => {
         <button
           type="button"
           class="bottom-item"
-          onClick={() => {
-            // Settings UI lands in Phase 5 of the desktop plan. Keeping
-            // the button visible now so the layout doesn't shift when
-            // the pane is implemented.
-            console.info("settings UI is not yet implemented");
-          }}
+          onClick={() => props.onOpenSettings()}
         >
           Settings
         </button>
