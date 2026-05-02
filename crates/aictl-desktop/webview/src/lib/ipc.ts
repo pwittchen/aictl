@@ -193,10 +193,10 @@ export const ipc = {
     return invoke<string>("version");
   },
   async revealAuditLog() {
-    return invoke<string>("reveal_audit_log");
+    return invoke<void>("reveal_audit_log");
   },
   async revealConfigDir() {
-    return invoke<string>("reveal_config_dir");
+    return invoke<void>("reveal_config_dir");
   },
   async openUrl(url: string) {
     return invoke<void>("open_url", { url });

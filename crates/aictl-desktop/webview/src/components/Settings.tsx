@@ -807,12 +807,14 @@ const BoolRow: Component<{
 
 const AboutTab: Component = () => {
   const [version] = createResource<string>(() => ipc.version());
+  const [error, setError] = createSignal<string | null>(null);
   const reveal = async (kind: "audit" | "config") => {
+    setError(null);
     try {
       if (kind === "audit") await ipc.revealAuditLog();
       else await ipc.revealConfigDir();
     } catch (err) {
-      console.warn(err);
+      setError(`${err}`);
     }
   };
   return (
@@ -825,11 +827,22 @@ const AboutTab: Component = () => {
         </div>
       </div>
       <div class="settings-row">
-        <label>Project</label>
+        <label>Website</label>
         <div class="settings-value">
-          <a href="https://github.com/aictl/aictl">github.com/aictl/aictl</a>
+          <a href="https://aictl.app">aictl.app</a>
         </div>
       </div>
+      <div class="settings-row">
+        <label>Source</label>
+        <div class="settings-value">
+          <a href="https://github.com/pwittchen/aictl">
+            github.com/pwittchen/aictl
+          </a>
+        </div>
+      </div>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
       <div class="settings-actions">
         <button type="button" onClick={() => void reveal("config")}>
           Reveal config in Finder

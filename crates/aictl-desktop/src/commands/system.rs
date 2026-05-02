@@ -11,7 +11,7 @@ pub fn version() -> String {
 }
 
 #[tauri::command]
-pub fn reveal_audit_log() -> Result<PathBuf, String> {
+pub fn reveal_audit_log(app: AppHandle) -> Result<(), String> {
     let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
     let path = PathBuf::from(home).join(".aictl/audit");
     if !path.exists() {
@@ -20,13 +20,24 @@ pub fn reveal_audit_log() -> Result<PathBuf, String> {
             path.display()
         ));
     }
-    Ok(path)
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| format!("failed to reveal {}: {e}", path.display()))
 }
 
 #[tauri::command]
-pub fn reveal_config_dir() -> Result<PathBuf, String> {
+pub fn reveal_config_dir(app: AppHandle) -> Result<(), String> {
     let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    Ok(PathBuf::from(home).join(".aictl"))
+    let path = PathBuf::from(home).join(".aictl");
+    if !path.exists() {
+        return Err(format!(
+            "config directory '{}' does not exist yet",
+            path.display()
+        ));
+    }
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| format!("failed to reveal {}: {e}", path.display()))
 }
 
 /// Open a URL in the user's default browser instead of navigating the
