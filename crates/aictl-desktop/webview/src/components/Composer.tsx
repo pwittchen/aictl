@@ -124,6 +124,7 @@ const Composer: Component<Props> = (props) => {
           class="model-picker"
           value={active()}
           onChange={onModelChange}
+          disabled={props.disabled}
           title={pickerError() ?? "Switch active model"}
         >
           <Show when={!active()}>
@@ -147,6 +148,7 @@ const Composer: Component<Props> = (props) => {
           class="auto-accept"
           value={props.autoAccept ? "auto" : "ask"}
           onChange={(e) => props.onAutoAcceptChange(e.currentTarget.value === "auto")}
+          disabled={props.disabled}
           title="Choose whether tool calls auto-approve or ask for confirmation."
         >
           <option value="ask">Ask for tools</option>

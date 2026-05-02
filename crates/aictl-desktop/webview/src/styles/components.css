@@ -346,6 +346,12 @@
   border-color: var(--accent, var(--fg));
 }
 
+.composer .model-picker[disabled],
+.composer .auto-accept[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .composer .auto-accept {
   margin-left: auto;
   padding: 5px 26px 5px 8px;
