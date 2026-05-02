@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use aictl_core::error::AictlError;
 use aictl_core::keys;
-use aictl_core::message::Message;
+use aictl_core::message::{Message, Role};
 use aictl_core::run::{self, MemoryMode, Provider};
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
@@ -43,10 +43,15 @@ pub async fn run_turn(
     };
 
     // Conversation history. v1 does not persist sessions on the desktop
-    // (deferred to Phase 3) — each turn starts from an empty Vec. When
-    // session persistence lands, this is where we'd hydrate from
-    // `aictl_core::session::load`.
-    let mut messages: Vec<Message> = vec![];
+    // (deferred to Phase 3) — each turn starts fresh, seeded with the
+    // system prompt at index 0. `run_agent_turn` does not prepend it
+    // itself; without this seed the model never sees the tool catalog
+    // and `windowed_messages` (ShortTerm memory) blows past `messages[0]`.
+    let mut messages: Vec<Message> = vec![Message {
+        role: Role::System,
+        content: run::build_system_prompt(),
+        images: vec![],
+    }];
     let mut auto = false;
 
     let turn = run::run_agent_turn(
