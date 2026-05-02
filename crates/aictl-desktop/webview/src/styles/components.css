@@ -42,7 +42,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 0 var(--space-4);
+  /* Right padding matches the chat toolbar's so the Stop button's right
+     border lines up vertically with the Clear/Retry/Undo cluster
+     beneath it. Left padding stays narrower because the brand sits
+     after the macOS traffic-lights gutter, not flush left. */
+  padding: 0 var(--space-5) 0 var(--space-4);
   height: 100%;
   pointer-events: none;
 }
