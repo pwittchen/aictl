@@ -700,11 +700,11 @@
   cursor: not-allowed;
 }
 
-/* Auto-accept toggle: a single SVG button. Gray = ask each tool call,
-   cyan = auto-accept enabled. The confirmation message floats over
-   the chat surface (see `.auto-accept-toast`) so the icon stays
-   compact. */
-.composer .auto-accept-icon {
+/* Agent picker — sparkles icon. Anchors the right-hand icon cluster
+   (agent / skill / auto-accept), so it carries the `margin-left: auto`
+   that pushes everything that follows up against the right edge.
+   Visual treatment matches `.skill-icon` so the row reads as a set. */
+.composer .agent-icon {
   margin-left: auto;
   background: transparent;
   border: 0;
@@ -719,9 +719,208 @@
   letter-spacing: 0;
 }
 
+.composer .agent-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .agent-icon:hover,
+.composer .agent-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .agent-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .agent-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .agent-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Skill picker — bolt icon next to the auto-accept toggle. Same
+   transparent → cyan treatment so the two icons share a vocabulary;
+   the active state pins on the loaded skill rather than auto-accept. */
+.composer .skill-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.composer .skill-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .skill-icon:hover,
+.composer .skill-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .skill-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .skill-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .skill-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Floating skill menu. Anchored to the composer footer so it pops up
+   above the bolt icon. position:absolute keeps it out of the layout
+   flow, the bottom offset (composer footer + padding) parks it just
+   over the textarea. */
+.composer {
+  position: relative;
+}
+
+.composer .skill-menu {
+  position: absolute;
+  bottom: calc(var(--space-3) + 32px);
+  right: var(--space-6);
+  z-index: 90;
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.composer .skill-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+}
+
+.composer .skill-menu-clear {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.composer .skill-menu-clear:hover {
+  text-decoration: underline;
+}
+
+.composer .skill-menu-error,
+.composer .skill-menu-empty {
+  padding: var(--space-3);
+  color: var(--fg-faint);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.composer .skill-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.composer .skill-menu-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  cursor: pointer;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.composer .skill-menu-item:hover {
+  background: var(--surface);
+}
+
+.composer .skill-menu-item[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .skill-menu-item[data-active="true"]::before {
+  content: "✓ ";
+}
+
+.composer .skill-menu-item-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.composer .skill-menu-item-desc {
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Auto-accept toggle: a single SVG button. Gray = ask each tool call,
+   cyan = auto-accept enabled. The confirmation message floats over
+   the chat surface (see `.auto-accept-toast`) so the icon stays
+   compact. */
+.composer .auto-accept-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .composer .auto-accept-icon svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   display: block;
 }
 

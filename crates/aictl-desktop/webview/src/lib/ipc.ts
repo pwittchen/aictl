@@ -456,6 +456,15 @@ export const ipc = {
   async skillView(name: string, origin: string) {
     return invoke<SkillView>("skill_view", { args: { name, origin } });
   },
+  async skillLoad(name: string) {
+    return invoke<void>("skill_load", { args: { name } });
+  },
+  async skillUnload() {
+    return invoke<void>("skill_unload");
+  },
+  async skillLoaded() {
+    return invoke<string | null>("skill_loaded");
+  },
 
   // -- agents ----
   async agentsList() {
@@ -466,6 +475,15 @@ export const ipc = {
   },
   async agentView(name: string, origin: string) {
     return invoke<AgentView>("agent_view", { args: { name, origin } });
+  },
+  async agentLoad(name: string) {
+    return invoke<void>("agent_load", { args: { name } });
+  },
+  async agentUnload() {
+    return invoke<void>("agent_unload");
+  },
+  async agentLoaded() {
+    return invoke<string | null>("agent_loaded");
   },
 
   // -- plugins ----

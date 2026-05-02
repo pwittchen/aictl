@@ -45,6 +45,13 @@ pub struct AppState {
     pub incognito: Mutex<bool>,
     /// In-flight tool-approval requests, keyed by id.
     pub pending_approvals: Mutex<HashMap<ApprovalId, oneshot::Sender<ToolApproval>>>,
+    /// Name of the skill the user has loaded via the composer's skill
+    /// picker. `Some(name)` causes `chat::run_turn` to resolve the skill
+    /// through `aictl_core::skills::find` and pass it to the engine for
+    /// each turn until the user clears it. Skill bodies are looked up
+    /// fresh each turn so on-disk edits show up without a desktop
+    /// restart.
+    pub loaded_skill: Mutex<Option<String>>,
     /// Monotonic counter feeding [`AppState::pending_approvals`].
     next_approval_id: AtomicU64,
     /// Monotonic counter feeding [`aictl_core::ui::events::AgentEvent::ProgressBegin`].
@@ -66,6 +73,7 @@ impl AppState {
             messages: Mutex::new(Vec::new()),
             incognito: Mutex::new(false),
             pending_approvals: Mutex::new(HashMap::new()),
+            loaded_skill: Mutex::new(None),
             next_approval_id: AtomicU64::new(1),
             next_progress_id: AtomicU64::new(1),
             last_input_tokens: AtomicU64::new(0),

@@ -4,8 +4,13 @@
 //! specific entry. Authoring is left to the CLI / file system — the
 //! desktop pane is for inventory + cleanup.
 
+use std::sync::Arc;
+
 use aictl_core::skills;
 use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use crate::state::AppState;
 
 #[derive(Serialize)]
 pub struct SkillRow {
@@ -84,4 +89,51 @@ pub fn skill_view(args: SkillDeleteArgs) -> Result<SkillView, String> {
         raw,
         body: parsed.body,
     })
+}
+
+#[derive(Deserialize)]
+pub struct SkillLoadArgs {
+    pub name: String,
+}
+
+/// Pin `name` as the skill that prefixes the system prompt for every
+/// turn until [`skill_unload`] is called. The body is *not* cached —
+/// `chat::run_turn` re-resolves the file every turn so on-disk edits
+/// take effect immediately. Errors out when the skill no longer exists
+/// so the picker can surface a clear toast instead of silently failing.
+#[tauri::command]
+pub fn skill_load(state: State<'_, Arc<AppState>>, args: SkillLoadArgs) -> Result<(), String> {
+    if skills::find(&args.name).is_none() {
+        return Err(format!("skill '{}' not found", args.name));
+    }
+    let mut slot = state
+        .loaded_skill
+        .lock()
+        .map_err(|_| "loaded-skill mutex poisoned".to_string())?;
+    *slot = Some(args.name);
+    Ok(())
+}
+
+/// Drop the currently-loaded skill so the next turn runs against the
+/// stock system prompt.
+#[tauri::command]
+pub fn skill_unload(state: State<'_, Arc<AppState>>) -> Result<(), String> {
+    let mut slot = state
+        .loaded_skill
+        .lock()
+        .map_err(|_| "loaded-skill mutex poisoned".to_string())?;
+    *slot = None;
+    Ok(())
+}
+
+/// Read the currently-loaded skill name (`None` when no skill is
+/// loaded). The webview calls this on mount so the icon's highlight
+/// state survives a window reload.
+#[tauri::command]
+pub fn skill_loaded(state: State<'_, Arc<AppState>>) -> Result<Option<String>, String> {
+    let slot = state
+        .loaded_skill
+        .lock()
+        .map_err(|_| "loaded-skill mutex poisoned".to_string())?;
+    Ok(slot.clone())
 }

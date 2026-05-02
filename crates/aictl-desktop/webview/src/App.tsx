@@ -87,6 +87,16 @@ const App: Component = () => {
     input: number;
     limit: number;
   } | null>(null);
+  // Skill currently pinned to every turn via the composer's bolt-icon
+  // picker. The backend persists the selection across IPC calls; we
+  // hydrate this on mount so the icon's highlight survives a window
+  // reload.
+  const [loadedSkill, setLoadedSkill] = createSignal<string | null>(null);
+  // Same idea for the agent slot — the engine keeps the agent in a
+  // process-wide static (`agents::LOADED_AGENT`), which the system
+  // prompt builder reads. We mirror the name here so the composer's
+  // sparkles icon can light up.
+  const [loadedAgent, setLoadedAgent] = createSignal<string | null>(null);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -257,6 +267,14 @@ const App: Component = () => {
     void refreshToolsEnabled();
     void refreshApprovalDefault();
     void refreshNotifications();
+    void ipc
+      .skillLoaded()
+      .then((name) => setLoadedSkill(name))
+      .catch(() => setLoadedSkill(null));
+    void ipc
+      .agentLoaded()
+      .then((name) => setLoadedAgent(name))
+      .catch(() => setLoadedAgent(null));
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission().catch(() => {});
     }
@@ -564,6 +582,10 @@ const App: Component = () => {
               models={models()}
               activeModel={activeModel()}
               onChangeModel={changeModel}
+              loadedSkill={loadedSkill()}
+              onLoadedSkillChange={setLoadedSkill}
+              loadedAgent={loadedAgent()}
+              onLoadedAgentChange={setLoadedAgent}
             />
           </div>
         </Show>

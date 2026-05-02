@@ -13,6 +13,7 @@ use aictl_core::keys;
 use aictl_core::message::{Message, Role};
 use aictl_core::run::{self, MemoryMode, Provider};
 use aictl_core::session;
+use aictl_core::skills;
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -71,6 +72,29 @@ pub async fn run_turn(
     }
     let mut auto = req.auto_accept;
 
+    // Re-resolve the loaded skill from disk every turn. The picker only
+    // stores a name, so on-disk edits to the SKILL.md show up without a
+    // desktop restart, and a missing skill (deleted out from under us)
+    // surfaces as a warning rather than silently sticking with stale
+    // state.
+    let turn_skill = {
+        let slot = state
+            .loaded_skill
+            .lock()
+            .expect("loaded-skill mutex poisoned");
+        slot.clone()
+    };
+    let resolved_skill = turn_skill.as_deref().and_then(|name| {
+        if let Some(s) = skills::find(name) {
+            Some(s)
+        } else {
+            ui.emit_warning(&format!(
+                "loaded skill '{name}' was not found on disk — running without it"
+            ));
+            None
+        }
+    });
+
     let turn = run::run_agent_turn(
         &provider,
         &api_key,
@@ -85,7 +109,7 @@ pub async fn run_turn(
         // markdown. The CLI's `--quiet` / non-TTY auto-disable doesn't
         // apply here.
         true,
-        None,
+        resolved_skill.as_ref(),
     );
 
     // Race the turn against the per-turn cancellation token. `stop_turn`
