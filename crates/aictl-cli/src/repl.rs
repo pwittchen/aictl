@@ -45,6 +45,23 @@ const PROMPT_FILL: &str = "\x1b[K";
 const PROMPT_RESET: &str = "\x1b[0m";
 const CURSOR_UP_2: &str = "\x1b[2A";
 
+// --- Persistence-redacted history ---
+
+/// Push an input line into rustyline's history with persistence-boundary
+/// redaction applied. The same scrubber that runs at session-save time
+/// runs here, so a leaked secret in a user prompt never lands in the
+/// in-memory recall buffer or in `~/.aictl/history` on the next exit.
+/// Slash commands rarely contain secrets but we run the helper on every
+/// input for one source of truth.
+fn add_redacted_history(
+    rl: &mut rustyline::Editor<SlashCommandHelper, rustyline::history::DefaultHistory>,
+    input: &str,
+) {
+    let pol = security::redaction::policy();
+    let redacted = security::redaction::redact_for_persistence(input, &pol);
+    let _ = rl.add_history_entry(redacted.as_deref().unwrap_or(input));
+}
+
 // --- Slash command tab completion ---
 
 pub(crate) struct SlashCommandHelper;
@@ -200,7 +217,7 @@ async fn handle_repl_input(
 
     let result = commands::handle(input, last_answer, &|msg| ui.show_error(msg));
     if matches!(result, commands::CommandResult::NotACommand) {
-        let _ = rl.add_history_entry(input);
+        add_redacted_history(rl, input);
         handle_user_turn(
             provider,
             api_key,
@@ -254,7 +271,7 @@ async fn dispatch_slash_command(
     if matches!(result, commands::CommandResult::Exit) {
         return ReplAction::Break;
     }
-    let _ = rl.add_history_entry(input);
+    add_redacted_history(rl, input);
 
     match result {
         commands::CommandResult::Exit | commands::CommandResult::NotACommand => unreachable!(),

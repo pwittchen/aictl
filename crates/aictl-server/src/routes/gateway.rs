@@ -162,7 +162,7 @@ fn apply_injection_guard(messages: &[Message]) -> Result<(), ApiError> {
 
 fn redact(messages: &[Message], provider: &Provider) -> Result<Vec<Message>, ApiError> {
     let pol = redaction::policy();
-    match aictl_core::run::redact_outbound(messages, pol, provider) {
+    match aictl_core::run::redact_outbound(messages, &pol, provider) {
         Ok(Some(rewritten)) => Ok(rewritten),
         Ok(None) => Ok(messages.to_vec()),
         Err(err) => Err(from_aictl_error(err)),

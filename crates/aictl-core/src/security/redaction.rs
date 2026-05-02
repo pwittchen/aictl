@@ -40,15 +40,23 @@
 //!
 //! # History boundary
 //!
-//! Redaction runs *at the network boundary* only. The persisted session
-//! file under `~/.aictl/sessions/` keeps the user's original text
-//! (the user already has the data locally; replaying a redacted session
-//! would be confusing). A transient redacted clone of the message slice
-//! is handed to the provider for that one call; the caller's mutable
-//! `Vec<Message>` is never mutated.
+//! Redaction runs at two seams:
+//!
+//! 1. *Network boundary.* A transient redacted clone of the message
+//!    slice is handed to the provider for one call; the caller's
+//!    mutable `Vec<Message>` is never mutated.
+//! 2. *Persistence boundary.* When mode is `redact` or `block`, the
+//!    same detector pipeline is run again as session messages are
+//!    serialized to disk and as REPL input lines are written to
+//!    `~/.aictl/history`, so a leaked secret can't sit in plaintext
+//!    in `~/.aictl/sessions/<id>` or be recalled from shell history.
+//!    `block` is treated as `redact` for this seam — the network call
+//!    has already aborted, but the user message that tripped the
+//!    block sits in `messages` and would otherwise hit disk verbatim.
+//!    Off mode short-circuits both seams.
 
 use std::ops::Range;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use regex::Regex;
 
@@ -307,7 +315,7 @@ impl RedactionPolicy {
     }
 }
 
-static POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
+static POLICY: RwLock<Option<Arc<RedactionPolicy>>> = RwLock::new(None);
 
 /// Initialize the redaction policy from config. Call once at startup
 /// after [`crate::config::load_config`]. Returns any warnings produced
@@ -317,17 +325,33 @@ static POLICY: OnceLock<RedactionPolicy> = OnceLock::new();
 #[must_use]
 pub fn init() -> Vec<String> {
     let (pol, warnings) = load_policy();
-    POLICY.set(pol).ok();
+    *POLICY.write().expect("redaction policy lock poisoned") = Some(Arc::new(pol));
     warnings
+}
+
+/// Re-read the policy from config and atomically replace the cached
+/// snapshot. The desktop calls this after the user changes redaction
+/// settings via the Settings tab so the new mode / detector list takes
+/// effect on the next outbound message without restarting the app. The
+/// CLI loads policy once at startup and does not call this.
+#[must_use]
+pub fn reload() -> Vec<String> {
+    init()
 }
 
 /// Access the global redaction policy. Returns an inert `Off` policy if
 /// `init()` has not been called (tests, defensive fallback).
-pub fn policy() -> &'static RedactionPolicy {
-    static DEFAULT: OnceLock<RedactionPolicy> = OnceLock::new();
+pub fn policy() -> Arc<RedactionPolicy> {
+    static DEFAULT: OnceLock<Arc<RedactionPolicy>> = OnceLock::new();
     POLICY
-        .get()
-        .unwrap_or_else(|| DEFAULT.get_or_init(RedactionPolicy::off))
+        .read()
+        .expect("redaction policy lock poisoned")
+        .clone()
+        .unwrap_or_else(|| {
+            DEFAULT
+                .get_or_init(|| Arc::new(RedactionPolicy::off()))
+                .clone()
+        })
 }
 
 fn load_policy() -> (RedactionPolicy, Vec<String>) {
@@ -488,6 +512,27 @@ pub fn redact(text: &str, pol: &RedactionPolicy) -> RedactionResult {
         }
         RedactionMode::Block => RedactionResult::Blocked { matches },
     }
+}
+
+/// Persistence-boundary redactor. Used when serializing session messages
+/// to `~/.aictl/sessions/<id>` and when writing REPL input lines to
+/// `~/.aictl/history`. Returns `None` when the input is unchanged
+/// (mode `Off`, empty text, or no matches) so the caller can avoid an
+/// allocation in the common case.
+///
+/// Differs from [`redact`] in two ways: `Block` mode is treated as
+/// `Redact` (the network call already aborted; the leaked text still
+/// needs scrubbing before disk), and the result is a plain `Option<String>`
+/// because callers at this seam never need the match list.
+pub fn redact_for_persistence(text: &str, pol: &RedactionPolicy) -> Option<String> {
+    if matches!(pol.mode, RedactionMode::Off) || text.is_empty() {
+        return None;
+    }
+    let matches = find_matches(text, pol);
+    if matches.is_empty() {
+        return None;
+    }
+    Some(apply_placeholders(text, &matches))
 }
 
 /// Render a short, non-sensitive description of the block-mode matches
@@ -1459,6 +1504,52 @@ mod tests {
     fn block_mode_clean_input_returns_clean() {
         let r = redact("all good here", &pol_block());
         assert!(matches!(r, RedactionResult::Clean));
+    }
+
+    // --- redact_for_persistence ---
+
+    #[test]
+    fn persistence_off_mode_returns_none() {
+        let r = redact_for_persistence(
+            "key sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb",
+            &pol_off(),
+        );
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn persistence_clean_text_returns_none() {
+        assert!(redact_for_persistence("hello world", &pol_redact()).is_none());
+    }
+
+    #[test]
+    fn persistence_empty_text_returns_none() {
+        assert!(redact_for_persistence("", &pol_redact()).is_none());
+        assert!(redact_for_persistence("", &pol_block()).is_none());
+    }
+
+    #[test]
+    fn persistence_redact_mode_substitutes_placeholders() {
+        let out = redact_for_persistence(
+            "use sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb please",
+            &pol_redact(),
+        )
+        .expect("expected a substitution");
+        assert!(out.contains("[REDACTED:API_KEY]"));
+        assert!(!out.contains("sk-proj-"));
+    }
+
+    #[test]
+    fn persistence_block_mode_still_redacts() {
+        // Block mode aborts the network call but at the persistence
+        // seam we still want placeholders rather than the raw secret.
+        let out = redact_for_persistence(
+            "use sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb please",
+            &pol_block(),
+        )
+        .expect("block mode still scrubs at the persistence seam");
+        assert!(out.contains("[REDACTED:API_KEY]"));
+        assert!(!out.contains("sk-proj-"));
     }
 
     // --- Describe / UTF-8 safety ---

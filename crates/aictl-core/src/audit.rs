@@ -116,12 +116,27 @@ fn truncate(s: &str, max: usize) -> String {
 /// (e.g. `--message` single-shot runs).
 pub fn log_tool(tool_call: &ToolCall, outcome: Outcome<'_>) {
     if !enabled() {
+        eprintln!(
+            "[audit-debug] log_tool({}) skipped: audit disabled",
+            tool_call.name
+        );
         return;
     }
     if session::is_incognito() {
+        eprintln!(
+            "[audit-debug] log_tool({}) skipped: incognito",
+            tool_call.name
+        );
         return;
     }
     let Some(path) = audit_file() else {
+        eprintln!(
+            "[audit-debug] log_tool({}) skipped: no audit_file (current_id={:?}, override={:?}, audit_dir={:?})",
+            tool_call.name,
+            session::current_id(),
+            override_path(),
+            audit_dir(),
+        );
         return;
     };
 
@@ -173,17 +188,30 @@ pub fn log_redaction(
     matches: &[Match],
 ) {
     if !enabled() {
+        eprintln!("[audit-debug] log_redaction skipped: audit disabled");
         return;
     }
     if session::is_incognito() {
+        eprintln!("[audit-debug] log_redaction skipped: incognito");
         return;
     }
     let Some(path) = audit_file() else {
+        eprintln!(
+            "[audit-debug] log_redaction skipped: no audit_file (current_id={:?}, override={:?}, audit_dir={:?})",
+            session::current_id(),
+            override_path(),
+            audit_dir(),
+        );
         return;
     };
     if matches.is_empty() {
         return;
     }
+    eprintln!(
+        "[audit-debug] log_redaction writing to {} ({} matches)",
+        path.display(),
+        matches.len()
+    );
 
     let mode_str = match mode {
         RedactionMode::Off => "off",

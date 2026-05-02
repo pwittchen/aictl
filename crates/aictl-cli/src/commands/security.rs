@@ -40,12 +40,12 @@ fn print_redaction_block(max_label: usize) {
         return;
     }
 
-    print_subrow(max_label, "local providers", local_providers_label(pol));
-    print_subrow(max_label, "redaction detectors", detectors_label(pol));
+    print_subrow(max_label, "local providers", local_providers_label(&pol));
+    print_subrow(max_label, "redaction detectors", detectors_label(&pol));
     print_subrow_styled(
         max_label,
         "custom patterns",
-        custom_patterns_label(pol),
+        custom_patterns_label(&pol),
         if pol.extra_patterns.is_empty() {
             Color::DarkGrey
         } else {
@@ -55,14 +55,14 @@ fn print_redaction_block(max_label: usize) {
     print_subrow_styled(
         max_label,
         "redaction allowlist",
-        allowlist_label(pol),
+        allowlist_label(&pol),
         if pol.allowlist.is_empty() {
             Color::DarkGrey
         } else {
             Color::Yellow
         },
     );
-    print_subrow_styled(max_label, "redaction ner", ner_label(pol), ner_color(pol));
+    print_subrow_styled(max_label, "redaction ner", ner_label(&pol), ner_color(&pol));
 }
 
 fn local_providers_label(pol: &RedactionPolicy) -> (String, Color) {

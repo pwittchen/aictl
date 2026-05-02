@@ -597,7 +597,7 @@ async fn handle_tool_call(
         let pol = redaction::policy();
         let mut result_content = output.text.clone();
         if matches!(pol.mode, RedactionMode::Block)
-            && let RedactionResult::Blocked { matches } = redaction::redact(&output.text, pol)
+            && let RedactionResult::Blocked { matches } = redaction::redact(&output.text, &pol)
         {
             audit::log_redaction(
                 RedactionDirection::Inbound,
@@ -812,7 +812,7 @@ pub async fn run_agent_turn(
         // never mutated — redaction is a transient, per-call
         // transformation.
         let redaction_pol = redaction::policy();
-        let redacted_buf = match redact_outbound(base_messages, redaction_pol, provider) {
+        let redacted_buf = match redact_outbound(base_messages, &redaction_pol, provider) {
             Ok(buf) => buf,
             Err(err) => {
                 ui.stop_spinner();

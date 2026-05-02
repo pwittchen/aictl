@@ -16,6 +16,7 @@
 
 use aictl_core::config::{self, AICTL_WORKING_DIR_DESKTOP};
 use aictl_core::keys::{self, ClearOutcome, KeyLocation, LockOutcome, SetOutcome, UnlockOutcome};
+use aictl_core::security::redaction;
 use aictl_core::tools::BUILTIN_TOOLS;
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +108,7 @@ pub fn config_write(args: ConfigSetArgs) -> Result<(), String> {
     } else {
         config::config_set(&args.key, &args.value);
     }
+    reload_policy_for(&args.key);
     Ok(())
 }
 
@@ -120,11 +122,34 @@ pub fn config_clear(args: ConfigUnsetArgs) -> Result<bool, String> {
     if !is_allowed(&args.key) {
         return Err(format!("config key '{}' is not user-settable", args.key));
     }
-    Ok(config::config_unset(&args.key))
+    let removed = config::config_unset(&args.key);
+    reload_policy_for(&args.key);
+    Ok(removed)
 }
 
 fn is_allowed(key: &str) -> bool {
     ALLOWED_CONFIG_KEYS.contains(&key) || key == AICTL_WORKING_DIR_DESKTOP
+}
+
+/// The CLI loads the redaction policy once at startup; the desktop is
+/// long-running, so a Settings-tab edit to a redaction key has to push
+/// the new mode / detector list into the cached policy or it would not
+/// take effect until the user restarts the app. Mirrors the boot-time
+/// `security::init()` warning suppression — settings-tab feedback is
+/// surfaced through the writer, not via this reload path.
+fn reload_policy_for(key: &str) {
+    let touches_redaction = matches!(
+        key,
+        "AICTL_SECURITY_REDACTION"
+            | "AICTL_SECURITY_REDACTION_LOCAL"
+            | "AICTL_REDACTION_DETECTORS"
+            | "AICTL_REDACTION_EXTRA_PATTERNS"
+            | "AICTL_REDACTION_ALLOW"
+            | "AICTL_REDACTION_NER"
+    );
+    if touches_redaction {
+        let _ = redaction::reload();
+    }
 }
 
 /// One row in the keys panel. Mirrors `aictl_core::keys::KEY_NAMES`

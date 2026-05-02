@@ -6,6 +6,7 @@ use std::sync::Mutex;
 
 use serde_json::{Value, json};
 
+use crate::security::redaction::{self, RedactionPolicy};
 use crate::{Message, Role};
 
 pub struct Session {
@@ -182,12 +183,29 @@ fn role_from(s: &str) -> Role {
     }
 }
 
-fn save_messages_at(path: &Path, id: &str, messages: &[Message]) {
+/// Build the on-disk JSON for a session with persistence-boundary
+/// redaction applied. Pulled out of [`save_messages_at`] so a test can
+/// drive it with an explicit policy without touching the global one.
+fn build_session_json(id: &str, messages: &[Message], pol: &RedactionPolicy) -> Value {
     let arr: Vec<Value> = messages
         .iter()
-        .map(|m| json!({"role": role_str(&m.role), "content": m.content}))
+        .map(|m| {
+            let scrubbed = redaction::redact_for_persistence(&m.content, pol);
+            let body = scrubbed.as_deref().unwrap_or(&m.content);
+            json!({"role": role_str(&m.role), "content": body})
+        })
         .collect();
-    let v = json!({"id": id, "messages": arr});
+    json!({"id": id, "messages": arr})
+}
+
+fn save_messages_at(path: &Path, id: &str, messages: &[Message]) {
+    // Persistence-boundary redaction: when the policy is `redact` or
+    // `block`, scrub each message body before it lands on disk so the
+    // session file mirrors what the network seam would have sent.
+    // When the policy is `off` (the default) the helper returns None
+    // for every message and we serialize the original content.
+    let pol = redaction::policy();
+    let v = build_session_json(id, messages, &pol);
     let _ = fs::write(path, serde_json::to_string_pretty(&v).unwrap_or_default());
 }
 
@@ -392,6 +410,61 @@ mod tests {
         ));
         // Unknown strings default to User.
         assert!(matches!(role_from("unknown"), Role::User));
+    }
+
+    #[test]
+    fn build_session_json_redacts_when_policy_is_redact() {
+        // Persistence-seam guard: a Redact (or Block) policy must
+        // scrub message bodies before they reach disk, even though
+        // the in-memory `Vec<Message>` is left untouched.
+        let messages = vec![
+            Message {
+                role: Role::System,
+                content: "system prompt — boring".to_string(),
+                images: vec![],
+            },
+            Message {
+                role: Role::User,
+                content: "my key is sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb"
+                    .to_string(),
+                images: vec![],
+            },
+        ];
+        let pol = RedactionPolicy {
+            mode: redaction::RedactionMode::Redact,
+            skip_local: true,
+            enabled_detectors: vec![],
+            extra_patterns: vec![],
+            allowlist: vec![],
+            ner_requested: false,
+        };
+        let v = build_session_json("abc", &messages, &pol);
+        let body = serde_json::to_string(&v).unwrap();
+        assert!(body.contains("[REDACTED:API_KEY]"));
+        assert!(!body.contains("sk-proj-"));
+        // System message stays as-is.
+        assert!(body.contains("system prompt — boring"));
+    }
+
+    #[test]
+    fn build_session_json_passes_through_when_policy_is_off() {
+        let messages = vec![Message {
+            role: Role::User,
+            content: "raw secret sk-proj-aaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbb".to_string(),
+            images: vec![],
+        }];
+        let pol = RedactionPolicy {
+            mode: redaction::RedactionMode::Off,
+            skip_local: true,
+            enabled_detectors: vec![],
+            extra_patterns: vec![],
+            allowlist: vec![],
+            ner_requested: false,
+        };
+        let v = build_session_json("abc", &messages, &pol);
+        let body = serde_json::to_string(&v).unwrap();
+        assert!(body.contains("sk-proj-"));
+        assert!(!body.contains("[REDACTED:"));
     }
 
     #[test]

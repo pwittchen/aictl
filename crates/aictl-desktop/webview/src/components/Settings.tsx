@@ -546,16 +546,6 @@ const SECURITY_BOOL_KEYS: { key: string; label: string; help: string }[] = [
     help: "Logs every tool call to ~/.aictl/audit/<session-id>. Useful for review; takes disk.",
   },
   {
-    key: "AICTL_SECURITY_REDACTION",
-    label: "Redact secrets to providers",
-    help: "Strip API keys, tokens, and other secrets from outbound LLM payloads.",
-  },
-  {
-    key: "AICTL_SECURITY_REDACTION_LOCAL",
-    label: "Apply redaction to local providers too",
-    help: "Off by default — Ollama / GGUF / MLX run on your machine.",
-  },
-  {
     key: "AICTL_SECURITY_CWD_RESTRICT",
     label: "Restrict tools to workspace folder",
     help: "When on, file-system tools refuse paths outside the workspace. Foundation of the CWD jail.",
@@ -883,9 +873,9 @@ const SecurityTab: Component = () => {
     <div class="settings-tab-content">
       <h3>Security</h3>
       <p class="settings-hint">
-        Master toggles for the security gate, audit log, prompt-injection
-        guard, and outbound redaction. Fine-grained shell / path /
-        redaction rules live in their own tabs.
+        Master toggles for the security gate, audit log, and prompt-injection
+        guard. Fine-grained shell / path rules live in their own tab;
+        outbound redaction has its own tab.
       </p>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
@@ -2805,6 +2795,12 @@ const RedactionTab: Component = () => {
     }
   };
 
+  const mode = () => {
+    const raw = get("AICTL_SECURITY_REDACTION").trim().toLowerCase();
+    if (raw === "redact" || raw === "block") return raw;
+    return "off";
+  };
+
   const detectorsRaw = () => get("AICTL_REDACTION_DETECTORS");
   const enabledSet = createMemo(() => {
     const raw = detectorsRaw();
@@ -2832,7 +2828,13 @@ const RedactionTab: Component = () => {
 
   const isOn = (key: string): boolean => {
     const v = get(key);
-    if (v === "") return key !== "AICTL_REDACTION_NER";
+    if (v === "") {
+      // These keys default to OFF when unset, mirroring the Rust policy.
+      return (
+        key !== "AICTL_REDACTION_NER" &&
+        key !== "AICTL_SECURITY_REDACTION_LOCAL"
+      );
+    }
     return v !== "false" && v !== "0";
   };
 
@@ -2840,9 +2842,9 @@ const RedactionTab: Component = () => {
     <div class="settings-tab-content">
       <h3>Redaction</h3>
       <p class="settings-hint">
-        Strip secrets from outbound LLM payloads. The master switch is
-        in General → Security; this tab tunes which detectors fire and
-        adds project-specific allow/deny patterns.
+        Strip secrets from outbound LLM payloads. Pick a mode below, then
+        tune which detectors fire and add project-specific allow/deny
+        patterns.
       </p>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
@@ -2850,6 +2852,37 @@ const RedactionTab: Component = () => {
       <Show when={feedback()}>
         <p class="settings-success">{feedback()}</p>
       </Show>
+
+      <h4 class="settings-subhead">Mode</h4>
+      <div class="settings-row settings-row-stack">
+        <label>Outbound redaction</label>
+        <div class="settings-control-line">
+          <select
+            class="settings-select"
+            value={mode()}
+            onChange={(e) => void setConfig(
+              "AICTL_SECURITY_REDACTION",
+              e.currentTarget.value === "off" ? "" : e.currentTarget.value,
+            )}
+          >
+            <option value="off">Off — pass through unchanged</option>
+            <option value="redact">Redact — replace matches with [REDACTED:&lt;KIND&gt;]</option>
+            <option value="block">Block — abort the turn on any match</option>
+          </select>
+        </div>
+        <p class="settings-hint">
+          Off is the default. Redact lets the turn continue with secrets
+          masked; Block aborts and surfaces the matched kinds.
+        </p>
+      </div>
+      <BoolRow
+        label="Apply redaction to local providers too"
+        help="Off by default — Ollama / GGUF / MLX run on your machine, so the network-boundary argument doesn't apply."
+        on={isOn("AICTL_SECURITY_REDACTION_LOCAL")}
+        onChange={(v) =>
+          void setConfig("AICTL_SECURITY_REDACTION_LOCAL", v ? "true" : "")
+        }
+      />
 
       <h4 class="settings-subhead">Built-in detectors</h4>
       <p class="settings-hint">
