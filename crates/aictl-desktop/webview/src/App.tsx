@@ -79,6 +79,14 @@ const App: Component = () => {
     provider: null,
     model: null,
   });
+  // Context-window usage — fed by the engine's `token_usage` event so
+  // the titlebar meter updates in real time. Null until the first turn
+  // emits a reading.
+  const [contextPct, setContextPct] = createSignal<number | null>(null);
+  const [contextTokens, setContextTokens] = createSignal<{
+    input: number;
+    limit: number;
+  } | null>(null);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -207,6 +215,20 @@ const App: Component = () => {
         break;
       case "warning":
         append({ kind: "warning", text: e.text });
+        break;
+      case "token_usage":
+        // Pin the latest reading on the titlebar meter. The engine
+        // already computed `context_pct` (max of token-usage % and
+        // message-buffer %), so we just relay it; the limit comes
+        // from a follow-up context_status fetch so the titlebar can
+        // also show the absolute "x / y tokens" tooltip.
+        setContextPct(Math.min(100, Math.max(0, e.context_pct)));
+        void ipc.contextStatus().then((c) => {
+          setContextTokens({
+            input: c.last_input_tokens,
+            limit: c.context_limit,
+          });
+        });
         break;
       default:
         break;
@@ -491,6 +513,8 @@ const App: Component = () => {
         onStop={stop}
         sidebarVisible={sidebarVisible()}
         onToggleSidebar={() => setSidebarVisible((v) => !v)}
+        contextPct={contextPct()}
+        contextTokens={contextTokens()}
       />
       <Sidebar
         activeSession={activeSession()}

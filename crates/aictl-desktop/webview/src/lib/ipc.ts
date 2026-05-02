@@ -25,7 +25,19 @@ export type AgentEvent =
   | { kind: "answer"; text: string }
   | { kind: "error"; text: string }
   | { kind: "warning"; text: string }
-  | { kind: "token_usage"; [k: string]: unknown }
+  | {
+      kind: "token_usage";
+      model: string;
+      final_answer: boolean;
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
+      tool_calls: number;
+      elapsed_ms: number;
+      context_pct: number;
+      memory: string;
+    }
   | { kind: "summary"; [k: string]: unknown }
   | { kind: "progress_begin"; id: number; label: string; total: number | null }
   | {

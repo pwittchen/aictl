@@ -10,6 +10,12 @@ interface Props {
   onStop: () => void;
   sidebarVisible: boolean;
   onToggleSidebar: () => void;
+  /// Most recent context-window usage as a 0..100 percentage. `null`
+  /// before the first turn finishes — the meter is hidden in that
+  /// state to avoid showing a 0% bar that doesn't reflect anything
+  /// real.
+  contextPct: number | null;
+  contextTokens: { input: number; limit: number } | null;
 }
 
 const Titlebar: Component<Props> = (props) => {
@@ -84,6 +90,12 @@ const Titlebar: Component<Props> = (props) => {
             </span>
           </Show>
         </div>
+        <Show when={props.contextPct !== null}>
+          <ContextMeter
+            pct={props.contextPct ?? 0}
+            tokens={props.contextTokens}
+          />
+        </Show>
         <button
           type="button"
           class="stop-button"
@@ -94,6 +106,35 @@ const Titlebar: Component<Props> = (props) => {
         </button>
       </div>
     </header>
+  );
+};
+
+const ContextMeter: Component<{
+  pct: number;
+  tokens: { input: number; limit: number } | null;
+}> = (props) => {
+  const tone = (): "ok" | "warn" | "danger" => {
+    if (props.pct >= 80) return "danger";
+    if (props.pct >= 50) return "warn";
+    return "ok";
+  };
+  const tooltip = () => {
+    const t = props.tokens;
+    if (!t) return `Context usage: ${props.pct}%`;
+    return `Context usage: ${props.pct}% — ${t.input.toLocaleString()} / ${t.limit.toLocaleString()} tokens`;
+  };
+  return (
+    <div class="titlebar-context" title={tooltip()}>
+      <span class="titlebar-context-label">ctx</span>
+      <div class="titlebar-context-bar">
+        <div
+          class="titlebar-context-fill"
+          data-tone={tone()}
+          style={{ width: `${Math.min(100, props.pct)}%` }}
+        />
+      </div>
+      <span class="titlebar-context-value">{props.pct}%</span>
+    </div>
   );
 };
 

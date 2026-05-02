@@ -119,8 +119,58 @@
   border-color: var(--accent-soft);
 }
 
+/* Context-window usage meter — rendered between the workspace pill
+   and the Stop button. Same tone palette as the Settings → Context
+   bar so the at-a-glance reading is consistent across the app. */
+.titlebar .titlebar-context {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--fg-soft);
+  pointer-events: auto;
+}
+
+.titlebar .titlebar-context-label {
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  letter-spacing: 0.1em;
+}
+
+.titlebar .titlebar-context-bar {
+  width: 70px;
+  height: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.titlebar .titlebar-context-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 160ms ease, background-color 160ms ease;
+}
+
+.titlebar .titlebar-context-fill[data-tone="warn"] {
+  background: #ffb454;
+}
+
+.titlebar .titlebar-context-fill[data-tone="danger"] {
+  background: var(--danger);
+}
+
+.titlebar .titlebar-context-value {
+  min-width: 30px;
+  text-align: right;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
 .titlebar .stop-button {
-  margin-left: auto;
   background: transparent;
   border: 1px solid var(--danger);
   color: var(--danger);
