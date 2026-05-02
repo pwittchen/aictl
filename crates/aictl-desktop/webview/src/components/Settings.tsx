@@ -1841,20 +1841,38 @@ const PromptViewer: Component<{
 };
 
 const SkillsTab: Component = () => {
-  const [skills, { refetch }] = createResource<SkillRow[]>(() =>
-    ipc.skillsList(),
-  );
+  // Plain signal instead of createResource — Delete needs a synchronous
+  // optimistic update, and a still-in-flight initial fetch from
+  // createResource can resolve *after* the delete and revive the row,
+  // forcing the user to click twice. Owning the list outright avoids
+  // that race entirely.
+  const [skills, setSkills] = createSignal<SkillRow[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
 
+  const load = async () => {
+    try {
+      setSkills(await ipc.skillsList());
+      setError(null);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+  void load();
+
   const remove = async (row: SkillRow) => {
     setError(null);
+    const previous = skills();
+    // Optimistic removal — the row vanishes the moment the click lands.
+    setSkills(
+      previous.filter((s) => !(s.name === row.name && s.origin === row.origin)),
+    );
     try {
       await ipc.skillDelete(row.name, row.origin);
-      await refetch();
       setFeedback(`deleted ${row.name}`);
     } catch (err) {
+      setSkills(previous);
       setError(`${err}`);
     }
   };
@@ -1956,20 +1974,35 @@ const SkillsTab: Component = () => {
 };
 
 const AgentsTab: Component = () => {
-  const [agents, { refetch }] = createResource<AgentRow[]>(() =>
-    ipc.agentsList(),
-  );
+  // See SkillsTab — plain signal to dodge the createResource race that
+  // otherwise re-introduces a deleted row when the initial fetch settles
+  // after the optimistic mutate.
+  const [agents, setAgents] = createSignal<AgentRow[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
 
+  const load = async () => {
+    try {
+      setAgents(await ipc.agentsList());
+      setError(null);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+  void load();
+
   const remove = async (row: AgentRow) => {
     setError(null);
+    const previous = agents();
+    setAgents(
+      previous.filter((a) => !(a.name === row.name && a.origin === row.origin)),
+    );
     try {
       await ipc.agentDelete(row.name, row.origin);
-      await refetch();
       setFeedback(`deleted ${row.name}`);
     } catch (err) {
+      setAgents(previous);
       setError(`${err}`);
     }
   };
