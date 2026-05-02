@@ -34,7 +34,7 @@ const Chat: Component<Props> = (props) => {
       <Show when={props.streaming}>
         <div class="message" data-role="assistant">
           <div class="meta">assistant · streaming</div>
-          <div class="body" innerHTML={streamingHtml()} />
+          <div class="body markdown" innerHTML={streamingHtml()} />
         </div>
       </Show>
       <Show when={props.busy && !props.streaming}>
@@ -59,7 +59,7 @@ const MessageView: Component<{ msg: Message }> = (props) => {
       return (
         <div class="message" data-role="assistant">
           <div class="meta">assistant</div>
-          <div class="body" innerHTML={renderMarkdown(props.msg.text)} />
+          <div class="body markdown" innerHTML={renderMarkdown(props.msg.text)} />
         </div>
       );
     case "reasoning":
