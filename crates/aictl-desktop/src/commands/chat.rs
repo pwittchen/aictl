@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use aictl_core::AgentUI;
 use aictl_core::ToolApproval;
 use aictl_core::message::{Message, Role};
 use aictl_core::run;
@@ -14,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::chat::{self, ChatRequest};
 use crate::state::AppState;
+use crate::ui::DesktopUI;
 use crate::workspace;
 
 #[derive(Deserialize)]
@@ -272,4 +274,75 @@ pub fn undo_last(
         prompt: None,
         popped,
     })
+}
+
+/// Replace the in-memory transcript with a model-summarized version.
+/// Mirrors the CLI's `/compact` slash command — the heavy lifting lives
+/// in `aictl_core::run::compact_messages`; this handler just acquires
+/// the messages mutex, surfaces a spinner via the existing
+/// `agent_event` stream, and returns the projected transcript so the
+/// frontend can re-render.
+#[tauri::command]
+pub async fn compact_chat(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<TranscriptUpdate, String> {
+    if !crate::workspace::is_set() {
+        return Err(
+            "no workspace selected — pick a folder in Settings → Workspace before compacting"
+                .to_string(),
+        );
+    }
+    let (provider, model, api_key) = chat::resolve_active_provider()?;
+
+    // Take ownership of the transcript so we can drop the mutex across
+    // the LLM await without holding it for the whole call.
+    let mut msgs = {
+        let mut slot = state
+            .messages
+            .lock()
+            .map_err(|_| "messages mutex poisoned".to_string())?;
+        std::mem::take(&mut *slot)
+    };
+    if msgs.len() <= 1 {
+        // Nothing to compact — put the system message back and bail.
+        if let Ok(mut slot) = state.messages.lock() {
+            *slot = msgs;
+        }
+        return Err("nothing to compact yet".to_string());
+    }
+
+    let state_clone: Arc<AppState> = Arc::clone(&state);
+    let ui = DesktopUI::new(app, state_clone);
+    ui.start_spinner("compacting context…");
+    let result = run::compact_messages(&provider, &api_key, &model, &mut msgs).await;
+    ui.stop_spinner();
+
+    match result {
+        Ok(_usage) => {
+            let projected = project(&msgs);
+            // Persist the compacted transcript to the session file so
+            // the next process invocation rehydrates the summary, not
+            // the pre-compact history.
+            persist(&state, &msgs);
+            *state
+                .messages
+                .lock()
+                .map_err(|_| "messages mutex poisoned".to_string())? = msgs;
+            Ok(TranscriptUpdate {
+                messages: projected,
+                prompt: None,
+                popped: 0,
+            })
+        }
+        Err(e) => {
+            // Restore the original transcript so a failed compaction
+            // doesn't lose the user's history.
+            *state
+                .messages
+                .lock()
+                .map_err(|_| "messages mutex poisoned".to_string())? = msgs;
+            Err(format!("{e}"))
+        }
+    }
 }

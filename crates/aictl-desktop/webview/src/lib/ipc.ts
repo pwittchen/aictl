@@ -150,6 +150,9 @@ export const ipc = {
   async undoLast(n = 1) {
     return invoke<TranscriptUpdate>("undo_last", { args: { n } });
   },
+  async compactChat() {
+    return invoke<TranscriptUpdate>("compact_chat");
+  },
 
   // -- sessions ----
   async listSessions() {

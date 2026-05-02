@@ -10,6 +10,7 @@ interface Props {
   onClear: () => void | Promise<void>;
   onRetry: () => void | Promise<void>;
   onUndo: () => void | Promise<void>;
+  onCompact: () => void | Promise<void>;
 }
 
 const shortId = (id: string): string => id.slice(0, 8);
@@ -65,6 +66,15 @@ const Toolbar: Component<Props> = (props) => {
           onClick={() => void props.onUndo()}
         >
           Undo
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          disabled={disabled()}
+          title="Replace the transcript with a model-summarized version"
+          onClick={() => void props.onCompact()}
+        >
+          Compact
         </button>
       </div>
     </div>

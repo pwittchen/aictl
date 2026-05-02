@@ -376,6 +376,16 @@ const App: Component = () => {
     }
   };
 
+  const compactChat = async () => {
+    try {
+      const update = await ipc.compactChat();
+      setMessages(projectFromBackend(update.messages));
+      bumpSessions();
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
   const composerDisabled = createMemo(
     () => !workspace().path || busy() || streaming(),
   );
@@ -428,6 +438,7 @@ const App: Component = () => {
               onClear={clearChat}
               onRetry={retryLast}
               onUndo={undoLast}
+              onCompact={compactChat}
             />
             <Chat
               messages={messages()}

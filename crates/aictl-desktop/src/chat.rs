@@ -153,6 +153,12 @@ fn put_messages(state: &AppState, msgs: Vec<Message>) {
     *state.messages.lock().expect("messages mutex poisoned") = msgs;
 }
 
+/// Visible to `commands::chat::compact_chat` so the button shares the
+/// same provider/model/key resolution path as `send_message`.
+pub(crate) fn resolve_active_provider() -> Result<(Provider, String, String), String> {
+    resolve_provider_model_key()
+}
+
 fn resolve_provider_model_key() -> Result<(Provider, String, String), String> {
     let provider = parse_provider(
         &aictl_core::config::config_get("AICTL_PROVIDER").ok_or_else(|| {

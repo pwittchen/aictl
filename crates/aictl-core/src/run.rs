@@ -1243,3 +1243,105 @@ pub async fn run_agent_single(
     .await;
     Ok(())
 }
+
+/// Replace `messages` with a one-line summary plus its system prompt.
+///
+/// Asks the active provider to produce a concise summary of the
+/// conversation so far, then collapses the transcript to
+/// `[system, user(summary), assistant(ack)]`. Surfaces are responsible
+/// for any UI scaffolding (spinner, hooks, counters, cancellation) —
+/// this function is purely the LLM call plus the in-place rewrite so
+/// the CLI's `/compact` slash command and the desktop's "Compact"
+/// button can share the dispatch matrix.
+///
+/// Returns the token usage of the summary call. Returns
+/// [`AictlError::Other`] when there is nothing to compact (only the
+/// system prompt) or when the `aictl-server` provider is selected
+/// without `AICTL_CLIENT_HOST` / `AICTL_CLIENT_MASTER_KEY` set.
+pub async fn compact_messages(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &mut Vec<Message>,
+) -> Result<llm::TokenUsage, AictlError> {
+    if messages.len() <= 1 {
+        return Err(AictlError::Other("nothing to compact".to_string()));
+    }
+
+    let mut summary_msgs = messages.clone();
+    summary_msgs.push(Message {
+        role: Role::User,
+        content: "Summarize our conversation so far in a compact form. \
+            Include all key facts, decisions, code changes, file paths, \
+            and open tasks so we can continue without losing context. \
+            Be concise but thorough."
+            .to_string(),
+        images: vec![],
+    });
+
+    let llm_timeout = config::llm_timeout();
+    let server_route = if matches!(provider, Provider::AictlServer) {
+        Some(config::active_server().ok_or_else(|| {
+            AictlError::Other(
+                "provider 'aictl-server' selected but AICTL_CLIENT_HOST and/or AICTL_CLIENT_MASTER_KEY are not configured".to_string(),
+            )
+        })?)
+    } else {
+        None
+    };
+
+    let call_result = tokio::time::timeout(llm_timeout, async {
+        if let Some((url, key)) = server_route.as_ref() {
+            return llm::server_proxy::call(url, key, model, &summary_msgs, None).await;
+        }
+        match provider {
+            Provider::Openai => llm::openai::call_openai(api_key, model, &summary_msgs, None).await,
+            Provider::Anthropic => {
+                llm::anthropic::call_anthropic(api_key, model, &summary_msgs, None).await
+            }
+            Provider::Gemini => llm::gemini::call_gemini(api_key, model, &summary_msgs, None).await,
+            Provider::Grok => llm::grok::call_grok(api_key, model, &summary_msgs, None).await,
+            Provider::Mistral => {
+                llm::mistral::call_mistral(api_key, model, &summary_msgs, None).await
+            }
+            Provider::Deepseek => {
+                llm::deepseek::call_deepseek(api_key, model, &summary_msgs, None).await
+            }
+            Provider::Kimi => llm::kimi::call_kimi(api_key, model, &summary_msgs, None).await,
+            Provider::Zai => llm::zai::call_zai(api_key, model, &summary_msgs, None).await,
+            Provider::Ollama => llm::ollama::call_ollama(model, &summary_msgs, None).await,
+            Provider::Gguf => llm::gguf::call_gguf(model, &summary_msgs, None).await,
+            Provider::Mlx => llm::mlx::call_mlx(model, &summary_msgs, None).await,
+            Provider::Mock => llm::mock::call_mock(model, &summary_msgs, None).await,
+            Provider::AictlServer => {
+                unreachable!("server_route covers Provider::AictlServer")
+            }
+        }
+    })
+    .await;
+
+    let (summary, usage) = match call_result {
+        Ok(Ok(pair)) => pair,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => {
+            return Err(AictlError::Timeout {
+                secs: llm_timeout.as_secs(),
+            });
+        }
+    };
+
+    let system = messages[0].clone();
+    messages.clear();
+    messages.push(system);
+    messages.push(Message {
+        role: Role::User,
+        content: format!("Here is a summary of our conversation so far:\n\n{summary}"),
+        images: vec![],
+    });
+    messages.push(Message {
+        role: Role::Assistant,
+        content: "Understood. I have the context from our previous conversation. How can I help you next?".to_string(),
+        images: vec![],
+    });
+    Ok(usage)
+}

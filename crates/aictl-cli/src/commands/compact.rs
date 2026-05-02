@@ -2,9 +2,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossterm::style::{Color, Stylize};
 
+use aictl_core::error::AictlError;
+use aictl_core::run::compact_messages;
+
 use crate::llm;
 use crate::ui::AgentUI;
-use crate::{Message, Provider, Role};
+use crate::{Message, Provider};
 
 static MANUAL_COMPACTIONS: AtomicU32 = AtomicU32::new(0);
 static AUTO_COMPACTIONS: AtomicU32 = AtomicU32::new(0);
@@ -16,7 +19,6 @@ pub fn compaction_counts() -> (u32, u32) {
     )
 }
 
-#[allow(clippy::too_many_lines)]
 pub async fn compact(
     provider: &Provider,
     api_key: &str,
@@ -52,154 +54,12 @@ pub async fn compact(
 
     ui.start_spinner("compacting context...");
 
-    let mut summary_msgs = messages.clone();
-    summary_msgs.push(Message {
-        role: Role::User,
-        content: "Summarize our conversation so far in a compact form. \
-            Include all key facts, decisions, code changes, file paths, \
-            and open tasks so we can continue without losing context. \
-            Be concise but thorough."
-            .to_string(),
-        images: vec![],
-    });
-
-    let llm_timeout = crate::config::llm_timeout();
-    // Compaction never streams — it produces a one-shot summary the user
-    // doesn't see. Pass `None` to every provider so they take the buffered
-    // code path.
-    let result = match provider {
-        Provider::Openai => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::openai::call_openai(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Anthropic => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::anthropic::call_anthropic(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Gemini => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::gemini::call_gemini(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Grok => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::grok::call_grok(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Mistral => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::mistral::call_mistral(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Deepseek => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::deepseek::call_deepseek(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Kimi => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::kimi::call_kimi(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Zai => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::zai::call_zai(api_key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Ollama => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::ollama::call_ollama(model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Gguf => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::gguf::call_gguf(model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Mlx => {
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::mlx::call_mlx(model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-        Provider::Mock => unreachable!("Provider::Mock is test-only and never selected at runtime"),
-        Provider::AictlServer => {
-            let Some((url, key)) = crate::config::active_server() else {
-                ui.show_error(
-                    "aictl-server provider selected but AICTL_CLIENT_HOST / AICTL_CLIENT_MASTER_KEY are not configured",
-                );
-                return;
-            };
-            crate::with_esc_cancel(
-                ui,
-                tokio::time::timeout(
-                    llm_timeout,
-                    crate::llm::server_proxy::call(&url, &key, model, &summary_msgs, None),
-                ),
-            )
-            .await
-        }
-    };
+    let cancellable =
+        crate::with_esc_cancel(ui, compact_messages(provider, api_key, model, messages)).await;
 
     ui.stop_spinner();
 
-    let result = match result {
+    let result = match cancellable {
         Ok(inner) => inner,
         Err(_interrupted) => {
             println!("\n  {} interrupted\n", "✗".with(Color::Yellow));
@@ -207,35 +67,8 @@ pub async fn compact(
         }
     };
 
-    let result = match result {
-        Ok(inner) => inner,
-        Err(_elapsed) => {
-            println!(
-                "\n  {} compaction timed out after {}s (AICTL_LLM_TIMEOUT)\n",
-                "✗".with(Color::Yellow),
-                llm_timeout.as_secs()
-            );
-            return;
-        }
-    };
-
     match result {
-        Ok((summary, usage)) => {
-            let system = messages[0].clone();
-            messages.clear();
-            messages.push(system);
-            messages.push(Message {
-                role: Role::User,
-                content: format!("Here is a summary of our conversation so far:\n\n{summary}"),
-                images: vec![],
-            });
-            messages.push(Message {
-                role: Role::Assistant,
-                content: "Understood. I have the context from our previous \
-                    conversation. How can I help you next?"
-                    .to_string(),
-                images: vec![],
-            });
+        Ok(usage) => {
             println!();
             ui.show_token_usage(
                 &usage,
@@ -253,6 +86,12 @@ pub async fn compact(
             }
             println!("  {} context compacted", "✓".with(Color::Green));
             println!();
+        }
+        Err(AictlError::Timeout { secs }) => {
+            println!(
+                "\n  {} compaction timed out after {secs}s (AICTL_LLM_TIMEOUT)\n",
+                "✗".with(Color::Yellow),
+            );
         }
         Err(e) => ui.show_error(&format!("Compact failed: {e}")),
     }
