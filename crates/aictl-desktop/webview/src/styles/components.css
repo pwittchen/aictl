@@ -990,6 +990,17 @@
   color: var(--fg-faint);
 }
 
+.settings-default-hint {
+  font-size: 12px;
+  color: var(--fg-faint);
+}
+
+.settings-default-hint code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
 .settings-bool-line label {
   display: inline-flex;
   align-items: center;
@@ -1006,6 +1017,71 @@
   width: 16px;
   height: 16px;
   accent-color: var(--accent);
+}
+
+.settings-select {
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  min-width: 240px;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: var(--fg-faint);
+}
+
+.settings-tools-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.settings-tools-list[data-dim="true"] {
+  opacity: 0.55;
+}
+
+.settings-tools-list li {
+  margin: 0;
+}
+
+.settings-tool-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.settings-tool-item:hover {
+  background: var(--bg-soft, rgba(255, 255, 255, 0.03));
+}
+
+.settings-tool-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
+.settings-tool-name code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.settings-tool-desc {
+  color: var(--fg-faint);
+  font-size: 12px;
 }
 
 .settings-model-grid {

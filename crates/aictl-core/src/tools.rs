@@ -137,6 +137,98 @@ impl ToolOutput {
 
 pub const TOOL_COUNT: usize = 31;
 
+/// `(name, one-line description)` for every built-in tool. Both the CLI's
+/// `/tools` printer and the desktop Settings panel render from this single
+/// source — a CI test in `aictl-cli` keeps the length in sync with
+/// [`TOOL_COUNT`].
+pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
+    ("exec_shell", "execute a shell command via sh -c"),
+    ("read_file", "read the contents of a file"),
+    ("write_file", "write content to a file"),
+    ("remove_file", "remove (delete) a file"),
+    ("edit_file", "edit a file with find-and-replace"),
+    (
+        "diff_files",
+        "compute a unified diff between two text files",
+    ),
+    (
+        "create_directory",
+        "create a directory and any missing parents",
+    ),
+    ("list_directory", "list files and directories at a path"),
+    ("search_files", "search file contents by pattern"),
+    ("find_files", "find files matching a glob pattern"),
+    ("search_web", "search the web via Firecrawl API"),
+    ("fetch_url", "fetch a URL and return text content"),
+    ("extract_website", "extract readable content from a URL"),
+    ("fetch_datetime", "get current date, time, and timezone"),
+    (
+        "fetch_geolocation",
+        "get geolocation data for an IP address",
+    ),
+    ("read_image", "read an image from file or URL for analysis"),
+    (
+        "generate_image",
+        "generate an image from text (DALL-E/Imagen/Grok)",
+    ),
+    (
+        "read_document",
+        "read a PDF, DOCX, or spreadsheet as markdown",
+    ),
+    (
+        "git",
+        "run a restricted git subcommand (status, diff, log, blame, commit)",
+    ),
+    (
+        "run_code",
+        "execute a code snippet (python, node, ruby, perl, lua, bash, sh)",
+    ),
+    (
+        "lint_file",
+        "run a language-appropriate linter/formatter on a file",
+    ),
+    (
+        "json_query",
+        "query/transform JSON with jq-like expressions",
+    ),
+    (
+        "csv_query",
+        "filter CSV/TSV with SQL-like expressions (table output)",
+    ),
+    (
+        "calculate",
+        "evaluate a math expression safely (no eval, no shell)",
+    ),
+    (
+        "list_processes",
+        "list running processes with structured filtering",
+    ),
+    (
+        "check_port",
+        "test TCP reachability of a host:port (no shell, no nc)",
+    ),
+    (
+        "system_info",
+        "OS/CPU/memory/disk info as markdown (cross-platform)",
+    ),
+    (
+        "archive",
+        "create, extract, or list tar.gz/tgz/tar/zip archives",
+    ),
+    (
+        "checksum",
+        "compute SHA-256 and/or MD5 of a file (streaming)",
+    ),
+    (
+        "clipboard",
+        "read from or write to the system clipboard (pbcopy/wl-copy/xclip)",
+    ),
+    (
+        "notify",
+        "send a desktop notification (osascript on macOS, notify-send on Linux)",
+    ),
+];
+
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
     let start_prefix = "<tool name=\"";
     let start_idx = response.find(start_prefix)?;

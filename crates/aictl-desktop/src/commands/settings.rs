@@ -16,6 +16,7 @@
 
 use aictl_core::config::{self, AICTL_WORKING_DIR_DESKTOP};
 use aictl_core::keys::{self, ClearOutcome, KeyLocation, LockOutcome, SetOutcome, UnlockOutcome};
+use aictl_core::tools::BUILTIN_TOOLS;
 use serde::{Deserialize, Serialize};
 
 /// Names that the desktop Settings UI is allowed to read/write through
@@ -24,6 +25,7 @@ use serde::{Deserialize, Serialize};
 const ALLOWED_CONFIG_KEYS: &[&str] = &[
     "AICTL_AUTO_COMPACT_THRESHOLD",
     "AICTL_LLM_TIMEOUT",
+    "AICTL_MAX_ITERATIONS",
     "AICTL_MEMORY",
     "AICTL_SECURITY",
     "AICTL_SECURITY_INJECTION_GUARD",
@@ -32,6 +34,8 @@ const ALLOWED_CONFIG_KEYS: &[&str] = &[
     "AICTL_SECURITY_REDACTION_LOCAL",
     "AICTL_SECURITY_CWD_RESTRICT",
     "AICTL_SECURITY_BLOCK_SUBSHELL",
+    "AICTL_SECURITY_DISABLED_TOOLS",
+    "AICTL_TOOLS_ENABLED",
     "AICTL_AUTO",
     "AICTL_PROMPT_FALLBACK",
 ];
@@ -259,4 +263,73 @@ fn location_str(loc: KeyLocation) -> &'static str {
         KeyLocation::Keyring => "keyring",
         KeyLocation::Both => "both",
     }
+}
+
+/// One row in the tools panel — a built-in tool plus whether the user
+/// has individually disabled it via `AICTL_SECURITY_DISABLED_TOOLS`.
+#[derive(Serialize)]
+pub struct ToolRow {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub disabled: bool,
+}
+
+#[tauri::command]
+pub fn tools_list() -> Vec<ToolRow> {
+    let disabled: Vec<String> = parse_csv(
+        config::config_get("AICTL_SECURITY_DISABLED_TOOLS")
+            .as_deref()
+            .unwrap_or(""),
+    );
+    BUILTIN_TOOLS
+        .iter()
+        .map(|(name, description)| ToolRow {
+            name,
+            description,
+            disabled: disabled.iter().any(|d| d == name),
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+pub struct ToolToggleArgs {
+    pub name: String,
+    pub disabled: bool,
+}
+
+/// Flip one tool's entry in the comma-separated
+/// `AICTL_SECURITY_DISABLED_TOOLS` list. The CLI's `/security` reads the
+/// same key, so the change round-trips between the two binaries.
+#[tauri::command]
+pub fn tool_set_disabled(args: ToolToggleArgs) -> Result<bool, String> {
+    if !BUILTIN_TOOLS.iter().any(|(n, _)| *n == args.name) {
+        return Err(format!("unknown tool '{}'", args.name));
+    }
+    let mut current: Vec<String> = parse_csv(
+        config::config_get("AICTL_SECURITY_DISABLED_TOOLS")
+            .as_deref()
+            .unwrap_or(""),
+    );
+    let was_disabled = current.iter().any(|n| n == &args.name);
+    if args.disabled && !was_disabled {
+        current.push(args.name.clone());
+    } else if !args.disabled && was_disabled {
+        current.retain(|n| n != &args.name);
+    } else {
+        return Ok(args.disabled);
+    }
+    if current.is_empty() {
+        config::config_unset("AICTL_SECURITY_DISABLED_TOOLS");
+    } else {
+        config::config_set("AICTL_SECURITY_DISABLED_TOOLS", &current.join(","));
+    }
+    Ok(args.disabled)
+}
+
+fn parse_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }

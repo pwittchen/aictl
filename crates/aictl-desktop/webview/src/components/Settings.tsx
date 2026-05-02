@@ -17,6 +17,7 @@ import {
   type KeyBackend,
   type KeyRow,
   type ModelEntry,
+  type ToolRow,
   type WorkspaceState,
 } from "../lib/ipc";
 
@@ -508,18 +509,38 @@ const BOOL_KEYS: { key: string; label: string; help: string }[] = [
   },
 ];
 
-const NUM_KEYS: { key: string; label: string; help: string; suffix: string }[] = [
+// Defaults mirror the constants in `aictl_core::config`:
+// DEFAULT_AUTO_COMPACT_THRESHOLD = 80, DEFAULT_LLM_TIMEOUT_SECS = 30,
+// DEFAULT_MAX_ITERATIONS = 20. Surfaced as input placeholders so the
+// user can see the value the engine will use when the override is
+// empty without persisting anything.
+const NUM_KEYS: {
+  key: string;
+  label: string;
+  help: string;
+  suffix: string;
+  defaultValue: string;
+}[] = [
   {
     key: "AICTL_AUTO_COMPACT_THRESHOLD",
     label: "Auto-compact threshold",
-    help: "Compact context automatically when usage crosses this percentage. 0 disables.",
+    help: "Compact context automatically when usage crosses this percentage. 0 disables. Leave blank for the default.",
     suffix: "%",
+    defaultValue: "80",
   },
   {
     key: "AICTL_LLM_TIMEOUT",
     label: "LLM call timeout",
-    help: "Per-request timeout in seconds. 0 disables.",
+    help: "Per-request timeout in seconds. 0 disables. Leave blank for the default.",
     suffix: "s",
+    defaultValue: "30",
+  },
+  {
+    key: "AICTL_MAX_ITERATIONS",
+    label: "Max iterations per turn",
+    help: "Cap on LLM calls inside one agent turn — bounds runaway tool-call loops. Leave blank for the default.",
+    suffix: "",
+    defaultValue: "20",
   },
 ];
 
@@ -573,6 +594,27 @@ const GeneralTab: Component = () => {
     }
   };
 
+  const memoryMode = (): "long-term" | "short-term" =>
+    get("AICTL_MEMORY") === "short-term" ? "short-term" : "long-term";
+
+  const setMemory = async (mode: "long-term" | "short-term") => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (mode === "long-term") {
+        await ipc.configClear("AICTL_MEMORY");
+      } else {
+        await ipc.configWrite("AICTL_MEMORY", "short-term");
+      }
+      await refetch();
+      setFeedback(`memory mode = ${mode}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const toolsOn = (): boolean => isOn("AICTL_TOOLS_ENABLED");
+
   return (
     <div class="settings-tab-content">
       <h3>General</h3>
@@ -587,6 +629,30 @@ const GeneralTab: Component = () => {
         <p class="settings-success">{feedback()}</p>
       </Show>
 
+      <h4 class="settings-subhead">Memory</h4>
+      <div class="settings-row settings-row-stack">
+        <label>Conversation memory</label>
+        <div class="settings-control-line">
+          <select
+            class="settings-select"
+            value={memoryMode()}
+            onChange={(e) =>
+              void setMemory(
+                e.currentTarget.value as "long-term" | "short-term",
+              )
+            }
+          >
+            <option value="long-term">Long-term (full history)</option>
+            <option value="short-term">Short-term (recent window)</option>
+          </select>
+        </div>
+        <p class="settings-hint">
+          Long-term sends the full transcript on every turn. Short-term
+          sends only the most recent window — cheaper, but the agent
+          forgets older context. Mirrors the CLI's <code>/memory</code>.
+        </p>
+      </div>
+
       <h4 class="settings-subhead">Numbers</h4>
       <For each={NUM_KEYS}>
         {(spec) => (
@@ -595,10 +661,20 @@ const GeneralTab: Component = () => {
             help={spec.help}
             suffix={spec.suffix}
             initial={get(spec.key) ?? ""}
+            placeholder={spec.defaultValue}
             onCommit={(v) => void setNum(spec.key, v)}
           />
         )}
       </For>
+
+      <h4 class="settings-subhead">Tools</h4>
+      <BoolRow
+        label="Tools enabled"
+        help="Master switch — turn off to run the agent in chat-only mode (no shell, no file edits, no MCP)."
+        on={toolsOn()}
+        onChange={(v) => void setBool("AICTL_TOOLS_ENABLED", v)}
+      />
+      <ToolsList disabled={!toolsOn()} />
 
       <h4 class="settings-subhead">Security</h4>
       <For each={BOOL_KEYS}>
@@ -615,11 +691,63 @@ const GeneralTab: Component = () => {
   );
 };
 
+const ToolsList: Component<{ disabled: boolean }> = (props) => {
+  const [tools, { refetch }] = createResource<ToolRow[]>(() => ipc.toolsList());
+  const [error, setError] = createSignal<string | null>(null);
+
+  const toggle = async (name: string, disable: boolean) => {
+    setError(null);
+    try {
+      await ipc.toolSetDisabled(name, disable);
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  return (
+    <div class="settings-row settings-row-stack">
+      <label>Per-tool enable / disable</label>
+      <p class="settings-hint">
+        Disabled tools are stripped from the system prompt and refused at
+        the security gate. Stored as a comma-separated list in{" "}
+        <code>AICTL_SECURITY_DISABLED_TOOLS</code>.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <ul class="settings-tools-list" data-dim={String(props.disabled)}>
+        <For each={tools() ?? []}>
+          {(tool) => (
+            <li>
+              <label class="settings-tool-item">
+                <input
+                  type="checkbox"
+                  checked={!tool.disabled}
+                  disabled={props.disabled}
+                  onChange={(e) =>
+                    void toggle(tool.name, !e.currentTarget.checked)
+                  }
+                />
+                <span class="settings-tool-name">
+                  <code>{tool.name}</code>
+                </span>
+                <span class="settings-tool-desc">{tool.description}</span>
+              </label>
+            </li>
+          )}
+        </For>
+      </ul>
+    </div>
+  );
+};
+
 const NumberRow: Component<{
   label: string;
   help: string;
   suffix: string;
   initial: string;
+  placeholder?: string;
   onCommit: (value: string) => void;
 }> = (props) => {
   const [value, setValue] = createSignal(props.initial);
@@ -634,6 +762,7 @@ const NumberRow: Component<{
           min="0"
           class="settings-num-input"
           value={value()}
+          placeholder={props.placeholder}
           onInput={(e) => setValue(e.currentTarget.value)}
           onBlur={() => props.onCommit(value())}
           onKeyDown={(e) => {
@@ -644,6 +773,11 @@ const NumberRow: Component<{
           }}
         />
         <span class="settings-suffix">{props.suffix}</span>
+        <Show when={props.placeholder && value() === ""}>
+          <span class="settings-default-hint">
+            default: <code>{props.placeholder}</code>
+          </span>
+        </Show>
       </div>
       <p class="settings-hint">{props.help}</p>
     </div>

@@ -106,6 +106,12 @@ export interface KeyBackend {
   name: string;
 }
 
+export interface ToolRow {
+  name: string;
+  description: string;
+  disabled: boolean;
+}
+
 export const ipc = {
   // -- workspace ----
   async getWorkspace() {
@@ -226,6 +232,14 @@ export const ipc = {
   },
   async keysUnlock(name: string) {
     return invoke<string>("keys_unlock", { args: { name } });
+  },
+  async toolsList() {
+    return invoke<ToolRow[]>("tools_list");
+  },
+  async toolSetDisabled(name: string, disabled: boolean) {
+    return invoke<boolean>("tool_set_disabled", {
+      args: { name, disabled },
+    });
   },
 
   // -- events ----
