@@ -243,6 +243,15 @@ const App: Component = () => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
         e.preventDefault();
         setSidebarVisible((v) => !v);
+        return;
+      }
+      // ⌘K / Ctrl-K toggles the Settings overlay. Settings has its
+      // own Esc handler for the close path, so we only flip the open
+      // state here and leave the close to the panel itself when the
+      // overlay is visible.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setShowSettings((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);

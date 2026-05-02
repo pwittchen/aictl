@@ -261,9 +261,11 @@ const Sidebar: Component<Props> = (props) => {
         <button
           type="button"
           class="bottom-item"
+          title="Open settings (⌘K)"
           onClick={() => props.onOpenSettings()}
         >
-          Settings
+          <span>Settings</span>
+          <kbd class="shortcut">⌘K</kbd>
         </button>
       </nav>
     </aside>
