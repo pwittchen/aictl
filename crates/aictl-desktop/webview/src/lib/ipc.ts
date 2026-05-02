@@ -112,6 +112,120 @@ export interface ToolRow {
   disabled: boolean;
 }
 
+export interface McpServerRow {
+  name: string;
+  command: string;
+  args: string[];
+  enabled: boolean;
+  state: string;
+  state_detail: string | null;
+  tool_count: number;
+}
+
+export interface McpStatus {
+  enabled: boolean;
+  config_path: string;
+  config_exists: boolean;
+  servers: McpServerRow[];
+}
+
+export interface HookRow {
+  idx: number;
+  event: string;
+  matcher: string;
+  command: string;
+  timeout_secs: number;
+  enabled: boolean;
+}
+
+export interface HooksStatus {
+  config_path: string | null;
+  hooks: HookRow[];
+}
+
+export interface SkillRow {
+  name: string;
+  description: string;
+  source: string | null;
+  category: string | null;
+  origin: string;
+  official: boolean;
+  dir: string;
+}
+
+export interface AgentRow {
+  name: string;
+  description: string | null;
+  source: string | null;
+  category: string | null;
+  origin: string;
+  official: boolean;
+  path: string;
+}
+
+export interface PluginRow {
+  name: string;
+  description: string;
+  entrypoint: string;
+  requires_confirmation: boolean;
+  timeout_secs: number | null;
+}
+
+export interface PluginsStatus {
+  enabled: boolean;
+  plugins_dir: string;
+  plugins: PluginRow[];
+}
+
+export interface StatsBucket {
+  label: string;
+  sessions: number;
+  requests: number;
+  llm_calls: number;
+  tool_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  models: { model: string; count: number }[];
+}
+
+export interface StatsSnapshot {
+  day_count: number;
+  today: StatsBucket;
+  month: StatsBucket;
+  overall: StatsBucket;
+}
+
+export interface ServerStatus {
+  host: string | null;
+  master_key_set: boolean;
+  fully_configured: boolean;
+}
+
+export interface ServerProbeResult {
+  healthz_ok: boolean;
+  healthz_status: number | null;
+  healthz_error: string | null;
+  models_ok: boolean;
+  models_status: number | null;
+  models_error: string | null;
+  model_count: number | null;
+}
+
+export interface OllamaStatus {
+  host: string;
+  default_host: string;
+  overridden: boolean;
+}
+
+export interface OllamaProbeResult {
+  ok: boolean;
+  status: number | null;
+  error: string | null;
+  model_count: number | null;
+  sample_models: string[];
+}
+
 export const ipc = {
   // -- workspace ----
   async getWorkspace() {
@@ -249,6 +363,85 @@ export const ipc = {
     return invoke<boolean>("tool_set_disabled", {
       args: { name, disabled },
     });
+  },
+
+  // -- mcp ----
+  async mcpStatus() {
+    return invoke<McpStatus>("mcp_status");
+  },
+  async mcpToggle(name: string, enabled: boolean) {
+    return invoke<boolean>("mcp_toggle", { args: { name, enabled } });
+  },
+
+  // -- hooks ----
+  async hooksStatus() {
+    return invoke<HooksStatus>("hooks_status");
+  },
+  async hookToggle(event: string, idx: number, enabled?: boolean) {
+    return invoke<boolean>("hook_toggle", {
+      args: { event, idx, enabled: enabled ?? null },
+    });
+  },
+  async hookDelete(event: string, idx: number) {
+    return invoke<void>("hook_delete", { args: { event, idx } });
+  },
+  async hookCreate(
+    event: string,
+    matcher: string,
+    command: string,
+    timeoutSecs?: number,
+  ) {
+    return invoke<void>("hook_create", {
+      args: {
+        event,
+        matcher,
+        command,
+        timeout_secs: timeoutSecs ?? null,
+      },
+    });
+  },
+
+  // -- skills ----
+  async skillsList() {
+    return invoke<SkillRow[]>("skills_list");
+  },
+  async skillDelete(name: string, origin: string) {
+    return invoke<void>("skill_delete", { args: { name, origin } });
+  },
+
+  // -- agents ----
+  async agentsList() {
+    return invoke<AgentRow[]>("agents_list");
+  },
+  async agentDelete(name: string, origin: string) {
+    return invoke<void>("agent_delete", { args: { name, origin } });
+  },
+
+  // -- plugins ----
+  async pluginsStatus() {
+    return invoke<PluginsStatus>("plugins_status");
+  },
+
+  // -- stats ----
+  async statsSnapshot() {
+    return invoke<StatsSnapshot>("stats_snapshot");
+  },
+  async statsClear() {
+    return invoke<void>("stats_clear");
+  },
+
+  // -- server ----
+  async serverStatus() {
+    return invoke<ServerStatus>("server_status");
+  },
+  async serverProbe() {
+    return invoke<ServerProbeResult>("server_probe");
+  },
+  async ollamaStatus() {
+    return invoke<OllamaStatus>("ollama_status");
+  },
+  async ollamaProbe() {
+    return invoke<OllamaProbeResult>("ollama_probe");
   },
 
   // -- events ----

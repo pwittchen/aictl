@@ -967,6 +967,30 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Inline buttons in a control line — match the look of `.settings-actions
+   button` so a Save next to an input has the same brutalist outline. */
+.settings-control-line button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.settings-control-line button:hover:not([disabled]) {
+  border-color: var(--fg-faint);
+}
+
+.settings-control-line button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .settings-num-input {
@@ -1302,4 +1326,218 @@
 .tool-modal .actions button[data-variant="deny"] {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+/* New settings widgets — added by the expanded Settings panel. */
+
+.settings-text-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 4px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.settings-text-input:focus {
+  outline: none;
+  border-color: var(--fg-faint);
+}
+
+.settings-textarea {
+  width: 100%;
+  padding: var(--space-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.settings-textarea:focus {
+  outline: none;
+  border-color: var(--fg-faint);
+}
+
+.settings-keys-table .badge {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 1px 5px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.settings-keys-table td.settings-desc {
+  color: var(--fg-soft);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.settings-keys-table td code.settings-cmd {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.settings-keys-table span[data-status="ready"],
+.settings-keys-table span[data-status="ok"] {
+  color: var(--accent);
+}
+
+.settings-keys-table span[data-status="failed"],
+.settings-keys-table span[data-status="fail"] {
+  color: var(--danger);
+}
+
+.settings-keys-table span[data-status="disabled"] {
+  color: var(--fg-faint);
+}
+
+.settings-keys-table span[data-status="unknown"] {
+  color: var(--fg-faint);
+  font-style: italic;
+}
+
+.settings-probe {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.settings-probe span[data-status="ok"] {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.settings-probe span[data-status="fail"] {
+  color: var(--danger);
+  font-family: var(--font-mono);
+}
+
+.settings-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.settings-stats-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: var(--space-3);
+}
+
+.settings-stats-card h4 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+
+.settings-stats-card h5 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+
+.settings-stats-card dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px var(--space-2);
+}
+
+.settings-stats-card dt {
+  color: var(--fg-soft);
+  font-size: 12px;
+}
+
+.settings-stats-card dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+  text-align: right;
+}
+
+.settings-stats-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.settings-stats-card li {
+  font-size: 11px;
+  color: var(--fg-soft);
+}
+
+/* Theme + density tokens — applied to <html> by Settings → Appearance. */
+
+[data-theme="light"] {
+  --bg: #fafafa;
+  --fg: #181818;
+  --fg-soft: rgba(24, 24, 24, 0.7);
+  --fg-faint: rgba(24, 24, 24, 0.5);
+  --surface: rgba(0, 0, 0, 0.04);
+  --surface-strong: rgba(0, 0, 0, 0.07);
+  --border: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.22);
+  --accent: #0a7ea4;
+  --accent-soft: rgba(10, 126, 164, 0.18);
+  --danger: #c0392b;
+  --danger-soft: rgba(192, 57, 43, 0.15);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #fafafa;
+    --fg: #181818;
+    --fg-soft: rgba(24, 24, 24, 0.7);
+    --fg-faint: rgba(24, 24, 24, 0.5);
+    --surface: rgba(0, 0, 0, 0.04);
+    --surface-strong: rgba(0, 0, 0, 0.07);
+    --border: rgba(0, 0, 0, 0.12);
+    --border-strong: rgba(0, 0, 0, 0.22);
+    --accent: #0a7ea4;
+    --accent-soft: rgba(10, 126, 164, 0.18);
+    --danger: #c0392b;
+    --danger-soft: rgba(192, 57, 43, 0.15);
+  }
+}
+
+[data-density="compact"] {
+  font-size: 13px;
+}
+
+[data-density="compact"] .chat-msg {
+  padding: var(--space-2) var(--space-3);
+}
+
+[data-density="cozy"] {
+  font-size: 15px;
+}
+
+[data-density="cozy"] .chat-msg {
+  padding: var(--space-4) var(--space-5);
 }

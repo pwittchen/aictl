@@ -96,6 +96,52 @@ const App: Component = () => {
     }
   };
 
+  // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
+  // and re-read every time Settings closes so a freshly-saved choice
+  // takes effect without a desktop restart. The composer's local
+  // toggle still overrides for the active conversation.
+  const refreshApprovalDefault = async () => {
+    try {
+      const raw = await ipc.configValue("AICTL_TOOL_APPROVAL");
+      setAutoAccept(raw === "auto");
+    } catch {
+      setAutoAccept(false);
+    }
+  };
+
+  // Notification preference (`AICTL_DESKTOP_NOTIFICATIONS`). Cached so
+  // the answer-arrived branch doesn't have to round-trip on every
+  // turn.
+  const [notificationsOn, setNotificationsOn] = createSignal(true);
+  const refreshNotifications = async () => {
+    try {
+      const raw = await ipc.configValue("AICTL_DESKTOP_NOTIFICATIONS");
+      setNotificationsOn(raw !== "false" && raw !== "0");
+    } catch {
+      setNotificationsOn(true);
+    }
+  };
+
+  /// Fire a native notification when the desktop window is not focused
+  /// and the user opted in. The browser API works inside the Tauri
+  /// webview without an extra plugin; if the user denied permission we
+  /// silently skip the call.
+  const notifyIfBackgrounded = (body: string) => {
+    if (!notificationsOn()) return;
+    if (typeof document === "undefined") return;
+    if (document.hasFocus()) return;
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    try {
+      const trimmed = body.trim();
+      const preview = trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+      new Notification("aictl: response ready", { body: preview || "Response ready" });
+    } catch {
+      // Notification API can throw in iframes / closed contexts. No
+      // fallback worth implementing here.
+    }
+  };
+
   const handleEvent = (e: AgentEvent) => {
     switch (e.kind) {
       case "spinner_start":
@@ -120,11 +166,9 @@ const App: Component = () => {
         }
         setStreaming(false);
         setStreamBuffer("");
-        // The backend just appended an assistant message and persisted
-        // the transcript; refresh the sidebar so size/mtime update and
-        // the active session shows up if this was the first turn.
         bumpSessions();
         void ipc.getActiveSession().then(setActiveSession);
+        notifyIfBackgrounded(final);
         break;
       }
       case "reasoning":
@@ -153,6 +197,7 @@ const App: Component = () => {
       case "answer":
         if (!streaming() && streamBuffer() === "") {
           append({ kind: "assistant", text: e.text });
+          notifyIfBackgrounded(e.text);
         }
         break;
       case "error":
@@ -188,6 +233,11 @@ const App: Component = () => {
     }
 
     void refreshToolsEnabled();
+    void refreshApprovalDefault();
+    void refreshNotifications();
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission().catch(() => {});
+    }
 
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
@@ -502,6 +552,8 @@ const App: Component = () => {
           onClose={() => {
             setShowSettings(false);
             void refreshToolsEnabled();
+            void refreshApprovalDefault();
+            void refreshNotifications();
           }}
           models={models()}
           activeModel={activeModel()}

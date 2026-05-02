@@ -285,6 +285,13 @@ pub fn build_system_prompt() -> String {
         prompt.push_str("\n\n");
         prompt.push_str(&agent_prompt);
     }
+    if let Some(behavior) = crate::config::config_get("AICTL_BEHAVIOR")
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        prompt.push_str("\n\n# Behavior overrides\n\n");
+        prompt.push_str(&behavior);
+    }
     prompt
 }
 
