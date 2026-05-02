@@ -175,6 +175,20 @@ export interface AgentRow {
   path: string;
 }
 
+/// Remote-catalogue listing — same shape for skills and agents. `state`
+/// is the upstream-vs-local relation: "not_pulled" means the user
+/// hasn't installed it yet (a Pull button shows up); "up_to_date" and
+/// "upstream_newer" surface only when the catalogue tab refreshes after
+/// an installed entry exists.
+export interface RemoteCatalogueRow {
+  name: string;
+  description: string | null;
+  category: string | null;
+  state: "not_pulled" | "up_to_date" | "upstream_newer";
+}
+
+export type PullOutcome = "installed" | "overwritten" | "skipped";
+
 export interface SkillView {
   name: string;
   description: string;
@@ -465,6 +479,12 @@ export const ipc = {
   async skillLoaded() {
     return invoke<string | null>("skill_loaded");
   },
+  async skillsListRemote() {
+    return invoke<RemoteCatalogueRow[]>("skills_list_remote");
+  },
+  async skillPull(name: string, overwrite: boolean) {
+    return invoke<PullOutcome>("skill_pull", { args: { name, overwrite } });
+  },
 
   // -- agents ----
   async agentsList() {
@@ -484,6 +504,12 @@ export const ipc = {
   },
   async agentLoaded() {
     return invoke<string | null>("agent_loaded");
+  },
+  async agentsListRemote() {
+    return invoke<RemoteCatalogueRow[]>("agents_list_remote");
+  },
+  async agentPull(name: string, overwrite: boolean) {
+    return invoke<PullOutcome>("agent_pull", { args: { name, overwrite } });
   },
 
   // -- plugins ----

@@ -28,6 +28,7 @@ use tauri::{Manager, RunEvent};
 
 /// Boot the Tauri application. Called from `main.rs`; lives in the lib
 /// so integration tests and benches can reuse the wiring.
+#[allow(clippy::too_many_lines)]
 pub fn run() {
     // Engine bootstrap — same order the CLI / server use: load config
     // first so `set_role` / `security::init` see persisted keys.
@@ -124,12 +125,16 @@ pub fn run() {
             commands::skills::skill_load,
             commands::skills::skill_unload,
             commands::skills::skill_loaded,
+            commands::skills::skills_list_remote,
+            commands::skills::skill_pull,
             commands::agents::agents_list,
             commands::agents::agent_delete,
             commands::agents::agent_view,
             commands::agents::agent_load,
             commands::agents::agent_unload,
             commands::agents::agent_loaded,
+            commands::agents::agents_list_remote,
+            commands::agents::agent_pull,
             commands::plugins::plugins_status,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,

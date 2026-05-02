@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use aictl_core::agents;
+use aictl_core::agents::remote;
 use aictl_core::message::Role;
 use aictl_core::run;
 use serde::{Deserialize, Serialize};
@@ -124,6 +125,54 @@ pub fn agent_unload(state: State<'_, Arc<AppState>>) -> Result<(), String> {
 #[tauri::command]
 pub fn agent_loaded() -> Option<String> {
     agents::loaded_agent_name()
+}
+
+/// Mirror of `RemoteSkillRow` for the agents catalogue.
+#[derive(Serialize)]
+pub struct RemoteAgentRow {
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub state: String,
+}
+
+#[tauri::command]
+pub async fn agents_list_remote() -> Result<Vec<RemoteAgentRow>, String> {
+    let entries = remote::list_agents().await?;
+    Ok(entries
+        .into_iter()
+        .map(|a| RemoteAgentRow {
+            state: state_label(a.state),
+            name: a.name,
+            description: a.description,
+            category: a.category,
+        })
+        .collect())
+}
+
+#[derive(Deserialize)]
+pub struct AgentPullArgs {
+    pub name: String,
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+#[tauri::command]
+pub async fn agent_pull(args: AgentPullArgs) -> Result<String, String> {
+    let outcome = remote::pull(&args.name, || args.overwrite).await?;
+    Ok(match outcome {
+        remote::PullOutcome::Installed => "installed".to_string(),
+        remote::PullOutcome::Overwritten => "overwritten".to_string(),
+        remote::PullOutcome::SkippedExisting => "skipped".to_string(),
+    })
+}
+
+fn state_label(state: remote::State) -> String {
+    match state {
+        remote::State::NotPulled => "not_pulled".to_string(),
+        remote::State::UpToDate => "up_to_date".to_string(),
+        remote::State::UpstreamNewer => "upstream_newer".to_string(),
+    }
 }
 
 fn rebuild_system_prompt(state: &AppState) -> Result<(), String> {

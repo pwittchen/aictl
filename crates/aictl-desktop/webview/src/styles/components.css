@@ -1591,6 +1591,88 @@
   white-space: nowrap;
 }
 
+/* "Catalogue" section that hangs off the bottom of the Skills /
+   Agents tabs — separates the locally-installed table from the
+   pull-able remote list with a hairline rule and a header row that
+   carries its own Refresh button. */
+.settings-catalogue-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.settings-catalogue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.settings-catalogue-header h4 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-soft);
+}
+
+.settings-catalogue-desc {
+  margin-top: 2px;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Refresh in the catalogue header + Pull on each row. Same brutalist
+   outline as `.settings-actions button` so the catalogue feels like
+   part of the Settings vocabulary, but smaller because they sit in
+   tight rows next to short labels. Pull picks up the accent border
+   and color on hover so the primary install action stands out from
+   the muted secondary refresh affordance. */
+.settings-catalogue-section button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-soft);
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.settings-catalogue-section button.ghost.mini {
+  padding: 3px 10px;
+  font-size: 10px;
+}
+
+.settings-catalogue-section button.ghost:hover:not([disabled]) {
+  color: var(--fg);
+  border-color: var(--fg-faint);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-catalogue-section button.ghost[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Pull is the primary install affordance — flip to the accent color
+   on hover so it stands apart from a generic outline button. */
+.settings-catalogue-table button.ghost:hover:not([disabled]) {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .settings-name-cell .badge {
   margin-left: 0;
   flex-shrink: 0;

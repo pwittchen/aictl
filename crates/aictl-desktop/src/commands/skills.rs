@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 use aictl_core::skills;
+use aictl_core::skills::remote;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -136,4 +137,61 @@ pub fn skill_loaded(state: State<'_, Arc<AppState>>) -> Result<Option<String>, S
         .lock()
         .map_err(|_| "loaded-skill mutex poisoned".to_string())?;
     Ok(slot.clone())
+}
+
+/// One row in the remote skills catalogue. `state` is the same enum the
+/// CLI prints (`not_pulled` / `up_to_date` / `upstream_newer`) — the
+/// webview hides anything that already matches a local entry, so
+/// returning every row keeps the API symmetric with the agents side and
+/// lets a future "refresh installed" button reuse the same call.
+#[derive(Serialize)]
+pub struct RemoteSkillRow {
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub state: String,
+}
+
+#[tauri::command]
+pub async fn skills_list_remote() -> Result<Vec<RemoteSkillRow>, String> {
+    let entries = remote::list_skills().await?;
+    Ok(entries
+        .into_iter()
+        .map(|s| RemoteSkillRow {
+            state: state_label(s.state),
+            name: s.name,
+            description: s.description,
+            category: s.category,
+        })
+        .collect())
+}
+
+#[derive(Deserialize)]
+pub struct SkillPullArgs {
+    pub name: String,
+    /// `true` when the user has already confirmed they want to clobber an
+    /// existing local copy. The desktop confirms in JS before invoking,
+    /// so a `false` here means "abort if a local file exists".
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+/// Outcome string mirrors `remote::PullOutcome` so the webview can pick
+/// a different toast for fresh-install vs. overwrite vs. skipped.
+#[tauri::command]
+pub async fn skill_pull(args: SkillPullArgs) -> Result<String, String> {
+    let outcome = remote::pull(&args.name, || args.overwrite).await?;
+    Ok(match outcome {
+        remote::PullOutcome::Installed => "installed".to_string(),
+        remote::PullOutcome::Overwritten => "overwritten".to_string(),
+        remote::PullOutcome::SkippedExisting => "skipped".to_string(),
+    })
+}
+
+fn state_label(state: remote::State) -> String {
+    match state {
+        remote::State::NotPulled => "not_pulled".to_string(),
+        remote::State::UpToDate => "up_to_date".to_string(),
+        remote::State::UpstreamNewer => "upstream_newer".to_string(),
+    }
 }

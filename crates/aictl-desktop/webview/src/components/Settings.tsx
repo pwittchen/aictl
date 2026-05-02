@@ -26,6 +26,7 @@ import {
   type OllamaProbeResult,
   type OllamaStatus,
   type PluginsStatus,
+  type RemoteCatalogueRow,
   type ServerProbeResult,
   type ServerStatus,
   type SessionRow,
@@ -1847,6 +1848,14 @@ const SkillsTab: Component = () => {
   // forcing the user to click twice. Owning the list outright avoids
   // that race entirely.
   const [skills, setSkills] = createSignal<SkillRow[]>([]);
+  const [remote, setRemote] = createSignal<RemoteCatalogueRow[]>([]);
+  // Distinct "loading" / "error" channels for the remote fetch — the
+  // catalogue depends on GitHub being reachable, which fails far more
+  // often than a local FS read, so we keep its state separate from the
+  // local list's hard error.
+  const [remoteLoading, setRemoteLoading] = createSignal(false);
+  const [remoteError, setRemoteError] = createSignal<string | null>(null);
+  const [pulling, setPulling] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
@@ -1859,7 +1868,27 @@ const SkillsTab: Component = () => {
       setError(`${err}`);
     }
   };
+  const loadRemote = async () => {
+    setRemoteLoading(true);
+    setRemoteError(null);
+    try {
+      setRemote(await ipc.skillsListRemote());
+    } catch (err) {
+      setRemoteError(`${err}`);
+    } finally {
+      setRemoteLoading(false);
+    }
+  };
   void load();
+  void loadRemote();
+
+  // Remote rows the user can act on — skip anything already installed
+  // locally (matched by name) so the catalogue list shrinks as the
+  // user pulls entries.
+  const installable = createMemo(() => {
+    const local = new Set(skills().map((s) => s.name));
+    return remote().filter((r) => r.state === "not_pulled" && !local.has(r.name));
+  });
 
   const remove = async (row: SkillRow) => {
     setError(null);
@@ -1874,6 +1903,26 @@ const SkillsTab: Component = () => {
     } catch (err) {
       setSkills(previous);
       setError(`${err}`);
+    }
+  };
+
+  const pull = async (row: RemoteCatalogueRow) => {
+    setError(null);
+    setPulling(row.name);
+    try {
+      // overwrite=false — the local-installed filter above means we only
+      // ever pull entries that aren't on disk, so a server-side conflict
+      // would be a surprise worth reporting rather than auto-clobbering.
+      await ipc.skillPull(row.name, false);
+      setFeedback(`pulled ${row.name}`);
+      await load();
+      // Drop the row from the remote view immediately so the list
+      // matches what the user sees in the local table.
+      setRemote((prev) => prev.filter((r) => r.name !== row.name));
+    } catch (err) {
+      setError(`${err}`);
+    } finally {
+      setPulling(null);
     }
   };
 
@@ -1966,6 +2015,77 @@ const SkillsTab: Component = () => {
           </tbody>
         </table>
       </Show>
+      <div class="settings-catalogue-section">
+        <div class="settings-catalogue-header">
+          <h4>Catalogue</h4>
+          <button
+            type="button"
+            class="ghost mini"
+            disabled={remoteLoading()}
+            onClick={() => void loadRemote()}
+          >
+            {remoteLoading() ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        <p class="settings-hint">
+          First-party skills hosted in the aictl repo. Pull installs to{" "}
+          <code>~/.aictl/skills/&lt;name&gt;/SKILL.md</code>.
+        </p>
+        <Show when={remoteError()}>
+          <p class="settings-error">{remoteError()}</p>
+        </Show>
+        <Show
+          when={installable().length > 0}
+          fallback={
+            <Show when={!remoteLoading() && !remoteError()}>
+              <p class="settings-hint">
+                <em>Catalogue empty — everything is already installed.</em>
+              </p>
+            </Show>
+          }
+        >
+          <table class="settings-keys-table settings-catalogue-table">
+            <colgroup>
+              <col />
+              <col class="settings-catalogue-actions-col" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Skill</th>
+                <th class="settings-actions-col" />
+              </tr>
+            </thead>
+            <tbody>
+              <For each={installable()}>
+                {(row) => (
+                  <tr>
+                    <td>
+                      <div class="settings-name-cell">
+                        <code>{row.name}</code>
+                      </div>
+                      <Show when={row.description}>
+                        <div class="settings-catalogue-desc">
+                          {row.description}
+                        </div>
+                      </Show>
+                    </td>
+                    <td class="settings-actions-col">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        disabled={pulling() === row.name}
+                        onClick={() => void pull(row)}
+                      >
+                        {pulling() === row.name ? "Pulling…" : "Pull"}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </Show>
+      </div>
       <Show when={viewer()}>
         {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
       </Show>
@@ -1978,6 +2098,10 @@ const AgentsTab: Component = () => {
   // otherwise re-introduces a deleted row when the initial fetch settles
   // after the optimistic mutate.
   const [agents, setAgents] = createSignal<AgentRow[]>([]);
+  const [remote, setRemote] = createSignal<RemoteCatalogueRow[]>([]);
+  const [remoteLoading, setRemoteLoading] = createSignal(false);
+  const [remoteError, setRemoteError] = createSignal<string | null>(null);
+  const [pulling, setPulling] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
@@ -1990,7 +2114,24 @@ const AgentsTab: Component = () => {
       setError(`${err}`);
     }
   };
+  const loadRemote = async () => {
+    setRemoteLoading(true);
+    setRemoteError(null);
+    try {
+      setRemote(await ipc.agentsListRemote());
+    } catch (err) {
+      setRemoteError(`${err}`);
+    } finally {
+      setRemoteLoading(false);
+    }
+  };
   void load();
+  void loadRemote();
+
+  const installable = createMemo(() => {
+    const local = new Set(agents().map((a) => a.name));
+    return remote().filter((r) => r.state === "not_pulled" && !local.has(r.name));
+  });
 
   const remove = async (row: AgentRow) => {
     setError(null);
@@ -2004,6 +2145,21 @@ const AgentsTab: Component = () => {
     } catch (err) {
       setAgents(previous);
       setError(`${err}`);
+    }
+  };
+
+  const pull = async (row: RemoteCatalogueRow) => {
+    setError(null);
+    setPulling(row.name);
+    try {
+      await ipc.agentPull(row.name, false);
+      setFeedback(`pulled ${row.name}`);
+      await load();
+      setRemote((prev) => prev.filter((r) => r.name !== row.name));
+    } catch (err) {
+      setError(`${err}`);
+    } finally {
+      setPulling(null);
     }
   };
 
@@ -2095,6 +2251,77 @@ const AgentsTab: Component = () => {
           </tbody>
         </table>
       </Show>
+      <div class="settings-catalogue-section">
+        <div class="settings-catalogue-header">
+          <h4>Catalogue</h4>
+          <button
+            type="button"
+            class="ghost mini"
+            disabled={remoteLoading()}
+            onClick={() => void loadRemote()}
+          >
+            {remoteLoading() ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        <p class="settings-hint">
+          First-party agents hosted in the aictl repo. Pull installs to{" "}
+          <code>~/.aictl/agents/&lt;name&gt;.md</code>.
+        </p>
+        <Show when={remoteError()}>
+          <p class="settings-error">{remoteError()}</p>
+        </Show>
+        <Show
+          when={installable().length > 0}
+          fallback={
+            <Show when={!remoteLoading() && !remoteError()}>
+              <p class="settings-hint">
+                <em>Catalogue empty — everything is already installed.</em>
+              </p>
+            </Show>
+          }
+        >
+          <table class="settings-keys-table settings-catalogue-table">
+            <colgroup>
+              <col />
+              <col class="settings-catalogue-actions-col" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th class="settings-actions-col" />
+              </tr>
+            </thead>
+            <tbody>
+              <For each={installable()}>
+                {(row) => (
+                  <tr>
+                    <td>
+                      <div class="settings-name-cell">
+                        <code>{row.name}</code>
+                      </div>
+                      <Show when={row.description}>
+                        <div class="settings-catalogue-desc">
+                          {row.description}
+                        </div>
+                      </Show>
+                    </td>
+                    <td class="settings-actions-col">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        disabled={pulling() === row.name}
+                        onClick={() => void pull(row)}
+                      >
+                        {pulling() === row.name ? "Pulling…" : "Pull"}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </Show>
+      </div>
       <Show when={viewer()}>
         {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
       </Show>
