@@ -97,9 +97,23 @@ fn image_filename(prompt: &str) -> String {
 }
 
 /// Save decoded image bytes to disk and return a success message.
+///
+/// The destination is always `<working_dir>/<filename>` — never a
+/// subdirectory and never the bare process cwd. `image_filename`
+/// sanitizes the slug to `[A-Za-z0-9_-]`, so the joined path can't
+/// climb out of `working_dir` via `..` or absolute components. The
+/// returned message reports the filename only (no leading directory)
+/// so frontends that parse "Image saved to <filename>" and join it
+/// against their own workspace anchor still resolve correctly.
 async fn save_image(bytes: &[u8], prompt: &str, provider: &str) -> String {
     let filename = image_filename(prompt);
-    if let Err(e) = tokio::fs::write(&filename, bytes).await {
+    let working_dir = &crate::security::policy().paths.working_dir;
+    if working_dir.as_os_str().is_empty() {
+        return "Error saving image: no working directory configured (pick a workspace first)"
+            .to_string();
+    }
+    let path = working_dir.join(&filename);
+    if let Err(e) = tokio::fs::write(&path, bytes).await {
         return format!("Error saving image: {e}");
     }
     let size_kb = bytes.len() / 1024;

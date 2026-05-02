@@ -74,6 +74,16 @@ pub fn set(raw_path: &str) -> Result<PathBuf, String> {
         .map_err(|e| format!("failed to canonicalize '{}': {e}", path.display()))?;
     let stored = canonical.to_string_lossy().to_string();
     config::config_set(AICTL_WORKING_DIR_DESKTOP, &stored);
+    // Keep the process cwd in lockstep with the configured workspace so
+    // tool calls that touch the filesystem with bare relative paths land
+    // where `read_workspace_image` (and the user) expects them. The
+    // CLI's `apply_cwd_override` does the same job at boot.
+    if let Err(err) = std::env::set_current_dir(&canonical) {
+        return Err(format!(
+            "configured workspace '{}' but failed to chdir: {err}",
+            canonical.display()
+        ));
+    }
     Ok(canonical)
 }
 

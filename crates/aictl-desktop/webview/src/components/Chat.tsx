@@ -8,7 +8,8 @@ import { renderMarkdown } from "../lib/markdown";
 // Tool results from `generate_image` open with this exact phrase (see
 // `crates/aictl-core/src/tools/image.rs::save_image`). Anchor on it so a
 // stray "image saved to" inside an LLM-authored summary doesn't trigger
-// a filesystem read.
+// a filesystem read. `read_image` deliberately does *not* trigger an
+// inline preview — its only job is to feed the model.
 const SAVED_IMAGE_RE = /^Image saved to (\S+\.(?:png|jpe?g|gif|webp|bmp|svg))\b/i;
 
 function extractSavedImagePath(result: string | undefined): string | null {
@@ -142,6 +143,14 @@ const ToolImagePreview: Component<{ path: string }> = (props) => {
     (p) => ipc.readWorkspaceImage(p),
   );
 
+  // Solid's `createResource` makes `data()` throw when the resource is
+  // in an errored state; reading it inside `<Show when={data()}>` then
+  // tears down the surrounding effect and the UI freezes on the last
+  // rendered branch (typically "loading preview…"). Gate explicitly on
+  // `state === "ready"` so the error and ready branches are mutually
+  // exclusive and never raise during render.
+  const ready = () => (data.state === "ready" ? data() : undefined);
+
   return (
     <div style={{ "margin-top": "8px" }}>
       <Show when={data.loading}>
@@ -149,12 +158,12 @@ const ToolImagePreview: Component<{ path: string }> = (props) => {
           loading preview…
         </div>
       </Show>
-      <Show when={data.error}>
+      <Show when={!data.loading && data.error}>
         <div style={{ color: "var(--fg-faint)", "font-size": "11px" }}>
           preview unavailable: {String(data.error)}
         </div>
       </Show>
-      <Show when={data()}>
+      <Show when={ready()}>
         {(d) => (
           <img
             src={`data:${d().media_type};base64,${d().base64}`}

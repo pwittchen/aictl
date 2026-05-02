@@ -42,6 +42,22 @@ pub fn run() {
     // power-user toggle that lives in Settings (deferred to Phase 5).
     let _redaction_warnings = aictl_core::security::init(false);
 
+    // Anchor the process cwd to the configured workspace, mirroring the
+    // CLI's `apply_cwd_override`. Tools that touch the filesystem with
+    // bare relative paths (`tool_generate_image::save_image`,
+    // `tool_read_image`, the file-system tools, etc.) operate relative
+    // to the process cwd; without this, the desktop saves images into
+    // the launch dir while `read_workspace_image` looks for them under
+    // the configured workspace, and previews can't find the file.
+    if let Ok(Some(ws)) = workspace::resolve()
+        && let Err(err) = std::env::set_current_dir(&ws)
+    {
+        eprintln!(
+            "[aictl-desktop] failed to chdir to workspace '{}': {err}",
+            ws.display()
+        );
+    }
+
     let app_state = std::sync::Arc::new(state::AppState::new());
 
     tauri::Builder::default()

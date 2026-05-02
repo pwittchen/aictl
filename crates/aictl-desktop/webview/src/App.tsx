@@ -263,6 +263,14 @@ const App: Component = () => {
     const cur = pending();
     if (!cur) return;
     setPending(null);
+    // On approval the engine runs the tool and emits `tool_result`
+    // without a preceding `tool_auto`; seed the message here so the
+    // result patches into a callout that knows its tool name + input
+    // (the chat surface needs both to render an image preview for
+    // `read_image`, and the picker hides as soon as we clear it).
+    if (decision === "allow" || decision === "auto_accept") {
+      append({ kind: "tool", tool: cur.tool, input: cur.input });
+    }
     try {
       await ipc.toolApprovalResponse(cur.id, decision);
     } catch (err) {
