@@ -29,7 +29,6 @@
         <a href="guides.html">Guides</a>
         <a href="server.html">Server</a>
         <a href="#license">License</a>
-        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
       </nav>
       <a class="btn btn--primary nav__cta" href="#install">Install</a>
       <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
@@ -53,7 +52,6 @@
       <a href="guides.html" data-nav-link>Guides</a>
       <a href="server.html" data-nav-link>Server</a>
       <a href="#license" data-nav-link>License</a>
-      <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener" data-nav-link>Source</a>
     </nav>
     <a class="btn btn--primary nav__drawer-cta" href="#install" data-nav-link>Install</a>
   </aside>
@@ -172,10 +170,11 @@
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// providers</span>
-          <h2 class="section__title">Eleven providers, one interface</h2>
+          <h2 class="section__title">Twelve providers, one interface</h2>
           <p class="section__lead">
             Switch models in the REPL with <code>/model</code>. Eight remote
-            APIs plus three local backends. Same tools, same agent loop, same context.
+            APIs, three local backends, and the <code>aictl-server</code>
+            HTTP proxy. Same tools, same agent loop, same context.
           </p>
         </header>
 
@@ -191,8 +190,9 @@
           <li>Ollama</li>
           <li>GGUF <span class="tag tag--inline">experimental</span></li>
           <li>MLX <span class="tag tag--inline">Apple Silicon</span></li>
-          <li class="providers__note">switch models mid-session — context of your conversation stays</li>
+          <li><a href="server.html">AICTL</a> <span class="tag tag--inline">HTTP proxy</span></li>
         </ul>
+        <p class="providers__note">switch models mid-session — context of your conversation stays</p>
       </div>
     </section>
 

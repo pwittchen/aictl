@@ -744,13 +744,13 @@ body.nav-open {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   background: var(--bg-alt);
   border: 1px solid var(--border);
 }
 
 .providers li {
-  padding: 24px;
+  padding: 24px 16px;
   background: var(--bg-alt);
   font-family: var(--font-mono);
   font-size: 15px;
@@ -759,23 +759,16 @@ body.nav-open {
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   transition: background 120ms ease;
+  white-space: nowrap;
 }
 
 .providers li:hover { background: var(--surface-hover); }
 
-.providers li.providers__note {
-  grid-column-end: -1;
+.providers__note {
+  margin: 16px 0 0;
+  font-size: 14px;
   color: var(--fg-50);
-  letter-spacing: 0.3px;
-  text-align: center;
-  border-right: none;
 }
-
-@media (min-width: 1248px) {
-  .providers li.providers__note { grid-column: span 4 / -1; }
-}
-
-.providers li.providers__note:hover { background: var(--bg-alt); }
 
 /* Compare */
 .compare__note {
