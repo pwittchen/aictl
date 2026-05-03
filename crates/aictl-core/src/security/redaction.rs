@@ -30,6 +30,12 @@
 //! non-overlapping in the final list so placeholder substitution is
 //! deterministic.
 //!
+//! Low-confidence matches are dropped before the redact/block
+//! decision — every Layer-B entropy hit and any Layer-C NER span
+//! whose model probability is below 0.65 is treated as noise rather
+//! than a sensitive-data finding. High-confidence regex hits
+//! (Layer A) and confident NER spans still flow through unchanged.
+//!
 //! # Modes
 //!
 //! - `off` — pass-through (default for v1).
@@ -634,6 +640,13 @@ fn find_matches(text: &str, pol: &RedactionPolicy) -> Vec<Match> {
     if !pol.allowlist.is_empty() {
         raw.retain(|m| !is_allowlisted(text, m, &pol.allowlist));
     }
+
+    // Drop low-confidence hits before they reach the redact/block
+    // decision. The Layer-B entropy scanner (always "low") and
+    // sub-0.65-probability NER spans are the dominant sources of
+    // false positives — surfacing them only sharpens the alert
+    // signal for high-confidence regex / model hits.
+    raw.retain(|m| m.confidence != "low");
 
     merge_overlaps(raw)
 }
@@ -1370,17 +1383,14 @@ mod tests {
     // --- Entropy ---
 
     #[test]
-    fn entropy_flags_long_random_string() {
+    fn entropy_low_confidence_hits_are_dropped() {
+        // The Layer-B entropy scanner produces "low" confidence
+        // matches; the post-detection filter drops these before they
+        // reach the redact/block decision so a 32-char high-entropy
+        // run no longer trips a false-positive redaction on its own.
         let input = "blob: q8X2Lk9wR4vN1cM7pT3eJ6hZ5fY0oAbD Ud2S end";
-        // The token above is 32 chars and high-entropy.
         let r = redact(input, &pol_redact());
-        match r {
-            RedactionResult::Redacted { matches, .. } => {
-                assert!(matches.iter().any(|m| m.kind == DetectorKind::HighEntropy));
-            }
-            RedactionResult::Clean => panic!("expected a high-entropy match"),
-            other => panic!("unexpected {other:?}"),
-        }
+        assert!(matches!(r, RedactionResult::Clean));
     }
 
     #[test]
