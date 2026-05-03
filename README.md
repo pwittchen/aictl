@@ -15,7 +15,7 @@ User guides: https://aictl.app/guides.html
 > Dedicated coding capabilities may be added in the future. If you are looking for an AI agent specialized in software development today,
 > consider Claude Code, Codex, or opencode — they are purpose-built for that workflow.
 
-You can use AICTL on the desktop... (currently work in progress - unrealeased app)
+You can use AICTL on your desktop... (currently work in progress - unrealeased app)
 
 ![aictl screenshot desktop](screenshot_desktop.png)
 
