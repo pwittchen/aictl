@@ -23,7 +23,9 @@ You can use AICTL on your desktop... (currently work in progress - unrealeased a
 
 ![aictl screenshot](screenshot.png)
 
-...with the single configuration and feature parity for CLI and desktop app
+...with the single configuration and feature parity for CLI and desktop app.
+
+In addition, you can also use [HTTP Server with LLM proxy](http-server-aictl-server) with security features.
 
 ## Install CLI
 
