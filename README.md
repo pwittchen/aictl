@@ -19,11 +19,13 @@ You can use AICTL on your desktop... (currently work in progress - unrealeased a
 
 ![aictl screenshot desktop](screenshot_desktop.png)
 
-...and in your terminal
+...and in your terminal...
 
 ![aictl screenshot](screenshot.png)
 
-## Install
+...with the single configuration and feature parity for CLI and desktop app
+
+## Install CLI
 
 ```bash
 curl -sSf https://aictl.app/install.sh | sh
