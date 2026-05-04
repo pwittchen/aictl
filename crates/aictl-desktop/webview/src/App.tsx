@@ -35,6 +35,36 @@ export interface PendingApproval {
   input: string;
 }
 
+/// Verbs that, when used as a one-word command (or as a prefix to a
+/// task), trigger the loaded skill. Mirrors the CLI's `InvokeSkill`
+/// rewrite: a bare verb expands to a default trigger; `verb <task>`
+/// uses `<task>` as the user message so the skill body (already
+/// merged into the system prompt by the engine) drives the turn with
+/// that parameter. Matched case-insensitively against the first word.
+const SKILL_INVOKE_VERBS = ["run", "execute", "start", "go"];
+
+const expandSkillCommand = (
+  input: string,
+  skillName: string | null,
+): string => {
+  if (!skillName) return input;
+  const trimmed = input.trim();
+  if (trimmed === "") return input;
+  const lower = trimmed.toLowerCase();
+  for (const verb of SKILL_INVOKE_VERBS) {
+    if (lower === verb) {
+      return `Run the "${skillName}" skill.`;
+    }
+    const prefix = `${verb} `;
+    if (lower.startsWith(prefix)) {
+      const task = trimmed.slice(prefix.length).trim();
+      if (task === "") return `Run the "${skillName}" skill.`;
+      return task;
+    }
+  }
+  return input;
+};
+
 /// Bridge between the Rust-side session projection (system/user/assistant/
 /// tool_result) and the webview-side `Message` discriminated union. The
 /// system prompt is kept in the engine-side transcript but hidden in the
@@ -336,9 +366,10 @@ const App: Component = () => {
   const send = async (text: string) => {
     if (!workspace().path) return;
     if (!text.trim()) return;
-    append({ kind: "user", text });
+    const expanded = expandSkillCommand(text, loadedSkill());
+    append({ kind: "user", text: expanded });
     try {
-      await ipc.sendMessage(text, autoAccept());
+      await ipc.sendMessage(expanded, autoAccept());
     } catch (err) {
       append({ kind: "error", text: `${err}` });
     }
