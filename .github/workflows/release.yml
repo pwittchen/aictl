@@ -233,7 +233,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: desktop-${{ matrix.target }}-${{ matrix.features }}
+          # rust-cache rejects commas in keys — `matrix.features` is comma-
+          # separated for tauri build, so swap commas for dashes here.
+          key: desktop-${{ matrix.target }}-${{ replace(matrix.features, ',', '-') }}
           workspaces: ". -> target"
 
       - name: Install webview deps
@@ -317,6 +319,14 @@ jobs:
           staging=$(mktemp -d)
           cp -R "$app_dir" "$staging/"
           ln -s /Applications "$staging/Applications"
+          # Free disk before hdiutil — the aarch64 runner has ~14 GB free and
+          # the bundled .app (binary + ~280 MB mlx.metallib) plus hdiutil's
+          # temporary sparse volume + final UDZO need ~1.5 GB of headroom.
+          # The staged copy is self-contained, so the original target/ tree
+          # is no longer needed for the rest of this job.
+          df -h .
+          rm -rf "target/${{ matrix.target }}/release"
+          df -h .
           hdiutil create -volname "aictl" -srcfolder "$staging" -ov -format UDZO "${{ matrix.artifact }}.dmg"
           echo "asset=${{ matrix.artifact }}.dmg" >> "$GITHUB_ENV"
 
