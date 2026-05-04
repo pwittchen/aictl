@@ -79,7 +79,7 @@ type Tab =
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "appearance", label: "Appearance" },
-  { id: "provider", label: "Model" },
+  { id: "provider", label: "Models" },
   { id: "models", label: "Local Models" },
   { id: "keys", label: "API Keys" },
   { id: "security", label: "Security" },
@@ -262,7 +262,7 @@ const ProviderTab: Component<ProviderTabProps> = (props) => {
 
   return (
     <div class="settings-tab-content">
-      <h3>Model</h3>
+      <h3>Models</h3>
       <p class="settings-hint">
         Pick which model the chat uses. The composer's dropdown points
         at the same setting.
