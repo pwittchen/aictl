@@ -278,6 +278,28 @@ jobs:
           fi
           cp "$metallib" "$app_dir/Contents/MacOS/mlx.metallib"
 
+      - name: Ad-hoc sign .app bundle
+        # Tauri's build leaves Contents/_CodeSignature empty — the binary
+        # is linker-ad-hoc-signed but the bundle is not, so Resources/
+        # files have no manifest entry. `codesign --verify` reports
+        # "code has no resources but signature indicates they must be
+        # present", and once the DMG is downloaded from GitHub the
+        # quarantine xattr makes Gatekeeper reject the app on first
+        # open. Inject-then-sign also covers the mlx.metallib drop on
+        # aarch64, which would otherwise invalidate any prior signature.
+        # Ad-hoc (`--sign -`) is enough for Gatekeeper-Lite + xattr
+        # quarantine clearance; full notarization still requires a
+        # Developer ID identity.
+        shell: bash
+        run: |
+          app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
+          if [ -z "$app_dir" ]; then
+            echo "ERROR: .app not produced"
+            exit 1
+          fi
+          codesign --force --deep --sign - "$app_dir"
+          codesign --verify --deep --strict --verbose=2 "$app_dir"
+
       - name: Package DMG
         # Tauri's own DMG bundler runs before the metallib injection
         # step above, so we build the DMG manually with hdiutil to
