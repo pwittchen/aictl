@@ -1,4 +1,4 @@
-# aictl 🤖
+# <img src="crates/aictl-desktop/icons/icon.png" alt="aictl icon" width="32" height="32" align="left"/> aictl
 
 [![CI](https://github.com/pwittchen/aictl/actions/workflows/ci.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/ci.yml)
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
