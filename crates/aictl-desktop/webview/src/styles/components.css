@@ -1487,12 +1487,6 @@
   cursor: pointer;
 }
 
-.settings-bool-line input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-}
-
 .settings-select {
   padding: 4px 8px;
   background: var(--bg);
@@ -1539,12 +1533,6 @@
 
 .settings-tool-item:hover {
   background: var(--bg-soft, rgba(255, 255, 255, 0.03));
-}
-
-.settings-tool-item input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent);
 }
 
 .settings-tool-name code {
