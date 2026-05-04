@@ -126,12 +126,25 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-2);
+  padding: 2px var(--space-2);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--fg-soft);
   pointer-events: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.titlebar .titlebar-context:hover {
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.titlebar .titlebar-context:focus-visible {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .titlebar .titlebar-context-label {
@@ -2245,4 +2258,188 @@
 
 [data-density="cozy"] .chat-msg {
   padding: var(--space-4) var(--space-5);
+}
+
+/* Context details dialog — opens when the titlebar ctx meter is
+   clicked. Smaller and lighter than the Settings overlay; reuses the
+   same tone palette for the usage bar. */
+.ctx-details-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 90;
+  padding: var(--space-5);
+}
+
+.ctx-details-panel {
+  width: min(520px, 100%);
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ctx-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ctx-details-header h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ctx-details-close {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-soft);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.ctx-details-close:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.ctx-details-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.ctx-details-hint {
+  margin: 0 0 var(--space-3);
+  color: var(--fg-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ctx-details-meta {
+  margin: 0 0 var(--space-3);
+  color: var(--fg-faint);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.ctx-details-meta-inline {
+  color: var(--fg-faint);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.ctx-details-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.ctx-details-row.ctx-details-row-stack {
+  grid-template-columns: 1fr;
+  gap: var(--space-1);
+  align-items: stretch;
+}
+
+.ctx-details-row label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+
+.ctx-details-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg);
+  word-break: break-all;
+}
+
+.ctx-details-value code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+}
+
+.ctx-details-empty {
+  color: var(--fg-faint);
+  font-style: italic;
+}
+
+.ctx-details-error {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.ctx-details-bar {
+  height: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.ctx-details-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 120ms ease, background-color 120ms ease;
+}
+
+.ctx-details-fill[data-tone="warn"] {
+  background: #ffb454;
+}
+
+.ctx-details-fill[data-tone="danger"] {
+  background: var(--danger);
+}
+
+.ctx-details-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ctx-details-footer button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.ctx-details-footer button:hover {
+  border-color: var(--border-strong);
 }

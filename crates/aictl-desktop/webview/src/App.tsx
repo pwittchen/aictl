@@ -19,6 +19,7 @@ import Titlebar from "./components/Titlebar";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import Settings from "./components/Settings";
+import ContextDetails from "./components/ContextDetails";
 
 export type Message =
   | { kind: "user"; text: string }
@@ -73,6 +74,7 @@ const App: Component = () => {
   const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
   const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
   const [showSettings, setShowSettings] = createSignal(false);
+  const [showContextDetails, setShowContextDetails] = createSignal(false);
   const [toolsEnabled, setToolsEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
@@ -533,6 +535,7 @@ const App: Component = () => {
         onToggleSidebar={() => setSidebarVisible((v) => !v)}
         contextPct={contextPct()}
         contextTokens={contextTokens()}
+        onShowContextDetails={() => setShowContextDetails(true)}
       />
       <Sidebar
         activeSession={activeSession()}
@@ -599,6 +602,9 @@ const App: Component = () => {
             onAlways={() => respond("auto_accept")}
           />
         )}
+      </Show>
+      <Show when={showContextDetails()}>
+        <ContextDetails onClose={() => setShowContextDetails(false)} />
       </Show>
       <Show when={showSettings()}>
         <Settings

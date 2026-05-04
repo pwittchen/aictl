@@ -9,7 +9,6 @@
 - add possibility to add new skill on desktop (maunally and generated)
 - add possibility to add MCP server on desktop
 - for desktop app, when workspace is not set, offer path: ~/.aictl/workspace/
-- for desktop app, add when clicking on context, there should be displayed window with more details regarding context
 - for desktop app, add possibility to lock/unlock ALL keys
 - for desktop app, add possibility to download MLX and GGUF models (add mention this features are experimental in the app UI)
 

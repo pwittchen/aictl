@@ -16,6 +16,7 @@ interface Props {
   /// real.
   contextPct: number | null;
   contextTokens: { input: number; limit: number } | null;
+  onShowContextDetails: () => void;
 }
 
 const Titlebar: Component<Props> = (props) => {
@@ -94,6 +95,7 @@ const Titlebar: Component<Props> = (props) => {
           <ContextMeter
             pct={props.contextPct ?? 0}
             tokens={props.contextTokens}
+            onClick={props.onShowContextDetails}
           />
         </Show>
         <button
@@ -112,6 +114,7 @@ const Titlebar: Component<Props> = (props) => {
 const ContextMeter: Component<{
   pct: number;
   tokens: { input: number; limit: number } | null;
+  onClick: () => void;
 }> = (props) => {
   const tone = (): "ok" | "warn" | "danger" => {
     if (props.pct >= 80) return "danger";
@@ -120,11 +123,18 @@ const ContextMeter: Component<{
   };
   const tooltip = () => {
     const t = props.tokens;
-    if (!t) return `Context usage: ${props.pct}%`;
-    return `Context usage: ${props.pct}% — ${t.input.toLocaleString()} / ${t.limit.toLocaleString()} tokens`;
+    const suffix = "click for details";
+    if (!t) return `Context usage: ${props.pct}% — ${suffix}`;
+    return `Context usage: ${props.pct}% — ${t.input.toLocaleString()} / ${t.limit.toLocaleString()} tokens — ${suffix}`;
   };
   return (
-    <div class="titlebar-context" title={tooltip()}>
+    <button
+      type="button"
+      class="titlebar-context"
+      title={tooltip()}
+      aria-label="Show context details"
+      onClick={props.onClick}
+    >
       <span class="titlebar-context-label">ctx</span>
       <div class="titlebar-context-bar">
         <div
@@ -134,7 +144,7 @@ const ContextMeter: Component<{
         />
       </div>
       <span class="titlebar-context-value">{props.pct}%</span>
-    </div>
+    </button>
   );
 };
 
