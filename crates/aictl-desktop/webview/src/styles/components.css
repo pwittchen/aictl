@@ -603,6 +603,46 @@
   margin: var(--space-2) 0;
 }
 
+/* Loading indicator — three small squares that pulse in sequence.
+   Used during the "working…" pre-stream phase and inline with the
+   "streaming" meta so the user always sees a live signal that the
+   turn is still in flight. Square + accent-colored to match the
+   monospace / brutalist vocabulary. */
+.loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.loading-dots > span {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  opacity: 0.25;
+  animation: loading-dots 1.1s infinite ease-in-out both;
+}
+
+.loading-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.loading-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes loading-dots {
+  0%, 70%, 100% {
+    opacity: 0.2;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
 .tool-callout {
   margin: var(--space-3) 0;
   padding: var(--space-3) var(--space-4);

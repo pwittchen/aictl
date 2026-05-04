@@ -47,13 +47,17 @@ const Chat: Component<Props> = (props) => {
       </For>
       <Show when={props.streaming}>
         <div class="message" data-role="assistant">
-          <div class="meta">assistant · streaming</div>
+          <div class="meta">
+            assistant · streaming
+            <LoadingDots />
+          </div>
           <div class="body markdown" innerHTML={streamingHtml()} />
         </div>
       </Show>
       <Show when={props.busy && !props.streaming}>
         <div class="message" data-role="assistant">
           <div class="meta">working…</div>
+          <LoadingDots />
         </div>
       </Show>
     </div>
@@ -181,5 +185,11 @@ const ToolImagePreview: Component<{ path: string }> = (props) => {
     </div>
   );
 };
+
+const LoadingDots: Component = () => (
+  <span class="loading-dots" role="status" aria-label="loading">
+    <span /><span /><span />
+  </span>
+);
 
 export default Chat;
