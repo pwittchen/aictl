@@ -268,9 +268,7 @@ pub async fn skill_generate(args: SkillGenerateArgs) -> Result<String, String> {
         return Err("skill name is empty".to_string());
     }
     if !skills::is_valid_name(&name) {
-        return Err(
-            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
-        );
+        return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
     }
     let description = args.description.trim().to_string();
     if description.is_empty() {

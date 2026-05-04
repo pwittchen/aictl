@@ -3,14 +3,17 @@
 //! Reads `~/.aictl/mcp.json` (or `AICTL_MCP_CONFIG`) and surfaces a list
 //! the Settings UI can render. Toggling an entry rewrites the file with
 //! `enabled: true|false`; the change picks up on the next process launch
-//! (`mcp::init` only runs once).
+//! (`mcp::init` only runs once). The `mcp_create` handler appends a new
+//! entry to the same document so the desktop can author servers without
+//! the user editing JSON by hand.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aictl_core::mcp;
-use aictl_core::mcp::config::config_path as mcp_config_path;
+use aictl_core::mcp::config::{config_path as mcp_config_path, is_valid_name};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 /// One row in the MCP panel — same fields the CLI's `/mcp` menu shows
 /// plus the on-disk `enabled` flag so the toggle reflects file state
@@ -114,6 +117,98 @@ pub fn mcp_toggle(args: McpToggleArgs) -> Result<bool, String> {
     let serialized = serde_json::to_string_pretty(&doc).map_err(|e| format!("serialize: {e}"))?;
     std::fs::write(&path, serialized).map_err(|e| format!("write: {e}"))?;
     Ok(args.enabled)
+}
+
+#[derive(Deserialize)]
+pub struct McpCreateArgs {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    pub timeout_secs: Option<u64>,
+    /// `true` once the user has confirmed they want to clobber an
+    /// existing server of the same name.
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+/// Append a new server entry to `mcp.json`. Creates the file with an
+/// empty `mcpServers` object if it didn't exist yet — same shape
+/// `mcp::config::parse` expects on first read. Refuses to overwrite an
+/// existing entry unless the caller passes `overwrite: true`; the
+/// dialog confirms in JS before retrying.
+#[tauri::command]
+pub fn mcp_create(args: McpCreateArgs) -> Result<(), String> {
+    let name = args.name.trim().to_string();
+    if !is_valid_name(&name) {
+        return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
+    }
+    let command = args.command.trim().to_string();
+    if command.is_empty() {
+        return Err("command is empty".to_string());
+    }
+    if let Some(t) = args.timeout_secs
+        && t == 0
+    {
+        return Err("timeout must be greater than zero".to_string());
+    }
+
+    let path = mcp_config_path();
+    let mut doc: Value = if path.exists() {
+        let raw = std::fs::read_to_string(&path).map_err(|e| format!("read mcp.json: {e}"))?;
+        serde_json::from_str(&raw).map_err(|e| format!("parse mcp.json: {e}"))?
+    } else {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("create {}: {e}", parent.display()))?;
+        }
+        let mut root = Map::new();
+        root.insert("mcpServers".into(), Value::Object(Map::new()));
+        Value::Object(root)
+    };
+
+    let map = doc
+        .as_object_mut()
+        .and_then(|root| {
+            root.entry("mcpServers")
+                .or_insert_with(|| Value::Object(Map::new()));
+            root.get_mut("mcpServers")
+                .and_then(serde_json::Value::as_object_mut)
+        })
+        .ok_or_else(|| "mcp.json root must be an object".to_string())?;
+
+    if map.contains_key(&name) && !args.overwrite {
+        return Err(format!("server '{name}' already exists"));
+    }
+
+    let mut entry = Map::new();
+    entry.insert("command".into(), Value::String(command));
+    if !args.args.is_empty() {
+        entry.insert(
+            "args".into(),
+            Value::Array(args.args.into_iter().map(Value::String).collect()),
+        );
+    }
+    if !args.env.is_empty() {
+        let env_map: Map<String, Value> = args
+            .env
+            .into_iter()
+            .map(|(k, v)| (k, Value::String(v)))
+            .collect();
+        entry.insert("env".into(), Value::Object(env_map));
+    }
+    entry.insert("enabled".into(), Value::Bool(true));
+    if let Some(t) = args.timeout_secs {
+        entry.insert("timeout_secs".into(), Value::Number(t.into()));
+    }
+
+    map.insert(name, Value::Object(entry));
+
+    let serialized = serde_json::to_string_pretty(&doc).map_err(|e| format!("serialize: {e}"))?;
+    std::fs::write(&path, serialized).map_err(|e| format!("write: {e}"))?;
+    Ok(())
 }
 
 fn read_enabled_map(path: &PathBuf) -> Option<HashMap<String, bool>> {

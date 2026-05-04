@@ -444,6 +444,25 @@ export const ipc = {
   async mcpToggle(name: string, enabled: boolean) {
     return invoke<boolean>("mcp_toggle", { args: { name, enabled } });
   },
+  async mcpCreate(
+    name: string,
+    command: string,
+    args: string[],
+    env: Record<string, string>,
+    timeoutSecs: number | undefined,
+    overwrite: boolean,
+  ) {
+    return invoke<void>("mcp_create", {
+      args: {
+        name,
+        command,
+        args,
+        env,
+        timeout_secs: timeoutSecs ?? null,
+        overwrite,
+      },
+    });
+  },
 
   // -- hooks ----
   async hooksStatus() {

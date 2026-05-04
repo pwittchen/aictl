@@ -211,9 +211,7 @@ pub fn agent_save(args: AgentSaveArgs) -> Result<AgentSaveOutcome, String> {
         return Err("agent name is empty".to_string());
     }
     if !agents::is_valid_name(&name) {
-        return Err(
-            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
-        );
+        return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
     }
     let body = args.body.trim().to_string();
     if body.is_empty() {
@@ -249,9 +247,7 @@ pub async fn agent_generate(args: AgentGenerateArgs) -> Result<String, String> {
         return Err("agent name is empty".to_string());
     }
     if !agents::is_valid_name(&name) {
-        return Err(
-            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
-        );
+        return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
     }
     let description = args.description.trim().to_string();
     if description.is_empty() {

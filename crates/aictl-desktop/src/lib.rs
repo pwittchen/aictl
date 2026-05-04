@@ -117,6 +117,7 @@ pub fn run() {
             commands::images::read_workspace_image,
             commands::mcp::mcp_status,
             commands::mcp::mcp_toggle,
+            commands::mcp::mcp_create,
             commands::hooks::hooks_status,
             commands::hooks::hook_toggle,
             commands::hooks::hook_delete,

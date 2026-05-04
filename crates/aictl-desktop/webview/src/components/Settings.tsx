@@ -39,6 +39,7 @@ import {
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
 import AgentEditor from "./AgentEditor";
+import McpEditor from "./McpEditor";
 import SkillEditor from "./SkillEditor";
 
 interface Props {
@@ -1507,6 +1508,7 @@ const McpTab: Component = () => {
   const [status, { refetch }] = createResource<McpStatus>(() => ipc.mcpStatus());
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [showEditor, setShowEditor] = createSignal(false);
 
   const setEnabled = async (on: boolean) => {
     setError(null);
@@ -1564,11 +1566,16 @@ const McpTab: Component = () => {
           </p>
         )}
       </Show>
+      <div class="settings-keys-bulk">
+        <button type="button" onClick={() => setShowEditor(true)}>
+          New MCP server
+        </button>
+      </div>
       <Show
         when={(status()?.servers ?? []).length > 0}
         fallback={
           <p class="settings-hint">
-            <em>No servers configured. Add entries to mcp.json.</em>
+            <em>No servers configured yet — click "New MCP server" to add one.</em>
           </p>
         }
       >
@@ -1617,6 +1624,18 @@ const McpTab: Component = () => {
             </For>
           </tbody>
         </table>
+      </Show>
+      <Show when={showEditor()}>
+        <McpEditor
+          existingNames={(status()?.servers ?? []).map((s) => s.name)}
+          onSaved={(name) => {
+            setShowEditor(false);
+            setError(null);
+            setFeedback(`saved ${name} (restart desktop to apply)`);
+            void refetch();
+          }}
+          onClose={() => setShowEditor(false)}
+        />
       </Show>
     </div>
   );
