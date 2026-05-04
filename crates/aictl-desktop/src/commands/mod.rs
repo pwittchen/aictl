@@ -11,6 +11,7 @@ pub mod chat;
 pub mod context;
 pub mod hooks;
 pub mod images;
+pub mod local_models;
 pub mod mcp;
 pub mod models;
 pub mod plugins;

@@ -21,6 +21,7 @@ import {
   type HooksStatus,
   type KeyBackend,
   type KeyRow,
+  type LocalModelsStatus,
   type McpStatus,
   type ModelEntry,
   type OllamaProbeResult,
@@ -62,6 +63,7 @@ type Tab =
   | "skills"
   | "agents"
   | "plugins"
+  | "models"
   | "sessions"
   | "context"
   | "stats"
@@ -74,6 +76,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "appearance", label: "Appearance" },
   { id: "provider", label: "Model" },
+  { id: "models", label: "Local Models" },
   { id: "keys", label: "API Keys" },
   { id: "security", label: "Security" },
   { id: "redaction", label: "Redaction" },
@@ -177,6 +180,9 @@ const Settings: Component<Props> = (props) => {
             </Show>
             <Show when={tab() === "mcp"}>
               <McpTab />
+            </Show>
+            <Show when={tab() === "models"}>
+              <ModelsTab />
             </Show>
             <Show when={tab() === "hooks"}>
               <HooksTab />
@@ -1641,6 +1647,483 @@ const McpTab: Component = () => {
           onClose={() => setShowEditor(false)}
         />
       </Show>
+    </div>
+  );
+};
+
+function fmtBytes(n: number): string {
+  if (n <= 0) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+interface ActiveDownload {
+  id: number;
+  label: string;
+  current: number;
+  total: number | null;
+  message: string | null;
+}
+
+const ModelsTab: Component = () => {
+  const [status, { refetch }] = createResource<LocalModelsStatus>(() =>
+    ipc.localModelsStatus(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [showGgufDialog, setShowGgufDialog] = createSignal(false);
+  const [showMlxDialog, setShowMlxDialog] = createSignal(false);
+  const [downloads, setDownloads] = createSignal<ActiveDownload[]>([]);
+
+  // Subscribe to the engine's progress events so model downloads render
+  // an inline bar. The id is minted server-side; we treat any in-flight
+  // ProgressBegin as a model download because the only emitter on the
+  // desktop is the local-models pull path.
+  onMount(() => {
+    let unlisten: (() => void) | null = null;
+    void ipc
+      .onAgentEvent((evt) => {
+        if (evt.kind === "progress_begin") {
+          setDownloads((prev) => [
+            ...prev,
+            {
+              id: evt.id,
+              label: evt.label,
+              current: 0,
+              total: evt.total,
+              message: null,
+            },
+          ]);
+        } else if (evt.kind === "progress_update") {
+          setDownloads((prev) =>
+            prev.map((d) =>
+              d.id === evt.id
+                ? { ...d, current: evt.current, message: evt.message }
+                : d,
+            ),
+          );
+        } else if (evt.kind === "progress_end") {
+          setDownloads((prev) => prev.filter((d) => d.id !== evt.id));
+          // Refetch the status so the new model appears in the table.
+          void refetch();
+        }
+      })
+      .then((u) => {
+        unlisten = u;
+      });
+    onCleanup(() => {
+      if (unlisten) unlisten();
+    });
+  });
+
+  const removeGguf = async (name: string) => {
+    if (!window.confirm(`Remove GGUF model "${name}"?`)) return;
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.localModelsRemoveGguf(name);
+      setFeedback(`removed ${name}`);
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const removeMlx = async (name: string) => {
+    if (!window.confirm(`Remove MLX model "${name}"?`)) return;
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.localModelsRemoveMlx(name);
+      setFeedback(`removed ${name}`);
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Local models</h3>
+      <p class="settings-warn">
+        ⚠ Local model support (GGUF and MLX) is{" "}
+        <strong>experimental</strong>. Downloads work today; inference may
+        be rough or unavailable depending on the build flags. Expect rough
+        edges.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={feedback()}>
+        <p class="settings-success">{feedback()}</p>
+      </Show>
+
+      <Show when={downloads().length > 0}>
+        <div class="settings-downloads">
+          <h4 class="settings-subhead">In progress</h4>
+          <For each={downloads()}>
+            {(d) => (
+              <div class="settings-download-row">
+                <div class="settings-download-label">
+                  {d.label}
+                  <Show when={d.message}>
+                    {(m) => <span class="settings-meta"> · {m()}</span>}
+                  </Show>
+                </div>
+                <progress
+                  class="settings-download-bar"
+                  value={d.current}
+                  max={d.total ?? undefined}
+                />
+                <div class="settings-download-meta">
+                  {fmtBytes(d.current)}
+                  <Show when={d.total}>
+                    {(t) => <> / {fmtBytes(t())}</>}
+                  </Show>
+                </div>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      <Show when={status()}>
+        {(s) => (
+          <>
+            <h4 class="settings-subhead">Native GGUF (CPU, llama.cpp)</h4>
+            <p class="settings-meta">
+              <Show
+                when={s().gguf.inference_available}
+                fallback={
+                  <>
+                    Models can be downloaded, but this build was not
+                    compiled with <code>--features gguf</code> — inference
+                    is not available on this binary.
+                  </>
+                }
+              >
+                Inference enabled. Models live in{" "}
+                <code>{s().gguf.dir}</code>.
+              </Show>
+            </p>
+            <div class="settings-keys-bulk">
+              <button type="button" onClick={() => setShowGgufDialog(true)}>
+                Download GGUF model
+              </button>
+            </div>
+            <Show
+              when={s().gguf.models.length > 0}
+              fallback={
+                <p class="settings-hint">
+                  <em>No GGUF models downloaded yet.</em>
+                </p>
+              }
+            >
+              <table class="settings-keys-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Size</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={s().gguf.models}>
+                    {(m) => (
+                      <tr>
+                        <td>
+                          <code>{m.name}</code>
+                        </td>
+                        <td>{fmtBytes(m.size_bytes)}</td>
+                        <td class="settings-keys-actions">
+                          <button
+                            type="button"
+                            class="ghost mini"
+                            onClick={() => void removeGguf(m.name)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </Show>
+
+            <h4 class="settings-subhead">Native MLX (Apple Silicon)</h4>
+            <p class="settings-meta">
+              <Show
+                when={s().mlx.host_supports_mlx}
+                fallback={
+                  <>
+                    This host is not Apple Silicon — MLX models can be
+                    downloaded for archival but cannot run here.
+                  </>
+                }
+              >
+                <Show
+                  when={s().mlx.inference_available}
+                  fallback={
+                    <>
+                      Models can be downloaded, but this build was not
+                      compiled with <code>--features mlx</code> —
+                      inference is not available on this binary.
+                    </>
+                  }
+                >
+                  Inference enabled. Models live in{" "}
+                  <code>{s().mlx.dir}</code>.
+                </Show>
+              </Show>
+            </p>
+            <div class="settings-keys-bulk">
+              <button type="button" onClick={() => setShowMlxDialog(true)}>
+                Download MLX model
+              </button>
+            </div>
+            <Show
+              when={s().mlx.models.length > 0}
+              fallback={
+                <p class="settings-hint">
+                  <em>No MLX models downloaded yet.</em>
+                </p>
+              }
+            >
+              <table class="settings-keys-table">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Size</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={s().mlx.models}>
+                    {(m) => (
+                      <tr>
+                        <td>
+                          <code>{m.name}</code>
+                        </td>
+                        <td>{fmtBytes(m.size_bytes)}</td>
+                        <td class="settings-keys-actions">
+                          <button
+                            type="button"
+                            class="ghost mini"
+                            onClick={() => void removeMlx(m.name)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </Show>
+          </>
+        )}
+      </Show>
+
+      <Show when={showGgufDialog() && status()}>
+        <LocalModelDownloader
+          backend="gguf"
+          catalog={status()!.gguf.catalog}
+          onDownload={async (spec, name) => {
+            setError(null);
+            try {
+              await ipc.localModelsPullGguf(spec, name);
+              setShowGgufDialog(false);
+              setFeedback(`downloading ${name ?? spec}…`);
+            } catch (err) {
+              setError(`${err}`);
+            }
+          }}
+          onClose={() => setShowGgufDialog(false)}
+        />
+      </Show>
+      <Show when={showMlxDialog() && status()}>
+        <LocalModelDownloader
+          backend="mlx"
+          catalog={status()!.mlx.catalog}
+          onDownload={async (spec, name) => {
+            setError(null);
+            try {
+              await ipc.localModelsPullMlx(spec, name);
+              setShowMlxDialog(false);
+              setFeedback(`downloading ${name ?? spec}…`);
+            } catch (err) {
+              setError(`${err}`);
+            }
+          }}
+          onClose={() => setShowMlxDialog(false)}
+        />
+      </Show>
+    </div>
+  );
+};
+
+interface LocalModelDownloaderProps {
+  backend: "gguf" | "mlx";
+  catalog: { label: string; spec: string; size_label: string }[];
+  onDownload: (spec: string, name?: string) => Promise<void>;
+  onClose: () => void;
+}
+
+const LocalModelDownloader: Component<LocalModelDownloaderProps> = (props) => {
+  const [pickIndex, setPickIndex] = createSignal<number | null>(0);
+  const [customSpec, setCustomSpec] = createSignal("");
+  const [name, setName] = createSignal("");
+  const [busy, setBusy] = createSignal(false);
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
+
+  const resolvedSpec = () => {
+    const idx = pickIndex();
+    if (idx === null) return customSpec().trim();
+    if (idx < props.catalog.length) return props.catalog[idx].spec;
+    return customSpec().trim();
+  };
+
+  const isCustom = () => {
+    const idx = pickIndex();
+    return idx === null || idx >= props.catalog.length;
+  };
+
+  const submit = async () => {
+    const spec = resolvedSpec();
+    if (spec === "") return;
+    setBusy(true);
+    try {
+      await props.onDownload(spec, name().trim() || undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title =
+    props.backend === "gguf"
+      ? "Download GGUF model"
+      : "Download MLX model";
+  const help =
+    props.backend === "gguf"
+      ? "Curated from lmstudio-community on Hugging Face."
+      : "Curated from mlx-community on Hugging Face.";
+
+  return (
+    <div
+      class="editor-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) props.onClose();
+      }}
+    >
+      <div class="editor-modal-panel">
+        <header class="editor-modal-header">
+          <h2>{title}</h2>
+          <button
+            type="button"
+            class="editor-modal-close"
+            aria-label="Close"
+            title="Close (Esc)"
+            onClick={props.onClose}
+          >
+            ✕
+          </button>
+        </header>
+        <div class="editor-modal-body">
+          <p class="editor-modal-help">
+            ⚠ Experimental. {help}
+          </p>
+          <div class="editor-modal-row">
+            <label for="local-model-pick">Model</label>
+            <select
+              id="local-model-pick"
+              value={String(pickIndex() ?? props.catalog.length)}
+              onInput={(e) => {
+                const v = Number.parseInt(e.currentTarget.value, 10);
+                setPickIndex(Number.isFinite(v) ? v : props.catalog.length);
+              }}
+            >
+              <For each={props.catalog}>
+                {(entry, i) => (
+                  <option value={String(i())}>
+                    {entry.label} — {entry.size_label}
+                  </option>
+                )}
+              </For>
+              <option value={String(props.catalog.length)}>
+                custom spec…
+              </option>
+            </select>
+          </div>
+          <Show when={isCustom()}>
+            <div class="editor-modal-row">
+              <label for="local-model-spec">Spec</label>
+              <input
+                id="local-model-spec"
+                type="text"
+                placeholder={
+                  props.backend === "gguf"
+                    ? "owner/repo:filename.gguf or hf:owner/repo/path.gguf"
+                    : "owner/repo (e.g. mlx-community/Llama-3.2-3B-Instruct-4bit)"
+                }
+                value={customSpec()}
+                onInput={(e) => setCustomSpec(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                <Show when={props.backend === "gguf"}>
+                  Accepts <code>hf:owner/repo/file.gguf</code>,{" "}
+                  <code>owner/repo:file.gguf</code>, or an{" "}
+                  <code>https://</code> URL.
+                </Show>
+                <Show when={props.backend === "mlx"}>
+                  Accepts <code>mlx:owner/repo</code> or{" "}
+                  <code>owner/repo</code>. Repo must be MLX-format
+                  (safetensors).
+                </Show>
+              </p>
+            </div>
+          </Show>
+          <div class="editor-modal-row">
+            <label for="local-model-name">Local name (optional)</label>
+            <input
+              id="local-model-name"
+              type="text"
+              placeholder="leave blank to derive from spec"
+              value={name()}
+              onInput={(e) => setName(e.currentTarget.value)}
+            />
+            <p class="editor-modal-help">
+              Letters, numbers, dot, dash, and underscore only.
+            </p>
+          </div>
+        </div>
+        <footer class="editor-modal-footer">
+          <button type="button" disabled={busy()} onClick={props.onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy() || resolvedSpec() === ""}
+            onClick={() => void submit()}
+          >
+            {busy() ? "Starting…" : "Download"}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 };

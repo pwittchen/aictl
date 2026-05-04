@@ -1,3 +1,4 @@
+use aictl_core::llm::gguf::CATALOG as LMSTUDIO_CATALOG;
 use crossterm::style::{Color, Stylize};
 
 use crate::ui::AgentUI;
@@ -78,104 +79,10 @@ fn print_gguf_models() {
     println!();
 }
 
-/// Curated subset of the LM Studio model catalog (<https://lmstudio.ai/models>),
-/// plus a few community models hosted elsewhere on Hugging Face.
-/// Most entries point at the `lmstudio-community` GGUF mirror with the
-/// `Q4_K_M` quant where available (gpt-oss ships only `MXFP4`); non-LM-Studio
-/// entries (e.g. Bielik) point at their upstream maintainer's repo.
-/// Sizes were read from the HF tree API at the time of selection.
-const LMSTUDIO_CATALOG: &[(&str, &str, &str)] = &[
-    (
-        "Llama 3.2 3B Instruct (Q4_K_M)",
-        "lmstudio-community/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        "~1.9 GB",
-    ),
-    (
-        "Llama 3.1 8B Instruct (Q4_K_M)",
-        "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF:Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
-        "~4.6 GB",
-    ),
-    (
-        "Qwen3 4B (Q4_K_M)",
-        "lmstudio-community/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
-        "~2.3 GB",
-    ),
-    (
-        "Qwen3 8B (Q4_K_M)",
-        "lmstudio-community/Qwen3-8B-GGUF:Qwen3-8B-Q4_K_M.gguf",
-        "~4.7 GB",
-    ),
-    (
-        "Qwen3 14B (Q4_K_M)",
-        "lmstudio-community/Qwen3-14B-GGUF:Qwen3-14B-Q4_K_M.gguf",
-        "~8.4 GB",
-    ),
-    (
-        "Qwen3 Coder 30B A3B Instruct (Q4_K_M)",
-        "lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-GGUF:Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
-        "~17.4 GB",
-    ),
-    (
-        "Gemma 3 4B Instruct (Q4_K_M)",
-        "lmstudio-community/gemma-3-4b-it-GGUF:gemma-3-4b-it-Q4_K_M.gguf",
-        "~2.3 GB",
-    ),
-    (
-        "Gemma 3 12B Instruct (Q4_K_M)",
-        "lmstudio-community/gemma-3-12b-it-GGUF:gemma-3-12b-it-Q4_K_M.gguf",
-        "~6.8 GB",
-    ),
-    (
-        "Gemma 3 27B Instruct (Q4_K_M)",
-        "lmstudio-community/gemma-3-27b-it-GGUF:gemma-3-27b-it-Q4_K_M.gguf",
-        "~15.4 GB",
-    ),
-    (
-        "gpt-oss 20B (MXFP4)",
-        "lmstudio-community/gpt-oss-20b-GGUF:gpt-oss-20b-MXFP4.gguf",
-        "~11.3 GB",
-    ),
-    (
-        "DeepSeek R1 Distill Qwen 7B (Q4_K_M)",
-        "lmstudio-community/DeepSeek-R1-Distill-Qwen-7B-GGUF:DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
-        "~4.4 GB",
-    ),
-    (
-        "DeepSeek R1 Distill Qwen 14B (Q4_K_M)",
-        "lmstudio-community/DeepSeek-R1-Distill-Qwen-14B-GGUF:DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
-        "~8.4 GB",
-    ),
-    (
-        "DeepSeek R1 Distill Qwen 32B (Q4_K_M)",
-        "lmstudio-community/DeepSeek-R1-Distill-Qwen-32B-GGUF:DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf",
-        "~18.5 GB",
-    ),
-    (
-        "Mistral Small 24B Instruct 2501 (Q4_K_M)",
-        "lmstudio-community/Mistral-Small-24B-Instruct-2501-GGUF:Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
-        "~13.3 GB",
-    ),
-    (
-        "Phi 4 (Q4_K_M)",
-        "lmstudio-community/phi-4-GGUF:phi-4-Q4_K_M.gguf",
-        "~8.4 GB",
-    ),
-    (
-        "Granite 4.0 H Small (Q4_K_M)",
-        "lmstudio-community/granite-4.0-h-small-GGUF:granite-4.0-h-small-Q4_K_M.gguf",
-        "~18.1 GB",
-    ),
-    (
-        "Bielik 11B v3.0 Instruct (Q4_K_M)",
-        "speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q4_K_M.gguf",
-        "~6.3 GB",
-    ),
-];
-
 fn build_lmstudio_catalog_menu_lines(selected: usize) -> Vec<String> {
     let max_label = LMSTUDIO_CATALOG
         .iter()
-        .map(|(label, _, _)| label.len())
+        .map(|e| e.label.len())
         .max()
         .unwrap_or(0);
     let total = LMSTUDIO_CATALOG.len() + 1; // +1 for "custom spec"
@@ -183,8 +90,8 @@ fn build_lmstudio_catalog_menu_lines(selected: usize) -> Vec<String> {
         .map(|i| {
             let is_selected = i == selected;
             let (label, size) = if i < LMSTUDIO_CATALOG.len() {
-                let (l, _, s) = LMSTUDIO_CATALOG[i];
-                (l.to_string(), s.to_string())
+                let e = &LMSTUDIO_CATALOG[i];
+                (e.label.to_string(), e.size_label.to_string())
             } else {
                 (
                     "custom spec (hf:/owner/repo:/https://...)".to_string(),
@@ -223,7 +130,7 @@ async fn pull_gguf_model(ui: &dyn AgentUI, show_error: &dyn Fn(&str)) {
     };
 
     let spec = if sel < LMSTUDIO_CATALOG.len() {
-        LMSTUDIO_CATALOG[sel].1.to_string()
+        LMSTUDIO_CATALOG[sel].spec.to_string()
     } else {
         println!();
         println!("  {}", "spec examples:".with(Color::DarkGrey));

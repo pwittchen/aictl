@@ -279,6 +279,37 @@ export interface OllamaProbeResult {
   sample_models: string[];
 }
 
+export interface CatalogEntryRow {
+  label: string;
+  spec: string;
+  size_label: string;
+}
+
+export interface LocalModelRow {
+  name: string;
+  size_bytes: number;
+}
+
+export interface GgufStatus {
+  inference_available: boolean;
+  dir: string;
+  models: LocalModelRow[];
+  catalog: CatalogEntryRow[];
+}
+
+export interface MlxStatus {
+  inference_available: boolean;
+  host_supports_mlx: boolean;
+  dir: string;
+  models: LocalModelRow[];
+  catalog: CatalogEntryRow[];
+}
+
+export interface LocalModelsStatus {
+  gguf: GgufStatus;
+  mlx: MlxStatus;
+}
+
 export interface ContextStatus {
   model: string | null;
   provider: string | null;
@@ -607,6 +638,33 @@ export const ipc = {
   // -- context ----
   async contextStatus() {
     return invoke<ContextStatus>("context_status");
+  },
+
+  // -- local models (gguf / mlx) ----
+  async localModelsStatus() {
+    return invoke<LocalModelsStatus>("local_models_status");
+  },
+  async localModelsPullGguf(spec: string, name?: string) {
+    return invoke<{ label: string }>("local_models_pull_gguf", {
+      args: { spec, name: name ?? null },
+    });
+  },
+  async localModelsPullMlx(spec: string, name?: string) {
+    return invoke<{ label: string }>("local_models_pull_mlx", {
+      args: { spec, name: name ?? null },
+    });
+  },
+  async localModelsRemoveGguf(name: string) {
+    return invoke<void>("local_models_remove_gguf", { name });
+  },
+  async localModelsRemoveMlx(name: string) {
+    return invoke<void>("local_models_remove_mlx", { name });
+  },
+  async localModelsClearGguf() {
+    return invoke<number>("local_models_clear_gguf");
+  },
+  async localModelsClearMlx() {
+    return invoke<number>("local_models_clear_mlx");
   },
 
   // -- events ----

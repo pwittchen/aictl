@@ -158,6 +158,13 @@ pub fn run() {
             commands::server::ollama_status,
             commands::server::ollama_probe,
             commands::context::context_status,
+            commands::local_models::local_models_status,
+            commands::local_models::local_models_pull_gguf,
+            commands::local_models::local_models_pull_mlx,
+            commands::local_models::local_models_remove_gguf,
+            commands::local_models::local_models_remove_mlx,
+            commands::local_models::local_models_clear_gguf,
+            commands::local_models::local_models_clear_mlx,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")

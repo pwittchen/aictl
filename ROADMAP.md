@@ -6,7 +6,6 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
 - for desktop app, when workspace is not set, offer path: ~/.aictl/workspace/
-- for desktop app, add possibility to download MLX and GGUF models (add mention this features are experimental in the app UI)
 
 ## Desktop
 

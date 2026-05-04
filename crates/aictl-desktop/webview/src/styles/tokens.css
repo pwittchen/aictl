@@ -21,6 +21,8 @@
   --accent-soft: rgba(94, 211, 243, 0.15);
   --danger: #ff5f56;
   --danger-soft: rgba(255, 95, 86, 0.15);
+  --warning: #f4c145;
+  --warning-soft: rgba(244, 193, 69, 0.12);
 
   --focus: rgba(59, 130, 246, 0.5);
 

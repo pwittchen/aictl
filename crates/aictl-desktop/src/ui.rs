@@ -18,6 +18,7 @@ use std::time::Duration;
 use aictl_core::llm::TokenUsage;
 use aictl_core::tools::ToolCall;
 use aictl_core::ui::events::{AgentEvent, SummaryEvent, TokenUsageEvent};
+use aictl_core::ui::{ProgressBackend, ProgressHandle};
 use aictl_core::{AgentUI, ToolApproval};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -281,6 +282,57 @@ impl AgentUI for DesktopUI {
             &self.app,
             AgentEvent::Warning {
                 text: text.to_string(),
+            },
+        );
+    }
+
+    /// Mint a progress id, emit `ProgressBegin`, and return a handle whose
+    /// backend re-emits update/end events on the same channel. Long-running
+    /// helpers — model downloads in particular — rely on this so the
+    /// webview can render a progress bar without polling.
+    fn progress_begin(&self, label: &str, total: Option<u64>) -> ProgressHandle {
+        let id = self.state.next_progress_id();
+        emit_agent(
+            &self.app,
+            AgentEvent::ProgressBegin {
+                id,
+                label: label.to_string(),
+                total,
+            },
+        );
+        ProgressHandle::from_backend(Box::new(EmitProgress {
+            app: self.app.clone(),
+            id,
+        }))
+    }
+}
+
+/// Boxed `ProgressBackend` returned by [`DesktopUI::progress_begin`]. Holds
+/// the AppHandle so it can emit from any thread, plus the progress id so
+/// the webview can correlate updates with the right bar.
+struct EmitProgress {
+    app: AppHandle,
+    id: u64,
+}
+
+impl ProgressBackend for EmitProgress {
+    fn update(&self, current: u64, message: Option<&str>) {
+        emit_agent(
+            &self.app,
+            AgentEvent::ProgressUpdate {
+                id: self.id,
+                current,
+                message: message.map(str::to_string),
+            },
+        );
+    }
+
+    fn finish(&self, final_message: Option<&str>) {
+        emit_agent(
+            &self.app,
+            AgentEvent::ProgressEnd {
+                id: self.id,
+                message: final_message.map(str::to_string),
             },
         );
     }

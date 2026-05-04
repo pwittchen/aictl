@@ -1325,6 +1325,72 @@
   font-size: 12px;
 }
 
+/* Warning callout used by the experimental Local Models tab. Same shape
+   as -error / -success so the three blocks visually align. */
+.settings-warn {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-warn code,
+.settings-warn strong {
+  color: var(--warning);
+}
+
+.settings-downloads {
+  margin: var(--space-3) 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-download-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.settings-download-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.settings-download-bar {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  background: var(--surface-strong);
+}
+
+.settings-download-bar::-webkit-progress-bar {
+  background: var(--surface-strong);
+}
+
+.settings-download-bar::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.settings-download-bar::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.settings-download-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
 .settings-actions {
   margin-top: var(--space-4);
   display: flex;

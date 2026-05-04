@@ -1,3 +1,4 @@
+use aictl_core::llm::mlx::CATALOG as MLX_CATALOG;
 use crossterm::style::{Color, Stylize};
 
 use crate::ui::AgentUI;
@@ -80,77 +81,20 @@ fn print_mlx_models() {
     println!();
 }
 
-/// Curated starter list of popular MLX-community repos on Hugging Face.
-/// Sizes are approximate on-disk footprints for the 4-bit variants; the
-/// actual download size will depend on what's in the repo tree.
-const MLX_CATALOG: &[(&str, &str, &str)] = &[
-    (
-        "Llama 3.2 3B Instruct (4-bit)",
-        "mlx-community/Llama-3.2-3B-Instruct-4bit",
-        "~1.8 GB",
-    ),
-    (
-        "Llama 3.1 8B Instruct (4-bit)",
-        "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
-        "~4.5 GB",
-    ),
-    (
-        "Qwen2.5 7B Instruct (4-bit)",
-        "mlx-community/Qwen2.5-7B-Instruct-4bit",
-        "~4.3 GB",
-    ),
-    (
-        "Qwen2.5 14B Instruct (4-bit)",
-        "mlx-community/Qwen2.5-14B-Instruct-4bit",
-        "~8.0 GB",
-    ),
-    (
-        "Qwen2.5 Coder 7B Instruct (4-bit)",
-        "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
-        "~4.3 GB",
-    ),
-    (
-        "Mistral 7B Instruct v0.3 (4-bit)",
-        "mlx-community/Mistral-7B-Instruct-v0.3-4bit",
-        "~4.1 GB",
-    ),
-    (
-        "Gemma 2 9B Instruct (4-bit)",
-        "mlx-community/gemma-2-9b-it-4bit",
-        "~5.3 GB",
-    ),
-    (
-        "Phi-3.5 Mini Instruct (4-bit)",
-        "mlx-community/Phi-3.5-mini-instruct-4bit",
-        "~2.2 GB",
-    ),
-    (
-        "DeepSeek R1 Distill Qwen 7B (4-bit)",
-        "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
-        "~4.3 GB",
-    ),
-    (
-        "DeepSeek R1 Distill Qwen 14B (4-bit)",
-        "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
-        "~8.0 GB",
-    ),
-];
-
 fn build_mlx_catalog_menu_lines(selected: usize) -> Vec<String> {
-    let max_label = MLX_CATALOG
-        .iter()
-        .map(|(l, _, _)| l.len())
-        .max()
-        .unwrap_or(0);
+    let max_label = MLX_CATALOG.iter().map(|e| e.label.len()).max().unwrap_or(0);
     let max_size = MLX_CATALOG
         .iter()
-        .map(|(_, _, s)| s.len())
+        .map(|e| e.size_label.len())
         .max()
         .unwrap_or(0);
     MLX_CATALOG
         .iter()
         .enumerate()
-        .map(|(i, (label, spec, size))| {
+        .map(|(i, entry)| {
+            let label = entry.label;
+            let spec = entry.spec;
+            let size = entry.size_label;
             let is_selected = i == selected;
             let padded_label = format!("{label:<max_label$}");
             let padded_size = format!("{size:<max_size$}");
@@ -207,7 +151,7 @@ async fn pull_mlx_model(ui: &dyn AgentUI, show_error: &dyn Fn(&str)) {
     };
 
     let spec = if sel < MLX_CATALOG.len() {
-        MLX_CATALOG[sel].1.to_string()
+        MLX_CATALOG[sel].spec.to_string()
     } else {
         println!();
         println!("  {}", "spec examples:".with(Color::DarkGrey));

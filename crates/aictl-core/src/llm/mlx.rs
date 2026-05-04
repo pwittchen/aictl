@@ -117,6 +117,72 @@ pub fn remove_model(name: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(path)
 }
 
+/// One curated entry in the MLX starter catalogue: a human label, the
+/// download spec the parser accepts, and an approximate on-disk size for
+/// the user-facing list. Frontends format these however suits them.
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogEntry {
+    pub label: &'static str,
+    pub spec: &'static str,
+    pub size_label: &'static str,
+}
+
+/// Curated starter list of popular MLX-community repos on Hugging Face.
+/// Sizes are approximate on-disk footprints for the 4-bit variants; the
+/// actual download size will depend on what's in the repo tree.
+pub const CATALOG: &[CatalogEntry] = &[
+    CatalogEntry {
+        label: "Llama 3.2 3B Instruct (4-bit)",
+        spec: "mlx-community/Llama-3.2-3B-Instruct-4bit",
+        size_label: "~1.8 GB",
+    },
+    CatalogEntry {
+        label: "Llama 3.1 8B Instruct (4-bit)",
+        spec: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+        size_label: "~4.5 GB",
+    },
+    CatalogEntry {
+        label: "Qwen2.5 7B Instruct (4-bit)",
+        spec: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        size_label: "~4.3 GB",
+    },
+    CatalogEntry {
+        label: "Qwen2.5 14B Instruct (4-bit)",
+        spec: "mlx-community/Qwen2.5-14B-Instruct-4bit",
+        size_label: "~8.0 GB",
+    },
+    CatalogEntry {
+        label: "Qwen2.5 Coder 7B Instruct (4-bit)",
+        spec: "mlx-community/Qwen2.5-Coder-7B-Instruct-4bit",
+        size_label: "~4.3 GB",
+    },
+    CatalogEntry {
+        label: "Mistral 7B Instruct v0.3 (4-bit)",
+        spec: "mlx-community/Mistral-7B-Instruct-v0.3-4bit",
+        size_label: "~4.1 GB",
+    },
+    CatalogEntry {
+        label: "Gemma 2 9B Instruct (4-bit)",
+        spec: "mlx-community/gemma-2-9b-it-4bit",
+        size_label: "~5.3 GB",
+    },
+    CatalogEntry {
+        label: "Phi-3.5 Mini Instruct (4-bit)",
+        spec: "mlx-community/Phi-3.5-mini-instruct-4bit",
+        size_label: "~2.2 GB",
+    },
+    CatalogEntry {
+        label: "DeepSeek R1 Distill Qwen 7B (4-bit)",
+        spec: "mlx-community/DeepSeek-R1-Distill-Qwen-7B-4bit",
+        size_label: "~4.3 GB",
+    },
+    CatalogEntry {
+        label: "DeepSeek R1 Distill Qwen 14B (4-bit)",
+        spec: "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
+        size_label: "~8.0 GB",
+    },
+];
+
 /// Clear every downloaded MLX model.
 pub fn clear_models() -> std::io::Result<usize> {
     let dir = models_dir();

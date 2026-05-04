@@ -78,6 +78,119 @@ pub fn remove_model(name: &str) -> std::io::Result<()> {
     result
 }
 
+/// One curated entry in the GGUF starter catalogue: a human label, the
+/// download spec the parser accepts, and an approximate on-disk size for
+/// the user-facing list. Frontends format these however suits them.
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogEntry {
+    pub label: &'static str,
+    pub spec: &'static str,
+    pub size_label: &'static str,
+}
+
+/// Curated subset of the LM Studio model catalog (<https://lmstudio.ai/models>),
+/// plus a few community models hosted elsewhere on Hugging Face. Most
+/// entries point at the `lmstudio-community` GGUF mirror with the `Q4_K_M`
+/// quant where available (gpt-oss ships only `MXFP4`); non-LM-Studio
+/// entries (e.g. Bielik) point at their upstream maintainer's repo. Sizes
+/// were read from the HF tree API at the time of selection.
+pub const CATALOG: &[CatalogEntry] = &[
+    CatalogEntry {
+        label: "Llama 3.2 3B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/Llama-3.2-3B-Instruct-GGUF:Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        size_label: "~1.9 GB",
+    },
+    CatalogEntry {
+        label: "Llama 3.1 8B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF:Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+        size_label: "~4.6 GB",
+    },
+    CatalogEntry {
+        label: "Qwen3 4B (Q4_K_M)",
+        spec: "lmstudio-community/Qwen3-4B-GGUF:Qwen3-4B-Q4_K_M.gguf",
+        size_label: "~2.3 GB",
+    },
+    CatalogEntry {
+        label: "Qwen3 8B (Q4_K_M)",
+        spec: "lmstudio-community/Qwen3-8B-GGUF:Qwen3-8B-Q4_K_M.gguf",
+        size_label: "~4.7 GB",
+    },
+    CatalogEntry {
+        label: "Qwen3 14B (Q4_K_M)",
+        spec: "lmstudio-community/Qwen3-14B-GGUF:Qwen3-14B-Q4_K_M.gguf",
+        size_label: "~8.4 GB",
+    },
+    CatalogEntry {
+        label: "Qwen3 Coder 30B A3B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/Qwen3-Coder-30B-A3B-Instruct-GGUF:Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf",
+        size_label: "~17.4 GB",
+    },
+    CatalogEntry {
+        label: "Gemma 3 4B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/gemma-3-4b-it-GGUF:gemma-3-4b-it-Q4_K_M.gguf",
+        size_label: "~2.3 GB",
+    },
+    CatalogEntry {
+        label: "Gemma 3 12B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/gemma-3-12b-it-GGUF:gemma-3-12b-it-Q4_K_M.gguf",
+        size_label: "~6.8 GB",
+    },
+    CatalogEntry {
+        label: "Gemma 3 27B Instruct (Q4_K_M)",
+        spec: "lmstudio-community/gemma-3-27b-it-GGUF:gemma-3-27b-it-Q4_K_M.gguf",
+        size_label: "~15.4 GB",
+    },
+    CatalogEntry {
+        label: "gpt-oss 20B (MXFP4)",
+        spec: "lmstudio-community/gpt-oss-20b-GGUF:gpt-oss-20b-MXFP4.gguf",
+        size_label: "~11.3 GB",
+    },
+    CatalogEntry {
+        label: "DeepSeek R1 Distill Qwen 7B (Q4_K_M)",
+        spec: "lmstudio-community/DeepSeek-R1-Distill-Qwen-7B-GGUF:DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
+        size_label: "~4.4 GB",
+    },
+    CatalogEntry {
+        label: "DeepSeek R1 Distill Qwen 14B (Q4_K_M)",
+        spec: "lmstudio-community/DeepSeek-R1-Distill-Qwen-14B-GGUF:DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf",
+        size_label: "~8.4 GB",
+    },
+    CatalogEntry {
+        label: "DeepSeek R1 Distill Qwen 32B (Q4_K_M)",
+        spec: "lmstudio-community/DeepSeek-R1-Distill-Qwen-32B-GGUF:DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf",
+        size_label: "~18.5 GB",
+    },
+    CatalogEntry {
+        label: "Mistral Small 24B Instruct 2501 (Q4_K_M)",
+        spec: "lmstudio-community/Mistral-Small-24B-Instruct-2501-GGUF:Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+        size_label: "~13.3 GB",
+    },
+    CatalogEntry {
+        label: "Phi 4 (Q4_K_M)",
+        spec: "lmstudio-community/phi-4-GGUF:phi-4-Q4_K_M.gguf",
+        size_label: "~8.4 GB",
+    },
+    CatalogEntry {
+        label: "Granite 4.0 H Small (Q4_K_M)",
+        spec: "lmstudio-community/granite-4.0-h-small-GGUF:granite-4.0-h-small-Q4_K_M.gguf",
+        size_label: "~18.1 GB",
+    },
+    CatalogEntry {
+        label: "Bielik 11B v3.0 Instruct (Q4_K_M)",
+        spec: "speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q4_K_M.gguf",
+        size_label: "~6.3 GB",
+    },
+];
+
+/// Total on-disk size (in bytes) of a downloaded GGUF file. Returns 0
+/// when the file is missing or unreadable. Mirrors `mlx::model_size` so
+/// frontends can render the same column for both backends.
+#[must_use]
+pub fn model_size(name: &str) -> u64 {
+    let path = models_dir().join(format!("{name}.gguf"));
+    std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+}
+
 /// Clear every downloaded model.
 pub fn clear_models() -> std::io::Result<usize> {
     let dir = models_dir();
