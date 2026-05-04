@@ -239,7 +239,7 @@ pub fn build_system_prompt() -> String {
         if !plugin_list.is_empty() {
             use std::fmt::Write as _;
             prompt.push_str("\n\nAdditional tools (plugins):\n");
-            for p in plugin_list {
+            for p in &plugin_list {
                 let _ = write!(prompt, "\n### {} (plugin)\n{}\n", p.name, p.catalog_body());
             }
         }

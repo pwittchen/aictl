@@ -67,6 +67,11 @@ pub fn run() {
     // and are surfaced via `mcp_status` rather than blocking startup.
     tauri::async_runtime::block_on(aictl_core::mcp::init_with(None));
 
+    // Discover user-installed plugins for the same reason — the catalogue
+    // gets injected into the system prompt and surfaced in the Plugins
+    // tab. Gated behind `AICTL_PLUGINS_ENABLED` inside `init`.
+    aictl_core::plugins::init();
+
     let app_state = std::sync::Arc::new(state::AppState::new());
 
     tauri::Builder::default()
@@ -151,6 +156,8 @@ pub fn run() {
             commands::agents::agent_save,
             commands::agents::agent_generate,
             commands::plugins::plugins_status,
+            commands::plugins::plugin_save,
+            commands::plugins::plugin_delete,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,
             commands::server::server_status,

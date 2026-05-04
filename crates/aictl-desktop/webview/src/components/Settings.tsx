@@ -2953,12 +2953,33 @@ const AgentsTab: Component = () => {
   );
 };
 
+const DEFAULT_PLUGIN_BODY = `#!/bin/sh
+# Receives the tool body on stdin, writes the tool output on stdout.
+# Non-zero exit codes surface as "[exit N] <stderr>" to the agent.
+cat
+`;
+
 const PluginsTab: Component = () => {
   const [status, { refetch }] = createResource<PluginsStatus>(() =>
     ipc.pluginsStatus(),
   );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [adding, setAdding] = createSignal(false);
+  const [draftName, setDraftName] = createSignal("");
+  const [draftDescription, setDraftDescription] = createSignal("");
+  const [draftBody, setDraftBody] = createSignal(DEFAULT_PLUGIN_BODY);
+  const [draftConfirm, setDraftConfirm] = createSignal(true);
+  const [draftTimeout, setDraftTimeout] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+
+  const resetDraft = () => {
+    setDraftName("");
+    setDraftDescription("");
+    setDraftBody(DEFAULT_PLUGIN_BODY);
+    setDraftConfirm(true);
+    setDraftTimeout("");
+  };
 
   const setEnabled = async (on: boolean) => {
     setError(null);
@@ -2973,6 +2994,81 @@ const PluginsTab: Component = () => {
       setFeedback(
         `plugins ${on ? "enabled" : "disabled"} (restart desktop to apply)`,
       );
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const validName = () => /^[A-Za-z0-9_-]+$/.test(draftName().trim());
+  const clash = () => {
+    const n = draftName().trim();
+    return (
+      n !== "" && (status()?.plugins ?? []).some((p) => p.name === n)
+    );
+  };
+
+  const save = async () => {
+    setError(null);
+    setFeedback(null);
+    if (!validName()) {
+      setError("Invalid name — letters, numbers, underscore, or dash only.");
+      return;
+    }
+    if (draftDescription().trim() === "") {
+      setError("Description is empty.");
+      return;
+    }
+    if (draftBody().trim() === "") {
+      setError("Entrypoint script is empty.");
+      return;
+    }
+    let timeoutSecs: number | undefined;
+    const t = draftTimeout().trim();
+    if (t !== "") {
+      const parsed = Number.parseInt(t, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setError("Timeout must be a positive integer.");
+        return;
+      }
+      timeoutSecs = parsed;
+    }
+    if (clash()) {
+      const ok = window.confirm(
+        `A plugin named "${draftName().trim()}" already exists. Overwrite it?`,
+      );
+      if (!ok) return;
+    }
+    setSaving(true);
+    try {
+      const outcome = await ipc.pluginSave({
+        name: draftName().trim(),
+        description: draftDescription().trim(),
+        body: draftBody(),
+        requiresConfirmation: draftConfirm(),
+        timeoutSecs,
+        overwrite: clash(),
+      });
+      setFeedback(
+        `plugin ${outcome === "overwritten" ? "overwritten" : "installed"} — restart desktop so the agent can call it`,
+      );
+      resetDraft();
+      setAdding(false);
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (name: string) => {
+    if (!window.confirm(`Delete plugin "${name}"?`)) return;
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.pluginDelete(name);
+      await refetch();
+      setFeedback(`plugin "${name}" deleted`);
     } catch (err) {
       setError(`${err}`);
     }
@@ -3005,6 +3101,83 @@ const PluginsTab: Component = () => {
           </p>
         )}
       </Show>
+      <div class="settings-actions">
+        <button
+          type="button"
+          onClick={() => {
+            if (adding()) {
+              resetDraft();
+            }
+            setAdding((v) => !v);
+          }}
+        >
+          {adding() ? "Cancel" : "Add plugin"}
+        </button>
+      </div>
+      <Show when={adding()}>
+        <div class="settings-row settings-row-stack">
+          <label>New plugin</label>
+          <div class="settings-control-line">
+            <input
+              type="text"
+              class="settings-text-input"
+              placeholder="name (letters, numbers, _, -)"
+              value={draftName()}
+              onInput={(e) => setDraftName(e.currentTarget.value)}
+            />
+            <input
+              type="text"
+              class="settings-text-input"
+              placeholder="short description shown to the model"
+              value={draftDescription()}
+              onInput={(e) => setDraftDescription(e.currentTarget.value)}
+            />
+          </div>
+          <Show when={draftName() !== "" && !validName()}>
+            <p class="settings-hint" style={{ color: "var(--text-danger, #c33)" }}>
+              Use only letters, numbers, underscore, or dash.
+            </p>
+          </Show>
+          <Show when={validName() && clash()}>
+            <p class="settings-hint">
+              A plugin with this name already exists — saving will prompt to overwrite.
+            </p>
+          </Show>
+          <textarea
+            class="settings-textarea"
+            rows={10}
+            placeholder="entrypoint script — receives the tool body on stdin, prints the result on stdout"
+            value={draftBody()}
+            onInput={(e) => setDraftBody(e.currentTarget.value)}
+            spellcheck={false}
+            style={{ "font-family": "var(--mono, monospace)" }}
+          />
+          <p class="settings-hint">
+            Saved as <code>~/.aictl/plugins/&lt;name&gt;/run</code> and chmod 755.
+            Start with a shebang (<code>#!/bin/sh</code>, <code>#!/usr/bin/env python3</code>, …).
+          </p>
+          <BoolRow
+            label="Requires confirmation"
+            help="When on, every call goes through the tool-confirm dialog."
+            on={draftConfirm()}
+            onChange={(v) => setDraftConfirm(v)}
+          />
+          <div class="settings-control-line">
+            <input
+              type="number"
+              min="1"
+              class="settings-num-input"
+              placeholder="timeout"
+              value={draftTimeout()}
+              onInput={(e) => setDraftTimeout(e.currentTarget.value)}
+            />
+            <span class="settings-suffix">s timeout (optional)</span>
+            <button type="button" disabled={saving()} onClick={() => void save()}>
+              {saving() ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      </Show>
       <Show
         when={(status()?.plugins ?? []).length > 0}
         fallback={
@@ -3021,6 +3194,7 @@ const PluginsTab: Component = () => {
               <th>Entrypoint</th>
               <th>Confirm?</th>
               <th>Timeout</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -3037,6 +3211,15 @@ const PluginsTab: Component = () => {
                   <td>{row.requires_confirmation ? "yes" : "no"}</td>
                   <td>
                     {row.timeout_secs !== null ? `${row.timeout_secs}s` : "—"}
+                  </td>
+                  <td class="settings-keys-actions">
+                    <button
+                      type="button"
+                      class="ghost mini danger"
+                      onClick={() => void remove(row.name)}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               )}

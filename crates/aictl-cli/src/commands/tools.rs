@@ -41,7 +41,7 @@ pub(super) fn print_tools() {
     if !plugin_list.is_empty() {
         println!();
         println!("  {}", "plugins:".with(Color::DarkGrey));
-        for p in plugin_list {
+        for p in &plugin_list {
             let pad = max_len - p.name.len() + 2;
             println!(
                 "  {}{:pad$}{} {}",

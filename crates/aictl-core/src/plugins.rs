@@ -14,11 +14,15 @@
 //! the `--unrestricted` bypass behave identically to built-in tools.
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 use crate::config::config_get;
 
-static PLUGINS: OnceLock<Vec<Plugin>> = OnceLock::new();
+static PLUGINS: OnceLock<RwLock<Vec<Plugin>>> = OnceLock::new();
+
+fn store() -> &'static RwLock<Vec<Plugin>> {
+    PLUGINS.get_or_init(|| RwLock::new(Vec::new()))
+}
 
 /// One discovered plugin.
 #[derive(Debug, Clone)]
@@ -62,7 +66,7 @@ pub fn plugins_dir() -> PathBuf {
 }
 
 /// Directory names matching the same character set as agent / skill names.
-fn is_valid_name(name: &str) -> bool {
+pub fn is_valid_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .chars()
@@ -81,27 +85,50 @@ fn disabled_set() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Initialize the global plugin catalogue. Idempotent: subsequent calls
-/// are no-ops once `PLUGINS` is set. Walk failures (missing dir, bad
-/// manifests) leave the catalogue empty rather than aborting startup —
-/// plugins are always best-effort.
+/// Initialize the global plugin catalogue. Walk failures (missing dir,
+/// bad manifests) leave the catalogue empty rather than aborting
+/// startup — plugins are always best-effort. Idempotent across
+/// repeated calls; later calls behave like [`reload`] so the desktop
+/// can refresh after editing the directory.
 pub fn init() {
     let plugins = if enabled() {
         discover(&plugins_dir(), &disabled_set(), &builtin_tool_names())
     } else {
         Vec::new()
     };
-    let _ = PLUGINS.set(plugins);
+    if let Ok(mut w) = store().write() {
+        *w = plugins;
+    }
 }
 
-/// All loaded plugins.
-pub fn list() -> &'static [Plugin] {
-    PLUGINS.get().map_or(&[], Vec::as_slice)
+/// Re-walk the plugins directory and replace the in-memory catalogue.
+/// Called after `save_plugin` / `delete_plugin` so the next agent turn
+/// (and the next `list()` from the UI) sees the updated set.
+pub fn reload() {
+    init();
 }
 
-/// Lookup by tool name.
-pub fn find(name: &str) -> Option<&'static Plugin> {
-    list().iter().find(|p| p.name == name)
+/// All loaded plugins (cloned snapshot).
+pub fn list() -> Vec<Plugin> {
+    store().read().map(|g| g.clone()).unwrap_or_default()
+}
+
+/// Walk the plugins directory directly, ignoring the cache *and* the
+/// `AICTL_PLUGINS_ENABLED` gate. Used by the desktop Plugins tab so the
+/// table reflects what's actually on disk — newly authored plugins
+/// show up even while the subsystem is still disabled (the agent loop
+/// continues to honor `enabled()` via [`list`]).
+pub fn scan_disk() -> Vec<Plugin> {
+    discover(&plugins_dir(), &disabled_set(), &builtin_tool_names())
+}
+
+/// Lookup by tool name. Returns an owned clone so callers don't hold
+/// the catalogue's read-lock while running async work.
+pub fn find(name: &str) -> Option<Plugin> {
+    store()
+        .read()
+        .ok()
+        .and_then(|g| g.iter().find(|p| p.name == name).cloned())
 }
 
 /// Built-in tool names — used to reject manifest files that try to
@@ -367,6 +394,148 @@ fn unescape_basic(s: &str) -> String {
             }
         } else {
             out.push(c);
+        }
+    }
+    out
+}
+
+/// Default entrypoint filename for plugins created via the desktop UI.
+/// Matches the implicit default `load_manifest` falls back to when a
+/// manifest omits `entrypoint`.
+pub const DEFAULT_ENTRYPOINT_NAME: &str = "run";
+
+/// Persist a new plugin under `<plugins_dir>/<name>/`. Writes the
+/// manifest, drops the `body` into `<plugins_dir>/<name>/run` (the
+/// default entrypoint), and on Unix marks it executable. Returns the
+/// directory path for the caller to surface in the toast.
+///
+/// `overwrite` mirrors the agent / skill / mcp save gates: when `true`
+/// the existing directory is removed and re-created from scratch; when
+/// `false` an existing directory is an error so the dialog can prompt
+/// for confirmation.
+pub fn save_plugin(
+    name: &str,
+    description: &str,
+    body: &str,
+    requires_confirmation: bool,
+    timeout_secs: Option<u64>,
+    overwrite: bool,
+) -> Result<PathBuf, String> {
+    let name = name.trim();
+    if !is_valid_name(name) {
+        return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
+    }
+    if builtin_tool_names().iter().any(|r| r == name) {
+        return Err(format!(
+            "name '{name}' collides with a built-in tool — choose another"
+        ));
+    }
+    let description = description.trim();
+    if description.is_empty() {
+        return Err("description is empty".to_string());
+    }
+    if body.trim().is_empty() {
+        return Err("entrypoint body is empty".to_string());
+    }
+    if let Some(t) = timeout_secs
+        && t == 0
+    {
+        return Err("timeout must be greater than zero".to_string());
+    }
+
+    let root = plugins_dir();
+    std::fs::create_dir_all(&root).map_err(|e| format!("create {}: {e}", root.display()))?;
+    let dir = root.join(name);
+    if dir.exists() {
+        if !overwrite {
+            return Err(format!("plugin '{name}' already exists"));
+        }
+        std::fs::remove_dir_all(&dir).map_err(|e| format!("remove existing dir: {e}"))?;
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+
+    let manifest = render_manifest(name, description, requires_confirmation, timeout_secs);
+    std::fs::write(dir.join("plugin.toml"), manifest)
+        .map_err(|e| format!("write manifest: {e}"))?;
+
+    let entrypoint = dir.join(DEFAULT_ENTRYPOINT_NAME);
+    let mut script = body.trim_end().to_string();
+    script.push('\n');
+    std::fs::write(&entrypoint, script).map_err(|e| format!("write entrypoint: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&entrypoint)
+            .map_err(|e| format!("stat entrypoint: {e}"))?
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&entrypoint, perms)
+            .map_err(|e| format!("chmod entrypoint: {e}"))?;
+    }
+
+    reload();
+    Ok(dir)
+}
+
+/// Remove a plugin's directory and refresh the catalogue. Validates
+/// that the resolved path lives under `plugins_dir()` so a malformed
+/// `name` cannot escape the directory.
+pub fn delete_plugin(name: &str) -> Result<(), String> {
+    let name = name.trim();
+    if !is_valid_name(name) {
+        return Err("invalid plugin name".to_string());
+    }
+    let root = plugins_dir();
+    let dir = root.join(name);
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|e| format!("resolve plugins dir: {e}"))?;
+    let canonical_dir = dir
+        .canonicalize()
+        .map_err(|e| format!("plugin '{name}' not found: {e}"))?;
+    if !canonical_dir.starts_with(&canonical_root) {
+        return Err("plugin path escapes the plugins directory".to_string());
+    }
+    std::fs::remove_dir_all(&canonical_dir).map_err(|e| format!("remove dir: {e}"))?;
+    reload();
+    Ok(())
+}
+
+fn render_manifest(
+    name: &str,
+    description: &str,
+    requires_confirmation: bool,
+    timeout_secs: Option<u64>,
+) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "name = \"{}\"", escape_basic(name));
+    let _ = writeln!(out, "description = \"{}\"", escape_basic(description));
+    let _ = writeln!(out, "entrypoint = \"{DEFAULT_ENTRYPOINT_NAME}\"");
+    let _ = writeln!(
+        out,
+        "requires_confirmation = {}",
+        if requires_confirmation {
+            "true"
+        } else {
+            "false"
+        }
+    );
+    if let Some(t) = timeout_secs {
+        let _ = writeln!(out, "timeout_secs = {t}");
+    }
+    out
+}
+
+fn escape_basic(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            other => out.push(other),
         }
     }
     out

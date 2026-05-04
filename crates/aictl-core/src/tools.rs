@@ -363,7 +363,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         other if other.starts_with("mcp__") => crate::mcp::call_tool(other, input).await,
         other => {
             if let Some(plugin) = crate::plugins::find(other) {
-                crate::plugins::execute_plugin(plugin, input).await
+                crate::plugins::execute_plugin(&plugin, input).await
             } else {
                 format!("Unknown tool: {other}")
             }

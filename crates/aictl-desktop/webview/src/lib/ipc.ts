@@ -612,6 +612,28 @@ export const ipc = {
   async pluginsStatus() {
     return invoke<PluginsStatus>("plugins_status");
   },
+  async pluginSave(args: {
+    name: string;
+    description: string;
+    body: string;
+    requiresConfirmation: boolean;
+    timeoutSecs?: number;
+    overwrite: boolean;
+  }) {
+    return invoke<"installed" | "overwritten">("plugin_save", {
+      args: {
+        name: args.name,
+        description: args.description,
+        body: args.body,
+        requires_confirmation: args.requiresConfirmation,
+        timeout_secs: args.timeoutSecs ?? null,
+        overwrite: args.overwrite,
+      },
+    });
+  },
+  async pluginDelete(name: string) {
+    return invoke<void>("plugin_delete", { args: { name } });
+  },
 
   // -- stats ----
   async statsSnapshot() {

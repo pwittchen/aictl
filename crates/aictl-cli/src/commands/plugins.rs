@@ -111,7 +111,7 @@ fn view_all_plugins(show_error: &dyn Fn(&str)) {
         return;
     }
     loop {
-        match select_plugin_action(plugins_list) {
+        match select_plugin_action(&plugins_list) {
             PluginListAction::Cancel => return,
             PluginListAction::View(i) => view_plugin(&plugins_list[i], show_error),
         }
@@ -296,7 +296,7 @@ pub fn print_plugins_cli() {
         return;
     }
     let max_name = plugins_list.iter().map(|p| p.name.len()).max().unwrap_or(0);
-    for p in plugins_list {
+    for p in &plugins_list {
         println!(
             "{:<max_name$}  {}  ({})",
             p.name,
