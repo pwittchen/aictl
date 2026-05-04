@@ -204,9 +204,11 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: aictl-desktop-darwin-x86_64
+            features: gguf,redaction-ner
           - target: aarch64-apple-darwin
             os: macos-15
             artifact: aictl-desktop-darwin-aarch64
+            features: gguf,mlx,redaction-ner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -231,7 +233,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: desktop-${{ matrix.target }}
+          key: desktop-${{ matrix.target }}-${{ matrix.features }}
           workspaces: ". -> target"
 
       - name: Install webview deps
@@ -243,24 +245,57 @@ jobs:
         # crates/aictl-desktop/Cargo.toml.
         run: npm install -g @tauri-apps/cli@^2
 
-      - name: Build desktop app (.app + .dmg)
-        # tauri.conf.json declares `bundle.targets: ["app", "dmg"]`, so
-        # this single invocation produces both. The before-build hook
-        # in the same conf shells out to `npm run build` to populate
-        # webview/dist before Cargo links the binary.
+      - name: Build desktop app (.app)
+        # `--bundles app` overrides `bundle.targets: ["app", "dmg"]` in
+        # tauri.conf.json — we need the .app on its own so we can inject
+        # mlx.metallib into Contents/MacOS/ before the DMG is sealed (see
+        # the next step). The before-build hook in the same conf still
+        # shells out to `npm run build` to populate webview/dist.
+        # `--features` mirrors the CLI matrix so the desktop ships with
+        # the same engine capabilities (gguf / mlx / redaction-ner).
         working-directory: crates/aictl-desktop
-        run: tauri build --target ${{ matrix.target }}
+        run: tauri build --target ${{ matrix.target }} --features "${{ matrix.features }}" --bundles app
 
-      - name: Package DMG
+      - name: Inject mlx.metallib into .app
+        # Same fix-up as the CLI tarball on aarch64: MLX bakes an
+        # absolute METAL_PATH that vanishes when the runner exits, so
+        # ship `mlx.metallib` next to the binary inside the bundle —
+        # MLX's first runtime fallback is `<exec_dir>/mlx.metallib`,
+        # which on macOS resolves to `Contents/MacOS/`.
+        if: matrix.target == 'aarch64-apple-darwin'
         shell: bash
         run: |
-          dmg_src=$(find "target/${{ matrix.target }}/release/bundle/dmg" -type f -name "*.dmg" -print -quit)
-          if [ -z "$dmg_src" ]; then
-            echo "ERROR: DMG not produced"
+          metallib=$(find "target/${{ matrix.target }}/release/build" -type f -name mlx.metallib -print -quit)
+          if [ -z "$metallib" ]; then
+            echo "ERROR: mlx.metallib not found in build output"
+            find "target/${{ matrix.target }}/release/build" -type d -name kernels
+            exit 1
+          fi
+          app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
+          if [ -z "$app_dir" ]; then
+            echo "ERROR: .app not produced"
+            exit 1
+          fi
+          cp "$metallib" "$app_dir/Contents/MacOS/mlx.metallib"
+
+      - name: Package DMG
+        # Tauri's own DMG bundler runs before the metallib injection
+        # step above, so we build the DMG manually with hdiutil to
+        # capture the patched .app. No DMG customization (background
+        # image, icon positions) is configured in tauri.conf.json, so
+        # this matches what Tauri would have produced — just resealed.
+        shell: bash
+        run: |
+          app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
+          if [ -z "$app_dir" ]; then
+            echo "ERROR: .app not produced"
             find "target/${{ matrix.target }}/release/bundle" -type f 2>/dev/null || true
             exit 1
           fi
-          cp "$dmg_src" "${{ matrix.artifact }}.dmg"
+          staging=$(mktemp -d)
+          cp -R "$app_dir" "$staging/"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname "aictl" -srcfolder "$staging" -ov -format UDZO "${{ matrix.artifact }}.dmg"
           echo "asset=${{ matrix.artifact }}.dmg" >> "$GITHUB_ENV"
 
       - name: Upload aictl-desktop DMG artifact
