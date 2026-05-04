@@ -204,11 +204,11 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-latest
             artifact: aictl-desktop-darwin-x86_64
-            features: gguf,redaction-ner
+            features: gguf redaction-ner
           - target: aarch64-apple-darwin
             os: macos-15
             artifact: aictl-desktop-darwin-aarch64
-            features: gguf,mlx,redaction-ner
+            features: gguf mlx redaction-ner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -233,9 +233,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          # rust-cache rejects commas in keys — `matrix.features` is comma-
-          # separated for tauri build, so swap commas for dashes here.
-          key: desktop-${{ matrix.target }}-${{ replace(matrix.features, ',', '-') }}
+          # rust-cache rejects commas in keys, so `matrix.features` is
+          # space-separated (matches the CLI build job above). Cargo and
+          # Tauri CLI accept either form for `--features`.
+          key: desktop-${{ matrix.target }}-${{ matrix.features }}
           workspaces: ". -> target"
 
       - name: Install webview deps
