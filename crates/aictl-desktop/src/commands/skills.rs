@@ -1,16 +1,23 @@
 //! Skills-pane Tauri commands.
 //!
 //! Mirrors the CLI's `/skills` menu: list local + global, delete a
-//! specific entry. Authoring is left to the CLI / file system — the
-//! desktop pane is for inventory + cleanup.
+//! specific entry, and (since the desktop now exposes authoring)
+//! create new skills either by hand or by asking the active model to
+//! draft the body.
 
 use std::sync::Arc;
 
+use aictl_core::config;
+use aictl_core::error::AictlError;
+use aictl_core::llm;
+use aictl_core::message::{Message, Role};
+use aictl_core::run::Provider;
 use aictl_core::skills;
 use aictl_core::skills::remote;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::chat;
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -194,4 +201,160 @@ fn state_label(state: remote::State) -> String {
         remote::State::UpToDate => "up_to_date".to_string(),
         remote::State::UpstreamNewer => "upstream_newer".to_string(),
     }
+}
+
+#[derive(Deserialize)]
+pub struct SkillSaveArgs {
+    pub name: String,
+    pub description: String,
+    pub body: String,
+    /// `true` once the user has confirmed they want to clobber an
+    /// existing skill of the same name. Mirrors the agent-save gate.
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkillSaveOutcome {
+    Installed,
+    Overwritten,
+}
+
+/// Persist a new (or rewritten) skill to
+/// `~/.aictl/skills/<name>/SKILL.md`. `skills::save` already validates
+/// the name and refuses reserved slash-command collisions; this
+/// wrapper adds the existence/overwrite gate so the dialog can prompt
+/// before clobbering.
+#[tauri::command]
+pub fn skill_save(args: SkillSaveArgs) -> Result<SkillSaveOutcome, String> {
+    let name = args.name.trim().to_string();
+    if name.is_empty() {
+        return Err("skill name is empty".to_string());
+    }
+    let description = args.description.trim().to_string();
+    if description.is_empty() {
+        return Err("skill description is empty".to_string());
+    }
+    let body = args.body.trim().to_string();
+    if body.is_empty() {
+        return Err("skill body is empty".to_string());
+    }
+    let exists = skills::list().into_iter().any(|e| e.name == name);
+    if exists && !args.overwrite {
+        return Err(format!("skill '{name}' already exists"));
+    }
+    skills::save(&name, &description, &body).map_err(|e| format!("save skill: {e}"))?;
+    Ok(if exists {
+        SkillSaveOutcome::Overwritten
+    } else {
+        SkillSaveOutcome::Installed
+    })
+}
+
+#[derive(Deserialize)]
+pub struct SkillGenerateArgs {
+    pub name: String,
+    pub description: String,
+}
+
+/// Draft a skill body via the active provider, mirroring the CLI's
+/// `create_skill_with_ai`. Returns the generated text to the webview
+/// so the user can review/edit before saving.
+#[tauri::command]
+pub async fn skill_generate(args: SkillGenerateArgs) -> Result<String, String> {
+    let name = args.name.trim().to_string();
+    if name.is_empty() {
+        return Err("skill name is empty".to_string());
+    }
+    if !skills::is_valid_name(&name) {
+        return Err(
+            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
+        );
+    }
+    let description = args.description.trim().to_string();
+    if description.is_empty() {
+        return Err("description is empty".to_string());
+    }
+
+    let (provider, model, api_key) = chat::resolve_active_provider()?;
+
+    let messages = vec![
+        Message {
+            role: Role::System,
+            content: "You are an expert at writing procedural \"skills\" — short markdown playbooks that tell another AI assistant how to perform a specific, repeatable task. \
+                Generate the body of a skill based on the user's description. The body should be a clear, numbered set of steps the assistant should follow when invoked, \
+                including which tools to use and how to phrase the final output. Do NOT include YAML frontmatter or a heading with the skill name — only the procedure body. Output ONLY the markdown body, nothing else."
+                .to_string(),
+            images: vec![],
+        },
+        Message {
+            role: Role::User,
+            content: format!(
+                "Create a skill named \"{name}\" that does the following: {description}"
+            ),
+            images: vec![],
+        },
+    ];
+
+    let body = call_provider_buffered(&provider, &api_key, &model, &messages).await?;
+    Ok(body.trim().to_string())
+}
+
+/// One-shot, non-streaming dispatch to whichever provider is active.
+/// Duplicates the matrix from `commands::agents` so a future shared
+/// helper has only one extraction site.
+async fn call_provider_buffered(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &[Message],
+) -> Result<String, String> {
+    let llm_timeout = config::llm_timeout();
+    let server_route = if matches!(provider, Provider::AictlServer) {
+        Some(config::active_server().ok_or_else(|| {
+            "provider 'aictl-server' selected but AICTL_CLIENT_HOST and/or AICTL_CLIENT_MASTER_KEY are not configured".to_string()
+        })?)
+    } else {
+        None
+    };
+
+    let result = tokio::time::timeout(llm_timeout, async {
+        if let Some((url, key)) = server_route.as_ref() {
+            return llm::server_proxy::call(url, key, model, messages, None).await;
+        }
+        match provider {
+            Provider::Openai => llm::openai::call_openai(api_key, model, messages, None).await,
+            Provider::Anthropic => {
+                llm::anthropic::call_anthropic(api_key, model, messages, None).await
+            }
+            Provider::Gemini => llm::gemini::call_gemini(api_key, model, messages, None).await,
+            Provider::Grok => llm::grok::call_grok(api_key, model, messages, None).await,
+            Provider::Mistral => llm::mistral::call_mistral(api_key, model, messages, None).await,
+            Provider::Deepseek => {
+                llm::deepseek::call_deepseek(api_key, model, messages, None).await
+            }
+            Provider::Kimi => llm::kimi::call_kimi(api_key, model, messages, None).await,
+            Provider::Zai => llm::zai::call_zai(api_key, model, messages, None).await,
+            Provider::Ollama => llm::ollama::call_ollama(model, messages, None).await,
+            Provider::Gguf => llm::gguf::call_gguf(model, messages, None).await,
+            Provider::Mlx => llm::mlx::call_mlx(model, messages, None).await,
+            Provider::Mock => llm::mock::call_mock(model, messages, None).await,
+            Provider::AictlServer => unreachable!("server_route covers Provider::AictlServer"),
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok((text, _usage))) => Ok(text),
+        Ok(Err(e)) => Err(format_call_err(&e)),
+        Err(_) => Err(format!(
+            "skill generation timed out after {}s (AICTL_LLM_TIMEOUT)",
+            llm_timeout.as_secs()
+        )),
+    }
+}
+
+fn format_call_err(e: &AictlError) -> String {
+    e.to_string()
 }

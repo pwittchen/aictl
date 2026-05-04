@@ -498,6 +498,21 @@ export const ipc = {
   async skillPull(name: string, overwrite: boolean) {
     return invoke<PullOutcome>("skill_pull", { args: { name, overwrite } });
   },
+  async skillSave(
+    name: string,
+    description: string,
+    body: string,
+    overwrite: boolean,
+  ) {
+    return invoke<"installed" | "overwritten">("skill_save", {
+      args: { name, description, body, overwrite },
+    });
+  },
+  async skillGenerate(name: string, description: string) {
+    return invoke<string>("skill_generate", {
+      args: { name, description },
+    });
+  },
 
   // -- agents ----
   async agentsList() {

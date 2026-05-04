@@ -39,6 +39,7 @@ import {
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
 import AgentEditor from "./AgentEditor";
+import SkillEditor from "./SkillEditor";
 
 interface Props {
   workspace: WorkspaceState;
@@ -1917,6 +1918,7 @@ const SkillsTab: Component = () => {
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
+  const [showEditor, setShowEditor] = createSignal(false);
 
   const load = async () => {
     try {
@@ -2009,6 +2011,11 @@ const SkillsTab: Component = () => {
         <code>~/.aictl/skills/&lt;name&gt;/SKILL.md</code> (or
         per-project <code>.aictl/skills/</code>).
       </p>
+      <div class="settings-keys-bulk">
+        <button type="button" onClick={() => setShowEditor(true)}>
+          New Skill
+        </button>
+      </div>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
       </Show>
@@ -2146,6 +2153,17 @@ const SkillsTab: Component = () => {
       </div>
       <Show when={viewer()}>
         {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
+      </Show>
+      <Show when={showEditor()}>
+        <SkillEditor
+          existingNames={(skills() ?? []).map((s) => s.name)}
+          onSaved={(name) => {
+            setShowEditor(false);
+            setFeedback(`saved ${name}`);
+            void load();
+          }}
+          onClose={() => setShowEditor(false)}
+        />
       </Show>
     </div>
   );

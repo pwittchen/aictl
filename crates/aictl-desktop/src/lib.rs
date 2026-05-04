@@ -129,6 +129,8 @@ pub fn run() {
             commands::skills::skill_loaded,
             commands::skills::skills_list_remote,
             commands::skills::skill_pull,
+            commands::skills::skill_save,
+            commands::skills::skill_generate,
             commands::agents::agents_list,
             commands::agents::agent_delete,
             commands::agents::agent_view,

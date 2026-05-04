@@ -2479,10 +2479,11 @@
   border-color: var(--border-strong);
 }
 
-/* Agent editor dialog — used by Settings → Agents → "New Agent". Same
-   tone palette as ctx-details / settings overlay so the brutalist look
-   is consistent across modals. */
-.agent-editor-overlay {
+/* Editor modal — shared shell used by Settings → Agents → "New Agent"
+   and Settings → Skills → "New Skill". Same tone palette as
+   ctx-details / settings overlay so the brutalist look is consistent
+   across modals. */
+.editor-modal-overlay {
   position: fixed;
   inset: 0;
   display: flex;
@@ -2493,7 +2494,7 @@
   padding: var(--space-5);
 }
 
-.agent-editor-panel {
+.editor-modal-panel {
   width: min(720px, 100%);
   max-height: 100%;
   background: var(--bg);
@@ -2503,7 +2504,7 @@
   overflow: hidden;
 }
 
-.agent-editor-header {
+.editor-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2512,7 +2513,7 @@
   background: var(--surface);
 }
 
-.agent-editor-header h2 {
+.editor-modal-header h2 {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 14px;
@@ -2521,7 +2522,7 @@
   letter-spacing: 0.1em;
 }
 
-.agent-editor-close {
+.editor-modal-close {
   background: transparent;
   border: 1px solid transparent;
   color: var(--fg-soft);
@@ -2533,12 +2534,12 @@
   cursor: pointer;
 }
 
-.agent-editor-close:hover {
+.editor-modal-close:hover {
   color: var(--fg);
   border-color: var(--border);
 }
 
-.agent-editor-tabs {
+.editor-modal-tabs {
   display: flex;
   gap: var(--space-1);
   padding: var(--space-2) var(--space-4);
@@ -2546,7 +2547,7 @@
   background: var(--surface);
 }
 
-.agent-editor-tab {
+.editor-modal-tab {
   background: transparent;
   border: 1px solid transparent;
   color: var(--fg-soft);
@@ -2558,17 +2559,17 @@
   letter-spacing: 0.08em;
 }
 
-.agent-editor-tab:hover {
+.editor-modal-tab:hover {
   color: var(--fg);
 }
 
-.agent-editor-tab[data-active="true"] {
+.editor-modal-tab[data-active="true"] {
   background: var(--surface-strong);
   color: var(--fg);
   border-color: var(--border);
 }
 
-.agent-editor-body {
+.editor-modal-body {
   padding: var(--space-4);
   overflow-y: auto;
   display: flex;
@@ -2576,13 +2577,13 @@
   gap: var(--space-3);
 }
 
-.agent-editor-row {
+.editor-modal-row {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.agent-editor-row label {
+.editor-modal-row label {
   font-family: var(--font-mono);
   font-size: 11px;
   text-transform: uppercase;
@@ -2590,8 +2591,8 @@
   color: var(--fg-faint);
 }
 
-.agent-editor-row input,
-.agent-editor-row textarea {
+.editor-modal-row input,
+.editor-modal-row textarea {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--fg);
@@ -2600,19 +2601,19 @@
   padding: var(--space-2) var(--space-3);
 }
 
-.agent-editor-row textarea {
+.editor-modal-row textarea {
   resize: vertical;
   line-height: 1.5;
   min-height: 160px;
 }
 
-.agent-editor-row input:focus,
-.agent-editor-row textarea:focus {
+.editor-modal-row input:focus,
+.editor-modal-row textarea:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-.agent-editor-help {
+.editor-modal-help {
   margin: 0;
   color: var(--fg-faint);
   font-size: 11px;
@@ -2620,20 +2621,20 @@
   line-height: 1.4;
 }
 
-.agent-editor-help.warn {
+.editor-modal-help.warn {
   color: #ffb454;
 }
 
-.agent-editor-help.danger {
+.editor-modal-help.danger {
   color: var(--danger);
 }
 
-.agent-editor-actions.inline {
+.editor-modal-actions.inline {
   display: flex;
   gap: var(--space-2);
 }
 
-.agent-editor-actions.inline button {
+.editor-modal-actions.inline button {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--fg);
@@ -2645,17 +2646,17 @@
   cursor: pointer;
 }
 
-.agent-editor-actions.inline button:hover:not([disabled]) {
+.editor-modal-actions.inline button:hover:not([disabled]) {
   border-color: var(--fg-faint);
 }
 
-.agent-editor-actions.inline button[disabled] {
+.editor-modal-actions.inline button[disabled] {
   color: var(--fg-faint);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.agent-editor-error {
+.editor-modal-error {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   background: var(--danger-soft);
@@ -2664,7 +2665,7 @@
   font-size: 12px;
 }
 
-.agent-editor-info {
+.editor-modal-info {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
@@ -2673,7 +2674,7 @@
   font-size: 12px;
 }
 
-.agent-editor-footer {
+.editor-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
@@ -2682,7 +2683,7 @@
   background: var(--surface);
 }
 
-.agent-editor-footer button {
+.editor-modal-footer button {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--fg);
@@ -2694,11 +2695,11 @@
   cursor: pointer;
 }
 
-.agent-editor-footer button:hover:not([disabled]) {
+.editor-modal-footer button:hover:not([disabled]) {
   border-color: var(--fg-faint);
 }
 
-.agent-editor-footer button[disabled] {
+.editor-modal-footer button[disabled] {
   color: var(--fg-faint);
   cursor: not-allowed;
   opacity: 0.6;
