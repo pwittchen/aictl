@@ -59,6 +59,14 @@ pub fn run() {
         );
     }
 
+    // Spawn configured MCP servers up-front, mirroring the CLI. `init_with`
+    // is idempotent and a no-op when `AICTL_MCP_ENABLED` is unset, so this
+    // costs nothing for users who haven't opted in. We run it before the
+    // Tauri builder boots so the catalogue is ready by the time the first
+    // agent turn fires; per-server failures land in `ServerState::Failed`
+    // and are surfaced via `mcp_status` rather than blocking startup.
+    tauri::async_runtime::block_on(aictl_core::mcp::init_with(None));
+
     let app_state = std::sync::Arc::new(state::AppState::new());
 
     tauri::Builder::default()
