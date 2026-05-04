@@ -555,6 +555,18 @@ const App: Component = () => {
     setActiveModel(next);
   };
 
+  /// Re-pull the model catalogue. Called after a local-model download
+  /// finishes so the composer dropdown and Settings → Model tab pick up
+  /// the new entry without an app restart. Failures are silent — the
+  /// existing list stays as-is rather than going blank.
+  const refreshModels = async () => {
+    try {
+      setModels(await ipc.listModels());
+    } catch (err) {
+      console.warn("failed to refresh model catalogue", err);
+    }
+  };
+
   return (
     <div class="app" data-sidebar-hidden={String(!sidebarVisible())}>
       <Titlebar
@@ -650,6 +662,7 @@ const App: Component = () => {
           models={models()}
           activeModel={activeModel()}
           onChangeModel={changeModel}
+          onRefreshModels={refreshModels}
         />
       </Show>
     </div>

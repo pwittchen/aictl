@@ -50,6 +50,10 @@ interface Props {
   models: ModelEntry[];
   activeModel: ActiveModel;
   onChangeModel: (provider: string, model: string) => Promise<void>;
+  /// Called by the Local Models tab after a download finishes so the
+  /// app-level catalogue picks up the new entry — keeps the composer
+  /// dropdown and the Provider tab in sync.
+  onRefreshModels: () => Promise<void>;
 }
 
 type Tab =
@@ -81,8 +85,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "security", label: "Security" },
   { id: "redaction", label: "Redaction" },
   { id: "shell", label: "Shell" },
-  { id: "server", label: "Server" },
-  { id: "mcp", label: "MCP" },
+  { id: "server", label: "LLM Servers" },
+  { id: "mcp", label: "MCP Servers" },
   { id: "hooks", label: "Hooks" },
   { id: "skills", label: "Skills" },
   { id: "agents", label: "Agents" },
@@ -182,7 +186,7 @@ const Settings: Component<Props> = (props) => {
               <McpTab />
             </Show>
             <Show when={tab() === "models"}>
-              <ModelsTab />
+              <ModelsTab onRefreshModels={props.onRefreshModels} />
             </Show>
             <Show when={tab() === "hooks"}>
               <HooksTab />
@@ -1667,7 +1671,11 @@ interface ActiveDownload {
   message: string | null;
 }
 
-const ModelsTab: Component = () => {
+interface ModelsTabProps {
+  onRefreshModels: () => Promise<void>;
+}
+
+const ModelsTab: Component<ModelsTabProps> = (props) => {
   const [status, { refetch }] = createResource<LocalModelsStatus>(() =>
     ipc.localModelsStatus(),
   );
@@ -1705,8 +1713,23 @@ const ModelsTab: Component = () => {
             ),
           );
         } else if (evt.kind === "progress_end") {
-          setDownloads((prev) => prev.filter((d) => d.id !== evt.id));
-          // Refetch the status so the new model appears in the table.
+          setDownloads((prev) => {
+            const next = prev.filter((d) => d.id !== evt.id);
+            // Clear the "downloading…" hint once the last in-flight
+            // download wraps up. MLX downloads emit one Begin/End cycle
+            // per repo file, so the feedback should stick around until
+            // every file is done — not vanish after the first one. The
+            // app-level catalogue is also refreshed at the same moment
+            // so the composer dropdown and the Provider tab pick up the
+            // new entry without an app restart.
+            if (next.length === 0) {
+              setFeedback(null);
+              void props.onRefreshModels();
+            }
+            return next;
+          });
+          // Refetch the local-models status so the new model appears in
+          // the per-backend table on this tab.
           void refetch();
         }
       })
@@ -1726,6 +1749,7 @@ const ModelsTab: Component = () => {
       await ipc.localModelsRemoveGguf(name);
       setFeedback(`removed ${name}`);
       await refetch();
+      await props.onRefreshModels();
     } catch (err) {
       setError(`${err}`);
     }
@@ -1739,6 +1763,7 @@ const ModelsTab: Component = () => {
       await ipc.localModelsRemoveMlx(name);
       setFeedback(`removed ${name}`);
       await refetch();
+      await props.onRefreshModels();
     } catch (err) {
       setError(`${err}`);
     }
