@@ -109,6 +109,8 @@ pub fn run() {
             commands::settings::keys_clear,
             commands::settings::keys_lock,
             commands::settings::keys_unlock,
+            commands::settings::keys_lock_all,
+            commands::settings::keys_unlock_all,
             commands::settings::tools_list,
             commands::settings::tool_set_disabled,
             commands::chat::compact_chat,

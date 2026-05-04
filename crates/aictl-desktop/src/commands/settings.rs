@@ -282,6 +282,73 @@ pub fn keys_unlock(args: KeyUnlockArgs) -> Result<&'static str, String> {
     }
 }
 
+/// Summary of a bulk lock/unlock pass over every known key.
+#[derive(Serialize)]
+pub struct KeysBulkResult {
+    /// Keys that flipped from one store to the other on this pass.
+    pub migrated: usize,
+    /// Keys already in the destination store; nothing to do.
+    pub already: usize,
+    /// Keys that aren't in the source store; nothing to migrate.
+    pub skipped: usize,
+    /// Per-key error messages (`(name, reason)`); empty on a clean run.
+    pub errors: Vec<(String, String)>,
+}
+
+/// Migrate every plain-text key into the system keyring. Mirrors the
+/// CLI's `--lock-keys` flag and `/keys → lock keys` menu entry.
+#[tauri::command]
+pub fn keys_lock_all() -> Result<KeysBulkResult, String> {
+    if !keys::backend_available() {
+        return Err(format!(
+            "system keyring is not available (backend: {})",
+            keys::backend_name()
+        ));
+    }
+    let mut result = KeysBulkResult {
+        migrated: 0,
+        already: 0,
+        skipped: 0,
+        errors: Vec::new(),
+    };
+    for name in keys::KEY_NAMES {
+        match keys::lock_key(name) {
+            LockOutcome::Locked => result.migrated += 1,
+            LockOutcome::AlreadyLocked => result.already += 1,
+            LockOutcome::NotInConfig => result.skipped += 1,
+            LockOutcome::Error(reason) => result.errors.push(((*name).to_string(), reason)),
+        }
+    }
+    Ok(result)
+}
+
+/// Migrate every keyring-stored key back into plain config. Mirrors the
+/// CLI's `--unlock-keys` flag and `/keys → unlock keys` menu entry.
+#[tauri::command]
+pub fn keys_unlock_all() -> Result<KeysBulkResult, String> {
+    if !keys::backend_available() {
+        return Err(format!(
+            "system keyring is not available (backend: {})",
+            keys::backend_name()
+        ));
+    }
+    let mut result = KeysBulkResult {
+        migrated: 0,
+        already: 0,
+        skipped: 0,
+        errors: Vec::new(),
+    };
+    for name in keys::KEY_NAMES {
+        match keys::unlock_key(name) {
+            UnlockOutcome::Unlocked => result.migrated += 1,
+            UnlockOutcome::AlreadyUnlocked => result.already += 1,
+            UnlockOutcome::NotInKeyring => result.skipped += 1,
+            UnlockOutcome::Error(reason) => result.errors.push(((*name).to_string(), reason)),
+        }
+    }
+    Ok(result)
+}
+
 fn is_known_key(name: &str) -> bool {
     keys::KEY_NAMES.contains(&name)
 }

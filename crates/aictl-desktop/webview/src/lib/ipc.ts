@@ -118,6 +118,13 @@ export interface KeyBackend {
   name: string;
 }
 
+export interface KeysBulkResult {
+  migrated: number;
+  already: number;
+  skipped: number;
+  errors: [string, string][];
+}
+
 export interface ToolRow {
   name: string;
   description: string;
@@ -414,6 +421,12 @@ export const ipc = {
   },
   async keysUnlock(name: string) {
     return invoke<string>("keys_unlock", { args: { name } });
+  },
+  async keysLockAll() {
+    return invoke<KeysBulkResult>("keys_lock_all");
+  },
+  async keysUnlockAll() {
+    return invoke<KeysBulkResult>("keys_unlock_all");
   },
   async toolsList() {
     return invoke<ToolRow[]>("tools_list");

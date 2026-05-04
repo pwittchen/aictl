@@ -381,6 +381,53 @@ const KeysTab: Component = () => {
     }
   };
 
+  const lockAll = async () => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const r = await ipc.keysLockAll();
+      await refetch();
+      const parts: string[] = [];
+      parts.push(`${r.migrated} → keyring`);
+      if (r.already > 0) parts.push(`${r.already} already locked`);
+      if (r.errors.length > 0) parts.push(`${r.errors.length} error(s)`);
+      setFeedback(`Lock all: ${parts.join(", ")}`);
+      if (r.errors.length > 0) {
+        setError(r.errors.map(([n, e]) => `${n}: ${e}`).join("; "));
+      }
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const unlockAll = async () => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const r = await ipc.keysUnlockAll();
+      await refetch();
+      const parts: string[] = [];
+      parts.push(`${r.migrated} → config`);
+      if (r.already > 0) parts.push(`${r.already} already unlocked`);
+      if (r.errors.length > 0) parts.push(`${r.errors.length} error(s)`);
+      setFeedback(`Unlock all: ${parts.join(", ")}`);
+      if (r.errors.length > 0) {
+        setError(r.errors.map(([n, e]) => `${n}: ${e}`).join("; "));
+      }
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const anyLockable = () =>
+    (rows() ?? []).some(
+      (r) => r.location === "plain" || r.location === "both",
+    );
+  const anyUnlockable = () =>
+    (rows() ?? []).some(
+      (r) => r.location === "keyring" || r.location === "both",
+    );
+
   return (
     <div class="settings-tab-content">
       <h3>API Keys</h3>
@@ -403,6 +450,26 @@ const KeysTab: Component = () => {
       </Show>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={backend()?.available}>
+        <div class="settings-keys-bulk">
+          <button
+            type="button"
+            disabled={!anyLockable()}
+            title="Move every plain-config key into the system keyring"
+            onClick={() => void lockAll()}
+          >
+            Lock All
+          </button>
+          <button
+            type="button"
+            disabled={!anyUnlockable()}
+            title="Move every keyring-stored key back into plain config"
+            onClick={() => void unlockAll()}
+          >
+            Unlock All
+          </button>
+        </div>
       </Show>
       <table class="settings-keys-table">
         <thead>

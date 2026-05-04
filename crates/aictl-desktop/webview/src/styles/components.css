@@ -1551,6 +1551,41 @@
   margin-top: var(--space-3);
 }
 
+.settings-keys-bulk {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.settings-keys-bulk button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.settings-keys-bulk button:hover:not([disabled]) {
+  border-color: var(--fg-faint);
+}
+
+.settings-keys-bulk button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-keys-bulk button[disabled] {
+  color: var(--fg-faint);
+  border-color: var(--border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .settings-keys-table th,
 .settings-keys-table td {
   padding: var(--space-2) var(--space-3);
