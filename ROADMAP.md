@@ -7,32 +7,6 @@
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
 - for desktop app, when workspace is not set, offer path: ~/.aictl/workspace/
 
-## Desktop
-
-Create a desktop app with the same capabilities as the CLI. macOS support is required; other platforms are a stretch goal. The workspace already exposes a frontend-agnostic `aictl-core` crate; `aictl-desktop` would be a new workspace member that depends on it the same way `aictl-cli` does today.
-
-### Core API stabilization
-
-Define clean public types for the desktop to consume: `AgentLoop`, `Conversation`, `ToolCallEvent`, `StreamChunk`, etc. Add a channel-based interface (`tokio::mpsc`) so the desktop can receive events asynchronously — streaming tokens, tool approval requests, progress updates.
-
-### GUI framework: Tauri v2
-
-Use Tauri v2 for the desktop shell. Rust core runs as the Tauri backend; `#[tauri::command]` functions wrap the `aictl-core` crate. The frontend (React/Svelte/Solid) handles the chat UI, session sidebar, agent management, and settings. Chat UIs are trivially good in HTML/CSS — markdown rendering, syntax highlighting, streaming text are solved problems in the web ecosystem. Cross-platform (macOS/Linux/Windows), small binary (~5-10MB), and the same frontend could be reused for a web version later.
-
-### Desktop `AgentUI` implementation
-
-Implement a `DesktopUI` that satisfies the `AgentUI` trait: send messages to the GUI thread instead of stdout, show tool approval via a dialog instead of terminal y/N, render markdown in a rich text widget, show spinners/progress as native UI elements. The agent loop in core calls `ui.show_answer()`, `ui.confirm_tool()`, etc. — the desktop provides a different implementation.
-
-### Tool approval UX
-
-In the CLI it's a blocking y/N prompt. In the desktop, the agent loop should `await` a response from a channel that the UI resolves when the user clicks approve/deny in a dialog.
-
-### Phased rollout
-
-1. Stabilize the core API — channel-based event interface on top of the existing `aictl-core` crate.
-2. Scaffold the desktop app — Tauri + minimal frontend, send a message and see the response.
-3. Feature parity incrementally — sessions, agents, tool approval dialogs, settings, stats, one at a time.
-
 ---
 
 ## Coding Agent
