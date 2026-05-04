@@ -53,6 +53,11 @@ jobs:
             sed -i '/^name = "aictl-cli"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             sed -i '/^name = "aictl-core"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
             sed -i '/^name = "aictl-server"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            sed -i '/^name = "aictl-desktop"$/{n;s/^version = ".*"$/version = "'"$tag_version"'"/;}' Cargo.lock
+            # Tauri reads its own `version` field from tauri.conf.json — that
+            # value drives the bundle identifier and the DMG file name.
+            sed -i 's/^\(  "version": "\)[0-9][0-9.]*"/\1'"$tag_version"'"/' crates/aictl-desktop/tauri.conf.json
+            sed -i 's/^\(  "version": "\)[0-9][0-9.]*"/\1'"$tag_version"'"/' crates/aictl-desktop/webview/package.json
             changed=1
           fi
           if ! grep -q "v$tag_version ·" website/index.html; then
@@ -76,7 +81,7 @@ jobs:
           if [ "$changed" = "1" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add Cargo.toml Cargo.lock website/index.html website/guides.html website/server.html
+            git add Cargo.toml Cargo.lock website/index.html website/guides.html website/server.html crates/aictl-desktop/tauri.conf.json crates/aictl-desktop/webview/package.json
             git commit -m "Bump version to $tag_version"
             git push origin HEAD:master
           fi
@@ -191,8 +196,81 @@ jobs:
           name: ${{ matrix.server_artifact }}
           path: ${{ env.server_asset }}
 
+  build-desktop:
+    needs: version-bump
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact: aictl-desktop-darwin-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-15
+            artifact: aictl-desktop-darwin-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: master
+
+      - name: Install Rust toolchain
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install macOS dependencies
+        run: brew install cmake
+
+      - name: Select Xcode 16.4
+        if: matrix.target == 'aarch64-apple-darwin'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-${{ matrix.target }}
+          workspaces: ". -> target"
+
+      - name: Install webview deps
+        working-directory: crates/aictl-desktop/webview
+        run: npm install
+
+      - name: Install Tauri CLI
+        # Pinned to the v2 line — matches `tauri = "2"` in
+        # crates/aictl-desktop/Cargo.toml.
+        run: npm install -g @tauri-apps/cli@^2
+
+      - name: Build desktop app (.app + .dmg)
+        # tauri.conf.json declares `bundle.targets: ["app", "dmg"]`, so
+        # this single invocation produces both. The before-build hook
+        # in the same conf shells out to `npm run build` to populate
+        # webview/dist before Cargo links the binary.
+        working-directory: crates/aictl-desktop
+        run: tauri build --target ${{ matrix.target }}
+
+      - name: Package DMG
+        shell: bash
+        run: |
+          dmg_src=$(find "target/${{ matrix.target }}/release/bundle/dmg" -type f -name "*.dmg" -print -quit)
+          if [ -z "$dmg_src" ]; then
+            echo "ERROR: DMG not produced"
+            find "target/${{ matrix.target }}/release/bundle" -type f 2>/dev/null || true
+            exit 1
+          fi
+          cp "$dmg_src" "${{ matrix.artifact }}.dmg"
+          echo "asset=${{ matrix.artifact }}.dmg" >> "$GITHUB_ENV"
+
+      - name: Upload aictl-desktop DMG artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ env.asset }}
+
   release:
-    needs: build
+    needs: [build, build-desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
