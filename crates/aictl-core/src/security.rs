@@ -458,6 +458,92 @@ fn check_mcp_tool(name: &str, input: &str, pol: &SecurityPolicy) -> Result<(), S
     Ok(())
 }
 
+/// Validate the hostname of an outbound MCP URL. Remote MCP transports
+/// (HTTP, SSE) bypass the CWD jail because they reach across the network
+/// rather than into the file system, so they need a parallel control:
+///
+///   * `AICTL_MCP_DENY_HOSTS` — comma-separated list of hostnames to block
+///     outright. Always wins.
+///   * `AICTL_MCP_ALLOW_HOSTS` — comma-separated allow-list. When set, any
+///     host not in the list is rejected (whitelist mode). Empty/unset
+///     means "no restriction beyond the deny-list and scheme rule".
+///   * `AICTL_MCP_ALLOW_HTTP=true` — opt-in for plaintext `http://`
+///     URLs. Default is HTTPS-only.
+///
+/// Hostnames are matched case-insensitively. Entries may be exact (`api.example.com`)
+/// or wildcard suffixes (`*.example.com`).
+///
+/// Called from `mcp::config::parse` at config-load time so a denied URL
+/// causes the entry to fail rather than reaching the network. Clients
+/// re-validate the host at dispatch time as defense-in-depth.
+pub fn validate_mcp_url(url: &str) -> Result<(), String> {
+    let (scheme, rest) = url
+        .split_once("://")
+        .ok_or_else(|| format!("invalid MCP url '{url}': missing scheme"))?;
+    let scheme = scheme.to_ascii_lowercase();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!(
+            "invalid MCP url '{url}': scheme must be http or https"
+        ));
+    }
+    if scheme == "http" {
+        let allow_http = matches!(
+            config_get("AICTL_MCP_ALLOW_HTTP").as_deref(),
+            Some("true" | "1")
+        );
+        if !allow_http {
+            return Err(format!(
+                "MCP url '{url}': plaintext http:// is disabled (set AICTL_MCP_ALLOW_HTTP=true to override)"
+            ));
+        }
+    }
+    let host_part = rest.split('/').next().unwrap_or("");
+    // Strip port and userinfo if present.
+    let host_part = host_part.rsplit_once('@').map_or(host_part, |(_, h)| h);
+    let host = host_part.rsplit_once(':').map_or(host_part, |(h, _port)| h);
+    let host = host.trim_matches(|c: char| c == '[' || c == ']');
+    if host.is_empty() {
+        return Err(format!("invalid MCP url '{url}': empty host"));
+    }
+    let host_lc = host.to_ascii_lowercase();
+
+    if let Some(raw) = config_get("AICTL_MCP_DENY_HOSTS") {
+        for pat in raw.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if host_matches(&host_lc, pat) {
+                return Err(format!(
+                    "MCP host '{host}' is blocked by AICTL_MCP_DENY_HOSTS"
+                ));
+            }
+        }
+    }
+    if let Some(raw) = config_get("AICTL_MCP_ALLOW_HOSTS") {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            let allowed = trimmed
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .any(|pat| host_matches(&host_lc, pat));
+            if !allowed {
+                return Err(format!("MCP host '{host}' is not in AICTL_MCP_ALLOW_HOSTS"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Match a lowercase hostname against an allow/deny pattern. Supports an
+/// exact match and a `*.<suffix>` wildcard (matches the suffix and any
+/// number of subdomain levels).
+fn host_matches(host: &str, pat: &str) -> bool {
+    let pat = pat.to_ascii_lowercase();
+    if let Some(suffix) = pat.strip_prefix("*.") {
+        host == suffix || host.ends_with(&format!(".{suffix}"))
+    } else {
+        host == pat
+    }
+}
+
 /// Validate paths referenced by the `archive` tool. The first line declares
 /// the operation and its positional arguments; for `create` the remaining
 /// lines are input paths that must be readable. Unknown ops fall through to
@@ -1690,6 +1776,33 @@ mod tests {
     fn check_mcp_tool_passes_small_body() {
         let pol = test_policy();
         assert!(check_mcp_tool("mcp__srv__op", "{}", &pol).is_ok());
+    }
+
+    #[test]
+    fn host_matches_exact_and_wildcard() {
+        assert!(host_matches("api.example.com", "api.example.com"));
+        assert!(!host_matches("api.example.com", "other.example.com"));
+        assert!(host_matches("api.example.com", "*.example.com"));
+        assert!(host_matches("a.b.example.com", "*.example.com"));
+        assert!(host_matches("example.com", "*.example.com"));
+        assert!(!host_matches("example.org", "*.example.com"));
+    }
+
+    #[test]
+    fn validate_mcp_url_rejects_unknown_scheme() {
+        let err = validate_mcp_url("ftp://example.com").unwrap_err();
+        assert!(err.contains("scheme"));
+    }
+
+    #[test]
+    fn validate_mcp_url_rejects_missing_scheme() {
+        assert!(validate_mcp_url("example.com").is_err());
+    }
+
+    #[test]
+    fn validate_mcp_url_accepts_https_default() {
+        // Default config has no allow/deny lists set.
+        assert!(validate_mcp_url("https://example.com/v1").is_ok());
     }
 
     #[test]

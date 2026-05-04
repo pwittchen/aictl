@@ -21,8 +21,11 @@ use serde_json::{Map, Value};
 #[derive(Serialize)]
 pub struct McpServerRow {
     pub name: String,
+    pub transport: String,
     pub command: String,
     pub args: Vec<String>,
+    /// Remote-only: empty for stdio entries.
+    pub url: String,
     pub enabled: bool,
     pub state: String,
     pub state_detail: Option<String>,
@@ -52,7 +55,7 @@ pub fn mcp_status() -> McpStatus {
         .map(|name| {
             let enabled = *on_disk.get(name).unwrap_or(&true);
             let summary = runtime.get(name);
-            let (command, args, state, state_detail, tool_count) = match summary {
+            let (transport, command, args, url, state, state_detail, tool_count) = match summary {
                 Some(s) => {
                     let (state, detail) = match &s.state {
                         mcp::ServerState::Ready => ("ready", None),
@@ -60,19 +63,31 @@ pub fn mcp_status() -> McpStatus {
                         mcp::ServerState::Disabled => ("disabled", None),
                     };
                     (
+                        s.transport.as_str().to_string(),
                         s.command.clone(),
                         s.args.clone(),
+                        s.url.clone(),
                         state.to_string(),
                         detail,
                         s.tools.len(),
                     )
                 }
-                None => (String::new(), vec![], "unknown".to_string(), None, 0),
+                None => (
+                    "stdio".to_string(),
+                    String::new(),
+                    vec![],
+                    String::new(),
+                    "unknown".to_string(),
+                    None,
+                    0,
+                ),
             };
             McpServerRow {
                 name: name.clone(),
+                transport,
                 command,
                 args,
+                url,
                 enabled,
                 state,
                 state_detail,
@@ -122,11 +137,22 @@ pub fn mcp_toggle(args: McpToggleArgs) -> Result<bool, String> {
 #[derive(Deserialize)]
 pub struct McpCreateArgs {
     pub name: String,
+    /// `"stdio"` (default), `"http"`, or `"sse"`. Validated against the
+    /// same set the parser accepts.
+    #[serde(default)]
+    pub transport: Option<String>,
+    #[serde(default)]
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
     pub env: HashMap<String, String>,
+    /// Remote-only: dispatch URL.
+    #[serde(default)]
+    pub url: String,
+    /// Remote-only: extra HTTP headers (Authorization, etc.).
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
     pub timeout_secs: Option<u64>,
     /// `true` once the user has confirmed they want to clobber an
     /// existing server of the same name.
@@ -145,8 +171,28 @@ pub fn mcp_create(args: McpCreateArgs) -> Result<(), String> {
     if !is_valid_name(&name) {
         return Err("invalid name — use only letters, numbers, underscore, or dash".to_string());
     }
+    let transport_raw = args
+        .transport
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("stdio")
+        .to_string();
+    match transport_raw.as_str() {
+        "stdio" | "http" | "sse" => {}
+        other => return Err(format!("unknown transport '{other}'")),
+    }
+    let is_remote = transport_raw != "stdio";
     let command = args.command.trim().to_string();
-    if command.is_empty() {
+    let url = args.url.trim().to_string();
+    if is_remote {
+        if url.is_empty() {
+            return Err("url is empty".to_string());
+        }
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err("url must start with http:// or https://".to_string());
+        }
+    } else if command.is_empty() {
         return Err("command is empty".to_string());
     }
     if let Some(t) = args.timeout_secs
@@ -184,20 +230,33 @@ pub fn mcp_create(args: McpCreateArgs) -> Result<(), String> {
     }
 
     let mut entry = Map::new();
-    entry.insert("command".into(), Value::String(command));
-    if !args.args.is_empty() {
-        entry.insert(
-            "args".into(),
-            Value::Array(args.args.into_iter().map(Value::String).collect()),
-        );
-    }
-    if !args.env.is_empty() {
-        let env_map: Map<String, Value> = args
-            .env
-            .into_iter()
-            .map(|(k, v)| (k, Value::String(v)))
-            .collect();
-        entry.insert("env".into(), Value::Object(env_map));
+    if is_remote {
+        entry.insert("transport".into(), Value::String(transport_raw));
+        entry.insert("url".into(), Value::String(url));
+        if !args.headers.is_empty() {
+            let header_map: Map<String, Value> = args
+                .headers
+                .into_iter()
+                .map(|(k, v)| (k, Value::String(v)))
+                .collect();
+            entry.insert("headers".into(), Value::Object(header_map));
+        }
+    } else {
+        entry.insert("command".into(), Value::String(command));
+        if !args.args.is_empty() {
+            entry.insert(
+                "args".into(),
+                Value::Array(args.args.into_iter().map(Value::String).collect()),
+            );
+        }
+        if !args.env.is_empty() {
+            let env_map: Map<String, Value> = args
+                .env
+                .into_iter()
+                .map(|(k, v)| (k, Value::String(v)))
+                .collect();
+            entry.insert("env".into(), Value::Object(env_map));
+        }
     }
     entry.insert("enabled".into(), Value::Bool(true));
     if let Some(t) = args.timeout_secs {

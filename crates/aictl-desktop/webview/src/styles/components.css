@@ -2592,7 +2592,8 @@
 }
 
 .editor-modal-row input,
-.editor-modal-row textarea {
+.editor-modal-row textarea,
+.editor-modal-row select {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--fg);
@@ -2607,8 +2608,28 @@
   min-height: 160px;
 }
 
+.editor-modal-row select {
+  /* Browsers add their own dropdown chrome that drifts from the rest of
+     the editor surface; reset it and draw a small chevron via background
+     so the control matches the input/textarea pair. */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-faint) 50%),
+    linear-gradient(135deg, var(--fg-faint) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  padding-right: var(--space-6);
+  cursor: pointer;
+}
+
 .editor-modal-row input:focus,
-.editor-modal-row textarea:focus {
+.editor-modal-row textarea:focus,
+.editor-modal-row select:focus {
   outline: none;
   border-color: var(--accent);
 }

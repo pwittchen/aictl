@@ -255,16 +255,29 @@ fn view_server(server: &ServerSummary) {
         "server:".with(Color::Cyan),
         server.name.as_str().with(Color::Magenta)
     );
-    let cmd_line = if server.args.is_empty() {
-        server.command.clone()
-    } else {
-        format!("{} {}", server.command, server.args.join(" "))
-    };
     println!(
         "  {} {}",
-        "command:".with(Color::Cyan),
-        cmd_line.with(Color::DarkGrey)
+        "transport:".with(Color::Cyan),
+        server.transport.as_str().with(Color::DarkGrey)
     );
+    if server.transport.is_remote() {
+        println!(
+            "  {} {}",
+            "url:".with(Color::Cyan),
+            server.url.as_str().with(Color::DarkGrey)
+        );
+    } else {
+        let cmd_line = if server.args.is_empty() {
+            server.command.clone()
+        } else {
+            format!("{} {}", server.command, server.args.join(" "))
+        };
+        println!(
+            "  {} {}",
+            "command:".with(Color::Cyan),
+            cmd_line.with(Color::DarkGrey)
+        );
+    }
     let (state_text, state_color) = state_label(&server.state);
     println!(
         "  {} {}",
@@ -303,11 +316,16 @@ pub fn print_mcp_cli() {
     let max_name = servers.iter().map(|s| s.name.len()).max().unwrap_or(0);
     for s in &servers {
         let (state_text, _) = state_label(&s.state);
+        let target = if s.transport.is_remote() {
+            s.url.clone()
+        } else {
+            s.command.clone()
+        };
         println!(
-            "{:<max_name$}  {state_text:<12}  {} tools  ({})",
+            "{:<max_name$}  {:<6}  {state_text:<12}  {} tools  ({target})",
             s.name,
+            s.transport.as_str(),
             s.tools.len(),
-            s.command,
         );
         for t in &s.tools {
             println!("  - {}: {}", mcp::qualify(&s.name, &t.name), t.description);

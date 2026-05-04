@@ -35,14 +35,20 @@ function parseEnv(text: string): { ok: Record<string, string> } | { err: string 
   return { ok: out };
 }
 
+type Transport = "stdio" | "http" | "sse";
+
 const McpEditor: Component<Props> = (props) => {
   const [name, setName] = createSignal("");
+  const [transport, setTransport] = createSignal<Transport>("stdio");
   const [command, setCommand] = createSignal("");
   const [argsText, setArgsText] = createSignal("");
   const [envText, setEnvText] = createSignal("");
+  const [url, setUrl] = createSignal("");
+  const [headersText, setHeadersText] = createSignal("");
   const [timeoutText, setTimeoutText] = createSignal("");
   const [saving, setSaving] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const isRemote = () => transport() !== "stdio";
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -69,7 +75,17 @@ const McpEditor: Component<Props> = (props) => {
       setError("Invalid name — letters, numbers, underscore, or dash only.");
       return;
     }
-    if (command().trim() === "") {
+    if (isRemote()) {
+      const u = url().trim();
+      if (u === "") {
+        setError("URL is empty.");
+        return;
+      }
+      if (!u.startsWith("http://") && !u.startsWith("https://")) {
+        setError("URL must start with http:// or https://.");
+        return;
+      }
+    } else if (command().trim() === "") {
       setError("Command is empty.");
       return;
     }
@@ -80,6 +96,11 @@ const McpEditor: Component<Props> = (props) => {
     const env = parseEnv(envText());
     if ("err" in env) {
       setError(env.err);
+      return;
+    }
+    const headers = parseEnv(headersText());
+    if ("err" in headers) {
+      setError(`headers: ${headers.err}`);
       return;
     }
     let timeoutSecs: number | undefined;
@@ -100,14 +121,17 @@ const McpEditor: Component<Props> = (props) => {
     }
     setSaving(true);
     try {
-      await ipc.mcpCreate(
-        name().trim(),
-        command().trim(),
-        argList,
-        env.ok,
+      await ipc.mcpCreate({
+        name: name().trim(),
+        transport: transport(),
+        command: isRemote() ? "" : command().trim(),
+        args: isRemote() ? [] : argList,
+        env: isRemote() ? {} : env.ok,
+        url: isRemote() ? url().trim() : "",
+        headers: isRemote() ? headers.ok : {},
         timeoutSecs,
-        clash(),
-      );
+        overwrite: clash(),
+      });
       props.onSaved(name().trim());
     } catch (err) {
       setError(`${err}`);
@@ -162,46 +186,99 @@ const McpEditor: Component<Props> = (props) => {
             </Show>
           </div>
           <div class="editor-modal-row">
-            <label for="mcp-editor-command">Command</label>
-            <input
-              id="mcp-editor-command"
-              type="text"
-              placeholder="python or /usr/bin/node"
-              value={command()}
-              onInput={(e) => setCommand(e.currentTarget.value)}
-            />
+            <label for="mcp-editor-transport">Transport</label>
+            <select
+              id="mcp-editor-transport"
+              value={transport()}
+              onInput={(e) =>
+                setTransport(e.currentTarget.value as Transport)
+              }
+            >
+              <option value="stdio">stdio (local process)</option>
+              <option value="http">http (remote, streamable)</option>
+              <option value="sse">sse (remote, legacy)</option>
+            </select>
             <p class="editor-modal-help">
-              Executable launched at startup. Spawned via the OS — no
-              shell interpolation.
+              <code>stdio</code> spawns a local subprocess.{" "}
+              <code>http</code> / <code>sse</code> dispatch over the
+              network — see{" "}
+              <code>AICTL_MCP_ALLOW_HOSTS</code> /{" "}
+              <code>AICTL_MCP_DENY_HOSTS</code> to gate hostnames.
             </p>
           </div>
-          <div class="editor-modal-row">
-            <label for="mcp-editor-args">Arguments</label>
-            <textarea
-              id="mcp-editor-args"
-              rows={3}
-              placeholder={"one argument per line\n-m\nmcp_server"}
-              value={argsText()}
-              onInput={(e) => setArgsText(e.currentTarget.value)}
-            />
-            <p class="editor-modal-help">
-              Optional. One argument per line.
-            </p>
-          </div>
-          <div class="editor-modal-row">
-            <label for="mcp-editor-env">Environment</label>
-            <textarea
-              id="mcp-editor-env"
-              rows={3}
-              placeholder={"KEY=value (one per line)\nAPI_KEY=${keyring:OPENAI_API_KEY}"}
-              value={envText()}
-              onInput={(e) => setEnvText(e.currentTarget.value)}
-            />
-            <p class="editor-modal-help">
-              Optional. <code>{"${keyring:NAME}"}</code> pulls the
-              named secret from the system keyring at spawn time.
-            </p>
-          </div>
+          <Show when={!isRemote()}>
+            <div class="editor-modal-row">
+              <label for="mcp-editor-command">Command</label>
+              <input
+                id="mcp-editor-command"
+                type="text"
+                placeholder="python or /usr/bin/node"
+                value={command()}
+                onInput={(e) => setCommand(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                Executable launched at startup. Spawned via the OS — no
+                shell interpolation.
+              </p>
+            </div>
+            <div class="editor-modal-row">
+              <label for="mcp-editor-args">Arguments</label>
+              <textarea
+                id="mcp-editor-args"
+                rows={3}
+                placeholder={"one argument per line\n-m\nmcp_server"}
+                value={argsText()}
+                onInput={(e) => setArgsText(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                Optional. One argument per line.
+              </p>
+            </div>
+            <div class="editor-modal-row">
+              <label for="mcp-editor-env">Environment</label>
+              <textarea
+                id="mcp-editor-env"
+                rows={3}
+                placeholder={"KEY=value (one per line)\nAPI_KEY=${keyring:OPENAI_API_KEY}"}
+                value={envText()}
+                onInput={(e) => setEnvText(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                Optional. <code>{"${keyring:NAME}"}</code> pulls the
+                named secret from the system keyring at spawn time.
+              </p>
+            </div>
+          </Show>
+          <Show when={isRemote()}>
+            <div class="editor-modal-row">
+              <label for="mcp-editor-url">URL</label>
+              <input
+                id="mcp-editor-url"
+                type="text"
+                placeholder="https://mcp.example.com/v1"
+                value={url()}
+                onInput={(e) => setUrl(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                Must use <code>https://</code> unless{" "}
+                <code>AICTL_MCP_ALLOW_HTTP=true</code>.
+              </p>
+            </div>
+            <div class="editor-modal-row">
+              <label for="mcp-editor-headers">Headers</label>
+              <textarea
+                id="mcp-editor-headers"
+                rows={3}
+                placeholder={"Header=value (one per line)\nAuthorization=Bearer ${keyring:MCP_TOKEN}"}
+                value={headersText()}
+                onInput={(e) => setHeadersText(e.currentTarget.value)}
+              />
+              <p class="editor-modal-help">
+                Optional. <code>{"${keyring:NAME}"}</code> pulls the
+                named secret from the system keyring at request time.
+              </p>
+            </div>
+          </Show>
           <div class="editor-modal-row">
             <label for="mcp-editor-timeout">Timeout</label>
             <input

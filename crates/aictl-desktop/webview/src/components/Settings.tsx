@@ -1583,7 +1583,8 @@ const McpTab: Component = () => {
           <thead>
             <tr>
               <th>Server</th>
-              <th>Command</th>
+              <th>Transport</th>
+              <th>Target</th>
               <th>Tools</th>
               <th>State</th>
               <th />
@@ -1597,7 +1598,10 @@ const McpTab: Component = () => {
                     <code>{row.name}</code>
                   </td>
                   <td>
-                    <code>{row.command}</code>
+                    <code>{row.transport || "stdio"}</code>
+                  </td>
+                  <td>
+                    <code>{row.url || row.command}</code>
                   </td>
                   <td>{row.tool_count}</td>
                   <td>

@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
+use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
@@ -26,6 +27,7 @@ use tokio::task::JoinHandle;
 
 use super::config::ServerConfig;
 use super::protocol::{CallToolResult, JsonRpcMessage, RawTool, ToolsListResult};
+use super::transport::Transport;
 
 /// One stdio-backed MCP client. Owns the child process and the reader/writer
 /// halves of its stdio. All RPCs are funnelled through [`Self::request`] which
@@ -297,5 +299,28 @@ impl Drop for StdioClient {
         {
             h.abort();
         }
+    }
+}
+
+impl Transport for StdioClient {
+    fn initialize(&self, startup_timeout: Duration) -> BoxFuture<'_, Result<(), String>> {
+        Box::pin(async move { Self::initialize(self, startup_timeout).await })
+    }
+
+    fn list_tools(&self) -> BoxFuture<'_, Result<Vec<RawTool>, String>> {
+        Box::pin(async move { Self::list_tools(self).await })
+    }
+
+    fn call_tool(
+        &self,
+        name: &str,
+        arguments: Value,
+    ) -> BoxFuture<'_, Result<CallToolResult, String>> {
+        let name = name.to_string();
+        Box::pin(async move { Self::call_tool(self, &name, arguments).await })
+    }
+
+    fn shutdown(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async move { Self::shutdown(self).await })
     }
 }

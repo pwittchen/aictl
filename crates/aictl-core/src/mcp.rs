@@ -1,22 +1,30 @@
 //! Model Context Protocol (MCP) client.
 //!
 //! MCP is a JSON-RPC protocol for exposing tools, resources, and prompts from
-//! external servers to an LLM agent. Phase 1 covers the stdio transport and
-//! tools only — see `.claude/plans/mcp-support.md` for the full roadmap.
+//! external servers to an LLM agent. The catalogue covers three transports —
+//! `stdio` (spawn a child process), `http` (modern Streamable HTTP), and
+//! `sse` (legacy HTTP+SSE) — all of which share the dispatch surface defined
+//! by [`transport::Transport`].
 //!
 //! Master switch: `AICTL_MCP_ENABLED` (default `false`) — MCP servers are
 //! third-party code and must be opted in deliberately, matching the plugin
 //! gate. Server entries live in `~/.aictl/mcp.json` (override via
-//! `AICTL_MCP_CONFIG`) in a shape compatible with Claude Desktop.
+//! `AICTL_MCP_CONFIG`) in a shape compatible with Claude Desktop. Remote
+//! transports add `transport`, `url`, and `headers` fields and are gated by
+//! the hostname allow/deny list in [`crate::security::validate_mcp_url`].
 //!
-//! Once enabled, [`init`] spawns each configured stdio server, completes the
-//! `initialize` handshake, calls `tools/list`, and stores the merged catalogue.
-//! Tools are exposed to the agent loop as `mcp__<server>__<tool>` and
-//! dispatched via [`call_tool`] from `tools.rs::execute_tool`.
+//! Once enabled, [`init_with`] spawns/connects each configured server,
+//! completes the `initialize` handshake, calls `tools/list`, and stores the
+//! merged catalogue. Tools are exposed to the agent loop as
+//! `mcp__<server>__<tool>` and dispatched via [`call_tool`] from
+//! `tools.rs::execute_tool`.
 
 pub mod config;
+pub mod http;
 pub mod protocol;
+pub mod sse;
 pub mod stdio;
+pub mod transport;
 
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -24,8 +32,12 @@ use std::sync::OnceLock;
 use serde_json::Value;
 
 use crate::config::config_get;
+use config::Transport as TransportKind;
+use http::HttpClient;
 use protocol::RawTool;
+use sse::SseClient;
 use stdio::StdioClient;
+use transport::Transport;
 
 /// Returns whether the MCP subsystem is opted in. Default `false`.
 pub fn enabled() -> bool {
@@ -53,11 +65,14 @@ pub struct McpTool {
 /// populated so `/mcp` and `--list-mcp` can render meaningful output.
 pub struct McpServer {
     pub name: String,
+    pub transport: TransportKind,
     pub command: String,
     pub args: Vec<String>,
+    /// Remote-only: the URL the transport dials. Empty for stdio entries.
+    pub url: String,
     pub state: ServerState,
     pub tools: Vec<McpTool>,
-    client: Option<Arc<StdioClient>>,
+    client: Option<Arc<dyn Transport>>,
 }
 
 static SERVERS: OnceLock<Vec<McpServer>> = OnceLock::new();
@@ -107,8 +122,10 @@ pub async fn init_with(only: Option<&str>) {
             if force_disabled {
                 return McpServer {
                     name: cfg.name,
+                    transport: cfg.transport,
                     command: cfg.command,
                     args: cfg.args,
+                    url: cfg.url,
                     state: ServerState::Disabled,
                     tools: vec![],
                     client: None,
@@ -124,61 +141,63 @@ pub async fn init_with(only: Option<&str>) {
 
 async fn spawn_one(cfg: config::ServerConfig, startup_timeout: std::time::Duration) -> McpServer {
     let name = cfg.name.clone();
+    let transport = cfg.transport;
     let command = cfg.command.clone();
     let args = cfg.args.clone();
-    match StdioClient::spawn(&cfg).await {
-        Ok(client) => match client.initialize(startup_timeout).await {
-            Ok(()) => match client.list_tools().await {
-                Ok(raws) => {
-                    let tools = raws
-                        .into_iter()
-                        .map(
-                            |RawTool {
-                                 name: tname,
-                                 description,
-                                 input_schema,
-                             }| McpTool {
-                                name: tname,
-                                description,
-                                input_schema,
-                            },
-                        )
-                        .collect();
-                    McpServer {
-                        name,
-                        command,
-                        args,
-                        state: ServerState::Ready,
-                        tools,
-                        client: Some(Arc::new(client)),
-                    }
-                }
-                Err(reason) => McpServer {
-                    name,
-                    command,
-                    args,
-                    state: ServerState::Failed(format!("tools/list: {reason}")),
-                    tools: vec![],
-                    client: None,
+    let url = cfg.url.clone();
+    let make_failure = |state_msg: String| McpServer {
+        name: name.clone(),
+        transport,
+        command: command.clone(),
+        args: args.clone(),
+        url: url.clone(),
+        state: ServerState::Failed(state_msg),
+        tools: vec![],
+        client: None,
+    };
+
+    let client_result: Result<Arc<dyn Transport>, String> = match transport {
+        TransportKind::Stdio => StdioClient::spawn(&cfg)
+            .await
+            .map(|c| Arc::new(c) as Arc<dyn Transport>),
+        TransportKind::Http => HttpClient::new(&cfg).map(|c| Arc::new(c) as Arc<dyn Transport>),
+        TransportKind::Sse => SseClient::spawn(&cfg)
+            .await
+            .map(|c| Arc::new(c) as Arc<dyn Transport>),
+    };
+    let client = match client_result {
+        Ok(c) => c,
+        Err(reason) => return make_failure(format!("connect: {reason}")),
+    };
+    if let Err(reason) = client.initialize(startup_timeout).await {
+        return make_failure(format!("initialize: {reason}"));
+    }
+    let tools = match client.list_tools().await {
+        Ok(raws) => raws
+            .into_iter()
+            .map(
+                |RawTool {
+                     name: tname,
+                     description,
+                     input_schema,
+                 }| McpTool {
+                    name: tname,
+                    description,
+                    input_schema,
                 },
-            },
-            Err(reason) => McpServer {
-                name,
-                command,
-                args,
-                state: ServerState::Failed(format!("initialize: {reason}")),
-                tools: vec![],
-                client: None,
-            },
-        },
-        Err(reason) => McpServer {
-            name,
-            command,
-            args,
-            state: ServerState::Failed(format!("spawn: {reason}")),
-            tools: vec![],
-            client: None,
-        },
+            )
+            .collect(),
+        Err(reason) => return make_failure(format!("tools/list: {reason}")),
+    };
+    McpServer {
+        name,
+        transport,
+        command,
+        args,
+        url,
+        state: ServerState::Ready,
+        tools,
+        client: Some(client),
     }
 }
 
@@ -189,8 +208,10 @@ pub fn list() -> Vec<ServerSummary> {
         .iter()
         .map(|s| ServerSummary {
             name: s.name.clone(),
+            transport: s.transport,
             command: s.command.clone(),
             args: s.args.clone(),
+            url: s.url.clone(),
             state: s.state.clone(),
             tools: s.tools.clone(),
         })
@@ -201,8 +222,11 @@ pub fn list() -> Vec<ServerSummary> {
 #[derive(Clone)]
 pub struct ServerSummary {
     pub name: String,
+    pub transport: TransportKind,
     pub command: String,
     pub args: Vec<String>,
+    /// Remote-only: empty for stdio entries.
+    pub url: String,
     pub state: ServerState,
     pub tools: Vec<McpTool>,
 }
@@ -240,7 +264,7 @@ pub fn qualify(server: &str, tool: &str) -> String {
 
 /// Lookup that returns the live client + bare tool name for an
 /// `mcp__server__tool` qualified name.
-fn locate(qualified: &str) -> Option<(Arc<StdioClient>, String)> {
+fn locate(qualified: &str) -> Option<(Arc<dyn Transport>, String)> {
     let (server, tool) = split_qualified(qualified)?;
     let s = servers().iter().find(|s| s.name == server)?;
     if !matches!(s.state, ServerState::Ready) {

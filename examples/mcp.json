@@ -1,5 +1,5 @@
 {
-  "_comment": "Example aictl MCP servers config. Copy to ~/.aictl/mcp.json (or point AICTL_MCP_CONFIG at this path) and set AICTL_MCP_ENABLED=true in ~/.aictl/config to opt in. Each entry under 'mcpServers' is { command, args, env, enabled, timeout_secs }. 'command' is resolved via PATH (no shell); 'env' values support a ${keyring:NAME} substitution that pulls a secret from the system keyring (or plain config). Edit the absolute path under 'tiny_add' to match where you cloned aictl.",
+  "_comment": "Example aictl MCP servers config. Copy to ~/.aictl/mcp.json (or point AICTL_MCP_CONFIG at this path) and set AICTL_MCP_ENABLED=true in ~/.aictl/config to opt in. Stdio entries take { command, args, env, enabled, timeout_secs }. Remote entries set 'transport' to 'http' (modern Streamable HTTP) or 'sse' (legacy HTTP+SSE) and supply { url, headers, enabled, timeout_secs }. 'command' is resolved via PATH (no shell). 'env' and 'headers' values support a ${keyring:NAME} substitution that pulls a secret from the system keyring (or plain config). Remote URLs are gated by AICTL_MCP_ALLOW_HOSTS / AICTL_MCP_DENY_HOSTS — set those before pointing at a third-party server. Edit the absolute path under 'tiny_add' to match where you cloned aictl.",
 
   "mcpServers": {
     "tiny_add": {
@@ -25,6 +25,28 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${keyring:GITHUB_TOKEN}"
       },
       "enabled": false
+    },
+
+    "remote-http-example": {
+      "_comment": "Remote MCP server reached over the modern Streamable HTTP transport. Set MCP_TOKEN in the system keyring (e.g. via /keys) so the Authorization header resolves at request time. Add 'mcp.example.com' to AICTL_MCP_ALLOW_HOSTS before enabling.",
+      "transport": "http",
+      "url": "https://mcp.example.com/v1",
+      "headers": {
+        "Authorization": "Bearer ${keyring:MCP_TOKEN}"
+      },
+      "enabled": false,
+      "timeout_secs": 30
+    },
+
+    "remote-sse-example": {
+      "_comment": "Remote MCP server reached over the legacy HTTP+SSE transport. The client opens a long-lived SSE GET to 'url' and POSTs requests to the endpoint URL the server announces on its first SSE frame.",
+      "transport": "sse",
+      "url": "https://mcp-sse.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer ${keyring:MCP_TOKEN}"
+      },
+      "enabled": false,
+      "timeout_secs": 30
     }
   }
 }

@@ -133,8 +133,10 @@ export interface ToolRow {
 
 export interface McpServerRow {
   name: string;
+  transport: string;
   command: string;
   args: string[];
+  url: string;
   enabled: boolean;
   state: string;
   state_detail: string | null;
@@ -444,22 +446,28 @@ export const ipc = {
   async mcpToggle(name: string, enabled: boolean) {
     return invoke<boolean>("mcp_toggle", { args: { name, enabled } });
   },
-  async mcpCreate(
-    name: string,
-    command: string,
-    args: string[],
-    env: Record<string, string>,
-    timeoutSecs: number | undefined,
-    overwrite: boolean,
-  ) {
+  async mcpCreate(payload: {
+    name: string;
+    transport?: "stdio" | "http" | "sse";
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+    timeoutSecs?: number;
+    overwrite: boolean;
+  }) {
     return invoke<void>("mcp_create", {
       args: {
-        name,
-        command,
-        args,
-        env,
-        timeout_secs: timeoutSecs ?? null,
-        overwrite,
+        name: payload.name,
+        transport: payload.transport ?? "stdio",
+        command: payload.command ?? "",
+        args: payload.args ?? [],
+        env: payload.env ?? {},
+        url: payload.url ?? "",
+        headers: payload.headers ?? {},
+        timeout_secs: payload.timeoutSecs ?? null,
+        overwrite: payload.overwrite,
       },
     });
   },
