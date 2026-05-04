@@ -1576,7 +1576,7 @@ const McpTab: Component = () => {
           </p>
         )}
       </Show>
-      <div class="settings-keys-bulk">
+      <div class="settings-keys-bulk" style={{ "margin-bottom": "var(--space-3)" }}>
         <button type="button" onClick={() => setShowEditor(true)}>
           New MCP server
         </button>
