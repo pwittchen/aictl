@@ -6,6 +6,7 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
 - for desktop app, when workspace is not set, offer path: ~/.aictl/workspace/
+- sign and notarize the macOS desktop app with a Developer ID identity (replace the current ad-hoc signing in `.github/workflows/release.yml`) so users no longer see the Gatekeeper "cannot verify" warning on first launch. See [.claude/plans/macos-notarization.md](.claude/plans/macos-notarization.md).
 
 ---
 
