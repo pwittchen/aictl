@@ -1,6 +1,6 @@
 {
   "productName": "aictl",
-  "version": "0.37.0",
+  "version": "0.37.1",
   "identifier": "com.aictl.desktop",
   "build": {
     "frontendDist": "webview/dist",
