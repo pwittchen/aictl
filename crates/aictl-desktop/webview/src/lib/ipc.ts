@@ -524,6 +524,16 @@ export const ipc = {
   async agentPull(name: string, overwrite: boolean) {
     return invoke<PullOutcome>("agent_pull", { args: { name, overwrite } });
   },
+  async agentSave(name: string, body: string, overwrite: boolean) {
+    return invoke<"installed" | "overwritten">("agent_save", {
+      args: { name, body, overwrite },
+    });
+  },
+  async agentGenerate(name: string, description: string) {
+    return invoke<string>("agent_generate", {
+      args: { name, description },
+    });
+  },
 
   // -- plugins ----
   async pluginsStatus() {

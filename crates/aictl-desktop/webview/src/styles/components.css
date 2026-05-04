@@ -2478,3 +2478,228 @@
 .ctx-details-footer button:hover {
   border-color: var(--border-strong);
 }
+
+/* Agent editor dialog — used by Settings → Agents → "New Agent". Same
+   tone palette as ctx-details / settings overlay so the brutalist look
+   is consistent across modals. */
+.agent-editor-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 90;
+  padding: var(--space-5);
+}
+
+.agent-editor-panel {
+  width: min(720px, 100%);
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.agent-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.agent-editor-header h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.agent-editor-close {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-soft);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.agent-editor-close:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.agent-editor-tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.agent-editor-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-soft);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.agent-editor-tab:hover {
+  color: var(--fg);
+}
+
+.agent-editor-tab[data-active="true"] {
+  background: var(--surface-strong);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.agent-editor-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agent-editor-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agent-editor-row label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+
+.agent-editor-row input,
+.agent-editor-row textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.agent-editor-row textarea {
+  resize: vertical;
+  line-height: 1.5;
+  min-height: 160px;
+}
+
+.agent-editor-row input:focus,
+.agent-editor-row textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-editor-help {
+  margin: 0;
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+.agent-editor-help.warn {
+  color: #ffb454;
+}
+
+.agent-editor-help.danger {
+  color: var(--danger);
+}
+
+.agent-editor-actions.inline {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.agent-editor-actions.inline button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.agent-editor-actions.inline button:hover:not([disabled]) {
+  border-color: var(--fg-faint);
+}
+
+.agent-editor-actions.inline button[disabled] {
+  color: var(--fg-faint);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.agent-editor-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.agent-editor-info {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg-soft);
+  font-size: 12px;
+}
+
+.agent-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.agent-editor-footer button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.agent-editor-footer button:hover:not([disabled]) {
+  border-color: var(--fg-faint);
+}
+
+.agent-editor-footer button[disabled] {
+  color: var(--fg-faint);
+  cursor: not-allowed;
+  opacity: 0.6;
+}

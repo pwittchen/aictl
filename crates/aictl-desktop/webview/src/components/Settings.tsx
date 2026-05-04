@@ -38,6 +38,7 @@ import {
   type WorkspaceState,
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
+import AgentEditor from "./AgentEditor";
 
 interface Props {
   workspace: WorkspaceState;
@@ -2162,6 +2163,7 @@ const AgentsTab: Component = () => {
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [viewer, setViewer] = createSignal<ViewerState | null>(null);
+  const [showEditor, setShowEditor] = createSignal(false);
 
   const load = async () => {
     try {
@@ -2244,6 +2246,11 @@ const AgentsTab: Component = () => {
         <code>--agent</code> or the CLI's <code>/agent</code>. Stored at{" "}
         <code>~/.aictl/agents/&lt;name&gt;.md</code>.
       </p>
+      <div class="settings-keys-bulk">
+        <button type="button" onClick={() => setShowEditor(true)}>
+          New Agent
+        </button>
+      </div>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
       </Show>
@@ -2381,6 +2388,17 @@ const AgentsTab: Component = () => {
       </div>
       <Show when={viewer()}>
         {(v) => <PromptViewer view={v()} onClose={() => setViewer(null)} />}
+      </Show>
+      <Show when={showEditor()}>
+        <AgentEditor
+          existingNames={(agents() ?? []).map((a) => a.name)}
+          onSaved={(name) => {
+            setShowEditor(false);
+            setFeedback(`saved ${name}`);
+            void load();
+          }}
+          onClose={() => setShowEditor(false)}
+        />
       </Show>
     </div>
   );

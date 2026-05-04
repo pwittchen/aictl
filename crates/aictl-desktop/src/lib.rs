@@ -137,6 +137,8 @@ pub fn run() {
             commands::agents::agent_loaded,
             commands::agents::agents_list_remote,
             commands::agents::agent_pull,
+            commands::agents::agent_save,
+            commands::agents::agent_generate,
             commands::plugins::plugins_status,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,

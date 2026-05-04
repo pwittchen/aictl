@@ -4,11 +4,15 @@ use std::sync::Arc;
 
 use aictl_core::agents;
 use aictl_core::agents::remote;
-use aictl_core::message::Role;
-use aictl_core::run;
+use aictl_core::config;
+use aictl_core::error::AictlError;
+use aictl_core::llm;
+use aictl_core::message::{Message, Role};
+use aictl_core::run::{self, Provider};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::chat;
 use crate::state::AppState;
 
 #[derive(Serialize)]
@@ -173,6 +177,168 @@ fn state_label(state: remote::State) -> String {
         remote::State::UpToDate => "up_to_date".to_string(),
         remote::State::UpstreamNewer => "upstream_newer".to_string(),
     }
+}
+
+#[derive(Deserialize)]
+pub struct AgentSaveArgs {
+    pub name: String,
+    pub body: String,
+    /// When `true`, overwrite an existing agent of the same name. The
+    /// frontend asks the user to confirm before flipping this on so a
+    /// stray click doesn't blow away a tuned prompt.
+    #[serde(default)]
+    pub overwrite: bool,
+}
+
+/// Outcome of `agent_save`. Distinguishing `installed` from `overwritten`
+/// lets the picker show the right toast and lets the dialog refuse a
+/// blind clobber until the user opts in.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentSaveOutcome {
+    Installed,
+    Overwritten,
+}
+
+/// Persist a new (or rewritten) agent to `~/.aictl/agents/<name>.md`.
+/// Mirrors the CLI's manual-create path; intentionally does **not**
+/// auto-load the agent — picking which agent is active is a separate
+/// step (the existing `agent_load` command).
+#[tauri::command]
+pub fn agent_save(args: AgentSaveArgs) -> Result<AgentSaveOutcome, String> {
+    let name = args.name.trim().to_string();
+    if name.is_empty() {
+        return Err("agent name is empty".to_string());
+    }
+    if !agents::is_valid_name(&name) {
+        return Err(
+            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
+        );
+    }
+    let body = args.body.trim().to_string();
+    if body.is_empty() {
+        return Err("agent prompt is empty".to_string());
+    }
+    let exists = agents::list_agents().into_iter().any(|e| e.name == name);
+    if exists && !args.overwrite {
+        return Err(format!("agent '{name}' already exists"));
+    }
+    agents::save_agent(&name, &body).map_err(|e| format!("save agent: {e}"))?;
+    Ok(if exists {
+        AgentSaveOutcome::Overwritten
+    } else {
+        AgentSaveOutcome::Installed
+    })
+}
+
+#[derive(Deserialize)]
+pub struct AgentGenerateArgs {
+    pub name: String,
+    pub description: String,
+}
+
+/// Generate an agent system-prompt body from a free-text description
+/// using the active provider/model. Mirrors the CLI's
+/// `create_agent_with_ai` flow but returns the prompt to the webview
+/// for review instead of saving it directly — the user clicks Save in
+/// the dialog when they're happy.
+#[tauri::command]
+pub async fn agent_generate(args: AgentGenerateArgs) -> Result<String, String> {
+    let name = args.name.trim().to_string();
+    if name.is_empty() {
+        return Err("agent name is empty".to_string());
+    }
+    if !agents::is_valid_name(&name) {
+        return Err(
+            "invalid name — use only letters, numbers, underscore, or dash".to_string(),
+        );
+    }
+    let description = args.description.trim().to_string();
+    if description.is_empty() {
+        return Err("description is empty".to_string());
+    }
+
+    let (provider, model, api_key) = chat::resolve_active_provider()?;
+
+    let messages = vec![
+        Message {
+            role: Role::System,
+            content: "You are an expert at writing system prompts for AI assistants. \
+                Generate a clear, detailed system prompt for an AI agent based on the user's \
+                description. The prompt should define the agent's role, capabilities, behavior, \
+                and constraints. Output ONLY the prompt text, nothing else."
+                .to_string(),
+            images: vec![],
+        },
+        Message {
+            role: Role::User,
+            content: format!(
+                "Create a system prompt for an AI agent named \"{name}\" that does the following: {description}"
+            ),
+            images: vec![],
+        },
+    ];
+
+    let prompt = call_provider_buffered(&provider, &api_key, &model, &messages).await?;
+    Ok(prompt.trim().to_string())
+}
+
+/// One-shot, non-streaming dispatch to whichever provider is active.
+/// Mirrors the matrix in `run::compact_messages`; kept inline here so
+/// the agent-generator can run without spinning up the full agent loop.
+async fn call_provider_buffered(
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: &[Message],
+) -> Result<String, String> {
+    let llm_timeout = config::llm_timeout();
+    let server_route = if matches!(provider, Provider::AictlServer) {
+        Some(config::active_server().ok_or_else(|| {
+            "provider 'aictl-server' selected but AICTL_CLIENT_HOST and/or AICTL_CLIENT_MASTER_KEY are not configured".to_string()
+        })?)
+    } else {
+        None
+    };
+
+    let result = tokio::time::timeout(llm_timeout, async {
+        if let Some((url, key)) = server_route.as_ref() {
+            return llm::server_proxy::call(url, key, model, messages, None).await;
+        }
+        match provider {
+            Provider::Openai => llm::openai::call_openai(api_key, model, messages, None).await,
+            Provider::Anthropic => {
+                llm::anthropic::call_anthropic(api_key, model, messages, None).await
+            }
+            Provider::Gemini => llm::gemini::call_gemini(api_key, model, messages, None).await,
+            Provider::Grok => llm::grok::call_grok(api_key, model, messages, None).await,
+            Provider::Mistral => llm::mistral::call_mistral(api_key, model, messages, None).await,
+            Provider::Deepseek => {
+                llm::deepseek::call_deepseek(api_key, model, messages, None).await
+            }
+            Provider::Kimi => llm::kimi::call_kimi(api_key, model, messages, None).await,
+            Provider::Zai => llm::zai::call_zai(api_key, model, messages, None).await,
+            Provider::Ollama => llm::ollama::call_ollama(model, messages, None).await,
+            Provider::Gguf => llm::gguf::call_gguf(model, messages, None).await,
+            Provider::Mlx => llm::mlx::call_mlx(model, messages, None).await,
+            Provider::Mock => llm::mock::call_mock(model, messages, None).await,
+            Provider::AictlServer => unreachable!("server_route covers Provider::AictlServer"),
+        }
+    })
+    .await;
+
+    match result {
+        Ok(Ok((text, _usage))) => Ok(text),
+        Ok(Err(e)) => Err(format_call_err(&e)),
+        Err(_) => Err(format!(
+            "agent generation timed out after {}s (AICTL_LLM_TIMEOUT)",
+            llm_timeout.as_secs()
+        )),
+    }
+}
+
+fn format_call_err(e: &AictlError) -> String {
+    e.to_string()
 }
 
 fn rebuild_system_prompt(state: &AppState) -> Result<(), String> {
