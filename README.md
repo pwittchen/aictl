@@ -15,18 +15,15 @@ User guides: https://aictl.app/guides.html
 > Dedicated coding capabilities may be added in the future. If you are looking for an AI agent specialized in software development today,
 > consider Claude Code, Codex, or opencode — they are purpose-built for that workflow.
 
-> [!WARNING]
-> Desktop app for macOS is currently in development stage and work is in progress. It's unreleased and unsigned.
-
-You can use **aictl** on your desktop...
+💻 You can use **aictl** on your desktop...
 
 ![aictl screenshot desktop](screenshot_desktop.png)
 
-...and in your terminal...
+...and in your terminal ⌨️
 
 ![aictl screenshot](screenshot.png)
 
-...with the single configuration and feature parity for CLI and desktop app.
+with the single configuration and feature parity for CLI and desktop app.
 
 In addition, you can also use [HTTP Server with LLM proxy](#http-server-aictl-server) with security features.
 
@@ -118,7 +115,7 @@ The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) 
 The desktop frontend (`aictl-desktop`) is a Tauri v2 app with a Solid + Vite webview that reuses the same `aictl-core` engine as the CLI. It is **macOS-only** for the first release and is excluded from the workspace's default member set, so a bare `cargo build` / `cargo lint` / `cargo test` keeps working without Tauri's deps. Build it explicitly with `-p aictl-desktop`.
 
 > [!NOTE]
-> The desktop app is currently work in progress — unreleased and unsigned. Expect rough edges.
+> The desktop app is currently work in progress. Expect rough edges.
 
 ### Prerequisites
 
@@ -175,11 +172,13 @@ Outputs:
 - `target/release/bundle/macos/aictl.app` — the application bundle.
 - `target/release/bundle/dmg/aictl_<version>_<arch>.dmg` — the disk image.
 
-The release build is **not code-signed or notarized** yet — Gatekeeper will block first launch. Right-click the app and choose *Open* to bypass, or remove the quarantine flag:
+Local builds are unsigned by default — Gatekeeper will block first launch. Right-click the app and choose *Open* to bypass, or remove the quarantine flag:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/aictl.app
 ```
+
+The official DMGs published to [GitHub Releases](https://github.com/pwittchen/aictl/releases) are signed with a Developer ID and notarized by Apple — those open cleanly without any workaround.
 
 The desktop reuses every `~/.aictl/` config file (sessions, agents, skills, MCP, hooks, plugins, audit log, stats) but pins its tool-call working directory to `AICTL_WORKING_DIR_DESKTOP` — independent of the CLI's `AICTL_WORKING_DIR`, so launching the desktop won't silently retarget CLI tool calls. See [`crates/aictl-desktop/README.md`](crates/aictl-desktop/README.md) for the layout and current status.
 

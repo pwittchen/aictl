@@ -25,6 +25,18 @@ document.querySelectorAll("[data-copy]").forEach((btn) => {
   });
 });
 
+// macOS desktop download — picks the arch from the sibling select and
+// hits the GitHub "latest release" redirect for the matching DMG asset.
+document.querySelectorAll("[data-download-mac]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const group = btn.closest(".download");
+    const select = group?.querySelector("[data-arch-select]");
+    const arch = select?.value || "aarch64";
+    const url = `https://github.com/pwittchen/aictl/releases/latest/download/aictl-desktop-darwin-${arch}.dmg`;
+    window.location.href = url;
+  });
+});
+
 // Smooth-scroll for same-page anchors.
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (e) => {

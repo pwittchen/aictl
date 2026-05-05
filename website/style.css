@@ -412,6 +412,106 @@ body.nav-open {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: center;
+  width: 460px;
+  max-width: 100%;
+}
+
+.hero__actions .btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hero__actions-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+/* macOS download — split button + arch select */
+.download {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.download__btn {
+  padding-left: 32px;
+  padding-right: 32px;
+  border-right-color: transparent;
+}
+
+.download__arch {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.download__arch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--fg);
+  border-bottom: 1.5px solid var(--fg);
+  transform: translateY(-75%) rotate(45deg);
+  pointer-events: none;
+  transition: border-color 120ms ease;
+}
+
+.download__select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-left: 0;
+  padding: 0 40px 0 18px;
+  height: 100%;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.download__select:hover {
+  color: var(--fg-50);
+  border-color: var(--fg-50);
+}
+
+.download__arch:hover::after {
+  border-color: var(--fg-50);
+}
+
+.download__select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.download__select option {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 480px) {
+  .download {
+    flex-direction: column;
+    gap: 0;
+  }
+  .download__btn { border-right-color: var(--fg); }
+  .download__arch { width: 100%; }
+  .download__select {
+    width: 100%;
+    border-left: 1px solid var(--border-strong);
+    border-top: 0;
+  }
 }
 
 /* Command box */
@@ -469,6 +569,16 @@ body.nav-open {
 .cmd__copy.is-copied {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+/* Hero install cmd: match the macOS download button + dropdown width */
+.cmd--hero {
+  width: auto;
+  max-width: 100%;
+}
+
+@media (min-width: 481px) {
+  .cmd--hero { width: 460px; }
 }
 
 /* Multi-line code block (TOML / JSON examples) */
@@ -592,7 +702,22 @@ body.nav-open {
 }
 .api-doc-link:hover { color: var(--fg); }
 
+.section__lead-link .api-doc-link { border-bottom: 0; }
+
 /* Preview */
+.preview-block + .preview-block {
+  margin-top: 96px;
+  padding-top: 96px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 720px) {
+  .preview-block + .preview-block {
+    margin-top: 64px;
+    padding-top: 64px;
+  }
+}
+
 .preview {
   margin: 0;
   display: flex;
@@ -604,6 +729,17 @@ body.nav-open {
   width: 100%;
   max-width: 858px;
   height: auto;
+}
+
+.preview-block__cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.preview-block__cta--top {
+  margin-top: 0;
+  margin-bottom: 32px;
 }
 
 /* Sections */
@@ -626,6 +762,8 @@ body.nav-open {
   margin-right: auto;
   text-align: center;
 }
+
+.section__head--wide { max-width: 960px; }
 
 .section__kicker {
   display: block;
@@ -650,6 +788,14 @@ body.nav-open {
   color: var(--fg-70);
   font-size: 17px;
   line-height: 1.55;
+}
+
+.section__lead-link {
+  margin: 16px 0 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
 }
 
 /* Grid */
@@ -789,6 +935,45 @@ body.nav-open {
 }
 
 /* Install */
+.install-variant + .install-variant {
+  margin-top: 64px;
+  padding-top: 64px;
+  border-top: 1px solid var(--border);
+}
+
+.install-variant__head {
+  max-width: 720px;
+  margin: 0 0 32px;
+}
+
+.install-variant__kicker {
+  display: block;
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.install-variant__title {
+  margin: 0 0 12px;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.install-variant__lead {
+  margin: 0;
+  color: var(--fg-70);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.install-variant__hint {
+  max-width: 720px;
+}
+
 .install {
   display: grid;
   gap: 32px;
@@ -923,6 +1108,17 @@ body.nav-open {
 .platforms__arch {
   font-size: 14px;
   color: var(--fg-70);
+}
+
+.platforms__builds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.platforms__builds .tag--inline {
+  margin-left: 0;
 }
 
 .platforms__note {
