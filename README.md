@@ -243,7 +243,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--list-agents` | Print saved agents from `~/.aictl/agents/` and exit. Combine with `--category <name>` to filter |
 | `--pull-agent` | Download an official agent from the aictl repo into `~/.aictl/agents/`. Combine with `--force` to skip the overwrite prompt |
 | `--skill` | Invoke a saved skill by name for a single turn. In single-shot mode the skill body is injected as a transient system prompt for the `--message` call only; in REPL mode it applies to the first user turn, then the REPL reverts to normal |
-| `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit |
+| `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit. Combine with `--category <name>` to filter |
 | `--pull-skill` | Download an official skill from the aictl repo into `~/.aictl/skills/<name>/SKILL.md`. Combine with `--force` to skip the overwrite prompt |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
@@ -457,7 +457,7 @@ A reference `hooks.json` with one example per event (all `enabled: false` so the
 
 ### MCP servers
 
-aictl can connect to [Model Context Protocol](https://modelcontextprotocol.io) servers and merge their tools into the agent loop alongside built-ins and plugins. This unlocks the existing MCP ecosystem — filesystem, git, GitHub, Postgres, Slack, and dozens of others — without aictl having to integrate each one individually. Phase 1 supports the **stdio** transport and **tools** capability; HTTP/SSE transport, resources, and prompts are on the roadmap.
+aictl can connect to [Model Context Protocol](https://modelcontextprotocol.io) servers and merge their tools into the agent loop alongside built-ins and plugins. This unlocks the existing MCP ecosystem — filesystem, git, GitHub, Postgres, Slack, and dozens of others — without aictl having to integrate each one individually. Three transports are supported — **stdio** (spawn a local process), **http** (modern Streamable HTTP), and **sse** (legacy HTTP+SSE) — and the **tools** capability is wired up; resources and prompts are still on the roadmap.
 
 Servers are declared in `~/.aictl/mcp.json` (override the path with `AICTL_MCP_CONFIG`) in a shape compatible with Claude Desktop:
 
@@ -474,12 +474,24 @@ Servers are declared in `~/.aictl/mcp.json` (override the path with `AICTL_MCP_C
       "command": "docker",
       "args": ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server"],
       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${keyring:GITHUB_TOKEN}" }
+    },
+    "remote": {
+      "transport": "http",
+      "url": "https://mcp.example.com/v1",
+      "headers": { "Authorization": "${keyring:MCP_REMOTE_TOKEN}" },
+      "enabled": true,
+      "timeout_secs": 30
     }
   }
 }
 ```
 
-Per-entry fields: `command` + `args` (resolved via `PATH`, no shell), optional `env`, `enabled`, `timeout_secs`. Values inside `env` may use `${keyring:NAME}` to pull a secret from the system keyring instead of checking it into the file. The whole subsystem is gated behind `AICTL_MCP_ENABLED=true` (default `false`) — third-party server processes do not auto-spawn.
+Per-entry fields:
+
+- **stdio (default)** — `command` + `args` (resolved via `PATH`, no shell), optional `env`, `enabled`, `timeout_secs`.
+- **http / sse** — set `transport: "http"` (Streamable HTTP) or `"sse"` (HTTP+SSE) and supply `url`, optional `headers`, `enabled`, `timeout_secs`.
+
+Both `env` (stdio) and `headers` (remote) values may use `${keyring:NAME}` to pull a secret from the system keyring instead of checking it into the file. The whole subsystem is gated behind `AICTL_MCP_ENABLED=true` (default `false`) — third-party server processes do not auto-spawn. Remote URLs are validated by a hostname allow/deny gate (`AICTL_MCP_ALLOW_HOSTS`, `AICTL_MCP_DENY_HOSTS`) and require HTTPS unless `AICTL_MCP_ALLOW_HTTP=true`.
 
 At startup, every enabled server is spawned in parallel, the JSON-RPC `initialize` handshake completes, and the server's `tools/list` response is merged into the agent loop's catalogue. Each tool is reachable as `mcp__<server>__<tool>` and the model invokes it like any built-in:
 

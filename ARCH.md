@@ -2,7 +2,7 @@
 
 ## Module Structure
 
-Three-crate Cargo workspace: `crates/aictl-cli/` (binary, package `aictl-cli`, produces the `aictl` executable), `crates/aictl-core/` (library, package `aictl-core`, lib name `aictl_core`), and `crates/aictl-server/` (binary, package & binary `aictl-server`, OpenAI-compatible HTTP LLM proxy — see [SERVER.md](SERVER.md)). The CLI and server both depend on `aictl-core` via a path dependency. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; HTTP deps (`axum`, `tower-http`, `tracing-subscriber`) only live in the server; the core never names a terminal or HTTP type.
+Four-crate Cargo workspace: `crates/aictl-cli/` (binary, package `aictl-cli`, produces the `aictl` executable), `crates/aictl-core/` (library, package `aictl-core`, lib name `aictl_core`), `crates/aictl-server/` (binary, package & binary `aictl-server`, OpenAI-compatible HTTP LLM proxy — see [SERVER.md](SERVER.md)), and `crates/aictl-desktop/` (Tauri-based macOS desktop app, work-in-progress, unreleased). `aictl-desktop` is excluded from `default-members` so a bare `cargo build` / `cargo lint` / `cargo test` keeps working without Tauri's heavy toolchain; CI builds it separately on the macOS runner only with `cargo build -p aictl-desktop`. The CLI, server, and desktop all depend on `aictl-core` via a path dependency. Frontend deps (`crossterm`, `rustyline`, `termimad`, `indicatif`) only live in the CLI; HTTP deps (`axum`, `tower-http`, `tracing-subscriber`) only live in the server; the core never names a terminal or HTTP type.
 
 ```
 crates/aictl-cli/src/
@@ -21,8 +21,8 @@ crates/aictl-core/src/
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
  ├── hooks.rs           User-defined lifecycle hooks loaded from ~/.aictl/hooks.json (override via AICTL_HOOKS_FILE). Eight events (SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, Notification). Glob matcher (*, ?, |) over tool name. JSON payload on stdin; stdout JSON shapes (decision: block|approve, additionalContext, rewrittenPrompt) influence the harness; exit 2 = block. Default 60s timeout, scrubbed env, security CWD. --unrestricted does NOT bypass.
- ├── mcp.rs             Model Context Protocol client. Servers declared in ~/.aictl/mcp.json (override via AICTL_MCP_CONFIG); spawned at startup, JSON-RPC over stdio (Phase 1: stdio transport + tools only). Tools surface as mcp__<server>__<tool>; merged into the agent loop catalogue alongside built-ins and plugins. Master switch AICTL_MCP_ENABLED (default false) — third-party processes do not auto-spawn. Per-server failures land in ServerState::Failed and never abort startup.
- ├── mcp/               Submodules: config.rs (mcp.json parser + ${keyring:NAME} substitution + AICTL_MCP_TIMEOUT/STARTUP_TIMEOUT/DISABLED), protocol.rs (JSON-RPC envelope + initialize/tools/list/tools/call types), stdio.rs (StdioClient: spawn child, line-delimited JSON-RPC reader task, request/response correlation by id, kill_on_drop)
+ ├── mcp.rs             Model Context Protocol client. Servers declared in ~/.aictl/mcp.json (override via AICTL_MCP_CONFIG); spawned (stdio) or dialed (http/sse) at startup, JSON-RPC 2.0 over the chosen transport (tools capability only; resources and prompts are still on the roadmap). Tools surface as mcp__<server>__<tool>; merged into the agent loop catalogue alongside built-ins and plugins. Master switch AICTL_MCP_ENABLED (default false) — third-party processes do not auto-spawn. Per-server failures land in ServerState::Failed and never abort startup.
+ ├── mcp/               Submodules: config.rs (mcp.json parser + ${keyring:NAME} substitution + AICTL_MCP_TIMEOUT/STARTUP_TIMEOUT/DISABLED), protocol.rs (JSON-RPC envelope + initialize/tools/list/tools/call types), transport.rs (the boxed-future `Transport` trait shared by all three clients via Arc<dyn Transport>), stdio.rs (StdioClient: spawn child, line-delimited JSON-RPC reader task, request/response correlation by id, kill_on_drop), http.rs (HttpClient: modern Streamable HTTP transport over reqwest), sse.rs (SseClient: legacy HTTP+SSE transport with reader task abort on Drop)
  ├── config.rs          Config file loading (~/.aictl/config) into RwLock-backed cache, constants (system prompt, spinner phrases, agent loop limits), project prompt file loading; load_config returns Result so the CLI can surface a HOME-missing error
  ├── keys.rs            Secure API key storage. System keyring (Keychain / Secret Service) with transparent plain-text fallback. lock_key/unlock_key/clear_key migration primitives.
  ├── plugins.rs         User plugin discovery + execution under ~/.aictl/plugins/<name>/ (override via AICTL_PLUGINS_DIR), gated behind AICTL_PLUGINS_ENABLED. Plugin tools surface alongside built-ins; security gate + scrubbed_env applied identically.
@@ -486,9 +486,10 @@ mid-session without a restart.
 
 Connect to external [Model Context Protocol](https://modelcontextprotocol.io)
 servers and merge their tools into the agent loop alongside built-ins
-and plugins. Phase 1 covers the **stdio** transport and **tools**
-capability only — HTTP/SSE transport, resources, and prompts are on
-the roadmap.
+and plugins. Three transports are supported — **stdio** (spawn a local
+process), **http** (modern Streamable HTTP), and **sse** (legacy
+HTTP+SSE). Only the **tools** capability is wired up so far; resources
+and prompts are still on the roadmap.
 
 Servers are declared in `~/.aictl/mcp.json` (override via
 `AICTL_MCP_CONFIG`) in a Claude Desktop-compatible shape:
@@ -496,10 +497,17 @@ Servers are declared in `~/.aictl/mcp.json` (override via
 ```
 {
   "mcpServers": {
-    "<name>": {
+    "<stdio-name>": {
       "command": "...",
       "args": [...],
       "env": { "K": "V" },
+      "enabled": true,
+      "timeout_secs": 30
+    },
+    "<remote-name>": {
+      "transport": "http",
+      "url": "https://mcp.example.com/v1",
+      "headers": { "Authorization": "${keyring:GITHUB_TOKEN}" },
       "enabled": true,
       "timeout_secs": 30
     }
@@ -507,44 +515,26 @@ Servers are declared in `~/.aictl/mcp.json` (override via
 }
 ```
 
-Per-entry fields: `command` + `args` (resolved via `PATH`, no shell),
-optional `env`, `enabled` (default `true`), `timeout_secs` (per-call
-RPC timeout, falling back to `AICTL_MCP_TIMEOUT`, default 30s). Values
-inside `env` may use `${keyring:NAME}` to pull a secret from
-`keys::get_secret(NAME)` instead of checking it in.
+Per-entry fields:
+
+- **stdio (default)** — `command` + `args` (resolved via `PATH`, no shell), optional `env`, `enabled` (default `true`), `timeout_secs` (per-call RPC timeout, falling back to `AICTL_MCP_TIMEOUT`, default 30s). Values inside `env` may use `${keyring:NAME}` to pull a secret from `keys::get_secret(NAME)`.
+- **http / sse** — `transport: "http" | "sse"` plus `url`, optional `headers`, `enabled`, `timeout_secs`. `headers` values support the same `${keyring:NAME}` substitution. Outbound URLs are validated by `security::validate_mcp_url` against `AICTL_MCP_ALLOW_HOSTS` / `AICTL_MCP_DENY_HOSTS` (HTTPS by default; opt in to plaintext with `AICTL_MCP_ALLOW_HTTP=true`). The check runs at config-parse time so a denied URL fails fast, and the HTTP/SSE clients re-validate at every dispatch as defense-in-depth.
 
 Lifecycle (`mcp::init_with`):
 
-1. Read the config; reject malformed entries (missing `command`,
-   invalid name) — invalid names use the same alphanumeric +
-   `_`/`-` rule as agents/skills/plugins.
-2. For each enabled server (skipping anything in `AICTL_MCP_DISABLED`
-   or excluded by `--mcp-server <only>`), spawn the child via
-   `tokio::process::Command` with a scrubbed env + the entry's `env`
-   overlay. `kill_on_drop(true)` is the backstop.
-3. Wrap the `initialize` handshake in `tokio::time::timeout`
-   (`AICTL_MCP_STARTUP_TIMEOUT`, default 10s) so a hung server cannot
-   block startup.
-4. On success send `notifications/initialized` and call `tools/list`;
-   store the catalogue in a `OnceLock<Vec<McpServer>>`.
-5. Any failure (spawn, handshake, list) lands in
-   `ServerState::Failed(reason)`; the rest of the catalogue is
-   unaffected.
+1. Read the config; reject malformed entries (missing `command` for stdio / missing `url` for remote, invalid name) — invalid names use the same alphanumeric + `_`/`-` rule as agents/skills/plugins.
+2. For each enabled server (skipping anything in `AICTL_MCP_DISABLED` or excluded by `--mcp-server <only>`), construct the appropriate transport: `StdioClient::spawn` shells a child via `tokio::process::Command` with a scrubbed env + the entry's `env` overlay (`kill_on_drop(true)` as the backstop); `HttpClient::new` and `SseClient::spawn` build a reqwest client and dial the URL. All three return `Arc<dyn Transport>` so the rest of `mcp.rs` is transport-agnostic.
+3. Wrap the `initialize` handshake in `tokio::time::timeout` (`AICTL_MCP_STARTUP_TIMEOUT`, default 10s) so a hung server cannot block startup.
+4. On success send `notifications/initialized` and call `tools/list`; store the catalogue in a `OnceLock<Vec<McpServer>>`.
+5. Any failure (spawn, handshake, list) lands in `ServerState::Failed(reason)`; the rest of the catalogue is unaffected.
 
 All servers spawn in parallel via `futures_util::future::join_all`.
 
-Wire protocol (`crates/aictl-core/src/mcp/stdio.rs`):
+Wire protocol (`crates/aictl-core/src/mcp/{stdio,http,sse}.rs`):
 
-- **Framing** — line-delimited JSON-RPC 2.0 (one envelope per line on
-  stdin/stdout). The spec also describes a `Content-Length:` framing
-  but it's rare in deployed servers; not implemented here.
-- **Correlation** — each outbound request gets a monotonic integer
-  `id`. A background reader task parses lines, looks up the matching
-  `oneshot::Sender` in a `pending: Mutex<HashMap<i64, _>>`, and
-  forwards the response. Lines that fail JSON parse (occasional
-  startup banners) are silently dropped.
-- **Stderr** — drained in a side task so the child can't block on a
-  full pipe; not surfaced unless the user asks via `/mcp show`.
+- **Framing** — line-delimited JSON-RPC 2.0 over the chosen transport. Stdio reads/writes one envelope per line on stdin/stdout. HTTP posts each envelope to the server URL and reads the response body. SSE posts requests and reads JSON envelopes from the server's `text/event-stream` response, with a background reader task aborted on `Drop`.
+- **Correlation** — each outbound request gets a monotonic integer `id`. A background reader task parses lines, looks up the matching `oneshot::Sender` in a `pending: Mutex<HashMap<i64, _>>`, and forwards the response. Lines that fail JSON parse (occasional startup banners) are silently dropped.
+- **Stderr** (stdio only) — drained in a side task so the child can't block on a full pipe; not surfaced unless the user asks via `/mcp show`.
 
 Catalog injection (`run::build_system_prompt`): every Ready server's
 tools are appended under `### mcp__<server>__<tool> (mcp)` headings

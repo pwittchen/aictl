@@ -805,16 +805,18 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
             Connect external <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a>
             servers as a source of additional tools. Their tools merge into the
             agent loop alongside built-ins and plugins as
-            <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>. Phase&nbsp;1 supports the
-            <strong>stdio</strong> transport and <strong>tools</strong> capability;
-            HTTP/SSE transport, resources, and prompts are on the roadmap.
+            <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>. Three transports are supported &mdash;
+            <strong>stdio</strong> (spawn a local process), <strong>http</strong>
+            (modern Streamable HTTP), and <strong>sse</strong> (legacy HTTP+SSE) &mdash;
+            and the <strong>tools</strong> capability is wired up;
+            resources and prompts are still on the roadmap.
           </p>
         </header>
 
         <div class="grid grid--2">
           <article class="card">
             <h3>Config shape</h3>
-            <p>Servers are declared in <code>~/.aictl/mcp.json</code> (override the path with <code>AICTL_MCP_CONFIG</code>) in a Claude Desktop-compatible shape. Each entry is <code>{ command, args, env, enabled, timeout_secs }</code>. <code>command</code> is resolved via <code>PATH</code> (no shell). Values inside <code>env</code> may use <code>${keyring:NAME}</code> to pull a secret from the system keyring instead of checking it in.</p>
+            <p>Servers are declared in <code>~/.aictl/mcp.json</code> (override the path with <code>AICTL_MCP_CONFIG</code>) in a Claude Desktop-compatible shape. Stdio entries are <code>{ command, args, env, enabled, timeout_secs }</code> &mdash; <code>command</code> is resolved via <code>PATH</code> (no shell). Remote entries set <code>transport: "http"</code> or <code>"sse"</code> and supply <code>{ url, headers, enabled, timeout_secs }</code>. Both <code>env</code> and <code>headers</code> values may use <code>${keyring:NAME}</code> to pull a secret from the system keyring instead of checking it in. Remote URLs are validated by a hostname allow/deny gate (<code>AICTL_MCP_ALLOW_HOSTS</code> / <code>AICTL_MCP_DENY_HOSTS</code>) and require HTTPS unless <code>AICTL_MCP_ALLOW_HTTP=true</code>.</p>
           </article>
           <article class="card">
             <h3>Master switch</h3>
