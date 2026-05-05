@@ -1,7 +1,7 @@
 {
   "productName": "aictl",
   "version": "0.37.3",
-  "identifier": "com.aictl.desktop",
+  "identifier": "com.piotrwittchen.aictl",
   "build": {
     "frontendDist": "webview/dist",
     "devUrl": "http://localhost:5173",
@@ -35,7 +35,8 @@
     "longDescription": "aictl-desktop is the native macOS frontend for aictl, sharing config and sessions with the CLI.",
     "macOS": {
       "minimumSystemVersion": "13.0",
-      "frameworks": []
+      "frameworks": [],
+      "entitlements": "entitlements.plist"
     }
   },
   "plugins": {}

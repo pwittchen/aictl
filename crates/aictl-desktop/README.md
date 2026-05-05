@@ -32,7 +32,7 @@ What's not done (later phases of the plan):
   Plugins, Tools, Local Models).
 - Stats and balance probe surfaces.
 - Agents / skills CRUD UI (engine has the APIs; UI is stubbed).
-- Code-signing, notarization, DMG bundling.
+- DMG bundling polish (background, icon position).
 
 ## Building
 
@@ -56,6 +56,67 @@ cargo run --bin aictl-desktop    # after `npm run build` populated webview/dist
 The `frontendDist` referenced from `tauri.conf.json` is
 `crates/aictl-desktop/webview/dist`. A placeholder `index.html` ships
 in the repo so `cargo build` succeeds before the npm bundle exists.
+
+## Releasing (signed + notarized)
+
+`scripts/release-mac.sh` builds, signs with the Developer ID
+certificate, submits to Apple for notarization, and staples the ticket
+in one shot. It reads credentials from `~/.aictl/release.env` (preferred)
+or the current shell environment:
+
+```bash
+# ~/.aictl/release.env
+APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+APPLE_ID="you@example.com"
+APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"   # app-specific password
+APPLE_TEAM_ID="TEAMID"
+```
+
+Then:
+
+```bash
+chmod 600 ~/.aictl/release.env
+crates/aictl-desktop/scripts/release-mac.sh
+```
+
+Artifacts land in `target/release/bundle/{macos,dmg}/`. The script runs
+`codesign --verify` and `spctl -a -t exec` afterwards as a sanity check.
+
+The bundle identifier (`com.piotrwittchen.aictl`) and entitlements
+(`entitlements.plist` — hardened runtime + JIT/dyld relaxations the
+WKWebView needs) are committed; only credentials live outside the repo.
+
+### Releasing via GitHub Actions
+
+The `RELEASE` workflow (`.github/workflows/release.yml`) signs and
+notarizes both the `.app` and the `.dmg` automatically when a `v*`
+tag is pushed. The `build-desktop` job replicates the same five-step
+flow as the local script: import cert → sign `.app` → notarize+staple
+`.app` → sign DMG → notarize+staple DMG. A scratch keychain is
+created at the start and torn down in an `if: always()` cleanup step
+so credentials never persist on the runner.
+
+Required repository secrets (Settings → Secrets and variables →
+Actions):
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTIFICATE` | `base64 -i devid.p12` of the exported cert |
+| `MACOS_CERTIFICATE_PASSWORD` | the `.p12` export password |
+| `KEYCHAIN_PASSWORD` | any random string (e.g. `openssl rand -hex 16`) — only used for the temp keychain |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_ID` | Apple ID email |
+| `APPLE_PASSWORD` | app-specific password from appleid.apple.com |
+| `APPLE_TEAM_ID` | 10-char team identifier |
+
+Generate the base64 cert blob locally:
+
+```bash
+base64 -i ~/Desktop/devid.p12 | pbcopy   # paste into MACOS_CERTIFICATE
+```
+
+If any secret is missing, the desktop build will fail loudly rather
+than silently producing an unsigned bundle.
 
 ## Workspace folder
 

@@ -281,18 +281,40 @@ jobs:
           fi
           cp "$metallib" "$app_dir/Contents/MacOS/mlx.metallib"
 
-      - name: Ad-hoc sign .app bundle
-        # Tauri's build leaves Contents/_CodeSignature empty — the binary
-        # is linker-ad-hoc-signed but the bundle is not, so Resources/
-        # files have no manifest entry. `codesign --verify` reports
-        # "code has no resources but signature indicates they must be
-        # present", and once the DMG is downloaded from GitHub the
-        # quarantine xattr makes Gatekeeper reject the app on first
-        # open. Inject-then-sign also covers the mlx.metallib drop on
-        # aarch64, which would otherwise invalidate any prior signature.
-        # Ad-hoc (`--sign -`) is enough for Gatekeeper-Lite + xattr
-        # quarantine clearance; full notarization still requires a
-        # Developer ID identity.
+      - name: Import Developer ID certificate
+        # Imports the .p12 (base64-encoded in MACOS_CERTIFICATE) into a
+        # one-shot keychain scoped to this job. The "Clean up keychain"
+        # step at the end of the job (always()) removes it. Token paths
+        # follow GitHub's recommended pattern — see
+        # https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          CERT_PATH="$RUNNER_TEMP/devid.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          echo -n "$MACOS_CERTIFICATE" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/[" ]//g')
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Sign .app with Developer ID
+        # Hardened runtime + entitlements (allow-jit etc., needed by
+        # WKWebView) + secure timestamp — all required for Apple to
+        # accept the bundle for notarization.
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         shell: bash
         run: |
           app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
@@ -300,8 +322,35 @@ jobs:
             echo "ERROR: .app not produced"
             exit 1
           fi
-          codesign --force --deep --sign - "$app_dir"
+          codesign --force --deep \
+            --options runtime \
+            --entitlements crates/aictl-desktop/entitlements.plist \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            --timestamp \
+            "$app_dir"
           codesign --verify --deep --strict --verbose=2 "$app_dir"
+
+      - name: Notarize and staple .app
+        # notarytool needs zip/dmg/pkg, so ditto the .app into a zip
+        # for submission. `--wait` blocks until Apple either accepts
+        # or rejects (typically <5 min). On success, stapler embeds
+        # the ticket so Gatekeeper accepts the .app offline.
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
+          zip_path="$RUNNER_TEMP/aictl-notarize.zip"
+          /usr/bin/ditto -c -k --keepParent "$app_dir" "$zip_path"
+          xcrun notarytool submit "$zip_path" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$app_dir"
+          xcrun stapler validate "$app_dir"
 
       - name: Package DMG
         # Tauri's own DMG bundler runs before the metallib injection
@@ -330,6 +379,39 @@ jobs:
           df -h .
           hdiutil create -volname "aictl" -srcfolder "$staging" -ov -format UDZO "${{ matrix.artifact }}.dmg"
           echo "asset=${{ matrix.artifact }}.dmg" >> "$GITHUB_ENV"
+
+      - name: Sign DMG with Developer ID
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        shell: bash
+        run: |
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "${{ matrix.artifact }}.dmg"
+          codesign --verify --verbose=2 "${{ matrix.artifact }}.dmg"
+
+      - name: Notarize and staple DMG
+        # Stapling the DMG too (in addition to the .app inside) means
+        # Gatekeeper accepts the download even before the user copies
+        # the .app to /Applications, and gives a cleaner first-open UX.
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          xcrun notarytool submit "${{ matrix.artifact }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "${{ matrix.artifact }}.dmg"
+          xcrun stapler validate "${{ matrix.artifact }}.dmg"
+
+      - name: Clean up keychain
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+          rm -f "$RUNNER_TEMP/devid.p12"
 
       - name: Upload aictl-desktop DMG artifact
         uses: actions/upload-artifact@v7
