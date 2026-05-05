@@ -31,3 +31,6 @@ target
 
 # commercial pricing notes
 COMMERCIAL_PRICING.md
+
+# dir with app signing details
+.macos-signing
