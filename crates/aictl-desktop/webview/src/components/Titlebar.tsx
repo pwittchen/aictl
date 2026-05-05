@@ -33,6 +33,7 @@ const Titlebar: Component<Props> = (props) => {
       <div class="titlebar-drag" data-tauri-drag-region />
       <div class="titlebar-content">
         <span class="brand">aictl</span>
+        <Show when={props.workspace.path}>
         <button
           type="button"
           class="sidebar-toggle"
@@ -75,6 +76,7 @@ const Titlebar: Component<Props> = (props) => {
             </Show>
           </svg>
         </button>
+        </Show>
         <button
           type="button"
           class="workspace-pill"

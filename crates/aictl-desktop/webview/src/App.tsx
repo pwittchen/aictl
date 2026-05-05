@@ -422,6 +422,15 @@ const App: Component = () => {
     }
   };
 
+  const useDefaultWorkspace = async () => {
+    try {
+      const next = await ipc.useDefaultWorkspace();
+      setWorkspace(next);
+    } catch (err) {
+      append({ kind: "error", text: `${err}` });
+    }
+  };
+
   const switchToSession = async (id: string) => {
     try {
       const result = await ipc.loadSession(id);
@@ -567,8 +576,17 @@ const App: Component = () => {
     }
   };
 
+  // Hide the sidebar (and its toggle) until a workspace is picked —
+  // the EmptyWorkspace screen is the only meaningful interaction at
+  // that point, so a session list and settings shortcut would just be
+  // noise. Once a workspace is set, the user's own toggle preference
+  // takes over again.
+  const sidebarHidden = createMemo(
+    () => !workspace().path || !sidebarVisible(),
+  );
+
   return (
-    <div class="app" data-sidebar-hidden={String(!sidebarVisible())}>
+    <div class="app" data-sidebar-hidden={String(sidebarHidden())}>
       <Titlebar
         workspace={workspace()}
         onPickWorkspace={pickWorkspace}
@@ -580,17 +598,19 @@ const App: Component = () => {
         contextTokens={contextTokens()}
         onShowContextDetails={() => setShowContextDetails(true)}
       />
-      <Sidebar
-        activeSession={activeSession()}
-        refreshKey={sessionRefreshKey()}
-        onSelectSession={switchToSession}
-        onNewSession={startNewSession}
-        onNewIncognito={startIncognito}
-        onDeleteSession={deleteSession}
-        onClearAll={clearAllSessions}
-        onRenameSession={renameSession}
-        onOpenSettings={() => setShowSettings(true)}
-      />
+      <Show when={workspace().path}>
+        <Sidebar
+          activeSession={activeSession()}
+          refreshKey={sessionRefreshKey()}
+          onSelectSession={switchToSession}
+          onNewSession={startNewSession}
+          onNewIncognito={startIncognito}
+          onDeleteSession={deleteSession}
+          onClearAll={clearAllSessions}
+          onRenameSession={renameSession}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+      </Show>
       <main class="main">
         <Show
           when={workspace().path}
@@ -598,6 +618,8 @@ const App: Component = () => {
             <EmptyWorkspace
               workspace={workspace()}
               onPick={pickWorkspace}
+              onUseDefault={useDefaultWorkspace}
+              onOpenSettings={() => setShowSettings(true)}
             />
           }
         >

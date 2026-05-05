@@ -95,6 +95,8 @@ pub fn run() {
             commands::workspace::get_workspace,
             commands::workspace::set_workspace,
             commands::workspace::pick_workspace,
+            commands::workspace::use_default_workspace,
+            commands::workspace::default_workspace_path,
             commands::chat::send_message,
             commands::chat::stop_turn,
             commands::chat::tool_approval_response,

@@ -94,6 +94,34 @@ pub fn is_set() -> bool {
     matches!(resolve(), Ok(Some(_)))
 }
 
+/// Path the desktop suggests when no workspace is configured yet —
+/// `~/.aictl/workspace/`. The `~/.aictl/` parent already exists for
+/// any user who has run the CLI or completed a config wizard, so the
+/// default lands next to their config and stays out of `Documents/`
+/// or other folders that have their own conventions.
+pub fn default_path() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
+    Ok(Path::new(&home).join(".aictl").join("workspace"))
+}
+
+/// Onboarding shortcut: create `~/.aictl/workspace/` if it doesn't
+/// exist yet, then persist it as the desktop workspace via [`set`]. The
+/// directory is created with `create_dir_all` so a missing `~/.aictl/`
+/// parent is not an obstacle. Returns the canonicalized path that ends
+/// up in the config (which is what the UI shows back).
+pub fn use_default() -> Result<PathBuf, String> {
+    let path = default_path()?;
+    if !path.exists() {
+        std::fs::create_dir_all(&path).map_err(|e| {
+            format!(
+                "failed to create default workspace '{}': {e}",
+                path.display()
+            )
+        })?;
+    }
+    set(&path.to_string_lossy())
+}
+
 fn expand(raw: &str) -> PathBuf {
     if let Some(rest) = raw.strip_prefix("~/")
         && let Ok(home) = std::env::var("HOME")

@@ -336,6 +336,12 @@ export const ipc = {
   async pickWorkspace() {
     return invoke<string | null>("pick_workspace");
   },
+  async useDefaultWorkspace() {
+    return invoke<WorkspaceState>("use_default_workspace");
+  },
+  async defaultWorkspacePath() {
+    return invoke<string>("default_workspace_path");
+  },
 
   // -- chat ----
   async sendMessage(text: string, autoAccept: boolean) {

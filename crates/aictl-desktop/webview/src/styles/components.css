@@ -1122,6 +1122,46 @@
   letter-spacing: 0.1em;
 }
 
+.empty-state__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.empty-state__actions button {
+  margin-top: var(--space-3);
+}
+
+.empty-state button.empty-state__secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+.empty-state__hint {
+  margin-top: var(--space-4);
+  font-size: 13px;
+  color: var(--fg-soft);
+}
+
+.empty-state__hint a {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.empty-state__hint a:hover {
+  color: var(--fg-soft);
+}
+
+.empty-state code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
 .settings-overlay {
   position: fixed;
   inset: 0;

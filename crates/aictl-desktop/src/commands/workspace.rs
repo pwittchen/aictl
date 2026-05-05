@@ -55,6 +55,30 @@ pub fn set_workspace(app: AppHandle, path: String) -> Result<WorkspaceState, Str
     })
 }
 
+/// Onboarding shortcut: create `~/.aictl/workspace/` if it does not
+/// exist yet and persist it as the desktop workspace. The webview
+/// surfaces this alongside the folder picker so a brand-new install
+/// has a one-click path that does not depend on the native dialog.
+#[tauri::command]
+pub fn use_default_workspace(app: AppHandle) -> Result<WorkspaceState, String> {
+    let canonical = workspace::use_default()?;
+    let path_str = canonical.to_string_lossy().into_owned();
+    ui::emit_workspace_changed(&app, Some(&path_str));
+    Ok(WorkspaceState {
+        path: Some(path_str),
+        stale: false,
+        error: None,
+    })
+}
+
+/// Path the desktop suggests as the default workspace, surfaced by the
+/// onboarding screen so the button can show the actual `~/.aictl/...`
+/// target without baking the home directory into the webview.
+#[tauri::command]
+pub fn default_workspace_path() -> Result<String, String> {
+    workspace::default_path().map(|p| p.to_string_lossy().into_owned())
+}
+
 /// Open the native folder picker. Returns the chosen path (or `None` if
 /// the user cancelled). The webview is responsible for calling
 /// [`set_workspace`] with the result.
