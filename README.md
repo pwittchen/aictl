@@ -110,6 +110,76 @@ Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and C
 
 The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it. The macOS Apple Silicon (`aarch64`) release additionally ships with `--features mlx` and includes a sibling `mlx.metallib` file alongside the binary (MLX needs the Metal library at runtime); every other platform's release contains just the `aictl` binary.
 
+## Build desktop app
+
+The desktop frontend (`aictl-desktop`) is a Tauri v2 app with a Solid + Vite webview that reuses the same `aictl-core` engine as the CLI. It is **macOS-only** for the first release and is excluded from the workspace's default member set, so a bare `cargo build` / `cargo lint` / `cargo test` keeps working without Tauri's deps. Build it explicitly with `-p aictl-desktop`.
+
+> [!NOTE]
+> The desktop app is currently work in progress — unreleased and unsigned. Expect rough edges.
+
+### Prerequisites
+
+- macOS 13.0 or newer (Apple Silicon or Intel).
+- [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
+- [Node.js](https://nodejs.org/) 18+ (for the webview bundle).
+- Xcode Command Line Tools (`xcode-select --install`).
+- [`cargo-tauri`](https://tauri.app/start/prerequisites/) CLI: `cargo install tauri-cli --version "^2.0"`.
+
+### Install webview dependencies (one-time)
+
+```bash
+cd crates/aictl-desktop/webview
+npm install
+cd -
+```
+
+### Dev build
+
+Hot-reloading dev workflow — Vite serves the webview at `http://localhost:5173` and Tauri rebuilds the Rust side on save:
+
+```bash
+make desktop-dev
+# equivalent to:
+cd crates/aictl-desktop && cargo tauri dev --features gguf,mlx,redaction-ner
+```
+
+Alternatively, type-check the Rust side only (no webview, no window):
+
+```bash
+cargo build -p aictl-desktop
+```
+
+Or run the release binary against a pre-built webview bundle:
+
+```bash
+make desktop-run
+# equivalent to:
+cargo run --release -p aictl-desktop --features gguf,mlx,redaction-ner
+```
+
+### Release build
+
+Produces an optimized `.app` bundle and a `.dmg` installer under `target/release/bundle/`:
+
+```bash
+make desktop-build
+# equivalent to:
+cd crates/aictl-desktop && cargo tauri build --features gguf,mlx,redaction-ner
+```
+
+Outputs:
+
+- `target/release/bundle/macos/aictl.app` — the application bundle.
+- `target/release/bundle/dmg/aictl_<version>_<arch>.dmg` — the disk image.
+
+The release build is **not code-signed or notarized** yet — Gatekeeper will block first launch. Right-click the app and choose *Open* to bypass, or remove the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/aictl.app
+```
+
+The desktop reuses every `~/.aictl/` config file (sessions, agents, skills, MCP, hooks, plugins, audit log, stats) but pins its tool-call working directory to `AICTL_WORKING_DIR_DESKTOP` — independent of the CLI's `AICTL_WORKING_DIR`, so launching the desktop won't silently retarget CLI tool calls. See [`crates/aictl-desktop/README.md`](crates/aictl-desktop/README.md) for the layout and current status.
+
 ## HTTP server (`aictl-server`)
 
 A second binary in this workspace, `aictl-server`, exposes the same provider catalogue over an OpenAI-compatible HTTP endpoint with redaction, prompt-injection blocking, audit, and a master-key gate. Pure proxy — no agent loop, no tools, no agents/skills/sessions. See [SERVER.md](SERVER.md) for the full reference.
