@@ -4,6 +4,7 @@
 
 ## General
 
+- in the destkop app, add possiblity to to list directory tree of the workspace, preview and edit text files (do not preview/edit non-editable files). File contents should be displayed in the additional pane/view on the right and there should be possibility to open workspace treeview from the right (closed by default)
 - when locking/unlocking keys in CLI and desktop, ensure that `AICTL_SERVER_MASTER_KEY` is locked/unlocked too
 - add possiblity to define output format for the single-shot mode of the CLI: plain-text/json/md
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and CLI and that data is redacted in session, audit, history, messages in the chat (CLI + Desktop) and responses
