@@ -1,4 +1,11 @@
-import { Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import {
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import type { Component } from "solid-js";
 
 import {
@@ -18,8 +25,11 @@ import EmptyWorkspace from "./components/EmptyWorkspace";
 import Titlebar from "./components/Titlebar";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
-import Settings from "./components/Settings";
+import Settings, { type Tab as SettingsTab } from "./components/Settings";
 import ContextDetails from "./components/ContextDetails";
+import ProviderSetup, {
+  type ProviderSetupTarget,
+} from "./components/ProviderSetup";
 
 export type Message =
   | { kind: "user"; text: string }
@@ -104,7 +114,17 @@ const App: Component = () => {
   const [sessionRefreshKey, setSessionRefreshKey] = createSignal(0);
   const [composerPrefill, setComposerPrefill] = createSignal<string | null>(null);
   const [showSettings, setShowSettings] = createSignal(false);
+  const [settingsInitialTab, setSettingsInitialTab] = createSignal<
+    SettingsTab | undefined
+  >(undefined);
   const [showContextDetails, setShowContextDetails] = createSignal(false);
+  // First-run nudge: when the user has no usable model provider
+  // configured we surface a dialog with deep links into the relevant
+  // Settings tabs. `dismissed` flips on Skip so we don't re-pop it
+  // mid-session even if the check still says "nothing configured".
+  const [showProviderSetup, setShowProviderSetup] = createSignal(false);
+  const [providerSetupDismissed, setProviderSetupDismissed] =
+    createSignal(false);
   const [toolsEnabled, setToolsEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
@@ -157,6 +177,76 @@ const App: Component = () => {
     } catch {
       setAutoAccept(false);
     }
+  };
+
+  /// Check whether the user has at least one usable LLM provider:
+  /// an LLM API key, a downloaded local model, an Ollama daemon with
+  /// at least one model, or a fully-configured aictl-server. The
+  /// Ollama probe is HTTP — racing against a short timeout keeps the
+  /// dialog from blocking on a missing daemon. Failures default to
+  /// "not available" so the dialog errs on the side of prompting.
+  const hasAnyProvider = async (): Promise<boolean> => {
+    const checks: Promise<boolean>[] = [];
+
+    checks.push(
+      ipc
+        .keysStatus()
+        .then((rows) =>
+          rows.some(
+            (r) => r.name.startsWith("LLM_") && r.location !== "unset",
+          ),
+        )
+        .catch(() => false),
+    );
+
+    checks.push(
+      ipc
+        .serverStatus()
+        .then((s) => s.fully_configured)
+        .catch(() => false),
+    );
+
+    checks.push(
+      ipc
+        .localModelsStatus()
+        .then(
+          (s) => s.gguf.models.length > 0 || s.mlx.models.length > 0,
+        )
+        .catch(() => false),
+    );
+
+    const ollamaProbe = ipc
+      .ollamaProbe()
+      .then((p) => p.ok && (p.model_count ?? 0) > 0)
+      .catch(() => false);
+    const ollamaTimeout = new Promise<boolean>((resolve) =>
+      setTimeout(() => resolve(false), 2000),
+    );
+    checks.push(Promise.race([ollamaProbe, ollamaTimeout]));
+
+    const results = await Promise.all(checks);
+    return results.some(Boolean);
+  };
+
+  /// Re-evaluate provider availability and show or hide the setup
+  /// dialog accordingly. Skips opening when the user has dismissed it
+  /// for this session, but always closes it when something becomes
+  /// available so a successful configuration removes the nag. The
+  /// dialog is also suppressed until a workspace is selected — the
+  /// EmptyWorkspace screen comes first so the user picks a folder
+  /// before being asked about providers.
+  const refreshProviderSetup = async () => {
+    if (!workspace().path) {
+      setShowProviderSetup(false);
+      return;
+    }
+    const available = await hasAnyProvider();
+    if (available) {
+      setShowProviderSetup(false);
+      return;
+    }
+    if (providerSetupDismissed()) return;
+    setShowProviderSetup(true);
   };
 
   // Notification preference (`AICTL_DESKTOP_NOTIFICATIONS`). Cached so
@@ -276,6 +366,16 @@ const App: Component = () => {
         break;
     }
   };
+
+  // Drive the provider-setup dialog off the workspace path: on mount
+  // (`workspace().path` is null until `getWorkspace()` resolves) the
+  // effect runs once and short-circuits; once a workspace is picked the
+  // effect re-fires with a non-null path and triggers the availability
+  // check. Runs again whenever the user switches workspaces.
+  createEffect(() => {
+    void workspace().path;
+    void refreshProviderSetup();
+  });
 
   onMount(async () => {
     try {
@@ -671,20 +771,42 @@ const App: Component = () => {
       <Show when={showContextDetails()}>
         <ContextDetails onClose={() => setShowContextDetails(false)} />
       </Show>
+      <Show when={showProviderSetup()}>
+        <ProviderSetup
+          onPickTarget={(target: ProviderSetupTarget) => {
+            const tab: SettingsTab =
+              target === "keys"
+                ? "keys"
+                : target === "models"
+                  ? "models"
+                  : "server";
+            setSettingsInitialTab(tab);
+            setShowProviderSetup(false);
+            setShowSettings(true);
+          }}
+          onDismiss={() => {
+            setProviderSetupDismissed(true);
+            setShowProviderSetup(false);
+          }}
+        />
+      </Show>
       <Show when={showSettings()}>
         <Settings
           workspace={workspace()}
           onPickWorkspace={pickWorkspace}
           onClose={() => {
             setShowSettings(false);
+            setSettingsInitialTab(undefined);
             void refreshToolsEnabled();
             void refreshApprovalDefault();
             void refreshNotifications();
+            void refreshProviderSetup();
           }}
           models={models()}
           activeModel={activeModel()}
           onChangeModel={changeModel}
           onRefreshModels={refreshModels}
+          initialTab={settingsInitialTab()}
         />
       </Show>
     </div>

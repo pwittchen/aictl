@@ -1975,6 +1975,81 @@
   color: var(--danger);
 }
 
+/* First-run provider-setup dialog. Reuses `.tool-modal` for the
+   backdrop + panel so the visual language matches the tool approval
+   dialog, but the inner layout is a stack of three big options. */
+.provider-setup {
+  width: min(560px, 100%);
+}
+
+.provider-setup__lede {
+  margin: 0 0 var(--space-4);
+  color: var(--fg-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.provider-setup__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.provider-setup__option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.provider-setup__option:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
+}
+
+.provider-setup__option-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg);
+}
+
+.provider-setup__option-desc {
+  font-size: 12px;
+  color: var(--fg-soft);
+  line-height: 1.45;
+}
+
+.provider-setup__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.provider-setup__skip {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-soft);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.provider-setup__skip:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
 /* New settings widgets — added by the expanded Settings panel. */
 
 .settings-text-input {

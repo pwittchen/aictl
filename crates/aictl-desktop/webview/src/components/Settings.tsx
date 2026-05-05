@@ -54,9 +54,12 @@ interface Props {
   /// app-level catalogue picks up the new entry — keeps the composer
   /// dropdown and the Provider tab in sync.
   onRefreshModels: () => Promise<void>;
+  /// Initial tab the panel opens on. Used by the provider-setup dialog
+  /// to deep-link straight to API Keys / Local Models / LLM Servers.
+  initialTab?: Tab;
 }
 
-type Tab =
+export type Tab =
   | "general"
   | "security"
   | "provider"
@@ -113,7 +116,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const Settings: Component<Props> = (props) => {
-  const [tab, setTab] = createSignal<Tab>("general");
+  const [tab, setTab] = createSignal<Tab>(props.initialTab ?? "general");
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
