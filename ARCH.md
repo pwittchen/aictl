@@ -92,9 +92,9 @@ Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; 
  │  2b. security::init()        load SecurityPolicy into OnceLock           │
  │  2b'. plugins::init()        scan ~/.aictl/plugins/ when                 │
  │                              AICTL_PLUGINS_ENABLED=true; cache survivors │
- │  2b''. hooks::init()         parse ~/.aictl/hooks.json (override via    │
+ │  2b''. hooks::init()         parse ~/.aictl/hooks.json (override via     │
  │                              AICTL_HOOKS_FILE); cache hook table         │
- │  2b'''. mcp::init_with(only) spawn each enabled server in ~/.aictl/mcp. │
+ │  2b'''. mcp::init_with(only) spawn each enabled server in ~/.aictl/mcp.  │
  │                              json (override via AICTL_MCP_CONFIG) when   │
  │                              AICTL_MCP_ENABLED=true; complete            │
  │                              `initialize` handshake under                │
@@ -197,7 +197,7 @@ Both single-shot and REPL modes share the same loop:
  │    no tool  tool found                                  │
  │       │       │                                         │
  │       ▼       ▼                                         │
- │   Stop     hooks::run_hooks(PreToolUse) ──             │
+ │   Stop     hooks::run_hooks(PreToolUse) ──              │
  │   hook +   may block (deny) or pre-approve              │
  │   return       │                                        │
  │   answer       ▼                                        │
@@ -212,7 +212,7 @@ Both single-shot and REPL modes share the same loop:
  │          message     push <tool_result> to messages     │
  │                 │       │                               │
  │                 │       ▼                               │
- │                 │   hooks::run_hooks(PostToolUse) ──   │
+ │                 │   hooks::run_hooks(PostToolUse) ──    │
  │                 │   may attach <hook_context> turn      │
  │                 │       │                               │
  │                 └───┬───┘                               │
