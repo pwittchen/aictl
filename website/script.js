@@ -37,6 +37,27 @@ document.querySelectorAll("[data-download-mac]").forEach((btn) => {
   });
 });
 
+// Reveal preview blocks on scroll, staggering header → CTA → screenshot.
+// No-ops gracefully without IntersectionObserver or under prefers-reduced-motion.
+(() => {
+  const targets = document.querySelectorAll(".preview-block--reveal");
+  if (!targets.length) return;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced || typeof IntersectionObserver !== "function") {
+    targets.forEach((el) => el.classList.add("is-visible"));
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.05, rootMargin: "0px 0px -10% 0px" });
+  targets.forEach((el) => io.observe(el));
+})();
+
 // Smooth-scroll for same-page anchors.
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (e) => {
