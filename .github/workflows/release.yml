@@ -377,7 +377,22 @@ jobs:
           df -h .
           rm -rf "target/${{ matrix.target }}/release"
           df -h .
-          hdiutil create -volname "aictl" -srcfolder "$staging" -ov -format UDZO "${{ matrix.artifact }}.dmg"
+          # `hdiutil create` flakes with "Resource busy" on GitHub
+          # macOS runners — Spotlight indexing the staging dir, or a
+          # leftover mount from a prior step. Retry with a defensive
+          # detach between attempts.
+          for attempt in 1 2 3; do
+            hdiutil detach "/Volumes/aictl" -force 2>/dev/null || true
+            if hdiutil create -volname "aictl" -srcfolder "$staging" -ov -format UDZO "${{ matrix.artifact }}.dmg"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "ERROR: hdiutil create failed after 3 attempts"
+              exit 1
+            fi
+            echo "hdiutil create failed (attempt $attempt), retrying in 5s..."
+            sleep 5
+          done
           echo "asset=${{ matrix.artifact }}.dmg" >> "$GITHUB_ENV"
 
       - name: Sign DMG with Developer ID
