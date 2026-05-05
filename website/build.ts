@@ -53,8 +53,12 @@ async function main() {
   // Copy install.sh from the parent repo so the site can serve it for one-liner installs.
   await copyFile(join(root, "..", "install.sh"), join(dist, "install.sh"));
 
-  // Copy product screenshot used by the preview section.
+  // Copy product screenshots used by the preview sections.
   await copyFile(join(root, "screenshot.png"), join(dist, "screenshot.png"));
+  await copyFile(
+    join(root, "screenshot_desktop.png"),
+    join(dist, "screenshot_desktop.png"),
+  );
 
   // Mirror the same step for install-server.sh — produced under
   // `dist/server/install.sh` so https://aictl.app/server/install.sh
@@ -66,7 +70,7 @@ async function main() {
   await copyFile(join(root, "llms.txt"), join(dist, "llms.txt"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "guides.html", "server.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "screenshot.png"]) {
+  for (const f of ["index.html", "guides.html", "server.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "screenshot.png", "screenshot_desktop.png"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
