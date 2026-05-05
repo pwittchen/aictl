@@ -18,7 +18,7 @@ User guides: https://aictl.app/guides.html
 > [!WARNING]
 > Desktop app for macOS is currently in development stage and work is in progress. It's unreleased and unsigned.
 
-You can use AICL for your desktop...
+You can use **aictl** on your desktop...
 
 ![aictl screenshot desktop](screenshot_desktop.png)
 
