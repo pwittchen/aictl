@@ -551,7 +551,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
 | `AICTL_SKILLS_DIR` | Override the location of the skills directory (default: `~/.aictl/skills`) |
 | `AICTL_CLIENT_HOST` | Base URL of an upstream `aictl-server` (e.g. `http://127.0.0.1:7878`). Used only when the active provider is `aictl-server`; otherwise inert. Empty/unset = direct providers (the default) |
-| `AICTL_CLIENT_MASTER_KEY` | Bearer token presented to the configured `aictl-server`. Same `/keys` lock/unlock/clear lifecycle as the provider keys. Distinct from the server's own `AICTL_SERVER_MASTER_KEY` so a single host can run both roles unambiguously |
+| `AICTL_CLIENT_MASTER_KEY` | Bearer token presented to the configured `aictl-server`. Same `/keys` lock/unlock/clear lifecycle as the provider keys. Distinct from the server's own `AICTL_SERVER_MASTER_KEY` (also covered by `/keys`) so a single host can run both roles unambiguously |
 
 #### API keys
 

@@ -364,7 +364,8 @@ fn provider_label(name: &str) -> &'static str {
         "LLM_KIMI_API_KEY" => "Kimi",
         "LLM_ZAI_API_KEY" => "Z.ai",
         "FIRECRAWL_API_KEY" => "Firecrawl",
-        "AICTL_CLIENT_MASTER_KEY" => "aictl-server master key",
+        "AICTL_CLIENT_MASTER_KEY" => "aictl-server client master key",
+        "AICTL_SERVER_MASTER_KEY" => "aictl-server master key",
         _ => "",
     }
 }

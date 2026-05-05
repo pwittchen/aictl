@@ -42,11 +42,15 @@ pub fn override_secret(name: &str, value: &str) {
 
 /// All API key config names that aictl knows how to store securely.
 ///
-/// `AICTL_CLIENT_MASTER_KEY` participates in the same lock/unlock/clear
-/// lifecycle as the provider keys: the CLI presents it to its
-/// `aictl-server` upstream as a Bearer token. The server's own
-/// `AICTL_SERVER_MASTER_KEY` is intentionally absent — that secret
-/// belongs to the server's lifecycle, not the CLI client's.
+/// Both master keys participate in the lock/unlock/clear lifecycle so a
+/// single host that runs the CLI and the server side-by-side can move
+/// every secret into the keyring with one action:
+///   - `AICTL_CLIENT_MASTER_KEY` — the CLI's Bearer token for the
+///     configured `aictl-server` upstream.
+///   - `AICTL_SERVER_MASTER_KEY` — the server's own auth key.
+///     `aictl-server` reads it through [`get_secret`], so a locked
+///     entry in the keyring resolves identically to the legacy plain
+///     `~/.aictl/config` location.
 pub const KEY_NAMES: &[&str] = &[
     "LLM_ANTHROPIC_API_KEY",
     "LLM_OPENAI_API_KEY",
@@ -58,6 +62,7 @@ pub const KEY_NAMES: &[&str] = &[
     "LLM_ZAI_API_KEY",
     "FIRECRAWL_API_KEY",
     "AICTL_CLIENT_MASTER_KEY",
+    "AICTL_SERVER_MASTER_KEY",
 ];
 
 /// Where a given key is stored.
@@ -410,21 +415,12 @@ mod tests {
             "LLM_ZAI_API_KEY",
             "FIRECRAWL_API_KEY",
             "AICTL_CLIENT_MASTER_KEY",
+            "AICTL_SERVER_MASTER_KEY",
         ] {
             assert!(
                 KEY_NAMES.contains(&expected),
                 "missing expected key: {expected}"
             );
         }
-    }
-
-    #[test]
-    fn key_names_excludes_server_master_key() {
-        // Plan §3: the server's own key belongs to the server role and
-        // must never leak into the CLI's lock/unlock/clear lifecycle.
-        assert!(
-            !KEY_NAMES.contains(&"AICTL_SERVER_MASTER_KEY"),
-            "AICTL_SERVER_MASTER_KEY must not appear in CLI KEY_NAMES"
-        );
     }
 }

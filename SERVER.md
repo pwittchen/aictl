@@ -66,7 +66,7 @@ cargo install --path crates/aictl-server --features "gguf mlx redaction-ner"
 aictl-server
 ```
 
-On first launch the server generates a 32-byte master API key, persists it to `~/.aictl/config` as `AICTL_SERVER_MASTER_KEY`, and prints it once to stderr. Copy it — you'll need it on every request.
+On first launch the server generates a 32-byte master API key, persists it as `AICTL_SERVER_MASTER_KEY` (into the system keyring when available, otherwise plain `~/.aictl/config`), and prints it once to stderr along with where it landed. Copy it — you'll need it on every request.
 
 ### Launch via the CLI shortcut
 
@@ -138,7 +138,7 @@ The `AICTL_CLIENT_*` vs `AICTL_SERVER_*` split is deliberate: a single host may 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `AICTL_SERVER_BIND` | `127.0.0.1:7878` | Bind address. Non-loopback values still require the master key; a startup warning is printed. |
-| `AICTL_SERVER_MASTER_KEY` | _(auto-generated)_ | Bearer token required on every authenticated request. Auto-generated on first launch and persisted here. |
+| `AICTL_SERVER_MASTER_KEY` | _(auto-generated)_ | Bearer token required on every authenticated request. Auto-generated on first launch into the system keyring when available (otherwise plain config). Participates in the CLI's `/keys` lock/unlock/clear flow alongside the provider keys, so a co-located CLI can move it between the keyring and plain config without restarting the server. |
 | `AICTL_SERVER_REQUEST_TIMEOUT` | `120` | Per-request wall-clock timeout (seconds). `0` disables. |
 | `AICTL_SERVER_BODY_LIMIT_BYTES` | `2097152` | Per-request body cap (2 MiB). |
 | `AICTL_SERVER_MAX_CONCURRENT_REQUESTS` | `32` | Global concurrency semaphore. Returns 503 when saturated. |
@@ -189,10 +189,10 @@ Tool-dispatch knobs (CWD jail, shell allow/block lists, blocked env vars, disabl
 ## Master-key handling
 
 1. `--master-key <value>` wins for the current launch (not persisted).
-2. Otherwise the persisted `AICTL_SERVER_MASTER_KEY` is used.
-3. Otherwise 32 bytes of OS randomness are generated, base64url-encoded, persisted to `~/.aictl/config`, and printed once to stderr and the structured log.
+2. Otherwise the persisted `AICTL_SERVER_MASTER_KEY` is used. Resolution goes through `keys::get_secret`, so a value migrated into the system keyring via the CLI's `/keys` lock flow (or `--lock-keys`, or the desktop's Settings → Keys panel) resolves identically to a plain `~/.aictl/config` entry.
+3. Otherwise 32 bytes of OS randomness are generated, base64url-encoded, and persisted via `keys::set_secret`: into the system keyring when the backend is available, falling back to plain `~/.aictl/config` otherwise. The startup banner reports which store the key landed in.
 
-Rotate by editing `~/.aictl/config` (set or remove the entry — removal causes the next launch to regenerate). Comparison at the auth boundary is constant-time.
+Rotate by clearing the entry — `/keys` from the CLI, the Keys panel from the desktop, or by removing the line from `~/.aictl/config` directly. The next launch regenerates. Comparison at the auth boundary is constant-time.
 
 ## REST API
 

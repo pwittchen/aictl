@@ -181,17 +181,22 @@ async fn main() {
     }
 
     let resolved = master_key::resolve(cli.master_key.clone());
-    if let KeySource::Generated = resolved.source {
+    if let KeySource::GeneratedKeyring | KeySource::GeneratedPlain = resolved.source {
         // Print the new key exactly once, both to stderr and to the
         // structured log, so operators can grab it.
+        let storage = match resolved.source {
+            KeySource::GeneratedKeyring => "system keyring",
+            _ => "~/.aictl/config",
+        };
         eprintln!(
             "[server] generated new master API key — set Authorization: Bearer {}",
             resolved.key
         );
-        eprintln!("[server] persisted to ~/.aictl/config (AICTL_SERVER_MASTER_KEY)");
+        eprintln!("[server] persisted to {storage} (AICTL_SERVER_MASTER_KEY)");
         tracing::info!(
             event = "master_key_generated",
             persisted = true,
+            storage = storage,
             "new master API key generated and persisted"
         );
     }
