@@ -105,6 +105,21 @@ const App: Component = () => {
   const [busy, setBusy] = createSignal(false);
   const [pending, setPending] = createSignal<PendingApproval | null>(null);
   const [sidebarVisible, setSidebarVisible] = createSignal(true);
+  // Persisted across launches via `AICTL_DESKTOP_SIDEBAR_VISIBLE` so a
+  // user who hides the sidebar finds it hidden next time. The signal
+  // defaults to true; the stored value only flips it when explicitly
+  // "false". Toggles fire-and-forget the write — failures just mean
+  // the next launch falls back to the default.
+  const toggleSidebar = () => {
+    setSidebarVisible((v) => {
+      const next = !v;
+      void ipc.configWrite(
+        "AICTL_DESKTOP_SIDEBAR_VISIBLE",
+        next ? "true" : "false",
+      );
+      return next;
+    });
+  };
   const [autoAccept, setAutoAccept] = createSignal(false);
   const [activeSession, setActiveSession] = createSignal<ActiveSession>({
     id: null,
@@ -378,6 +393,16 @@ const App: Component = () => {
   });
 
   onMount(async () => {
+    // Hydrate sidebar visibility before workspace loads so the layout
+    // settles in the persisted state on first paint instead of flashing
+    // visible-then-hidden.
+    try {
+      const raw = await ipc.configValue("AICTL_DESKTOP_SIDEBAR_VISIBLE");
+      if (raw === "false") setSidebarVisible(false);
+    } catch {
+      // Default-true if the read fails.
+    }
+
     try {
       setWorkspace(await ipc.getWorkspace());
       setActiveSession(await ipc.getActiveSession());
@@ -414,7 +439,7 @@ const App: Component = () => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
         e.preventDefault();
-        setSidebarVisible((v) => !v);
+        toggleSidebar();
         return;
       }
       // ⌘K / Ctrl-K toggles the Settings overlay. Settings has its
@@ -693,7 +718,7 @@ const App: Component = () => {
         turnInFlight={turnInFlight()}
         onStop={stop}
         sidebarVisible={sidebarVisible()}
-        onToggleSidebar={() => setSidebarVisible((v) => !v)}
+        onToggleSidebar={toggleSidebar}
         contextPct={contextPct()}
         contextTokens={contextTokens()}
         onShowContextDetails={() => setShowContextDetails(true)}
