@@ -168,7 +168,7 @@ const Settings: Component<Props> = (props) => {
               />
             </Show>
             <Show when={tab() === "keys"}>
-              <KeysTab />
+              <KeysTab onRefreshModels={props.onRefreshModels} />
             </Show>
             <Show when={tab() === "general"}>
               <GeneralTab
@@ -326,7 +326,16 @@ const ProviderTab: Component<ProviderTabProps> = (props) => {
   );
 };
 
-const KeysTab: Component = () => {
+interface KeysTabProps {
+  /// Re-pulls the model catalogue from `list_models`. The Composer's
+  /// dropdown and the Models tab both filter cloud models by which
+  /// API keys are set, so any save / clear / lock / unlock here needs
+  /// to refresh that list — otherwise newly-configured providers
+  /// would only appear after a window reload.
+  onRefreshModels: () => Promise<void>;
+}
+
+const KeysTab: Component<KeysTabProps> = (props) => {
   const [rows, { refetch }] = createResource<KeyRow[]>(() => ipc.keysStatus());
   const [backend] = createResource<KeyBackend>(() => ipc.keysBackend());
   const [editing, setEditing] = createSignal<string | null>(null);
@@ -348,6 +357,7 @@ const KeysTab: Component = () => {
       setEditing(null);
       setDraft("");
       await refetch();
+      await props.onRefreshModels();
     } catch (err) {
       setError(`${err}`);
     }
@@ -359,6 +369,7 @@ const KeysTab: Component = () => {
     try {
       await ipc.keysClear(name);
       await refetch();
+      await props.onRefreshModels();
       setFeedback("cleared");
     } catch (err) {
       setError(`${err}`);
@@ -371,6 +382,7 @@ const KeysTab: Component = () => {
     try {
       const outcome = await ipc.keysLock(name);
       await refetch();
+      await props.onRefreshModels();
       setFeedback(
         outcome === "already_locked"
           ? `${name} already in keyring`
@@ -387,6 +399,7 @@ const KeysTab: Component = () => {
     try {
       const outcome = await ipc.keysUnlock(name);
       await refetch();
+      await props.onRefreshModels();
       setFeedback(
         outcome === "already_unlocked"
           ? `${name} already in config`
@@ -403,6 +416,7 @@ const KeysTab: Component = () => {
     try {
       const r = await ipc.keysLockAll();
       await refetch();
+      await props.onRefreshModels();
       const parts: string[] = [];
       parts.push(`${r.migrated} → keyring`);
       if (r.already > 0) parts.push(`${r.already} already locked`);
@@ -422,6 +436,7 @@ const KeysTab: Component = () => {
     try {
       const r = await ipc.keysUnlockAll();
       await refetch();
+      await props.onRefreshModels();
       const parts: string[] = [];
       parts.push(`${r.migrated} → config`);
       if (r.already > 0) parts.push(`${r.already} already unlocked`);

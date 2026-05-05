@@ -1,6 +1,7 @@
 use crossterm::style::{Color, Stylize};
 
 use crate::Provider;
+use crate::keys;
 use crate::llm::MODELS;
 
 use super::menu::{
@@ -19,6 +20,13 @@ struct MenuModel {
     api_key_name: String,
 }
 
+/// True when a cloud-provider API key is configured (keyring, plain
+/// config, or process-local override). Local providers and
+/// aictl-server are filtered separately and never reach this helper.
+fn has_api_key(api_key_name: &str) -> bool {
+    keys::get_secret(api_key_name).is_some_and(|v| !v.trim().is_empty())
+}
+
 fn build_combined_models(
     ollama_models: &[String],
     local_models: &[String],
@@ -27,6 +35,7 @@ fn build_combined_models(
 ) -> Vec<MenuModel> {
     let mut combined: Vec<MenuModel> = MODELS
         .iter()
+        .filter(|(_, _, key)| has_api_key(key))
         .map(|(prov, model, key)| MenuModel {
             provider: (*prov).to_string(),
             model: (*model).to_string(),
@@ -275,6 +284,17 @@ pub fn select_model(
 ) -> Option<(Provider, String, String)> {
     let combined =
         build_combined_models(ollama_models, local_models, mlx_models, aictl_server_models);
+
+    if combined.is_empty() {
+        println!();
+        println!(
+            "  {} no models available — configure an API key in {} or install a local model",
+            "✗".with(Color::Yellow),
+            "/keys".with(Color::DarkGrey),
+        );
+        println!();
+        return None;
+    }
 
     if let Some(q) = initial_query {
         return run_search(

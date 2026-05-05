@@ -7,6 +7,7 @@
 //! `AICTL_PROVIDER` / `AICTL_MODEL`.
 
 use aictl_core::config::{self, config_set};
+use aictl_core::keys;
 use aictl_core::llm::{self, MODELS};
 use serde::Serialize;
 
@@ -22,10 +23,18 @@ pub struct ActiveModel {
     pub model: Option<String>,
 }
 
+/// True when a cloud-provider API key is configured (keyring, plain
+/// config, or process-local override). Local providers and
+/// aictl-server are surfaced separately and don't go through this gate.
+fn has_api_key(api_key_name: &str) -> bool {
+    keys::get_secret(api_key_name).is_some_and(|v| !v.trim().is_empty())
+}
+
 #[tauri::command]
 pub async fn list_models() -> Vec<ModelEntry> {
     let mut entries: Vec<ModelEntry> = MODELS
         .iter()
+        .filter(|(_, _, key)| has_api_key(key))
         .map(|(prov, model, _)| ModelEntry {
             provider: (*prov).to_string(),
             model: (*model).to_string(),
