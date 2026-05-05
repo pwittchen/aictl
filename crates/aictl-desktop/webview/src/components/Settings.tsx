@@ -1851,7 +1851,7 @@ const ModelsTab: Component<ModelsTabProps> = (props) => {
                 <code>{s().gguf.dir}</code>.
               </Show>
             </p>
-            <div class="settings-keys-bulk">
+            <div class="settings-keys-bulk" style={{ "margin-bottom": "var(--space-3)" }}>
               <button type="button" onClick={() => setShowGgufDialog(true)}>
                 Download GGUF model
               </button>
@@ -1922,7 +1922,7 @@ const ModelsTab: Component<ModelsTabProps> = (props) => {
                 </Show>
               </Show>
             </p>
-            <div class="settings-keys-bulk">
+            <div class="settings-keys-bulk" style={{ "margin-bottom": "var(--space-3)" }}>
               <button type="button" onClick={() => setShowMlxDialog(true)}>
                 Download MLX model
               </button>
