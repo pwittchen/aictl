@@ -4009,6 +4009,18 @@ export function applyAppearance(s: AppearanceState) {
 
 const AboutTab: Component = () => {
   const [version] = createResource<string>(() => ipc.version());
+  const [profile] = createResource<"debug" | "release">(() =>
+    ipc.buildProfile(),
+  );
+  const [buildTime] = createResource<string>(() => ipc.buildTime());
+  const [buildCommit] = createResource<string>(() => ipc.buildCommit());
+  const formattedBuildTime = (): string | null => {
+    const raw = buildTime();
+    if (!raw) return null;
+    const secs = Number.parseInt(raw, 10);
+    if (!Number.isFinite(secs) || secs <= 0) return null;
+    return new Date(secs * 1000).toLocaleString();
+  };
   const [error, setError] = createSignal<string | null>(null);
   const reveal = async (kind: "audit" | "config") => {
     setError(null);
@@ -4034,6 +4046,24 @@ const AboutTab: Component = () => {
         <label>Version</label>
         <div class="settings-value">
           <code>{version() ?? "…"}</code>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label>Build</label>
+        <div class="settings-value">
+          <code>{profile() ?? "…"}</code>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label>Built</label>
+        <div class="settings-value">
+          <code>{formattedBuildTime() ?? "…"}</code>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label>Commit</label>
+        <div class="settings-value">
+          <code>{buildCommit() ?? "…"}</code>
         </div>
       </div>
       <div class="settings-row">

@@ -414,6 +414,15 @@ export const ipc = {
   async version() {
     return invoke<string>("version");
   },
+  async buildProfile() {
+    return invoke<"debug" | "release">("build_profile");
+  },
+  async buildTime() {
+    return invoke<string>("build_time");
+  },
+  async buildCommit() {
+    return invoke<string>("build_commit");
+  },
   async readWorkspaceImage(path: string) {
     return invoke<{ base64: string; media_type: string }>(
       "read_workspace_image",
