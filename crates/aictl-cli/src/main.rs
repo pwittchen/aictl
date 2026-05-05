@@ -92,6 +92,13 @@ struct Cli {
     #[arg(long, requires = "auto")]
     quiet: bool,
 
+    /// Output format for single-shot (`--message`) mode: `md` (default,
+    /// raw markdown source from the LLM), `text` (markdown stripped
+    /// to plain prose), or `json` (one-line `{"answer", "model",
+    /// "provider"}` envelope on stdout). Ignored in interactive REPL.
+    #[arg(long = "format", value_name = "FORMAT", value_enum, default_value_t = ui::OutputFormat::default())]
+    format: ui::OutputFormat,
+
     /// Write the per-line JSON audit log to this path. Intended for
     /// single-shot (`--message`) runs, which otherwise have no session
     /// id to key the default `~/.aictl/audit/<session-id>` file by.
@@ -381,6 +388,9 @@ async fn main() {
         Some(ref msg) => {
             let plain_ui = ui::PlainUI {
                 quiet: cli.quiet,
+                format: cli.format,
+                model: model.clone(),
+                provider: provider_label(&provider),
                 streamed: std::cell::Cell::new(false),
             };
             run::run_agent_single(
@@ -872,6 +882,13 @@ fn resolve_api_key(provider: &Provider) -> String {
             "API key not provided. Set {key_name} in ~/.aictl/config (or use /lock-keys to store it in the system keyring), or run aictl --config"
         ))
     })
+}
+
+fn provider_label(provider: &Provider) -> String {
+    match provider {
+        Provider::AictlServer => "aictl-server".to_string(),
+        _ => format!("{provider:?}").to_lowercase(),
+    }
 }
 
 fn resolve_incognito(cli_flag: bool) -> bool {

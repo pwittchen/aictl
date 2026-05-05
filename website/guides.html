@@ -400,7 +400,7 @@
           </article>
           <article class="card">
             <h3>Single-shot</h3>
-            <p>Pass <code>--message "..."</code> to run a one-off prompt and exit. Combine with <code>--auto</code> to skip tool-confirmation prompts, or <code>--auto --quiet</code> to print only the final answer (ideal for scripts).</p>
+            <p>Pass <code>--message "..."</code> to run a one-off prompt and exit. Combine with <code>--auto</code> to skip tool-confirmation prompts, or <code>--auto --quiet</code> to print only the final answer (ideal for scripts). Use <code>--format text</code> to strip markdown to plain prose, or <code>--format json</code> to emit a one-line <code>{"answer", "model", "provider"}</code> envelope on stdout. Default is <code>md</code> (raw markdown source from the LLM).</p>
           </article>
           <article class="card">
             <h3>Autonomous mode</h3>
@@ -504,6 +504,7 @@
               <li><code>--model</code> — override model</li>
               <li><code>--auto</code> — skip tool confirmation</li>
               <li><code>--quiet</code> — final answer only (requires <code>--auto</code>)</li>
+              <li><code>--format &lt;md|text|json&gt;</code> — output format for single-shot mode: <code>md</code> (default — raw markdown), <code>text</code> (markdown stripped), or <code>json</code> (one-line <code>{"answer","model","provider"}</code> envelope). Ignored in REPL</li>
               <li><code>--audit-file &lt;path&gt;</code> — write per-line JSON audit log to an explicit path (single-shot runs)</li>
               <li><code>--cwd &lt;path&gt;</code> — working directory for this run; used as the CWD jail root and the spawn dir for every tool call. Overrides <code>AICTL_WORKING_DIR</code> in <code>~/.aictl/config</code>; when neither is set, the launch directory is used</li>
               <li><code>--unrestricted</code> — disable security checks</li>

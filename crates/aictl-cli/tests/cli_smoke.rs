@@ -244,6 +244,71 @@ fn unrestricted_flag_emits_warning_on_stderr() {
     assert!(out.stdout.contains("ok"), "stdout={:?}", out.stdout);
 }
 
+// --- Output format (--format) ---
+
+#[test]
+fn format_md_default_passes_markdown_through() {
+    let home = TestHome::new();
+    let responses = write_mock_responses(&home, &["# Heading\n\n**bold** and `code`"]);
+    let mut cmd = base_cmd(&home, &responses);
+    cmd.args(["--mock", "--message", "hi"]);
+    let out = run(cmd);
+    assert_eq!(out.status, Some(0), "stderr: {}", out.stderr);
+    // Default `md` keeps formatting markers verbatim.
+    assert!(out.stdout.contains("# Heading"), "stdout={:?}", out.stdout);
+    assert!(out.stdout.contains("**bold**"), "stdout={:?}", out.stdout);
+    assert!(out.stdout.contains("`code`"), "stdout={:?}", out.stdout);
+}
+
+#[test]
+fn format_text_strips_markdown() {
+    let home = TestHome::new();
+    let responses = write_mock_responses(
+        &home,
+        &["# Heading\n\n**bold** and `code` with [link](http://x)"],
+    );
+    let mut cmd = base_cmd(&home, &responses);
+    cmd.args(["--mock", "--format=text", "--message", "hi"]);
+    let out = run(cmd);
+    assert_eq!(out.status, Some(0), "stderr: {}", out.stderr);
+    assert!(out.stdout.contains("Heading"), "stdout={:?}", out.stdout);
+    assert!(
+        out.stdout.contains("bold and code"),
+        "stdout={:?}",
+        out.stdout
+    );
+    assert!(out.stdout.contains("link"), "stdout={:?}", out.stdout);
+    // Markdown markers gone.
+    assert!(!out.stdout.contains("**"), "stdout={:?}", out.stdout);
+    assert!(!out.stdout.contains('`'), "stdout={:?}", out.stdout);
+    assert!(!out.stdout.contains("# Heading"), "stdout={:?}", out.stdout);
+    assert!(!out.stdout.contains("[link]"), "stdout={:?}", out.stdout);
+}
+
+#[test]
+fn format_json_emits_envelope_on_stdout() {
+    let home = TestHome::new();
+    let responses = write_mock_responses(&home, &["The answer is 42."]);
+    let mut cmd = base_cmd(&home, &responses);
+    cmd.args([
+        "--mock",
+        "--format=json",
+        "--model",
+        "mock-model",
+        "--message",
+        "hi",
+    ]);
+    let out = run(cmd);
+    assert_eq!(out.status, Some(0), "stderr: {}", out.stderr);
+    let line = out.stdout.trim();
+    let parsed: serde_json::Value =
+        serde_json::from_str(line).expect(&format!("expected JSON, got {line:?}"));
+    assert_eq!(parsed["answer"], "The answer is 42.");
+    assert_eq!(parsed["model"], "mock-model");
+    // Provider is `Mock` when --mock is set; the label is lower-case "mock".
+    assert_eq!(parsed["provider"], "mock");
+}
+
 // --- Session persistence (session.rs wiring) ---
 
 #[test]

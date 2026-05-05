@@ -33,6 +33,9 @@ fn make_system_messages() -> Vec<Message> {
 fn quiet_ui() -> PlainUI {
     PlainUI {
         quiet: true,
+        format: crate::ui::OutputFormat::default(),
+        model: String::new(),
+        provider: String::new(),
         streamed: Cell::new(false),
     }
 }

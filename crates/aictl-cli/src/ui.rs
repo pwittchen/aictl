@@ -127,10 +127,35 @@ impl ProgressBackend for IndicatifBackend {
 
 // ── PlainUI (single-shot / pipe-friendly) ────────────────────────────
 
+/// Output shape for single-shot (`--message`) runs. `Md` is the default
+/// and matches the historical pass-through of the LLM's raw markdown
+/// source. `Text` strips markdown so downstream tooling sees plain
+/// prose. `Json` emits a one-line `{"answer", "model", "provider"}`
+/// envelope on stdout — streaming and reasoning/tool chatter are
+/// suppressed on stdout (stderr noise still goes to stderr).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub enum OutputFormat {
+    /// Strip markdown formatting and print plain prose.
+    Text,
+    /// Print the LLM's raw markdown source (default).
+    #[default]
+    Md,
+    /// Emit a JSON envelope on stdout.
+    Json,
+}
+
 pub struct PlainUI {
     pub quiet: bool,
+    pub format: OutputFormat,
+    /// Used to populate the `model` field of the JSON envelope. Empty
+    /// for non-JSON formats — the field is read only on the JSON path.
+    pub model: String,
+    /// Used to populate the `provider` field of the JSON envelope.
+    pub provider: String,
     /// True once a streamed response has been printed in this turn — tells
-    /// the agent loop to skip the trailing `show_answer` re-render.
+    /// the agent loop to skip the trailing `show_answer` re-render. Only
+    /// flipped on the `Md` path; `Text` and `Json` swallow stream chunks
+    /// so the final `show_answer` is responsible for output.
     pub streamed: Cell<bool>,
 }
 
@@ -139,19 +164,19 @@ impl AgentUI for PlainUI {
     fn stop_spinner(&self) {}
 
     fn show_reasoning(&self, text: &str) {
-        if !self.quiet {
+        if !self.quiet && !matches!(self.format, OutputFormat::Json) {
             eprintln!("{text}");
         }
     }
 
     fn show_auto_tool(&self, tool_call: &ToolCall) {
-        if !self.quiet {
+        if !self.quiet && !matches!(self.format, OutputFormat::Json) {
             eprintln!("[auto] Running: {}", tool_call.input);
         }
     }
 
     fn show_tool_result(&self, result: &str) {
-        if !self.quiet {
+        if !self.quiet && !matches!(self.format, OutputFormat::Json) {
             if result.starts_with("Security policy denied:") || result.starts_with("Error:") {
                 eprintln!("{}", result.with(Color::Red));
             } else {
@@ -177,13 +202,28 @@ impl AgentUI for PlainUI {
     }
 
     fn show_answer(&self, text: &str) {
-        if self.streamed.replace(false) {
-            // Streamed response already on screen. Just terminate the line so
-            // the next prompt isn't glued to the answer's last token.
-            println!();
-            return;
+        match self.format {
+            OutputFormat::Json => {
+                let envelope = serde_json::json!({
+                    "answer": text,
+                    "model": self.model,
+                    "provider": self.provider,
+                });
+                println!("{envelope}");
+            }
+            OutputFormat::Text => {
+                println!("{}", strip_markdown(text));
+            }
+            OutputFormat::Md => {
+                if self.streamed.replace(false) {
+                    // Streamed response already on screen. Just terminate the
+                    // line so the next prompt isn't glued to the last token.
+                    println!();
+                    return;
+                }
+                println!("{text}");
+            }
         }
-        println!("{text}");
     }
 
     fn show_error(&self, text: &str) {
@@ -192,6 +232,13 @@ impl AgentUI for PlainUI {
 
     fn stream_chunk(&self, text: &str) {
         if text.is_empty() {
+            return;
+        }
+        // Streaming markdown deltas can split formatting markers across
+        // chunks (e.g. `**` arriving as `*` then `*`), so reliable
+        // stripping or JSON wrapping requires the full answer. Defer to
+        // `show_answer` for those formats.
+        if !matches!(self.format, OutputFormat::Md) {
             return;
         }
         self.streamed.set(true);
@@ -227,6 +274,49 @@ impl AgentUI for PlainUI {
         _context_pct: u8,
     ) {
     }
+}
+
+/// Strip the most common markdown formatting markers so the output is
+/// plain prose. Conservative on purpose — keeps the original line
+/// structure and only rewrites well-formed inline markup. Anything
+/// ambiguous (single-asterisk italics next to multiplication, raw HTML,
+/// nested fences) is left intact rather than risking damage to
+/// downstream-relevant text.
+fn strip_markdown(text: &str) -> String {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    static FENCE: OnceLock<Regex> = OnceLock::new();
+    static HEADING: OnceLock<Regex> = OnceLock::new();
+    static BOLD: OnceLock<Regex> = OnceLock::new();
+    static INLINE_CODE: OnceLock<Regex> = OnceLock::new();
+    static LINK: OnceLock<Regex> = OnceLock::new();
+    static IMAGE: OnceLock<Regex> = OnceLock::new();
+    static QUOTE: OnceLock<Regex> = OnceLock::new();
+    static BULLET: OnceLock<Regex> = OnceLock::new();
+    static HR: OnceLock<Regex> = OnceLock::new();
+
+    let fence =
+        FENCE.get_or_init(|| Regex::new(r"(?ms)^```[A-Za-z0-9_+\-]*\r?\n(.*?)^```\s*$").unwrap());
+    let heading = HEADING.get_or_init(|| Regex::new(r"(?m)^\s{0,3}#{1,6}\s+").unwrap());
+    let bold = BOLD.get_or_init(|| Regex::new(r"\*\*([^*\n]+)\*\*").unwrap());
+    let inline_code = INLINE_CODE.get_or_init(|| Regex::new(r"`([^`\n]+)`").unwrap());
+    let image = IMAGE.get_or_init(|| Regex::new(r"!\[([^\]]*)\]\([^)]+\)").unwrap());
+    let link = LINK.get_or_init(|| Regex::new(r"\[([^\]]+)\]\([^)]+\)").unwrap());
+    let quote = QUOTE.get_or_init(|| Regex::new(r"(?m)^>\s?").unwrap());
+    let bullet = BULLET.get_or_init(|| Regex::new(r"(?m)^(\s*)[-*+]\s+").unwrap());
+    let hr = HR.get_or_init(|| Regex::new(r"(?m)^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$").unwrap());
+
+    let s = fence.replace_all(text, "$1");
+    let s = image.replace_all(&s, "$1");
+    let s = link.replace_all(&s, "$1");
+    let s = inline_code.replace_all(&s, "$1");
+    let s = bold.replace_all(&s, "$1");
+    let s = heading.replace_all(&s, "");
+    let s = quote.replace_all(&s, "");
+    let s = bullet.replace_all(&s, "$1");
+    let s = hr.replace_all(&s, "");
+    s.into_owned()
 }
 
 // ── InteractiveUI (colors, spinner, markdown) ────────────────────────
