@@ -609,11 +609,103 @@
 }
 
 .message .body pre {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   padding: var(--space-3);
   overflow-x: auto;
   margin: var(--space-2) 0;
+}
+
+.message .body pre .code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--fg-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.message .body pre:hover .code-copy,
+.message .body pre .code-copy:focus-visible,
+.message .body pre .code-copy.copied {
+  opacity: 1;
+}
+
+.message .body pre .code-copy:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.message .body pre .code-copy.copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.message .body pre .code-copy svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.message-actions {
+  margin-top: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.message-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.message-copy:hover {
+  color: var(--fg-soft);
+  border-color: var(--border);
+}
+
+.message-copy:focus-visible {
+  outline: none;
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.message-copy .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-copy .icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 /* Loading indicator — three small squares that pulse in sequence.
