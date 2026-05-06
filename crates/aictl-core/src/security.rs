@@ -967,6 +967,21 @@ fn check_path_with(path_str: &str, is_write: bool, pol: &PathPolicy) -> Result<P
     };
 
     // Check blocked paths
+    //
+    // Carve-out: if the user has anchored their workspace *inside* a
+    // blocked tree (e.g. the desktop's default `~/.aictl/workspace/`,
+    // which sits under the blocked `~/.aictl/`), operations confined to
+    // that workspace are permitted. The CWD jail still applies, so
+    // siblings like `~/.aictl/keys` or `~/.aictl/config` remain
+    // unreachable — the carve-out only widens by exactly the workspace
+    // the user explicitly chose.
+    let working_canon = if pol.working_dir.as_os_str().is_empty() {
+        PathBuf::new()
+    } else {
+        pol.working_dir
+            .canonicalize()
+            .unwrap_or_else(|_| pol.working_dir.clone())
+    };
     for blocked in &pol.blocked_paths {
         let blocked_canon = if blocked.exists() {
             blocked.canonicalize().unwrap_or_else(|_| blocked.clone())
@@ -974,6 +989,12 @@ fn check_path_with(path_str: &str, is_write: bool, pol: &PathPolicy) -> Result<P
             blocked.clone()
         };
         if canonical.starts_with(&blocked_canon) {
+            let workspace_carves_out = !working_canon.as_os_str().is_empty()
+                && working_canon.starts_with(&blocked_canon)
+                && canonical.starts_with(&working_canon);
+            if workspace_carves_out {
+                continue;
+            }
             return Err(format!("path '{path_str}' is blocked by security policy"));
         }
     }
@@ -2048,6 +2069,119 @@ mod tests {
             assert!(
                 err.contains("no workspace selected"),
                 "absolute paths must also be refused under the sentinel: {err}"
+            );
+        }
+    }
+
+    // --- Workspace-inside-blocked-path carve-out ---
+    //
+    // The desktop suggests `~/.aictl/workspace/` as a default workspace,
+    // and `~/.aictl/` itself is in DEFAULT_BLOCKED_HOME_PATHS to keep
+    // tools out of the user's keys/audit/config. The carve-out lets file
+    // operations land inside the explicitly-chosen workspace while
+    // keeping siblings under the same blocked tree off-limits.
+    mod workspace_carveout {
+        use super::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+        fn scratch(label: &str) -> PathBuf {
+            let id = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let dir = std::env::temp_dir().join(format!(
+                "aictl_carveout_{label}_{}_{id}_{nanos}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).expect("create scratch dir");
+            dir.canonicalize().expect("canonicalize scratch dir")
+        }
+
+        #[test]
+        fn workspace_under_blocked_root_allows_reads_inside_workspace() {
+            // Mirror the desktop default: blocked = ~/.aictl, workspace
+            // = ~/.aictl/workspace/. Reads inside the workspace must be
+            // allowed even though canonical starts_with(blocked).
+            let blocked_root = scratch("aictl_root");
+            let workspace = blocked_root.join("workspace");
+            std::fs::create_dir_all(&workspace).unwrap();
+            std::fs::write(workspace.join("note.md"), b"hi").unwrap();
+
+            let pol = PathPolicy {
+                working_dir: workspace.clone(),
+                restrict_to_cwd: true,
+                blocked_paths: vec![blocked_root],
+                allowed_paths: vec![],
+            };
+            let canon = check_path_with("note.md", false, &pol)
+                .expect("workspace-anchored read must be allowed");
+            assert_eq!(canon, workspace.join("note.md").canonicalize().unwrap());
+        }
+
+        #[test]
+        fn workspace_under_blocked_root_allows_writes_to_new_files() {
+            let blocked_root = scratch("aictl_root_w");
+            let workspace = blocked_root.join("workspace");
+            std::fs::create_dir_all(&workspace).unwrap();
+
+            let pol = PathPolicy {
+                working_dir: workspace.clone(),
+                restrict_to_cwd: true,
+                blocked_paths: vec![blocked_root],
+                allowed_paths: vec![],
+            };
+            check_path_with("new.txt", true, &pol)
+                .expect("workspace-anchored write must be allowed");
+        }
+
+        #[test]
+        fn sibling_under_blocked_root_is_still_rejected() {
+            // `~/.aictl/keys` lives in the blocked tree but outside the
+            // workspace — the carve-out must not widen to siblings.
+            let blocked_root = scratch("aictl_root_sib");
+            let workspace = blocked_root.join("workspace");
+            let sibling = blocked_root.join("keys");
+            std::fs::create_dir_all(&workspace).unwrap();
+            std::fs::create_dir_all(&sibling).unwrap();
+            std::fs::write(sibling.join("secret"), b"k").unwrap();
+
+            let pol = PathPolicy {
+                working_dir: workspace,
+                restrict_to_cwd: true,
+                blocked_paths: vec![blocked_root.clone()],
+                allowed_paths: vec![],
+            };
+            let target = sibling.join("secret");
+            let err = check_path_with(&target.to_string_lossy(), false, &pol).unwrap_err();
+            assert!(
+                err.contains("blocked by security policy"),
+                "blocked sibling must remain rejected, got: {err}"
+            );
+        }
+
+        #[test]
+        fn workspace_outside_blocked_root_does_not_unblock() {
+            // Sanity: when the workspace is not under any blocked path,
+            // the carve-out is inert — explicit reads of blocked files
+            // still fail.
+            let workspace = scratch("ws_outside");
+            let blocked_root = scratch("blocked_outside");
+            let target = blocked_root.join("file");
+            std::fs::write(&target, b"x").unwrap();
+
+            let pol = PathPolicy {
+                working_dir: workspace,
+                restrict_to_cwd: true,
+                blocked_paths: vec![blocked_root],
+                allowed_paths: vec![],
+            };
+            let err = check_path_with(&target.to_string_lossy(), false, &pol).unwrap_err();
+            assert!(
+                err.contains("blocked by security policy"),
+                "blocked path must stay blocked when workspace is unrelated, got: {err}"
             );
         }
     }
