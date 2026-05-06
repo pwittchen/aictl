@@ -2454,6 +2454,7 @@
   border: 1px solid var(--border);
   background: var(--surface);
   padding: var(--space-3);
+  min-width: 0;
 }
 
 .settings-stats-card h4 {
@@ -2505,6 +2506,194 @@
 .settings-stats-card li {
   font-size: 11px;
   color: var(--fg-soft);
+}
+
+.settings-stats-chart {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-stats-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.settings-stats-chart-header h4 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+
+.settings-stats-chart-tabs {
+  display: inline-flex;
+  border: 1px solid var(--border);
+}
+
+.settings-stats-chart-tab {
+  background: transparent;
+  border: 0;
+  padding: 4px var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-soft);
+  cursor: pointer;
+}
+
+.settings-stats-chart-tab + .settings-stats-chart-tab {
+  border-left: 1px solid var(--border);
+}
+
+.settings-stats-chart-tab:hover {
+  color: var(--fg);
+}
+
+.settings-stats-chart-tab.active {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+.settings-stats-chart-svg {
+  width: 100%;
+  height: 180px;
+  display: block;
+}
+
+.settings-stats-chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.settings-stats-chart-axis {
+  fill: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.settings-stats-chart-bar {
+  fill: var(--accent);
+  fill-opacity: 0.8;
+}
+
+.settings-stats-chart-bar:hover {
+  fill-opacity: 1;
+}
+
+.settings-stats-chart-bar.empty {
+  fill: var(--border);
+  fill-opacity: 0.6;
+}
+
+.settings-stats-chart-summary {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-soft);
+}
+
+.settings-stats-chart-summary strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.settings-stats-tokenbar {
+  display: flex;
+  height: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: var(--space-1);
+}
+
+.settings-stats-tokenbar-input {
+  background: var(--accent);
+}
+
+.settings-stats-tokenbar-output {
+  background: var(--warning);
+}
+
+.settings-stats-tokenbar-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-soft);
+}
+
+.settings-stats-tokenbar-legend .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.settings-stats-tokenbar-legend .dot.input {
+  background: var(--accent);
+}
+
+.settings-stats-tokenbar-legend .dot.output {
+  background: var(--warning);
+}
+
+.settings-stats-modelbars {
+  display: grid;
+  gap: var(--space-1) !important;
+  min-width: 0;
+}
+
+.settings-stats-modelbars li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-stats-modelbars-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-soft);
+  min-width: 0;
+}
+
+.settings-stats-modelbars-row code {
+  display: block;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.settings-stats-modelbars-row span {
+  flex-shrink: 0;
+}
+
+.settings-stats-modelbars-track {
+  height: 4px;
+  background: var(--border);
+}
+
+.settings-stats-modelbars-fill {
+  height: 100%;
+  background: var(--accent);
 }
 
 /* Theme + density tokens — applied to <html> by Settings → Appearance. */

@@ -165,6 +165,7 @@ pub fn run() {
             commands::plugins::plugin_delete,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,
+            commands::stats::stats_daily,
             commands::server::server_status,
             commands::server::server_probe,
             commands::server::ollama_status,

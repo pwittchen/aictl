@@ -33,6 +33,7 @@ import {
   type SessionRow,
   type SkillRow,
   type SkillView,
+  type DailyPoint,
   type StatsBucket,
   type StatsSnapshot,
   type ToolRow,
@@ -3496,10 +3497,18 @@ const ContextTab: Component = () => {
   );
 };
 
+const DAILY_RANGE = 30;
+
+type DailyMetric = "requests" | "tokens" | "cost";
+
 const StatsTab: Component = () => {
   const [snap, { refetch }] = createResource<StatsSnapshot>(() =>
     ipc.statsSnapshot(),
   );
+  const [daily, { refetch: refetchDaily }] = createResource<DailyPoint[]>(() =>
+    ipc.statsDaily(DAILY_RANGE),
+  );
+  const [metric, setMetric] = createSignal<DailyMetric>("requests");
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
 
@@ -3507,7 +3516,7 @@ const StatsTab: Component = () => {
     setError(null);
     try {
       await ipc.statsClear();
-      await refetch();
+      await Promise.all([refetch(), refetchDaily()]);
       setFeedback("stats cleared");
     } catch (err) {
       setError(`${err}`);
@@ -3527,6 +3536,15 @@ const StatsTab: Component = () => {
       </Show>
       <Show when={feedback()}>
         <p class="settings-success">{feedback()}</p>
+      </Show>
+      <Show when={daily()}>
+        {(points) => (
+          <DailyChart
+            points={points()}
+            metric={metric()}
+            onMetricChange={setMetric}
+          />
+        )}
       </Show>
       <Show when={snap()}>
         {(s) => (
@@ -3552,39 +3570,258 @@ const StatsTab: Component = () => {
   );
 };
 
-const BucketCard: Component<{ label: string; bucket: StatsBucket }> = (props) => (
-  <div class="settings-stats-card">
-    <h4>{props.label}</h4>
-    <dl>
-      <dt>Sessions</dt>
-      <dd>{props.bucket.sessions}</dd>
-      <dt>Requests</dt>
-      <dd>{props.bucket.requests}</dd>
-      <dt>LLM calls</dt>
-      <dd>{props.bucket.llm_calls}</dd>
-      <dt>Tool calls</dt>
-      <dd>{props.bucket.tool_calls}</dd>
-      <dt>Input tokens</dt>
-      <dd>{props.bucket.input_tokens.toLocaleString()}</dd>
-      <dt>Output tokens</dt>
-      <dd>{props.bucket.output_tokens.toLocaleString()}</dd>
-      <dt>Cost (USD)</dt>
-      <dd>${props.bucket.cost_usd.toFixed(4)}</dd>
-    </dl>
-    <Show when={props.bucket.models.length > 0}>
-      <h5>Top models</h5>
-      <ul>
-        <For each={props.bucket.models.slice(0, 5)}>
-          {(m) => (
-            <li>
-              <code>{m.model}</code> · {m.count}
-            </li>
+const METRIC_LABELS: Record<DailyMetric, string> = {
+  requests: "Requests",
+  tokens: "Tokens",
+  cost: "Cost (USD)",
+};
+
+const DailyChart: Component<{
+  points: DailyPoint[];
+  metric: DailyMetric;
+  onMetricChange: (m: DailyMetric) => void;
+}> = (props) => {
+  const valueOf = (p: DailyPoint): number => {
+    if (props.metric === "requests") return p.requests;
+    if (props.metric === "tokens") return p.input_tokens + p.output_tokens;
+    return p.cost_usd;
+  };
+  const fmtValue = (v: number): string => {
+    if (props.metric === "cost") return `$${v.toFixed(4)}`;
+    if (props.metric === "tokens") return v.toLocaleString();
+    return `${v}`;
+  };
+
+  const width = 720;
+  const height = 180;
+  const padX = 48;
+  const padY = 16;
+  const innerW = () => width - padX * 2;
+  const innerH = () => height - padY * 2;
+  const max = () => {
+    const values = props.points.map(valueOf);
+    const m = Math.max(0, ...values);
+    return m === 0 ? 1 : m;
+  };
+  const total = () => props.points.reduce((acc, p) => acc + valueOf(p), 0);
+  const peak = () => {
+    let best: { date: string; value: number } | null = null;
+    for (const p of props.points) {
+      const v = valueOf(p);
+      if (best === null || v > best.value) best = { date: p.date, value: v };
+    }
+    return best;
+  };
+  const barWidth = () => {
+    const n = props.points.length || 1;
+    return Math.max(1, innerW() / n - 2);
+  };
+  const xFor = (i: number) => {
+    const n = props.points.length || 1;
+    return padX + (i * innerW()) / n + 1;
+  };
+  const yFor = (v: number) => {
+    return padY + innerH() - (v / max()) * innerH();
+  };
+  const tickValues = () => [0, 0.5, 1].map((f) => f * max());
+
+  return (
+    <div class="settings-stats-chart">
+      <div class="settings-stats-chart-header">
+        <h4>Last {props.points.length} days</h4>
+        <div class="settings-stats-chart-tabs" role="tablist">
+          <For each={Object.keys(METRIC_LABELS) as DailyMetric[]}>
+            {(m) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={props.metric === m}
+                class="settings-stats-chart-tab"
+                classList={{ active: props.metric === m }}
+                onClick={() => props.onMetricChange(m)}
+              >
+                {METRIC_LABELS[m]}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+      <svg
+        class="settings-stats-chart-svg"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`Daily ${METRIC_LABELS[props.metric]}`}
+      >
+        <For each={tickValues()}>
+          {(t) => (
+            <>
+              <line
+                x1={padX}
+                x2={width - padX}
+                y1={yFor(t)}
+                y2={yFor(t)}
+                class="settings-stats-chart-grid"
+              />
+              <text
+                x={padX - 6}
+                y={yFor(t) + 3}
+                class="settings-stats-chart-axis"
+                text-anchor="end"
+              >
+                {axisLabel(t, props.metric)}
+              </text>
+            </>
           )}
         </For>
-      </ul>
-    </Show>
-  </div>
-);
+        <For each={props.points}>
+          {(p, i) => {
+            const v = valueOf(p);
+            const h = v === 0 ? 0 : Math.max(1, (v / max()) * innerH());
+            return (
+              <rect
+                x={xFor(i())}
+                y={padY + innerH() - h}
+                width={barWidth()}
+                height={h}
+                class="settings-stats-chart-bar"
+                classList={{ empty: v === 0 }}
+              >
+                <title>
+                  {p.date} · {fmtValue(v)}
+                </title>
+              </rect>
+            );
+          }}
+        </For>
+        <Show when={props.points.length > 0}>
+          <text
+            x={padX}
+            y={height - 2}
+            class="settings-stats-chart-axis"
+            text-anchor="start"
+          >
+            {props.points[0].date}
+          </text>
+          <text
+            x={width - padX}
+            y={height - 2}
+            class="settings-stats-chart-axis"
+            text-anchor="end"
+          >
+            {props.points[props.points.length - 1].date}
+          </text>
+        </Show>
+      </svg>
+      <div class="settings-stats-chart-summary">
+        <span>
+          Total <strong>{fmtValue(total())}</strong>
+        </span>
+        <Show when={peak() && peak()!.value > 0}>
+          <span>
+            Peak <strong>{fmtValue(peak()!.value)}</strong> on{" "}
+            <code>{peak()!.date}</code>
+          </span>
+        </Show>
+      </div>
+    </div>
+  );
+};
+
+const axisLabel = (v: number, metric: DailyMetric): string => {
+  if (metric === "cost") return v === 0 ? "$0" : `$${v.toFixed(2)}`;
+  if (metric === "tokens") {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+    return `${Math.round(v)}`;
+  }
+  return `${Math.round(v)}`;
+};
+
+const BucketCard: Component<{ label: string; bucket: StatsBucket }> = (
+  props,
+) => {
+  const tokenTotal = () =>
+    props.bucket.input_tokens + props.bucket.output_tokens;
+  const inputPct = () => {
+    const t = tokenTotal();
+    if (t === 0) return 0;
+    return (props.bucket.input_tokens / t) * 100;
+  };
+  const topModels = () => props.bucket.models.slice(0, 5);
+  const modelMax = () => {
+    const m = Math.max(0, ...topModels().map((row) => row.count));
+    return m === 0 ? 1 : m;
+  };
+  return (
+    <div class="settings-stats-card">
+      <h4>{props.label}</h4>
+      <dl>
+        <dt>Sessions</dt>
+        <dd>{props.bucket.sessions}</dd>
+        <dt>Requests</dt>
+        <dd>{props.bucket.requests}</dd>
+        <dt>LLM calls</dt>
+        <dd>{props.bucket.llm_calls}</dd>
+        <dt>Tool calls</dt>
+        <dd>{props.bucket.tool_calls}</dd>
+        <dt>Cost (USD)</dt>
+        <dd>${props.bucket.cost_usd.toFixed(4)}</dd>
+      </dl>
+      <Show when={tokenTotal() > 0}>
+        <h5>Tokens</h5>
+        <div
+          class="settings-stats-tokenbar"
+          role="img"
+          aria-label={`Input ${props.bucket.input_tokens.toLocaleString()}, output ${props.bucket.output_tokens.toLocaleString()}`}
+        >
+          <div
+            class="settings-stats-tokenbar-input"
+            style={{ width: `${inputPct()}%` }}
+          />
+          <div
+            class="settings-stats-tokenbar-output"
+            style={{ width: `${100 - inputPct()}%` }}
+          />
+        </div>
+        <div class="settings-stats-tokenbar-legend">
+          <span>
+            <i class="dot input" /> in{" "}
+            {props.bucket.input_tokens.toLocaleString()}
+          </span>
+          <span>
+            <i class="dot output" /> out{" "}
+            {props.bucket.output_tokens.toLocaleString()}
+          </span>
+        </div>
+      </Show>
+      <Show when={topModels().length > 0}>
+        <h5>Top models</h5>
+        <ul class="settings-stats-modelbars">
+          <For each={topModels()}>
+            {(m) => (
+              <li>
+                <div class="settings-stats-modelbars-row">
+                  <code title={m.model}>{m.model}</code>
+                  <span>{m.count}</span>
+                </div>
+                <div
+                  class="settings-stats-modelbars-track"
+                  aria-hidden="true"
+                >
+                  <div
+                    class="settings-stats-modelbars-fill"
+                    style={{ width: `${(m.count / modelMax()) * 100}%` }}
+                  />
+                </div>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </div>
+  );
+};
 
 const REDACTION_DETECTORS = [
   { slug: "api_key", label: "API keys" },

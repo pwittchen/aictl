@@ -179,6 +179,53 @@ pub fn clear_all() {
     }
 }
 
+/// Return the last `n` days ending today, oldest first. Missing days are
+/// represented as zero-valued [`DayStats`] so the timeline is contiguous —
+/// useful for charts.
+pub fn last_days(n: usize) -> Vec<(String, DayStats)> {
+    let Ok(n_u64) = u64::try_from(n) else {
+        return Vec::new();
+    };
+    if n_u64 == 0 {
+        return Vec::new();
+    }
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let today_days = secs / 86400;
+    let span = n_u64.min(today_days + 1);
+    let mut out = Vec::with_capacity(usize::try_from(span).unwrap_or(0));
+    for back in (0..span).rev() {
+        let d = today_days - back;
+        let (y, m, day) = epoch_days_to_ymd(d);
+        let key = format!("{y:04}-{m:02}-{day:02}");
+        let stats = load_day(&key);
+        out.push((key, stats));
+    }
+    out
+}
+
+/// List every recorded day with its stats, sorted ascending by date key.
+pub fn list_days() -> Vec<(String, DayStats)> {
+    let Some(dir) = stats_dir() else {
+        return Vec::new();
+    };
+    let Ok(rd) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<(String, DayStats)> = Vec::new();
+    for entry in rd.flatten() {
+        let fname = entry.file_name().to_string_lossy().into_owned();
+        let Some(key) = fname.strip_suffix(".json") else {
+            continue;
+        };
+        out.push((key.to_string(), load_day(key)));
+    }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 /// Count how many day files exist.
 pub fn day_count() -> usize {
     let Some(dir) = stats_dir() else {

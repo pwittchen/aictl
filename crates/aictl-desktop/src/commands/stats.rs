@@ -34,6 +34,17 @@ pub struct StatsSnapshot {
     pub overall: StatsBucket,
 }
 
+#[derive(Serialize)]
+pub struct DailyPoint {
+    pub date: String,
+    pub requests: u64,
+    pub llm_calls: u64,
+    pub tool_calls: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cost_usd: f64,
+}
+
 #[tauri::command]
 pub fn stats_snapshot() -> StatsSnapshot {
     StatsSnapshot {
@@ -48,6 +59,22 @@ pub fn stats_snapshot() -> StatsSnapshot {
 pub fn stats_clear() -> Result<(), String> {
     stats::clear_all();
     Ok(())
+}
+
+#[tauri::command]
+pub fn stats_daily(days: usize) -> Vec<DailyPoint> {
+    stats::last_days(days.clamp(1, 365))
+        .into_iter()
+        .map(|(date, day)| DailyPoint {
+            date,
+            requests: day.requests,
+            llm_calls: day.llm_calls,
+            tool_calls: day.tool_calls,
+            input_tokens: day.input_tokens,
+            output_tokens: day.output_tokens,
+            cost_usd: day.cost_usd,
+        })
+        .collect()
 }
 
 fn project(label: &'static str, day: &stats::DayStats) -> StatsBucket {

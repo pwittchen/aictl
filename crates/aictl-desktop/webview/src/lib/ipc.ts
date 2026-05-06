@@ -249,6 +249,16 @@ export interface StatsSnapshot {
   overall: StatsBucket;
 }
 
+export interface DailyPoint {
+  date: string;
+  requests: number;
+  llm_calls: number;
+  tool_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
 export interface ServerStatus {
   host: string | null;
   master_key_set: boolean;
@@ -656,6 +666,9 @@ export const ipc = {
   },
   async statsClear() {
     return invoke<void>("stats_clear");
+  },
+  async statsDaily(days: number) {
+    return invoke<DailyPoint[]>("stats_daily", { days });
   },
 
   // -- server ----
