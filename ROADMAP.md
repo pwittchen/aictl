@@ -8,8 +8,9 @@
 
 ## Desktop
 
-- in the destkop app, add possiblity to to list directory tree of the workspace, preview and edit text files (do not preview/edit non-editable files). File contents should be displayed in the additional pane/view on the right and there should be possibility to open workspace treeview from the right (closed by default)
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
+- add version checking and update functionality in the desktop app (in about section and main window)
+- in the destkop app, add possiblity to to list directory tree of the workspace, preview and edit text files (do not preview/edit non-editable files). File contents should be displayed in the additional pane/view on the right and there should be possibility to open workspace treeview from the right (closed by default)
 
 ## CLI
 
