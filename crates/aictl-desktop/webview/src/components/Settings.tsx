@@ -4085,7 +4085,7 @@ const AboutTab: Component = () => {
       <div class="settings-row">
         <label>Developer</label>
         <div class="settings-value">
-          Piotr Wittchen —{" "}
+          Piotr Wittchen |{" "}
           <a href="#" onClick={(e) => { e.preventDefault(); void open("https://wittchen.io"); }}>
             wittchen.io
           </a>
