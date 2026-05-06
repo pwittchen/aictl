@@ -16,6 +16,11 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly with CLI and that data is redacted in session, audit, history, messages in the chat (CLI) and responses
 - add `AICTL_WORKING_DIR_CLI` optional param, so the CLI can operate only within the given workspace dir
+- prepare Docker setup for CLI
+
+## Server
+
+- prepare Docker setup for server
 
 ---
 
