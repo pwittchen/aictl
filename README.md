@@ -8,7 +8,7 @@ AI agent for your terminal and desktop + HTTP LLM proxy server — 70 built-in c
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
-User guides: https://aictl.app/guides.html
+CLI user guides: https://aictl.app/cli.html
 
 > [!NOTE]
 > The **aictl** is a general-purpose AI agent.
