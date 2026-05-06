@@ -2,6 +2,10 @@
 
 ---
 
+## Website
+
+- prepare dedicated sub-page for the destkop app
+
 ## Desktop
 
 - in the destkop app, add possiblity to to list directory tree of the workspace, preview and edit text files (do not preview/edit non-editable files). File contents should be displayed in the additional pane/view on the right and there should be possibility to open workspace treeview from the right (closed by default)
