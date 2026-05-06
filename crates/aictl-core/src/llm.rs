@@ -91,6 +91,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-5.4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.4", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.4-pro", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.5", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.5-pro", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "o3", "LLM_OPENAI_API_KEY"),
     ("openai", "o1", "LLM_OPENAI_API_KEY"),
@@ -113,12 +115,14 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("grok", "grok-4-1-fast-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
+    ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
     ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6-thinking", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
@@ -224,8 +228,17 @@ fn cache_read_multiplier(model: &str) -> f64 {
 /// Returns (input, output) price per million tokens for known models.
 #[allow(clippy::too_many_lines)]
 fn price_per_million(model: &str) -> Option<(f64, f64)> {
-    // OpenAI — GPT-5.4 (current flagship; dual-tier pricing above 272K
+    // OpenAI — GPT-5.5 (current flagship; dual-tier pricing above 272K
     // context — these are the short-context rates)
+    if model.starts_with("gpt-5.5-pro") {
+        return Some((30.00, 180.00));
+    }
+    if model.starts_with("gpt-5.5") {
+        return Some((5.00, 30.00));
+    }
+
+    // OpenAI — GPT-5.4 (dual-tier pricing above 272K context — these
+    // are the short-context rates)
     if model.starts_with("gpt-5.4-nano") {
         return Some((0.20, 1.25));
     }
@@ -337,6 +350,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("grok-4.20") {
         return Some((2.00, 6.00));
     }
+    if model.starts_with("grok-4.3") {
+        return Some((1.25, 2.50));
+    }
     if model.starts_with("grok-4") {
         return Some((3.00, 15.00));
     }
@@ -362,6 +378,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.30, 0.90));
     }
 
+    // DeepSeek — V4
+    if model.starts_with("deepseek-v4-flash") {
+        return Some((0.14, 0.28));
+    }
     // DeepSeek — V3.2 (chat & reasoner share pricing)
     if model.starts_with("deepseek-reasoner") || model.starts_with("deepseek-chat") {
         return Some((0.28, 0.42));
@@ -443,7 +463,7 @@ pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("gpt-4.1") {
         return 200_000;
     }
-    if model.starts_with("gpt-5.4") {
+    if model.starts_with("gpt-5.5") || model.starts_with("gpt-5.4") {
         return 1_000_000;
     }
     if model.starts_with("gpt-4o") || model.starts_with("gpt-5") {
@@ -470,6 +490,9 @@ pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("grok-4.20") {
         return 2_000_000;
     }
+    if model.starts_with("grok-4.3") {
+        return 1_000_000;
+    }
     if model.starts_with("grok-4") {
         return 256_000;
     }
@@ -478,6 +501,9 @@ pub fn context_limit(model: &str) -> u64 {
     }
     if model.starts_with("mistral-") || model.starts_with("codestral") {
         return 128_000;
+    }
+    if model.starts_with("deepseek-v4") {
+        return 1_000_000;
     }
     if model.starts_with("deepseek-") {
         return 128_000;

@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent for your terminal and desktop + HTTP LLM proxy server — 70 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon. Security-first by default.
+AI agent for your terminal and desktop + HTTP LLM proxy server — 74 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon. Security-first by default.
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -750,11 +750,13 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5.4-mini` | $0.75 | $4.50 |
 | `gpt-5.4` | $2.50 | $15.00 |
 | `gpt-5.4-pro` | $60.00 | $270.00 |
+| `gpt-5.5` | $5.00 | $30.00 |
+| `gpt-5.5-pro` | $30.00 | $180.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
 
-GPT-5.2 and GPT-5.4 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price.
+GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price.
 
 #### Anthropic
 
@@ -789,6 +791,7 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `grok-4.3` | $1.25 | $2.50 |
 | `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` | $2.00 | $6.00 |
 | `grok-4` | $3.00 | $15.00 |
 | `grok-4-fast-reasoning` / `grok-4-fast-non-reasoning` | $0.20 | $0.50 |
@@ -796,7 +799,7 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 | `grok-3` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
-Grok 4 Fast and Grok 4.20 ship with a 2M-token context window, the largest available across frontier models.
+Grok 4 Fast and Grok 4.20 ship with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold.
 
 #### Mistral
 
@@ -815,8 +818,11 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `deepseek-v4-flash` | $0.14 | $0.28 |
 | `deepseek-chat` | $0.28 | $0.42 |
 | `deepseek-reasoner` | $0.28 | $0.42 |
+
+`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility.
 
 #### Kimi
 
