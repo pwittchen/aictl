@@ -1065,6 +1065,7 @@ body.nav-open {
 }
 
 .install__alt .cmd { max-width: 100%; }
+.install__alt .cmd + .cmd { margin-top: 12px; }
 
 #server > .container > .cmd { max-width: 100%; }
 
