@@ -183,6 +183,87 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
       </div>
     </section>
 
+    <section class="section section--alt" id="docker">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// docker</span>
+          <h2 class="section__title">Run in a container</h2>
+          <p class="section__lead">
+            A multi-stage Dockerfile (Rust &rarr;
+            <code>debian:bookworm-slim</code>) lives at
+            <code>docker/server.Dockerfile</code>. Build it, run it
+            with a named volume so the auto-generated master key
+            survives restarts.
+          </p>
+        </header>
+
+        <div class="cmd cmd--block" style="max-width: none;">
+          <code id="srv-cmd-docker-build"><span class="tok-c"># Build from the repo root.</span>
+docker build <span class="tok-k">-f</span> docker/server.Dockerfile <span class="tok-k">-t</span> aictl-server <span class="tok-p">.</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-docker-build" aria-label="Copy docker build command">Copy</button>
+        </div>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-docker-run"><span class="tok-c"># Persistent named volume holds ~/.aictl/ for the in-container user.</span>
+docker run <span class="tok-k">--rm</span> <span class="tok-k">-d</span> <span class="tok-p">\</span>
+  <span class="tok-k">--name</span> aictl-server <span class="tok-p">\</span>
+  <span class="tok-k">-p</span> 127.0.0.1:7878:7878 <span class="tok-p">\</span>
+  <span class="tok-k">-v</span> aictl-data:/home/aictl/.aictl <span class="tok-p">\</span>
+  aictl-server
+
+<span class="tok-c"># First launch prints the master key to stderr — capture it.</span>
+docker logs aictl-server</code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-docker-run" aria-label="Copy docker run command">Copy</button>
+        </div>
+
+        <div class="grid grid--2" style="margin-top: 48px;">
+          <article class="card">
+            <h3>What's baked in</h3>
+            <p>
+              <code>AICTL_SERVER_BIND</code> defaults to
+              <code>0.0.0.0:7878</code> inside the container so the
+              published port is reachable; the master-key gate, body
+              cap, concurrency cap, and optional rate limit still
+              apply. A <code>HEALTHCHECK</code> hits
+              <code>/healthz</code> every 30 s.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Optional features</h3>
+            <p>
+              The <code>gguf</code> and <code>redaction-ner</code> cargo
+              features are off by default — pass
+              <code>--build-arg FEATURES="redaction-ner"</code> to opt
+              in. MLX is Apple-Silicon-only and is never built in the
+              Linux image.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Provider keys</h3>
+            <p>
+              Either bake them into the persisted volume's
+              <code>~/.aictl/config</code> (one-time, then they roll
+              with restarts) or pass them at run time via
+              <code>-e LLM_OPENAI_API_KEY=…</code>. The CLI's
+              <code>/keys</code> lock flow doesn't apply inside the
+              container — there's no Secret Service to migrate into,
+              so the keyring backend silently falls back to plain
+              config.
+            </p>
+          </article>
+          <article class="card">
+            <h3>TLS</h3>
+            <p>
+              The server itself does not speak TLS. Run nginx, Caddy,
+              or your platform's load balancer in front to terminate
+              HTTPS; the SSE streaming path needs
+              <code>proxy_buffering off</code> on nginx.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="api">
       <div class="container">
         <header class="section__head">

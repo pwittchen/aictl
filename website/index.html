@@ -487,6 +487,31 @@
             </p>
           </div>
 
+          <div class="install__alt">
+            <p>Or run inside Docker (multi-stage Rust build &rarr; <code>debian:bookworm-slim</code>):</p>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="install-cmd-docker-build">docker build -f docker/cli.Dockerfile -t aictl .</code>
+              <button class="cmd__copy" type="button" data-copy="#install-cmd-docker-build" aria-label="Copy docker build command">Copy</button>
+            </div>
+            <div class="cmd">
+              <span class="cmd__prompt">$</span>
+              <code id="install-cmd-docker-run">docker run --rm -it -v "$HOME/.aictl:/home/aictl/.aictl" -v "$PWD:/workspace" aictl</code>
+              <button class="cmd__copy" type="button" data-copy="#install-cmd-docker-run" aria-label="Copy docker run command">Copy</button>
+            </div>
+            <p class="install__hint">
+              The host's <code>~/.aictl</code> mount carries config,
+              keys, sessions, and audit between runs; the project mount
+              is what the agent's <code>read_file</code>,
+              <code>write_file</code>, and <code>exec_shell</code> tools
+              operate on. Cargo features
+              (<code>gguf</code>, <code>redaction-ner</code>) are off by
+              default &mdash; opt in with
+              <code>--build-arg FEATURES=…</code>. MLX is
+              Apple-Silicon-only and never built in the Linux image.
+            </p>
+          </div>
+
           <p class="section__note">
             For more information and usage instructions, see the <a href="https://github.com/pwittchen/aictl/blob/master/README.md" target="_blank" rel="noopener">docs</a>.
           </p>
@@ -550,6 +575,10 @@
           <code id="server-install-cmd">curl -fsSL https://aictl.app/server/install.sh | sh</code>
           <button class="cmd__copy" type="button" data-copy="#server-install-cmd" aria-label="Copy server install command">Copy</button>
         </div>
+
+        <p class="install__hint" style="margin-top: 8px;">
+          Or run via Docker: <code>docker/server.Dockerfile</code> is a multi-stage build that brings the proxy up on <code>127.0.0.1:7878</code> with a persistent volume for keys and the auto-generated master key. <code>HEALTHCHECK</code> hits <code>/healthz</code> every 30 s.
+        </p>
 
         <div class="hero__actions" style="justify-content: flex-start; margin-top: 32px;">
           <a class="btn btn--primary" href="server.html">Read more</a>

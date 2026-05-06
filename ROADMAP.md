@@ -14,11 +14,6 @@
 ## CLI
 
 - investigate redaction NER mechanisms - ensure it works correctly with CLI and that data is redacted in session, audit, history, messages in the chat (CLI) and responses
-- prepare Docker setup for CLI
-
-## Server
-
-- prepare Docker setup for server
 
 ---
 

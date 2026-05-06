@@ -170,6 +170,31 @@
             </p>
           </div>
         </div>
+
+        <div class="install__alt" style="margin-top: 32px;">
+          <p>Or run inside Docker (multi-stage Rust build &rarr; <code>debian:bookworm-slim</code>):</p>
+          <div class="cmd">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-docker-build">docker build -f docker/cli.Dockerfile -t aictl .</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-docker-build" aria-label="Copy docker build command">Copy</button>
+          </div>
+          <div class="cmd">
+            <span class="cmd__prompt">$</span>
+            <code id="g-cmd-docker-run">docker run --rm -it -v "$HOME/.aictl:/home/aictl/.aictl" -v "$PWD:/workspace" aictl</code>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-docker-run" aria-label="Copy docker run command">Copy</button>
+          </div>
+          <p class="install__hint">
+            Mounting <code>~/.aictl</code> persists config, keys,
+            sessions, and audit; the project mount is what the agent's
+            file and shell tools operate on. The image runs as UID
+            1000; with no Secret Service inside the container, the
+            keyring backend silently falls back to plain
+            <code>~/.aictl/config</code>. Cargo features
+            (<code>gguf</code>, <code>redaction-ner</code>) are off by
+            default and opt-in via
+            <code>--build-arg FEATURES=…</code>.
+          </p>
+        </div>
       </div>
     </section>
 

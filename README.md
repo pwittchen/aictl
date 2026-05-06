@@ -110,6 +110,65 @@ Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and C
 
 The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it. The macOS Apple Silicon (`aarch64`) release additionally ships with `--features mlx` and includes a sibling `mlx.metallib` file alongside the binary (MLX needs the Metal library at runtime); every other platform's release contains just the `aictl` binary.
 
+### Docker
+
+A Dockerfile for the CLI lives at [`docker/cli.Dockerfile`](docker/cli.Dockerfile). It is a multi-stage build (Rust → `debian:bookworm-slim`) that bakes only the `aictl` binary; cloud providers, Ollama-over-HTTP, and the MCP/plugin/hook subsystems all work out of the box. The optional cargo features (`gguf`, `mlx`, `redaction-ner`) are off by default — MLX is Apple-Silicon-only and is never built in the Linux image; the other two pull large native deps and can be opted into per-build with `--build-arg FEATURES=…`.
+
+Build once:
+
+```sh
+docker build -f docker/cli.Dockerfile -t aictl .
+```
+
+#### Interactive REPL
+
+`-it` allocates a TTY so rustyline's line editor works. Mount `~/.aictl` for persistent config / keys / sessions / audit, and mount the current project so the agent's `read_file`, `write_file`, and `exec_shell` tools operate on it.
+
+```sh
+docker run --rm -it \
+  -v "$HOME/.aictl:/home/aictl/.aictl" \
+  -v "$PWD:/workspace" \
+  aictl
+```
+
+Pass slash commands and flags as you would on the host:
+
+```sh
+# Pick a non-default agent and start in incognito mode.
+docker run --rm -it \
+  -v "$HOME/.aictl:/home/aictl/.aictl" \
+  -v "$PWD:/workspace" \
+  aictl --agent reviewer --incognito
+```
+
+#### Single-shot (non-interactive)
+
+Drop `-it`. Anything after the image name appends to the entrypoint, so the same flags you'd use on the host work verbatim. stdout is the agent's answer — pipe it, redirect it, or feed it into another tool.
+
+```sh
+# Plain prompt.
+docker run --rm \
+  -v "$HOME/.aictl:/home/aictl/.aictl" \
+  aictl --message "summarize this repo"
+
+# Machine-readable output for scripts.
+docker run --rm \
+  -v "$HOME/.aictl:/home/aictl/.aictl" \
+  -v "$PWD:/workspace" \
+  aictl --message "list TODOs in src/" --format json --quiet \
+  | jq -r '.answer'
+
+# Headless run with a specific provider/model and a saved session.
+docker run --rm \
+  -v "$HOME/.aictl:/home/aictl/.aictl" \
+  -v "$PWD:/workspace" \
+  aictl --provider anthropic --model claude-sonnet-4-6 \
+        --session triage --auto \
+        --message "open the latest failing test and propose a fix"
+```
+
+The image runs as a non-root `aictl` user (UID 1000); the keyring backend in the container has no Secret Service to talk to, so `keys::get_secret` falls back to the plain `~/.aictl/config` entry — the same fallback path the CLI uses on hosts without a keyring daemon. See the [HTTP server section](#http-server-aictl-server) below for the server image and [SERVER.md](SERVER.md#docker) for the full Docker reference.
+
 ## Build desktop app
 
 The desktop frontend (`aictl-desktop`) is a Tauri v2 app with a Solid + Vite webview that reuses the same `aictl-core` engine as the CLI. It is **macOS-only** for the first release and is excluded from the workspace's default member set, so a bare `cargo build` / `cargo lint` / `cargo test` keeps working without Tauri's deps. Build it explicitly with `-p aictl-desktop`.
@@ -191,6 +250,26 @@ curl -fsSL https://aictl.app/server/install.sh | sh
 aictl-server     # listens on 127.0.0.1:7878 by default; prints master key on first launch
 aictl --serve    # convenience shortcut from the CLI; forwards trailing args after `--`
 ```
+
+### Run with Docker
+
+```sh
+# Build.
+docker build -f docker/server.Dockerfile -t aictl-server .
+
+# Run with a persistent named volume so the auto-generated master key
+# (and your provider keys) survive container restarts.
+docker run --rm -d \
+  --name aictl-server \
+  -p 127.0.0.1:7878:7878 \
+  -v aictl-data:/home/aictl/.aictl \
+  aictl-server
+
+# First launch prints the master key to stderr — capture it.
+docker logs aictl-server
+```
+
+The image binds `0.0.0.0:7878` inside the container so the published port is reachable; the master-key gate, body cap, concurrency cap, and the optional rate limit still apply. A `HEALTHCHECK` hits `/healthz` every 30s. See [SERVER.md](SERVER.md#docker) for the rest of the reference.
 
 ### Use `aictl-server` as the upstream
 

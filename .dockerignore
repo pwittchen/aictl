@@ -1,0 +1,29 @@
+# Keep the Docker build context lean. Cargo's target/ and the website
+# bundle are the two biggest sinks; .git is the third.
+
+target/
+**/target/
+
+.git/
+.github/
+
+website/
+screenshot*.png
+
+# Local desktop signing material — never ship into a build context.
+.macos-signing/
+
+# Editor / OS junk.
+.DS_Store
+**/*.swp
+**/*.rs.bk
+
+# Local-only Claude Code settings.
+.claude/settings.local.json
+website/.claude/settings.local.json
+
+# Notes that don't belong in the image.
+COMMERCIAL_PRICING.md
+
+# The CLI's per-user state is mounted at runtime, never baked in.
+.aictl/

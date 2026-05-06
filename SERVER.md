@@ -405,13 +405,32 @@ server {
 
 ### Docker
 
-```dockerfile
-FROM debian:stable-slim
-COPY aictl-server /usr/local/bin/aictl-server
-COPY --chown=aictl:aictl aictl-config /home/aictl/.aictl/config
-EXPOSE 7878
-ENTRYPOINT ["/usr/local/bin/aictl-server"]
+A multi-stage Dockerfile lives at [`docker/server.Dockerfile`](docker/server.Dockerfile). The build context expects to be the workspace root so cargo can see every crate.
+
+```sh
+# Build the image (Rust → debian:bookworm-slim, ~25 MB final layer).
+docker build -f docker/server.Dockerfile -t aictl-server .
+
+# Run with a persistent named volume so the auto-generated master key
+# and any provider keys you set inside the container survive restarts.
+docker run --rm -d \
+  --name aictl-server \
+  -p 127.0.0.1:7878:7878 \
+  -v aictl-data:/home/aictl/.aictl \
+  aictl-server
+
+# Capture the master key from the first-launch banner.
+docker logs aictl-server
 ```
+
+Knobs to know:
+
+- `AICTL_SERVER_BIND` is set to `0.0.0.0:7878` inside the image so the published port is reachable. Override with `-e AICTL_SERVER_BIND=…` to bind a different interface or port.
+- The `aictl-data` volume holds `~/.aictl/` for the in-container `aictl` user (UID 1000). The auto-generated `AICTL_SERVER_MASTER_KEY` lands in `~/.aictl/config` (no Secret Service in the container, so the keyring backend silently falls back).
+- A `HEALTHCHECK` runs `curl -fsS http://127.0.0.1:7878/healthz` every 30s — Docker marks the container `unhealthy` if it stops responding.
+- Optional cargo features (`gguf`, `redaction-ner`) are off by default; enable per-build with `--build-arg FEATURES="redaction-ner"`. MLX is Apple-Silicon-only and never built in the Linux image.
+- Provider keys: bake them into the volume's `~/.aictl/config` or pass them at run time (`-e LLM_OPENAI_API_KEY=…`). The CLI's `/keys` lock flow does not apply inside the container — there is no keyring backend to migrate into.
+- For TLS, run nginx/Caddy in front (see the nginx snippet above) or terminate at the platform's load balancer; the server itself does not speak TLS.
 
 ## FAQ
 
