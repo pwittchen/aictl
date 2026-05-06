@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Update README.md, CLAUDE.md, ARCH.md, and the website (website/index.html, website/cli.html) to match the current project state
+description: Update README.md, CLAUDE.md, ARCH.md, and the website (website/index.html, website/terminal.html) to match the current project state
 allowed-tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Edit, Write, Glob, Grep
 
 Synchronize all project documentation with the actual codebase. Read the source of truth (Rust source files, Cargo.toml, config) and update each doc file so it accurately reflects the current state — no stale references, no missing features, no wrong counts.
 
-Scope covers both repo-level docs (`README.md`, `CLAUDE.md`, `ARCH.md`) and the public website under `website/` (`index.html`, `cli.html`). The Rust source is authoritative; website copy must stay aligned with it.
+Scope covers both repo-level docs (`README.md`, `CLAUDE.md`, `ARCH.md`) and the public website under `website/` (`index.html`, `terminal.html`). The Rust source is authoritative; website copy must stay aligned with it.
 
 ## Workflow
 
@@ -91,7 +91,7 @@ The public landing page. Marketing copy, but the concrete numbers and names must
 - Install section — commands must still work
 - Nav anchors — every `href="#..."` must resolve to an `id` that still exists
 
-#### website/cli.html
+#### website/terminal.html
 
 The long-form user guide. Same source-of-truth rules as index.html, plus more detail. Check:
 
@@ -121,10 +121,10 @@ Rules specific to the website:
 
 After editing, confirm:
 
-- The same tool count appears in README.md, CLAUDE.md, ARCH.md, `website/index.html`, and `website/cli.html`
-- The same provider count and list appear in README.md, CLAUDE.md, `website/index.html`, and `website/cli.html`
+- The same tool count appears in README.md, CLAUDE.md, ARCH.md, `website/index.html`, and `website/terminal.html`
+- The same provider count and list appear in README.md, CLAUDE.md, `website/index.html`, and `website/terminal.html`
 - The same version string appears in `Cargo.toml`, `src/main.rs` (if hardcoded), README.md (if referenced), and the hero tag in `website/index.html`
-- The same command list appears in README.md, ARCH.md, and `website/cli.html` REPL section
+- The same command list appears in README.md, ARCH.md, and `website/terminal.html` REPL section
 - The same module list appears in CLAUDE.md and ARCH.md
 - No doc references features or values that don't exist in source
 - No source feature is missing from the docs

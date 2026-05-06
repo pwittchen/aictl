@@ -6,14 +6,14 @@ allowed-tools: Bash, Read, Edit, Write, Grep, WebFetch, WebSearch
 
 ## Purpose
 
-Keep aictl's supported-model catalog in step with what each LLM provider actually offers. This skill discovers newly released models per provider, diffs them against the `MODELS` constant in `src/llm.rs`, and — after user confirmation — adds the new entries and updates `README.md` plus the website (`website/index.html`, `website/cli.html`) so the pricing tables, provider sections, and public landing page stay accurate.
+Keep aictl's supported-model catalog in step with what each LLM provider actually offers. This skill discovers newly released models per provider, diffs them against the `MODELS` constant in `src/llm.rs`, and — after user confirmation — adds the new entries and updates `README.md` plus the website (`website/index.html`, `website/terminal.html`) so the pricing tables, provider sections, and public landing page stay accurate.
 
 Source of truth:
 
 - **Current supported set** — `MODELS` in `src/llm.rs` (`provider`, `model_name`, `api_key_config_key`).
 - **Per-model pricing** — `price_per_million()` in `src/llm.rs`.
 - **Docs** — `README.md` (per-provider model tables + total model count in the tagline), `LLM_PRICING.md` (overall cost table header mentions the effective date).
-- **Website** — `website/index.html` (hero copy + meta tags reference the total cloud-model count), `website/cli.html` (per-provider cards under `#providers` describe each provider's model lineup in prose).
+- **Website** — `website/index.html` (hero copy + meta tags reference the total cloud-model count), `website/terminal.html` (per-provider cards under `#providers` describe each provider's model lineup in prose).
 
 ## Scope of "new model"
 
@@ -99,7 +99,7 @@ The website lives in `website/`. Two files reference the model catalog:
   - `<meta property="og:description" ...>` next to it
   - the hero `<p class="hero__subtitle">` block (search for `cloud models across`)
   Update all three to the new `N` (and `M` provider count if it changed). Keep the surrounding wording verbatim.
-- **`website/cli.html`** — the `#providers` section (search for `<h2 class="section__title">Providers &amp; models</h2>`) has one `<article class="card">` per provider with a one-line prose summary of that provider's models (e.g. "grok-4.20 and grok-4, grok-4-fast / 4.1-fast …"). For each provider with new additions, edit the matching card's `<p>` to mention the new model in the same conversational style. Do not restructure the card or change any other prose. If `M` changed, also update the lead text under the `<h2>` ("Eight remote APIs plus three local backends.") to match.
+- **`website/terminal.html`** — the `#providers` section (search for `<h2 class="section__title">Providers &amp; models</h2>`) has one `<article class="card">` per provider with a one-line prose summary of that provider's models (e.g. "grok-4.20 and grok-4, grok-4-fast / 4.1-fast …"). For each provider with new additions, edit the matching card's `<p>` to mention the new model in the same conversational style. Do not restructure the card or change any other prose. If `M` changed, also update the lead text under the `<h2>` ("Eight remote APIs plus three local backends.") to match.
 
 Don't touch any other files in `website/` (CSS, JS, build config) — model-sync changes are content-only.
 
@@ -117,15 +117,15 @@ Run, in order:
 
 If any command fails, fix the cause (commonly: a stray comma, an out-of-order `starts_with` branch shadowing a more specific one, or a duplicate tuple) and rerun. Do not proceed with a red build.
 
-The website has no test suite or linter — visually inspect the diff for `website/index.html` and `website/cli.html` instead. If `bun` is available locally, optionally run `bun run build` from `website/` to confirm the bundler still produces `dist/` cleanly. Do not commit `dist/` artifacts.
+The website has no test suite or linter — visually inspect the diff for `website/index.html` and `website/terminal.html` instead. If `bun` is available locally, optionally run `bun run build` from `website/` to confirm the bundler still produces `dist/` cleanly. Do not commit `dist/` artifacts.
 
-Finally, re-read the changed regions of `src/llm.rs`, `README.md`, `website/index.html`, and `website/cli.html` and confirm:
+Finally, re-read the changed regions of `src/llm.rs`, `README.md`, `website/index.html`, and `website/terminal.html` and confirm:
 
 - Every new `MODELS` tuple has a matching `price_per_million` branch.
 - Every new README row matches a `MODELS` tuple exactly (string equality).
 - No existing row was reordered or deleted.
 - The cloud-model count `N` is identical in `README.md` (tagline), `website/index.html` (meta description, OG description, hero subtitle), and the actual count of non-local entries in `MODELS`.
-- Each `website/cli.html` provider card mentions the new model name(s).
+- Each `website/terminal.html` provider card mentions the new model name(s).
 
 ### 8. Report
 
@@ -133,7 +133,7 @@ Print a short summary to the user:
 
 - Models added per provider (count + list).
 - Models flagged but skipped, with reason (unknown pricing, non-text, deprecated).
-- Files changed (expect `src/llm.rs`, `README.md`, `website/index.html`, `website/cli.html`).
+- Files changed (expect `src/llm.rs`, `README.md`, `website/index.html`, `website/terminal.html`).
 - New total cloud-model count if it changed.
 
 Do **not** commit — leave staging to the user (or a follow-up `/commit`).
@@ -144,6 +144,6 @@ Do **not** commit — leave staging to the user (or a follow-up `/commit`).
 - Preserve the existing ordering and formatting of `MODELS`, README tables, and website prose.
 - Never remove supported models in this skill — additions only.
 - Do not edit `LLM_PRICING.md`; it is updated separately.
-- Within `website/`, only touch `index.html` and `cli.html`. Leave CSS, JS, build scripts, and `dist/` alone.
+- Within `website/`, only touch `index.html` and `terminal.html`. Leave CSS, JS, build scripts, and `dist/` alone.
 - Do not add emoji or `Co-Authored-By` lines.
 - If a provider's docs page is unreachable, report it and continue with the next provider — a partial sync is still useful.
