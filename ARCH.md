@@ -79,11 +79,13 @@ Cargo features (`gguf`, `mlx`, `redaction-ner`) live on the `aictl-core` crate; 
  │  1. load_config()            read ~/.aictl/config into RwLock<HashMap>   │
  │  2. Cli::parse()             parse --provider, --model, -m, ...          │
  │  2a. apply_cwd_override()    resolve a working dir in this order:        │
- │                              --cwd <PATH>, AICTL_WORKING_DIR from        │
- │                              ~/.aictl/config, or the launch dir          │
- │                              (no-op). When the first two are set, the    │
- │                              path is canonicalized (handles ~ and        │
- │                              relatives), verified to be a directory,     │
+ │                              --cwd <PATH>, AICTL_WORKING_DIR_CLI from    │
+ │                              ~/.aictl/config (canonical, parallel to     │
+ │                              AICTL_WORKING_DIR_DESKTOP), AICTL_WORKING_  │
+ │                              DIR (legacy fallback), or the launch dir    │
+ │                              (no-op). When any of the first three are    │
+ │                              set, the path is canonicalized (handles ~   │
+ │                              and relatives), verified to be a directory, │
  │                              and std::env::set_current_dir'd into        │
  │                              before any subsystem reads the launch dir   │
  │                              (jail root, prompt file, project-local      │
@@ -865,7 +867,7 @@ Plain text, one `key=value` per line. Comments start with `#`; blank lines are i
 Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
 - **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
-- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`), `AICTL_SKILLS_DIR` (override the default `~/.aictl/skills/` location), `AICTL_WORKING_DIR` (persistent working directory / CWD jail root for the CLI; `--cwd <PATH>` overrides per-run)
+- **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_MEMORY` (`long-term`/`short-term`), `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`), `AICTL_SKILLS_DIR` (override the default `~/.aictl/skills/` location), `AICTL_WORKING_DIR_CLI` (persistent working directory / CWD jail root for the CLI; canonical key parallel to `AICTL_WORKING_DIR_DESKTOP`; `--cwd <PATH>` overrides per-run), `AICTL_WORKING_DIR` (legacy unsuffixed fallback for the same purpose; `AICTL_WORKING_DIR_CLI` wins when both are set)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 - **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.
 - **Hooks**: `AICTL_HOOKS_FILE` (override the default `~/.aictl/hooks.json` path; used mainly by tests). The hook entries themselves live in the JSON file, not in `config`.

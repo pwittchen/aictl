@@ -351,14 +351,25 @@ pub fn config_get_scoped(server_key: &str, cli_key: &str) -> Option<String> {
 /// `aictl-desktop` reads this on startup and writes it through the
 /// settings UI; the security policy uses it as the CWD jail root when
 /// `role() == Role::Desktop`. Intentionally distinct from
-/// [`AICTL_WORKING_DIR`] (the CLI's optional `--cwd` persistence) — the
-/// two keys never fall back to each other, so a user can pin the
-/// desktop to a project folder while keeping the CLI workspace-agnostic
-/// (or vice versa).
+/// [`AICTL_WORKING_DIR_CLI`] / [`AICTL_WORKING_DIR`] — the desktop key
+/// never falls back to the CLI keys, so a user can pin the desktop to a
+/// project folder while keeping the CLI workspace-agnostic (or vice
+/// versa).
 pub const AICTL_WORKING_DIR_DESKTOP: &str = "AICTL_WORKING_DIR_DESKTOP";
 
-/// Config key that holds the CLI's optional anchor path (set by `--cwd`
-/// or persisted directly).
+/// Config key that holds the CLI's pinned workspace folder.
+///
+/// Canonical CLI-specific anchor — parallel to
+/// [`AICTL_WORKING_DIR_DESKTOP`]. When set, the CLI changes into this
+/// path before any tool dispatch and uses it as the CWD jail root, so
+/// every shell/file tool resolves relative paths here and is restricted
+/// to this subtree. Takes precedence over [`AICTL_WORKING_DIR`] when
+/// both are set; `--cwd <PATH>` overrides both for one run.
+pub const AICTL_WORKING_DIR_CLI: &str = "AICTL_WORKING_DIR_CLI";
+
+/// Legacy unsuffixed CLI anchor key. Kept as a fallback for existing
+/// configs — [`AICTL_WORKING_DIR_CLI`] is the canonical name and wins
+/// when both are present.
 pub const AICTL_WORKING_DIR: &str = "AICTL_WORKING_DIR";
 
 /// Which local config root was found in the current working directory.

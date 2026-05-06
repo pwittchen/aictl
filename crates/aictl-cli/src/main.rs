@@ -729,20 +729,31 @@ fn exit_with_error(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-/// Apply the `--cwd` flag (or the `AICTL_WORKING_DIR` config fallback)
-/// for this process. When a path is supplied we canonicalize it
-/// (resolves symlinks and `..`, makes it absolute) and
-/// `set_current_dir` into it before any other startup code runs.
-/// Downstream subsystems already read `std::env::current_dir()` for
-/// the jail root (`security::load_policy`), the project prompt file
+/// Apply the `--cwd` flag (or the `AICTL_WORKING_DIR_CLI` /
+/// `AICTL_WORKING_DIR` config fallback) for this process. When a path
+/// is supplied we canonicalize it (resolves symlinks and `..`, makes
+/// it absolute) and `set_current_dir` into it before any other startup
+/// code runs. Downstream subsystems already read
+/// `std::env::current_dir()` for the jail root
+/// (`security::load_policy`), the project prompt file
 /// (`config::load_prompt_file`), and project-local agent/skill
 /// overrides (`config::local_config_root`), so this single anchor
 /// flips all three at once. A bad path exits with a clear error
 /// rather than silently falling back — silent fallback would defeat
 /// the user's intent of jailing to that specific directory.
+///
+/// Lookup precedence: `--cwd` flag → `AICTL_WORKING_DIR_CLI` (the
+/// canonical CLI-specific key, parallel to `AICTL_WORKING_DIR_DESKTOP`)
+/// → `AICTL_WORKING_DIR` (legacy unsuffixed name, kept as a fallback)
+/// → launch dir.
 fn apply_cwd_override(cwd: Option<&std::path::Path>) {
     let (path, source): (std::path::PathBuf, &str) = if let Some(p) = cwd {
         (p.to_path_buf(), "--cwd")
+    } else if let Some(raw) = config_get("AICTL_WORKING_DIR_CLI")
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+    {
+        (std::path::PathBuf::from(raw), "AICTL_WORKING_DIR_CLI")
     } else if let Some(raw) = config_get("AICTL_WORKING_DIR")
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())

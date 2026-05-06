@@ -123,7 +123,7 @@ than silently producing an unsigned bundle.
 The desktop runs every tool call inside a folder the user picks at
 first launch (Settings → Workspace later). The path is stored in
 `~/.aictl/config` as `AICTL_WORKING_DIR_DESKTOP` and is **independent
-of the CLI's `AICTL_WORKING_DIR`** — pinning one binary doesn't
+of the CLI's `AICTL_WORKING_DIR_CLI` (or legacy `AICTL_WORKING_DIR`)** — pinning one binary doesn't
 silently change the other. Until a workspace is set, the security
 policy refuses every CWD-relative tool call with
 `"no workspace selected"`. See plan §5.4.

@@ -180,7 +180,7 @@ xattr -dr com.apple.quarantine /Applications/aictl.app
 
 The official DMGs published to [GitHub Releases](https://github.com/pwittchen/aictl/releases) are signed with a Developer ID and notarized by Apple — those open cleanly without any workaround.
 
-The desktop reuses every `~/.aictl/` config file (sessions, agents, skills, MCP, hooks, plugins, audit log, stats) but pins its tool-call working directory to `AICTL_WORKING_DIR_DESKTOP` — independent of the CLI's `AICTL_WORKING_DIR`, so launching the desktop won't silently retarget CLI tool calls. See [`crates/aictl-desktop/README.md`](crates/aictl-desktop/README.md) for the layout and current status.
+The desktop reuses every `~/.aictl/` config file (sessions, agents, skills, MCP, hooks, plugins, audit log, stats) but pins its tool-call working directory to `AICTL_WORKING_DIR_DESKTOP` — independent of the CLI's `AICTL_WORKING_DIR_CLI` (or legacy `AICTL_WORKING_DIR`), so launching the desktop won't silently retarget CLI tool calls. See [`crates/aictl-desktop/README.md`](crates/aictl-desktop/README.md) for the layout and current status.
 
 ## HTTP server (`aictl-server`)
 
@@ -321,7 +321,7 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--format` | Output format for single-shot (`--message`) mode: `md` (default — raw markdown source from the LLM, with streaming when stdout is a TTY), `text` (markdown stripped to plain prose), or `json` (one-line `{"answer", "model", "provider"}` envelope on stdout; reasoning/tool chatter and streaming suppressed). Ignored in interactive REPL |
 | `--audit-file` | Write the per-line JSON audit log to an explicit path. Intended for single-shot (`--message`) runs, which otherwise have no session id to key the default `~/.aictl/audit/<session-id>` file by. Force-enables audit logging even when `AICTL_SECURITY_AUDIT_LOG=false`. Parent directories are created on demand |
-| `--cwd` | Working directory for this run. The CLI changes into this path before any tool dispatch and uses it as the CWD jail root, so file/shell tools resolve relative paths here and are restricted to this subtree. Accepts absolute, relative, and `~`-prefixed paths. Falls back to `AICTL_WORKING_DIR` in `~/.aictl/config`; when neither is set, the launch directory is used |
+| `--cwd` | Working directory for this run. The CLI changes into this path before any tool dispatch and uses it as the CWD jail root, so file/shell tools resolve relative paths here and are restricted to this subtree. Accepts absolute, relative, and `~`-prefixed paths. Falls back to `AICTL_WORKING_DIR_CLI` (canonical) or `AICTL_WORKING_DIR` (legacy) in `~/.aictl/config`; when none are set, the launch directory is used |
 | `--unrestricted` | Disable all security restrictions (use with caution) |
 | `--incognito` | Start interactive REPL without saving any session (disables `/session`). Falls back to `AICTL_INCOGNITO` in `~/.aictl/config` |
 | `--session` | Load a saved session by uuid or name on startup (interactive mode only) |

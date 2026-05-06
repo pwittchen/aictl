@@ -267,17 +267,18 @@ fn load_policy() -> SecurityPolicy {
 ///
 /// * `Role::Cli` and `Role::Server`: process launch directory. The CLI
 ///   anchors this via `apply_cwd_override` (which reads `--cwd` /
-///   `AICTL_WORKING_DIR` and `set_current_dir`s into the resolved
-///   path); the server has no tool dispatch so the value is moot.
+///   `AICTL_WORKING_DIR_CLI` / `AICTL_WORKING_DIR` and
+///   `set_current_dir`s into the resolved path); the server has no
+///   tool dispatch so the value is moot.
 /// * `Role::Desktop`: the value of `AICTL_WORKING_DIR_DESKTOP` from
 ///   `~/.aictl/config`. When unset or pointing at a non-directory,
 ///   returns an empty `PathBuf` sentinel — `validate_tool` interprets
 ///   that as "no workspace selected" and rejects every CWD-relative
 ///   tool call with a clear error.
 ///
-/// Crucially, `Role::Desktop` never falls back to the CLI's
-/// `AICTL_WORKING_DIR`. The two keys are namespaced by binary so a
-/// shared `~/.aictl/config` can pin them to different folders.
+/// Crucially, `Role::Desktop` never falls back to the CLI keys. The
+/// keys are namespaced by binary so a shared `~/.aictl/config` can pin
+/// them to different folders.
 fn working_dir_for_role() -> PathBuf {
     match role() {
         Role::Desktop => match config_get(AICTL_WORKING_DIR_DESKTOP) {
