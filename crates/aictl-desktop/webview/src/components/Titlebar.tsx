@@ -17,6 +17,12 @@ interface Props {
   contextPct: number | null;
   contextTokens: { input: number; limit: number } | null;
   onShowContextDetails: () => void;
+  /// Newest upstream version when an update is available, or `null`
+  /// when the running build is already current / the user dismissed
+  /// the badge / the probe failed.
+  updateAvailable: string | null;
+  onShowUpdate: () => void;
+  onDismissUpdate: () => void;
 }
 
 const Titlebar: Component<Props> = (props) => {
@@ -93,6 +99,30 @@ const Titlebar: Component<Props> = (props) => {
             </span>
           </Show>
         </div>
+        <Show when={props.updateAvailable}>
+          {(version) => (
+            <span class="titlebar-update" role="group" aria-label="Update available">
+              <button
+                type="button"
+                class="titlebar-update-btn"
+                title={`aictl ${version()} is available — click to view in About`}
+                onClick={props.onShowUpdate}
+              >
+                <span class="titlebar-update-dot" aria-hidden="true" />
+                <span>Update {version()}</span>
+              </button>
+              <button
+                type="button"
+                class="titlebar-update-dismiss"
+                aria-label="Dismiss update notice"
+                title="Dismiss until next release"
+                onClick={props.onDismissUpdate}
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </Show>
         <Show when={props.contextPct !== null}>
           <ContextMeter
             pct={props.contextPct ?? 0}

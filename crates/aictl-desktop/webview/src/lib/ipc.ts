@@ -320,6 +320,12 @@ export interface LocalModelsStatus {
   mlx: MlxStatus;
 }
 
+export interface VersionCheck {
+  current: string;
+  latest: string | null;
+  update_available: boolean;
+}
+
 export interface ContextStatus {
   model: string | null;
   provider: string | null;
@@ -423,6 +429,9 @@ export const ipc = {
   // -- system ----
   async version() {
     return invoke<string>("version");
+  },
+  async checkVersion() {
+    return invoke<VersionCheck>("check_version");
   },
   async buildProfile() {
     return invoke<"debug" | "release">("build_profile");

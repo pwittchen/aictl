@@ -37,6 +37,7 @@ import {
   type StatsBucket,
   type StatsSnapshot,
   type ToolRow,
+  type VersionCheck,
   type WorkspaceState,
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
@@ -4251,6 +4252,8 @@ const AboutTab: Component = () => {
   );
   const [buildTime] = createResource<string>(() => ipc.buildTime());
   const [buildCommit] = createResource<string>(() => ipc.buildCommit());
+  const [check, setCheck] = createSignal<VersionCheck | null>(null);
+  const [checking, setChecking] = createSignal(false);
   const formattedBuildTime = (): string | null => {
     const raw = buildTime();
     if (!raw) return null;
@@ -4259,6 +4262,31 @@ const AboutTab: Component = () => {
     return new Date(secs * 1000).toLocaleString();
   };
   const [error, setError] = createSignal<string | null>(null);
+  const refreshVersion = async () => {
+    setError(null);
+    setChecking(true);
+    try {
+      setCheck(await ipc.checkVersion());
+    } catch (err) {
+      setError(`${err}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+  // Auto-check on mount so the user opening About sees the result without
+  // a click. The HTTP probe has a 5s server-side cap and runs against a
+  // raw GitHub asset, so this rarely takes more than a moment.
+  onMount(() => {
+    void refreshVersion();
+  });
+  const latestLabel = (): string => {
+    const c = check();
+    if (checking()) return "checking…";
+    if (!c) return "—";
+    if (!c.latest) return "unavailable";
+    if (!c.update_available) return `${c.latest} (latest)`;
+    return `${c.latest} (update available)`;
+  };
   const reveal = async (kind: "audit" | "config") => {
     setError(null);
     try {
@@ -4283,6 +4311,27 @@ const AboutTab: Component = () => {
         <label>Version</label>
         <div class="settings-value">
           <code>{version() ?? "…"}</code>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label>Latest</label>
+        <div class="settings-value settings-control-line">
+          <code>{latestLabel()}</code>
+          <button
+            type="button"
+            onClick={() => void refreshVersion()}
+            disabled={checking()}
+          >
+            {checking() ? "checking…" : "Check now"}
+          </button>
+          <Show when={check()?.update_available}>
+            <button
+              type="button"
+              onClick={() => void open("https://aictl.app/#install")}
+            >
+              Download update
+            </button>
+          </Show>
         </div>
       </div>
       <div class="settings-row">

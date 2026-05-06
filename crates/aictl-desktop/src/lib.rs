@@ -89,6 +89,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::system::version,
+            commands::system::check_version,
             commands::system::build_profile,
             commands::system::build_time,
             commands::system::build_commit,

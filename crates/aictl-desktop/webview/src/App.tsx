@@ -164,6 +164,12 @@ const App: Component = () => {
   // prompt builder reads. We mirror the name here so the composer's
   // sparkles icon can light up.
   const [loadedAgent, setLoadedAgent] = createSignal<string | null>(null);
+  // Latest upstream release advertised by the on-launch version check.
+  // Drives the titlebar update badge; null while the probe is in flight
+  // or when the build is already on master. The probe hits a raw GitHub
+  // asset with a short timeout, so a flaky network just leaves the
+  // signal null and the badge stays hidden.
+  const [latestVersion, setLatestVersion] = createSignal<string | null>(null);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -424,6 +430,27 @@ const App: Component = () => {
     void refreshToolsEnabled();
     void refreshApprovalDefault();
     void refreshNotifications();
+    // Fire-and-forget upstream version check. The result populates the
+    // titlebar badge when an update is available; failures (offline,
+    // GitHub blip, dismissed in localStorage) just leave it hidden.
+    void ipc
+      .checkVersion()
+      .then((result) => {
+        if (!result.update_available || !result.latest) return;
+        try {
+          if (
+            typeof window !== "undefined" &&
+            window.localStorage.getItem("aictl.update.dismissed") ===
+              result.latest
+          ) {
+            return;
+          }
+        } catch {
+          // localStorage unavailable — fall through to showing the badge.
+        }
+        setLatestVersion(result.latest);
+      })
+      .catch(() => {});
     void ipc
       .skillLoaded()
       .then((name) => setLoadedSkill(name))
@@ -736,6 +763,24 @@ const App: Component = () => {
         contextPct={contextPct()}
         contextTokens={contextTokens()}
         onShowContextDetails={() => setShowContextDetails(true)}
+        updateAvailable={latestVersion()}
+        onShowUpdate={() => {
+          setSettingsInitialTab("about");
+          setShowSettings(true);
+        }}
+        onDismissUpdate={() => {
+          const v = latestVersion();
+          if (v) {
+            try {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem("aictl.update.dismissed", v);
+              }
+            } catch {
+              // localStorage unavailable — best-effort only.
+            }
+          }
+          setLatestVersion(null);
+        }}
       />
       <Show when={workspace().path}>
         <Sidebar
