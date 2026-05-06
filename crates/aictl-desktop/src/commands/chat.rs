@@ -329,6 +329,17 @@ pub async fn compact_chat(
                 .messages
                 .lock()
                 .map_err(|_| "messages mutex poisoned".to_string())? = msgs;
+            // Reset the cached token counters: the previous reading was
+            // taken on the pre-compact transcript, so leaving it in
+            // place would keep the titlebar meter pinned at the old
+            // (high) percentage even though the buffer just shrank. The
+            // next real turn will overwrite these with a fresh reading.
+            state
+                .last_input_tokens
+                .store(0, std::sync::atomic::Ordering::Relaxed);
+            state
+                .last_output_tokens
+                .store(0, std::sync::atomic::Ordering::Relaxed);
             Ok(TranscriptUpdate {
                 messages: projected,
                 prompt: None,

@@ -671,6 +671,20 @@ const App: Component = () => {
       const update = await ipc.compactChat();
       setMessages(projectFromBackend(update.messages));
       bumpSessions();
+      // Refresh the titlebar meter and any open ContextDetails: the
+      // backend resets its cached token counts on success, so a fresh
+      // contextStatus() reflects the post-compact state. Failures are
+      // swallowed — the rest of the compaction already succeeded.
+      try {
+        const c = await ipc.contextStatus();
+        setContextPct(Math.min(100, Math.max(0, c.context_pct)));
+        setContextTokens({
+          input: c.last_input_tokens,
+          limit: c.context_limit,
+        });
+      } catch (err) {
+        console.warn("failed to refresh context status after compact", err);
+      }
     } catch (err) {
       append({ kind: "error", text: `${err}` });
     }
