@@ -27,6 +27,8 @@ import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import Settings, { type Tab as SettingsTab } from "./components/Settings";
 import ContextDetails from "./components/ContextDetails";
+import UpdateModal from "./components/UpdateModal";
+import { checkUpdate, type UpdateInfo } from "./lib/updater";
 import ProviderSetup, {
   type ProviderSetupTarget,
 } from "./components/ProviderSetup";
@@ -133,6 +135,16 @@ const App: Component = () => {
     SettingsTab | undefined
   >(undefined);
   const [showContextDetails, setShowContextDetails] = createSignal(false);
+  // In-app updater dialog — opened from the titlebar update banner or
+  // from the About tab's "Install update" button. Carries the
+  // pre-fetched manifest entry so the modal can skip its own re-check
+  // when the user clicks straight from the badge.
+  const [showUpdate, setShowUpdate] = createSignal(false);
+  const [updateInfo, setUpdateInfo] = createSignal<UpdateInfo | null>(null);
+  const openUpdate = (info: UpdateInfo | null) => {
+    setUpdateInfo(info);
+    setShowUpdate(true);
+  };
   // First-run nudge: when the user has no usable model provider
   // configured we surface a dialog with deep links into the relevant
   // Settings tabs. `dismissed` flips on Skip so we don't re-pop it
@@ -430,25 +442,27 @@ const App: Component = () => {
     void refreshToolsEnabled();
     void refreshApprovalDefault();
     void refreshNotifications();
-    // Fire-and-forget upstream version check. The result populates the
-    // titlebar badge when an update is available; failures (offline,
-    // GitHub blip, dismissed in localStorage) just leave it hidden.
-    void ipc
-      .checkVersion()
-      .then((result) => {
-        if (!result.update_available || !result.latest) return;
+    // Fire-and-forget probe of the updater manifest. Populates both the
+    // titlebar badge and the prefetched `updateInfo` the modal opens
+    // with, so a click on the badge skips its own re-check round-trip.
+    // Failures (offline, manifest 404, dismissed in localStorage) just
+    // leave the badge hidden.
+    void checkUpdate()
+      .then((info) => {
+        if (!info) return;
         try {
           if (
             typeof window !== "undefined" &&
             window.localStorage.getItem("aictl.update.dismissed") ===
-              result.latest
+              info.version
           ) {
             return;
           }
         } catch {
           // localStorage unavailable — fall through to showing the badge.
         }
-        setLatestVersion(result.latest);
+        setUpdateInfo(info);
+        setLatestVersion(info.version);
       })
       .catch(() => {});
     void ipc
@@ -764,10 +778,7 @@ const App: Component = () => {
         contextTokens={contextTokens()}
         onShowContextDetails={() => setShowContextDetails(true)}
         updateAvailable={latestVersion()}
-        onShowUpdate={() => {
-          setSettingsInitialTab("about");
-          setShowSettings(true);
-        }}
+        onShowUpdate={() => openUpdate(updateInfo())}
         onDismissUpdate={() => {
           const v = latestVersion();
           if (v) {
@@ -855,6 +866,12 @@ const App: Component = () => {
       <Show when={showContextDetails()}>
         <ContextDetails onClose={() => setShowContextDetails(false)} />
       </Show>
+      <Show when={showUpdate()}>
+        <UpdateModal
+          initial={updateInfo()}
+          onClose={() => setShowUpdate(false)}
+        />
+      </Show>
       <Show when={showProviderSetup()}>
         <ProviderSetup
           onPickTarget={(target: ProviderSetupTarget) => {
@@ -891,6 +908,7 @@ const App: Component = () => {
           onChangeModel={changeModel}
           onRefreshModels={refreshModels}
           initialTab={settingsInitialTab()}
+          onShowUpdate={openUpdate}
         />
       </Show>
     </div>

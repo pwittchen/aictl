@@ -27,13 +27,15 @@ aictl-core = { path = "../aictl-core" }
 #   * clipboard    — ⌘⇧C "copy last answer" + per-message copy
 #   * shell        — "Reveal audit log in Finder"
 #   * opener       — open markdown / external links in the default browser
-#   * updater      — Sparkle-style auto-update for the Phase 7 release
+#   * updater      — in-app self-update flow (download + install + restart)
+#   * process      — `relaunch()` after the updater swaps the bundle in
 tauri = { version = "2", features = ["macos-private-api", "devtools"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # Async runtime + serde — needed to drive the agent loop from a
 # `#[tauri::command]` and serialize `AgentEvent` across the IPC boundary.

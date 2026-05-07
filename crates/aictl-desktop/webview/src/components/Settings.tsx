@@ -37,10 +37,10 @@ import {
   type StatsBucket,
   type StatsSnapshot,
   type ToolRow,
-  type VersionCheck,
   type WorkspaceState,
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
+import { checkUpdate, type UpdateInfo } from "../lib/updater";
 import AgentEditor from "./AgentEditor";
 import McpEditor from "./McpEditor";
 import SkillEditor from "./SkillEditor";
@@ -59,6 +59,11 @@ interface Props {
   /// Initial tab the panel opens on. Used by the provider-setup dialog
   /// to deep-link straight to API Keys / Local Models / LLM Servers.
   initialTab?: Tab;
+  /// Open the in-app update modal. Called from the About tab's
+  /// "Install update" button so the modal is mounted at the App level
+  /// (and can outlive a Settings close) rather than nested inside this
+  /// overlay.
+  onShowUpdate?: (info: UpdateInfo | null) => void;
 }
 
 export type Tab =
@@ -221,7 +226,7 @@ const Settings: Component<Props> = (props) => {
               <ShellTab />
             </Show>
             <Show when={tab() === "about"}>
-              <AboutTab />
+              <AboutTab onShowUpdate={props.onShowUpdate} />
             </Show>
           </section>
         </div>
@@ -4245,14 +4250,22 @@ export function applyAppearance(s: AppearanceState) {
   root.setAttribute("data-density", density);
 }
 
-const AboutTab: Component = () => {
+interface AboutTabProps {
+  onShowUpdate?: (info: UpdateInfo | null) => void;
+}
+
+const AboutTab: Component<AboutTabProps> = (props) => {
   const [version] = createResource<string>(() => ipc.version());
   const [profile] = createResource<"debug" | "release">(() =>
     ipc.buildProfile(),
   );
   const [buildTime] = createResource<string>(() => ipc.buildTime());
   const [buildCommit] = createResource<string>(() => ipc.buildCommit());
-  const [check, setCheck] = createSignal<VersionCheck | null>(null);
+  // The About tab now drives the updater plugin's manifest probe
+  // directly — same call the launch-time check uses, so what's
+  // displayed here matches what the install flow will pull.
+  const [updateCheck, setUpdateCheck] = createSignal<UpdateInfo | null>(null);
+  const [checked, setChecked] = createSignal(false);
   const [checking, setChecking] = createSignal(false);
   const formattedBuildTime = (): string | null => {
     const raw = buildTime();
@@ -4266,26 +4279,26 @@ const AboutTab: Component = () => {
     setError(null);
     setChecking(true);
     try {
-      setCheck(await ipc.checkVersion());
+      setUpdateCheck(await checkUpdate());
+      setChecked(true);
     } catch (err) {
       setError(`${err}`);
     } finally {
       setChecking(false);
     }
   };
-  // Auto-check on mount so the user opening About sees the result without
-  // a click. The HTTP probe has a 5s server-side cap and runs against a
-  // raw GitHub asset, so this rarely takes more than a moment.
+  // Auto-check on mount so the user opening About sees the result
+  // without a click. `checkUpdate` hits the GitHub Releases manifest;
+  // a flaky network surfaces in `error` rather than blocking the tab.
   onMount(() => {
     void refreshVersion();
   });
   const latestLabel = (): string => {
-    const c = check();
     if (checking()) return "checking…";
-    if (!c) return "—";
-    if (!c.latest) return "unavailable";
-    if (!c.update_available) return `${c.latest} (latest)`;
-    return `${c.latest} (update available)`;
+    if (!checked()) return "—";
+    const u = updateCheck();
+    if (!u) return `${version() ?? "—"} (latest)`;
+    return `${u.version} (update available)`;
   };
   const reveal = async (kind: "audit" | "config") => {
     setError(null);
@@ -4324,12 +4337,13 @@ const AboutTab: Component = () => {
           >
             {checking() ? "checking…" : "Check now"}
           </button>
-          <Show when={check()?.update_available}>
+          <Show when={updateCheck() && props.onShowUpdate}>
             <button
               type="button"
-              onClick={() => void open("https://aictl.app/#install")}
+              class="primary"
+              onClick={() => props.onShowUpdate?.(updateCheck())}
             >
-              Download update
+              Install update
             </button>
           </Show>
         </div>

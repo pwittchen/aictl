@@ -118,6 +118,56 @@ base64 -i ~/Desktop/devid.p12 | pbcopy   # paste into MACOS_CERTIFICATE
 If any secret is missing, the desktop build will fail loudly rather
 than silently producing an unsigned bundle.
 
+### Updater signing key
+
+The in-app update flow (download → install → restart) is driven by
+[`tauri-plugin-updater`](https://v2.tauri.app/plugin/updater/), which
+verifies a minisign signature over the downloaded `.app.tar.gz`
+**independently** of Apple's Developer ID codesign. The keypair is
+yours alone — generate it once, commit the public half, keep the
+private half offline.
+
+Generate the pair locally:
+
+```bash
+npm install -g @tauri-apps/cli@^2          # if not already installed
+tauri signer generate -w ~/.aictl/updater.key
+```
+
+The command prints two values:
+
+- the **public key** (base64 string, ~80 chars) — paste it into the
+  `plugins.updater.pubkey` field of
+  [`tauri.conf.json`](tauri.conf.json), replacing the
+  `REPLACE_WITH_TAURI_UPDATER_PUBKEY` placeholder.
+- the **private key file** at `~/.aictl/updater.key` — never commit
+  this. Treat it like the Developer ID `.p12`.
+
+Add two more repo secrets so the release workflow can sign the
+updater archive:
+
+| Secret | Value |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | contents of `~/.aictl/updater.key` (paste the whole multi-line file) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | the password you entered when generating the key |
+
+The next tag push will produce, for each macOS arch:
+
+- `aictl-desktop-darwin-<arch>.dmg` (existing — for fresh installs)
+- `aictl-desktop-darwin-<arch>.app.tar.gz` (new — for in-app updates)
+- `aictl-desktop-darwin-<arch>.app.tar.gz.sig`
+- `latest.json` (the manifest the running app fetches)
+
+The app's update endpoint is
+`https://github.com/<owner>/<repo>/releases/latest/download/latest.json`,
+which auto-redirects to the most recent tag — there's no separate
+hosting to maintain.
+
+If a build runs without the secrets set, the
+`Package updater archive` step fails with a clear error rather than
+silently producing an unsigned tarball that the running app would
+refuse to install.
+
 ## Workspace folder
 
 The desktop runs every tool call inside a folder the user picks at

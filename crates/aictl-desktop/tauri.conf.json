@@ -39,5 +39,12 @@
       "entitlements": "entitlements.plist"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/pwittchen/aictl/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMwQkVCMTY0NjE3Mzc5QjQKUldTMGVYTmhaTEcrTU9iZU9jQjZpQVhkdTNuU0lLSVVCNERPVlA3azIrUXNDNzRTYlRkN2hVZE8K"
+    }
+  }
 }

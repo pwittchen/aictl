@@ -3234,3 +3234,67 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* Update modal — reuses the .ctx-details-* skeleton; this block adds
+   the download progress strip, the release-notes pre, and a primary
+   install button that picks up the accent color so it stands out from
+   the secondary "Re-check" / "Not now" actions. */
+.update-progress {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.update-progress-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-soft);
+}
+
+/* Indeterminate stripe used while the update is checking, the
+   download header hasn't arrived yet, or the bundle is being
+   installed. The bar element has its width forced to 30% via the
+   keyframes — `style.width` from the determinate path is overridden
+   by `!important` rules inside the animation. */
+.update-progress-indet {
+  animation: update-progress-slide 1.4s ease-in-out infinite;
+  width: 30% !important;
+}
+
+@keyframes update-progress-slide {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
+
+.update-notes {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow-y: auto;
+  color: var(--fg-soft);
+}
+
+/* Primary call-to-action variant used by the in-app updater "Install
+   update" buttons (Settings → About and the modal footer). */
+button.primary {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+button.primary:hover:not([disabled]) {
+  background: var(--accent);
+  color: var(--bg);
+}

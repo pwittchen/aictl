@@ -352,6 +352,42 @@ jobs:
           xcrun stapler staple "$app_dir"
           xcrun stapler validate "$app_dir"
 
+      - name: Package updater archive (.app.tar.gz + .sig)
+        # tauri-plugin-updater downloads a tarball of the .app, verifies
+        # its minisign signature, then extracts in place over the
+        # currently-running bundle. We tarball the *post-notarize* .app
+        # (so the unwrapped bundle keeps Apple's codesign + stapled
+        # ticket) and then sign the tarball with the Tauri updater key.
+        # Done before the DMG step on purpose — that step removes the
+        # release/ tree to free disk for hdiutil.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "ERROR: TAURI_SIGNING_PRIVATE_KEY secret is not set."
+            echo "       Generate one with 'tauri signer generate' and add it to the repo secrets."
+            echo "       See crates/aictl-desktop/README.md (Updater signing key)."
+            exit 1
+          fi
+          app_dir=$(find "target/${{ matrix.target }}/release/bundle/macos" -type d -name "*.app" -print -quit)
+          if [ -z "$app_dir" ]; then
+            echo "ERROR: .app not produced"
+            exit 1
+          fi
+          archive_name="${{ matrix.artifact }}.app.tar.gz"
+          # Tar from the parent dir so the archive root is `aictl.app/`
+          # rather than the GitHub-runner-specific absolute path.
+          tar -C "$(dirname "$app_dir")" -czf "$archive_name" "$(basename "$app_dir")"
+          tauri signer sign \
+            --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
+            --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" \
+            "$archive_name"
+          ls -la "$archive_name" "$archive_name.sig"
+          echo "updater_archive=$archive_name" >> "$GITHUB_ENV"
+          echo "updater_signature=$archive_name.sig" >> "$GITHUB_ENV"
+
       - name: Package DMG
         # Tauri's own DMG bundler runs before the metallib injection
         # step above, so we build the DMG manually with hdiutil to
@@ -434,6 +470,19 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ env.asset }}
 
+      - name: Upload updater archive artifact
+        # Two separate artifacts: the tarball that the updater plugin
+        # actually downloads, and the .sig file that the release job
+        # consumes when assembling latest.json. Distinct artifact names
+        # so `download-artifact ... merge-multiple` flattens them
+        # cleanly into the same dir.
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}-updater
+          path: |
+            ${{ env.updater_archive }}
+            ${{ env.updater_signature }}
+
   release:
     needs: [build, build-desktop]
     runs-on: ubuntu-latest
@@ -462,6 +511,45 @@ jobs:
             echo "$log"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
+
+      - name: Generate updater manifest (latest.json)
+        # tauri-plugin-updater fetches this JSON, picks the entry that
+        # matches the running build's `<os>-<arch>` (e.g.
+        # `darwin-aarch64`), downloads the URL there, verifies the
+        # signature against the pubkey baked into tauri.conf.json, and
+        # extracts the .app.tar.gz over the existing bundle.
+        # The endpoint configured in the app is
+        #   https://github.com/<owner>/<repo>/releases/latest/download/latest.json
+        # so this asset must be named exactly latest.json.
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          pub_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          base="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}"
+          sig_x86=$(cat artifacts/aictl-desktop-darwin-x86_64.app.tar.gz.sig)
+          sig_arm=$(cat artifacts/aictl-desktop-darwin-aarch64.app.tar.gz.sig)
+          # `jq -n` so embedded newlines / quotes in the .sig payloads
+          # are escaped properly. The plugin parses this with serde, so
+          # malformed JSON would silently disable the updater.
+          jq -n \
+            --arg v "$version" \
+            --arg date "$pub_date" \
+            --arg notes "Release $GITHUB_REF_NAME — see https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME" \
+            --arg sig_x86 "$sig_x86" \
+            --arg sig_arm "$sig_arm" \
+            --arg url_x86 "$base/aictl-desktop-darwin-x86_64.app.tar.gz" \
+            --arg url_arm "$base/aictl-desktop-darwin-aarch64.app.tar.gz" \
+            '{
+              version: $v,
+              notes: $notes,
+              pub_date: $date,
+              platforms: {
+                "darwin-x86_64": { signature: $sig_x86, url: $url_x86 },
+                "darwin-aarch64": { signature: $sig_arm, url: $url_arm }
+              }
+            }' > artifacts/latest.json
+          cat artifacts/latest.json
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
