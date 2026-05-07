@@ -688,10 +688,10 @@ const App: Component = () => {
     try {
       const update = await ipc.retryLast();
       setMessages(projectFromBackend(update.messages));
-      if (update.prompt !== null) {
-        setComposerPrefill(update.prompt);
-      }
       bumpSessions();
+      if (update.prompt !== null) {
+        await send(update.prompt);
+      }
     } catch (err) {
       append({ kind: "error", text: `${err}` });
     }

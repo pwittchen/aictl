@@ -220,10 +220,10 @@ pub fn clear_chat(state: State<'_, Arc<AppState>>) -> Result<TranscriptUpdate, S
 }
 
 /// Pop the most recent user/assistant exchange and surface the original
-/// prompt back to the composer so the user can edit-and-resend (or just
-/// hit ↩ to fire the same prompt again). Returns the updated transcript
-/// alongside the prompt; the webview clears the composer of any
-/// half-typed text and writes `prompt` in.
+/// prompt back to the frontend so it can re-fire the same turn (mirrors
+/// the CLI's `/retry`). Returns the updated transcript alongside the
+/// prompt; the webview re-renders from `messages` and immediately
+/// resubmits `prompt` through `send_message`.
 #[tauri::command]
 pub fn retry_last(state: State<'_, Arc<AppState>>) -> Result<TranscriptUpdate, String> {
     let mut msgs = state
