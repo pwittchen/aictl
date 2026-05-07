@@ -1014,6 +1014,160 @@ body.nav-open {
   .server-demo__latency { font-size: 10.5px; width: 48px; }
 }
 
+/* CLI demo — static HTML/CSS recreation of the aictl REPL screenshot.
+   Scoped terminal palette stays inside the demo so the site's single-accent
+   rule still holds for everything else. */
+.cli-demo {
+  width: 100%;
+  max-width: 858px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  color: var(--fg);
+  text-align: left;
+  --tt-text: rgba(255, 255, 255, 0.92);
+  --tt-dim: rgba(255, 255, 255, 0.42);
+  --tt-rule: rgba(255, 255, 255, 0.22);
+  --tt-cyan: var(--accent);
+  --tt-green: #6fcf97;
+  --tt-yellow: #e8c884;
+}
+
+.cli-demo__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.cli-demo__dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--fg-30);
+}
+
+.cli-demo__dot:nth-of-type(1) { opacity: 0.35; }
+.cli-demo__dot:nth-of-type(2) { opacity: 0.55; }
+.cli-demo__dot:nth-of-type(3) { opacity: 0.75; }
+
+.cli-demo__bar-shortcut {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-58px);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--fg-30);
+}
+
+.cli-demo__bar-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--fg-50);
+}
+
+.cli-demo__body {
+  padding: 18px 22px 22px;
+}
+
+.cli-demo__banner {
+  margin: 0 0 14px;
+  padding: 6px 14px 8px;
+  border-top: 1px solid var(--tt-rule);
+  border-left: 1px solid var(--tt-rule);
+  border-bottom: 1px solid var(--tt-rule);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--tt-text);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.cli-demo__convo {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--tt-text);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.cli-demo .tt-rule   { color: var(--tt-rule); }
+.cli-demo .tt-face   { color: var(--tt-cyan); }
+.cli-demo .tt-brand  { color: var(--tt-cyan); font-weight: 600; }
+.cli-demo .tt-dim    { color: var(--tt-dim); }
+.cli-demo .tt-ok     { color: var(--tt-green); }
+.cli-demo .tt-prov   { color: var(--tt-green); }
+.cli-demo .tt-model  { color: var(--tt-yellow); }
+.cli-demo .tt-info   { color: var(--tt-cyan); }
+.cli-demo .tt-prompt { color: var(--tt-cyan); }
+.cli-demo .tt-tool   { color: var(--tt-cyan); }
+.cli-demo .tt-tag    { color: var(--tt-dim); }
+.cli-demo .tt-status { color: var(--tt-green); opacity: 0.78; }
+.cli-demo .tt-summary{ color: var(--tt-cyan); opacity: 0.78; }
+.cli-demo .tt-bold   { font-weight: 600; }
+
+/* Input block — mirrors the actual REPL's dark-gray prompt rectangle
+   (`\x1b[48;5;236m` ≈ #303030 on top of #1f2228) with explicit top/bottom
+   padding so the block reads as a distinct input area rather than a
+   trailing line. */
+.cli-demo__input {
+  margin: 14px 0;
+  padding: 14px 16px;
+  background: var(--surface-hover);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--tt-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cli-demo__chevron {
+  color: var(--tt-cyan);
+  font-weight: 600;
+}
+
+.cli-demo__cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--tt-cyan);
+  vertical-align: -2px;
+  animation: blink 1.1s steps(2) infinite;
+}
+
+@media (max-width: 860px) {
+  .cli-demo__body { padding: 16px 18px 20px; }
+  .cli-demo__banner,
+  .cli-demo__convo,
+  .cli-demo__input { font-size: 11.5px; }
+}
+
+@media (max-width: 600px) {
+  .cli-demo__body { padding: 14px 14px 18px; }
+  .cli-demo__banner,
+  .cli-demo__convo,
+  .cli-demo__input { font-size: 10px; line-height: 1.6; }
+  .cli-demo__input { padding: 12px 12px; }
+  .cli-demo__bar-shortcut { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cli-demo__cursor { animation: none; }
+}
+
 .preview-block__cta--top {
   margin-top: 0;
   margin-bottom: 32px;

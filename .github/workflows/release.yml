@@ -64,6 +64,12 @@ jobs:
             sed -i "s/v[0-9][0-9.]*\( ·[^<]*<\/div>\)/v$tag_version\1/" website/index.html
             changed=1
           fi
+          # CLI banner mock — span carries `data-cli-version` so the bump
+          # has a stable hook regardless of the surrounding markup.
+          if ! grep -q "data-cli-version>$tag_version<" website/index.html; then
+            sed -i "s|data-cli-version>[0-9][0-9.]*<|data-cli-version>$tag_version<|" website/index.html
+            changed=1
+          fi
           if ! grep -q "v$tag_version ·" website/terminal.html; then
             sed -i "s/v[0-9][0-9.]*\( ·[^<]*<\/div>\)/v$tag_version\1/" website/terminal.html
             changed=1
