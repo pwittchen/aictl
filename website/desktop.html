@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>aictl — Desktop app</title>
+  <meta name="description" content="aictl-desktop is a native macOS app for the aictl AI agent. Same providers, tools, sessions, agents, and security policy as the CLI — in a window. Apple-signed and notarized." />
+  <meta name="theme-color" content="#1f2228" />
+  <meta property="og:title" content="aictl — Desktop app" />
+  <meta property="og:description" content="Native macOS app for the aictl AI agent — same engine, providers, and tools as the CLI, in a window." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aictl.app/desktop.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="index.html" class="nav__brand">aictl<span class="nav__caret">_</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#providers">Providers</a>
+        <a href="index.html#tools">Tools</a>
+        <a href="index.html#compare">Compare</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="terminal.html">Terminal</a>
+        <a href="server.html">Server</a>
+        <a href="index.html#license">License</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="#download">Download</a>
+      <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
+        <span class="nav__toggle-lines" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="nav__backdrop" data-nav-backdrop hidden></div>
+  <aside class="nav__drawer" id="nav-drawer" aria-hidden="true" aria-label="Mobile menu">
+    <div class="nav__drawer-head">
+      <span class="nav__drawer-brand">aictl<span class="nav__caret">_</span></span>
+      <button class="nav__close" type="button" aria-label="Close menu" data-nav-close>&times;</button>
+    </div>
+    <nav class="nav__drawer-links" aria-label="Mobile primary">
+      <a href="index.html#features" data-nav-link>Features</a>
+      <a href="index.html#providers" data-nav-link>Providers</a>
+      <a href="index.html#tools" data-nav-link>Tools</a>
+      <a href="index.html#compare" data-nav-link>Compare</a>
+      <a href="desktop.html" data-nav-link>Desktop</a>
+      <a href="terminal.html" data-nav-link>Terminal</a>
+      <a href="server.html" data-nav-link>Server</a>
+      <a href="index.html#license" data-nav-link>License</a>
+    </nav>
+    <a class="btn btn--primary nav__drawer-cta" href="#download" data-nav-link>Download</a>
+  </aside>
+
+  <main>
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="tag">aictl · v0.39.3 · Desktop app · macOS</div>
+        <h1 class="hero__title" style="font-size: clamp(56px, 12vw, 160px);">desktop</h1>
+        <p class="hero__subtitle">
+          Native macOS app for the aictl AI agent. Same providers,
+          tools, sessions, agents, skills, and security policy as the
+          CLI &mdash; in a window. One config under
+          <code>~/.aictl/</code> shared between both surfaces.
+        </p>
+
+        <div class="download" role="group" aria-label="Download macOS desktop app" style="margin-top: 24px;">
+          <button class="btn btn--primary download__btn" type="button" data-download-mac>
+            <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            Download for macOS
+          </button>
+          <div class="download__arch">
+            <select class="download__select" data-arch-select aria-label="Architecture">
+              <option value="aarch64">Apple Silicon</option>
+              <option value="x86_64">Intel</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="hero__actions" style="width: 760px; max-width: 100%;">
+          <a class="btn btn--ghost" href="#toc"><svg class="btn__icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill-rule="evenodd" fill="currentColor" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0 0 16.5 9h-1.875a1.875 1.875 0 0 1-1.875-1.875V5.25A3.75 3.75 0 0 0 9 1.5H5.625ZM7.5 15a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 7.5 15Zm.75 2.25a.75.75 0 0 0 0 1.5H12a.75.75 0 0 0 0-1.5H8.25Z" clip-rule="evenodd"/><path fill="currentColor" d="M12.971 1.816A5.23 5.23 0 0 1 14.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 0 1 3.434 1.279 9.768 9.768 0 0 0-6.963-6.963Z"/></svg>View contents</a>
+          <a class="btn btn--ghost" href="#download"><svg class="btn__icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill-rule="evenodd" fill="currentColor" d="M14.615 1.595a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.71l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.143Z" clip-rule="evenodd"/></svg>Get started</a>
+          <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener"><svg class="btn__icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd"><g transform="translate(-140 -7559)"><g transform="translate(56 160)"><path d="M94,7399 C99.523,7399 104,7403.59 104,7409.253 C104,7413.782 101.138,7417.624 97.167,7418.981 C96.66,7419.082 96.48,7418.762 96.48,7418.489 C96.48,7418.151 96.492,7417.047 96.492,7415.675 C96.492,7414.719 96.172,7414.095 95.813,7413.777 C98.04,7413.523 100.38,7412.656 100.38,7408.718 C100.38,7407.598 99.992,7406.684 99.35,7405.966 C99.454,7405.707 99.797,7404.664 99.252,7403.252 C99.252,7403.252 98.414,7402.977 96.505,7404.303 C95.706,7404.076 94.85,7403.962 94,7403.958 C93.15,7403.962 92.295,7404.076 91.497,7404.303 C89.586,7402.977 88.746,7403.252 88.746,7403.252 C88.203,7404.664 88.546,7405.707 88.649,7405.966 C88.01,7406.684 87.619,7407.598 87.619,7408.718 C87.619,7412.646 89.954,7413.526 92.175,7413.785 C91.889,7414.041 91.63,7414.493 91.54,7415.156 C90.97,7415.418 89.522,7415.871 88.63,7414.304 C88.63,7414.304 88.101,7413.319 87.097,7413.247 C87.097,7413.247 86.122,7413.234 87.029,7413.87 C87.029,7413.87 87.684,7414.185 88.139,7415.37 C88.139,7415.37 88.726,7417.2 91.508,7416.58 C91.513,7417.437 91.522,7418.245 91.522,7418.489 C91.522,7418.76 91.338,7419.077 90.839,7418.982 C86.865,7417.627 84,7413.783 84,7409.253 C84,7403.59 88.478,7399 94,7399"/></g></g></g></svg>View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="preview">
+      <div class="container">
+        <header class="section__head section__head--center">
+          <span class="section__kicker">// preview</span>
+          <h2 class="section__title">A look at the app</h2>
+          <p class="section__lead">
+            Title bar with workspace pin and live context meter, sessions
+            sidebar, chat area with inline tool calls, composer with
+            model picker.
+          </p>
+        </header>
+
+        <figure class="preview">
+          <div class="dt-demo" role="img" aria-label="aictl desktop app: title bar with workspace pin and context meter, sessions sidebar, chat with a list_directory tool call, and a composer at the bottom.">
+            <div class="dt-demo__chrome" aria-hidden="true">
+              <span class="dt-demo__dot dt-demo__dot--red"></span>
+              <span class="dt-demo__dot dt-demo__dot--yellow"></span>
+              <span class="dt-demo__dot dt-demo__dot--green"></span>
+            </div>
+            <div class="dt-demo__app">
+              <header class="dt-demo__titlebar">
+                <span class="dt-demo__brand">aictl</span>
+                <button class="dt-demo__sidebar-toggle" type="button" aria-hidden="true" tabindex="-1">
+                  <svg width="14" height="11" viewBox="0 0 17 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="0.85" y="0.85" width="15.3" height="11.3" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="5.6" y1="1.5" x2="5.6" y2="11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><rect x="1.5" y="1.5" width="3.4" height="10" fill="currentColor" opacity="0.35"/></svg>
+                </button>
+                <span class="dt-demo__pill">~/.aictl/workspace</span>
+                <span class="dt-demo__spacer"></span>
+                <span class="dt-demo__ctx">
+                  <span class="dt-demo__ctx-label">CTX</span>
+                  <span class="dt-demo__ctx-bar"><span class="dt-demo__ctx-fill" style="width: 18%"></span></span>
+                  <span class="dt-demo__ctx-value">18%</span>
+                </span>
+                <span class="dt-demo__stop">Stop</span>
+              </header>
+
+              <aside class="dt-demo__sidebar" aria-hidden="true">
+                <div class="dt-demo__side-header">
+                  <span>SESSIONS</span>
+                  <span class="dt-demo__side-actions">
+                    <span class="dt-demo__ghost">+ NEW</span>
+                    <span class="dt-demo__ghost">INCOGNITO</span>
+                  </span>
+                </div>
+                <div class="dt-demo__filter">filter sessions…</div>
+                <ul class="dt-demo__sessions">
+                  <li class="dt-demo__session" data-active="true">
+                    <span class="dt-demo__session-name">describe contents</span>
+                    <span class="dt-demo__session-when">now</span>
+                  </li>
+                  <li class="dt-demo__session">
+                    <span class="dt-demo__session-name">refactor agent loop</span>
+                    <span class="dt-demo__session-when">2h</span>
+                  </li>
+                  <li class="dt-demo__session">
+                    <span class="dt-demo__session-name">sync model catalog</span>
+                    <span class="dt-demo__session-when">yest</span>
+                  </li>
+                  <li class="dt-demo__session">
+                    <span class="dt-demo__session-name">audit log review</span>
+                    <span class="dt-demo__session-when">2d</span>
+                  </li>
+                  <li class="dt-demo__session">
+                    <span class="dt-demo__session-name">add MCP server</span>
+                    <span class="dt-demo__session-when">3d</span>
+                  </li>
+                </ul>
+                <span class="dt-demo__clear-all">Clear all sessions…</span>
+                <div class="dt-demo__side-bottom">
+                  <span class="dt-demo__bottom-item">
+                    <span>SETTINGS</span>
+                    <span class="dt-demo__shortcut">⌘K</span>
+                  </span>
+                </div>
+              </aside>
+
+              <section class="dt-demo__main">
+                <div class="dt-demo__chat-toolbar" aria-hidden="true">
+                  <div class="dt-demo__toolbar-meta">
+                    <span class="dt-demo__toolbar-label">SESSION</span>
+                    <span class="dt-demo__toolbar-id">9ee82912</span>
+                    <span class="dt-demo__toolbar-count">· 2 messages</span>
+                  </div>
+                  <div class="dt-demo__toolbar-actions">
+                    <span class="dt-demo__ghost">Clear</span>
+                    <span class="dt-demo__ghost">Retry</span>
+                    <span class="dt-demo__ghost">Undo</span>
+                  </div>
+                </div>
+
+                <div class="dt-demo__messages">
+                  <article class="dt-demo__msg" data-role="user">
+                    <div class="dt-demo__msg-meta">USER</div>
+                    <div class="dt-demo__msg-body">describe in one sentence contents of this dir</div>
+                  </article>
+
+                  <article class="dt-demo__msg" data-role="assistant">
+                    <div class="dt-demo__msg-meta">ASSISTANT</div>
+                    <div class="dt-demo__msg-body">Let me look at the directory contents.</div>
+                  </article>
+
+                  <div class="dt-demo__tool" aria-hidden="true">
+                    <div class="dt-demo__tool-head">
+                      <span class="dt-demo__tool-tag">TOOL</span>
+                      <span class="dt-demo__tool-name">list_directory</span>
+                    </div>
+<pre class="dt-demo__tool-body">[FILE] Cargo.toml
+[FILE] LICENSE
+[DIR]  .aictl
+[FILE] AICTL.md
+[DIR]  target
+[FILE] install.sh
+[DIR]  tests
+[DIR]  website
+[DIR]  .claude
+[FILE] CLAUDE.md
+[DIR]  src</pre>
+                  </div>
+
+                  <article class="dt-demo__msg" data-role="assistant">
+                    <div class="dt-demo__msg-meta">ASSISTANT</div>
+                    <div class="dt-demo__msg-body">This directory is the root of the <strong>aictl</strong> Rust workspace, containing source crates (<code>aictl-cli</code>, <code>aictl-core</code>, <code>aictl-server</code>, <code>aictl-desktop</code>), docs, install scripts, and standard project files.</div>
+                  </article>
+                </div>
+
+                <div class="dt-demo__composer" aria-hidden="true">
+                  <div class="dt-demo__textarea">
+                    <span class="dt-demo__placeholder">Type a message</span><span class="dt-demo__caret"></span>
+                  </div>
+                  <div class="dt-demo__composer-footer">
+                    <span class="dt-demo__model">anthropic · claude-sonnet-4-6 ▾</span>
+                    <span class="dt-demo__icon-cluster">
+                      <span class="dt-demo__icon" title="Agents">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.5 7.5L22 11l-7.5 2.5L12 21l-2.5-7.5L2 11l7.5-2.5z"/></svg>
+                      </span>
+                      <span class="dt-demo__icon" title="Skills">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+                      </span>
+                      <span class="dt-demo__send">Send <kbd>↵</kbd></span>
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="toc">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// contents</span>
+          <h2 class="section__title">Jump to a topic</h2>
+          <p class="section__lead">
+            Short, focused entries. Each covers one part of the desktop
+            app.
+          </p>
+        </header>
+
+        <ul class="providers">
+          <li><a href="#preview">Preview</a></li>
+          <li><a href="#download">Download</a></li>
+          <li><a href="#what-you-get">What you get</a></li>
+          <li><a href="#workspace">Workspace</a></li>
+          <li><a href="#sessions">Sessions</a></li>
+          <li><a href="#composer">Chat</a></li>
+          <li><a href="#tool-approvals">Tool approvals</a></li>
+          <li><a href="#settings">Settings</a></li>
+          <li><a href="#shortcuts">Shortcuts</a></li>
+          <li><a href="#shared-state">Shared state</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#updates">Updates</a></li>
+          <li><a href="terminal.html">Terminal</a></li>
+          <li><a href="server.html">HTTP proxy server</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="download">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 01 download</span>
+          <h2 class="section__title">Download &amp; install</h2>
+          <p class="section__lead">
+            macOS 12+ on Apple Silicon and Intel. Signed with a
+            Developer ID and notarized by Apple &mdash; opens cleanly on
+            first launch, no Gatekeeper override.
+          </p>
+        </header>
+
+        <div class="download" role="group" aria-label="Download macOS desktop app" style="margin-bottom: 16px;">
+          <button class="btn btn--primary download__btn" type="button" data-download-mac>
+            <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            Download for macOS
+          </button>
+          <div class="download__arch">
+            <select class="download__select" data-arch-select aria-label="Architecture">
+              <option value="aarch64">Apple Silicon</option>
+              <option value="x86_64">Intel</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="install__hint">
+          The button hits the latest GitHub release and pulls
+          <code>aictl-desktop-darwin-&lt;arch&gt;.dmg</code>. Open the
+          DMG and drag <code>aictl.app</code> into
+          <code>/Applications</code>.
+        </p>
+
+        <div class="grid grid--2" style="margin-top: 32px;">
+          <article class="card">
+            <h3>Apple Silicon build</h3>
+            <p>The aarch64 release ships with native MLX inference enabled and bundles <code>mlx.metallib</code> alongside the binary so on-device models run on the GPU through Metal.</p>
+          </article>
+          <article class="card">
+            <h3>Intel build</h3>
+            <p>The x86_64 release covers Intel Macs. MLX is Apple-Silicon only and is not bundled in this build &mdash; every other provider, tool, and feature is identical.</p>
+          </article>
+          <article class="card">
+            <h3>Build from source</h3>
+            <p>The desktop crate is excluded from the workspace's default member set. Build it explicitly with <code>cargo build -p aictl-desktop --features gguf,mlx,redaction-ner</code>, or run the full Tauri dev workflow under <code>crates/aictl-desktop/</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Auto-update</h3>
+            <p>The app verifies a minisign signature on every update before installing &mdash; independent of Apple's Developer ID codesign. New builds download, verify, install, and restart in place.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="what-you-get">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 02 what you get</span>
+          <h2 class="section__title">One engine, in a window</h2>
+          <p class="section__lead">
+            The desktop app links the same <code>aictl-core</code> Rust
+            crate the CLI uses. No daemon, no sidecar, no second
+            process &mdash; the agent loop runs in-process and the
+            webview is just the UI.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Every provider</h3>
+            <p>Eight cloud providers (OpenAI, Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai), three local backends (Ollama, GGUF, MLX on Apple Silicon), and the <code>aictl-server</code> HTTP proxy &mdash; switch mid-session, conversation context stays.</p>
+          </article>
+          <article class="card">
+            <h3>Every tool</h3>
+            <p>All 31 built-in tools work in the desktop app: shell, files, archives, checksums, clipboard, notifications, web fetch, document reading, image vision, code execution, math, JSON / CSV queries, and host probes. Every call passes through the same security policy as the CLI.</p>
+          </article>
+          <article class="card">
+            <h3>Sessions &amp; agents</h3>
+            <p>Persistent sessions in the sidebar, incognito mode, and the same agent / skill catalogue under <code>~/.aictl/</code>. Resume a session you started in the terminal &mdash; or start one here and open it later from the CLI.</p>
+          </article>
+          <article class="card">
+            <h3>MCP, plugins, hooks</h3>
+            <p>Same opt-in extensions as the CLI. Servers declared in <code>~/.aictl/mcp.json</code> light up in both surfaces; plugins under <code>~/.aictl/plugins/</code> dispatch through the same gate; lifecycle hooks fire the same way.</p>
+          </article>
+          <article class="card">
+            <h3>Native chrome</h3>
+            <p>Real macOS window, real menu bar, real keyboard shortcuts. Drag-and-drop a file into the chat to attach it, &#8984;K for settings, &#8984;N for a new session. No browser tab, no Electron-style memory bloat.</p>
+          </article>
+          <article class="card">
+            <h3>Long-running tasks</h3>
+            <p>Tool calls run in the background while you keep using the rest of the UI. Press <strong>Stop</strong> on the title bar to cancel any in-flight call and roll back the turn &mdash; the same Esc-cancel behavior the CLI ships.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="workspace">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 03 workspace</span>
+          <h2 class="section__title">Workspace folder</h2>
+          <p class="section__lead">
+            Every tool call &mdash; <code>read_file</code>,
+            <code>write_file</code>, <code>exec_shell</code>,
+            <code>list_directory</code> &mdash; runs jailed inside a
+            single workspace folder. The pill in the title bar is your
+            current root.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Default location</h3>
+            <p>On first launch the app picks <code>~/.aictl/workspace/</code> as the workspace. The folder is created on demand &mdash; it is the only directory under <code>~/.aictl/</code> that tools can write to. Sibling folders like <code>~/.aictl/keys</code> and <code>~/.aictl/audit</code> stay off-limits.</p>
+          </article>
+          <article class="card">
+            <h3>Pick a project</h3>
+            <p>Click the workspace pill to swap to any folder &mdash; a project under <code>~/Code/</code>, a writing project under <code>~/Documents/</code>, anything reachable from your account. The choice is remembered across launches in <code>AICTL_WORKING_DIR_DESKTOP</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Independent of the CLI</h3>
+            <p>The desktop's workspace is stored separately from the CLI's. Launching the desktop never silently retargets CLI tool calls; the CLI honours <code>AICTL_WORKING_DIR_CLI</code> (or its launch dir) and the desktop honours <code>AICTL_WORKING_DIR_DESKTOP</code> &mdash; both surfaces stay coherent.</p>
+          </article>
+          <article class="card">
+            <h3>CWD jail still applies</h3>
+            <p>The workspace is not a hint &mdash; it is the jail root. Every shell command and file operation is scoped to it (or rejected). Switch the workspace and the jail moves with it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="sessions">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 04 sessions</span>
+          <h2 class="section__title">Sessions sidebar</h2>
+          <p class="section__lead">
+            Every conversation is a session. Persisted as JSON under
+            <code>~/.aictl/sessions/</code> and shared with the CLI.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>+ NEW</h3>
+            <p>Start a fresh session with an empty context. The previous one stays in the sidebar &mdash; click it any time to resume.</p>
+          </article>
+          <article class="card">
+            <h3>INCOGNITO</h3>
+            <p>Spin up a session that is never written to disk. Closes with the window. Use it for one-off prompts that should not appear in your history.</p>
+          </article>
+          <article class="card">
+            <h3>Filter</h3>
+            <p>The filter bar matches against session names and titles. Naming a session is optional &mdash; aictl auto-titles each one from the first turn so the sidebar stays readable.</p>
+          </article>
+          <article class="card">
+            <h3>Resume from CLI</h3>
+            <p>A session you started in the terminal with <code>aictl --session</code> shows up in the desktop sidebar on the next launch &mdash; same JSON file, same conversation history.</p>
+          </article>
+          <article class="card">
+            <h3>Clear all</h3>
+            <p>One link at the bottom of the sidebar wipes the whole session catalogue. Confirmation dialog first &mdash; no surprise deletes.</p>
+          </article>
+          <article class="card">
+            <h3>JSON on disk</h3>
+            <p>Each session is a single JSON file under <code>~/.aictl/sessions/</code>. Easy to grep from the terminal, easy to back up, easy to inspect &mdash; the on-disk shape is the same one the CLI writes.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="composer">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 05 chat</span>
+          <h2 class="section__title">Chat &amp; composer</h2>
+          <p class="section__lead">
+            A regular chat surface &mdash; user turns, assistant replies,
+            inline tool calls, streaming responses &mdash; with a
+            composer pinned to the bottom.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Streaming</h3>
+            <p>Replies stream token by token from every provider that supports it. The Stop button on the title bar cancels mid-stream and rolls back the partial turn so context stays clean.</p>
+          </article>
+          <article class="card">
+            <h3>Markdown rendering</h3>
+            <p>Headings, lists, tables, inline code, and fenced code blocks render as you read. Code blocks have a one-click copy button. Block-level margins are tightened for compact output &mdash; reading-long answers without browser-default spacing.</p>
+          </article>
+          <article class="card">
+            <h3>Inline tool calls</h3>
+            <p>Tool invocations appear inline between assistant turns &mdash; tool name, arguments, result. The chat reads top-to-bottom like a transcript instead of hiding tool work behind expandable cards.</p>
+          </article>
+          <article class="card">
+            <h3>Model picker</h3>
+            <p>Switch models from the composer footer without opening Settings. The picker pulls from the same catalogue the CLI's <code>/model</code> command uses &mdash; cloud providers grouped, local backends grouped, server proxy underneath.</p>
+          </article>
+          <article class="card">
+            <h3>Agents &amp; skills</h3>
+            <p>The two icons next to the model picker open the agent and skill menus. Pick an agent to load a system prompt for the session; pick a skill to drive one turn with a markdown playbook from <code>~/.aictl/skills/</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Per-turn cost meter</h3>
+            <p>Every assistant turn reports tokens sent, tokens received, estimated cost, and elapsed seconds. Switch from a frontier model to a local one and you see the impact on the next turn &mdash; no separate billing dashboard.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="tool-approvals">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 06 tool approvals</span>
+          <h2 class="section__title">Tool approvals</h2>
+          <p class="section__lead">
+            By default, the agent asks before running a tool. The
+            approval modal shows you exactly what is about to happen
+            &mdash; tool name, arguments, target file or command &mdash; and
+            you click Allow, Deny, or Always allow.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Allow once</h3>
+            <p>Run this single call. The next time the agent reaches for the same tool, you are asked again.</p>
+          </article>
+          <article class="card">
+            <h3>Always allow</h3>
+            <p>Pre-approve this tool for the rest of the session. Useful for read-only tools (<code>read_file</code>, <code>list_directory</code>) that you trust the agent with.</p>
+          </article>
+          <article class="card">
+            <h3>Deny</h3>
+            <p>Reject this call and let the agent recover. The model sees a tool error and decides what to do next &mdash; usually replan or ask you a clarifying question.</p>
+          </article>
+          <article class="card">
+            <h3>Auto mode</h3>
+            <p>Toggle in Settings to skip every approval prompt. The security policy still applies &mdash; this only bypasses the human confirm step. Mirrors the CLI's <code>--auto</code> flag.</p>
+          </article>
+          <article class="card">
+            <h3>Hooks can intercept</h3>
+            <p><code>PreToolUse</code> hooks can pre-approve or block a tool before the modal even appears. Same JSON-on-stdout protocol as the CLI &mdash; configure once in <code>~/.aictl/hooks.json</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Audit trail</h3>
+            <p>Every tool call &mdash; approved, denied, or auto &mdash; lands in the per-session JSONL audit log under <code>~/.aictl/audit/</code>. You can replay exactly what happened in any session.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="settings">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 07 settings</span>
+          <h2 class="section__title">Settings panes</h2>
+          <p class="section__lead">
+            <kbd>&#8984;K</kbd> opens the Settings window. Same keys,
+            same providers, same security policy as the CLI &mdash; with a
+            graphical editor on top.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Provider &amp; model</h3>
+            <p>Default provider, default model, optional per-task overrides. Changes write through to <code>~/.aictl/config</code> and take effect immediately &mdash; the CLI sees the same change.</p>
+          </article>
+          <article class="card">
+            <h3>API keys</h3>
+            <p>Store, lock, and unlock keys for every supported provider. Keys land in the macOS Keychain via the system <code>Security</code> framework. Plain-config fallback is available for environments without a keychain.</p>
+          </article>
+          <article class="card">
+            <h3>Local models</h3>
+            <p>Curated GGUF and MLX starter lists with one-click downloads. The same catalogue the CLI's <code>/gguf</code> and <code>/mlx</code> menus expose &mdash; single source of truth across both surfaces.</p>
+          </article>
+          <article class="card">
+            <h3>Security policy</h3>
+            <p>CWD jail, blocked paths, shell allowlist, environment scrubbing, prompt-injection guard, output sanitization, and credential / PII redaction at the network boundary &mdash; every knob that lives in <code>~/.aictl/config</code> as <code>AICTL_SECURITY_*</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Memory &amp; context</h3>
+            <p>Long-term vs. short-term mode, auto-compact threshold, and per-model context limits. The same settings the REPL exposes through <code>/memory</code> and <code>/context</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Hooks, MCP, plugins, tools</h3>
+            <p>Browse and toggle every extension. Hooks list shows matchers and timeouts, MCP servers show transport and tool catalogue, plugins show entrypoint and confirmations, tools list shows which are disabled. Same files (<code>~/.aictl/hooks.json</code>, <code>~/.aictl/mcp.json</code>, <code>~/.aictl/plugins/</code>) the CLI reads.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="shortcuts">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 08 shortcuts</span>
+          <h2 class="section__title">Keyboard shortcuts</h2>
+          <p class="section__lead">
+            A small set of chords for the common flows.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Send</h3>
+            <p><kbd>&#8984;&#8629;</kbd> sends the message in the composer. Plain <kbd>&#8629;</kbd> inserts a newline so multi-line prompts compose without fighting the chat surface.</p>
+          </article>
+          <article class="card">
+            <h3>Settings</h3>
+            <p><kbd>&#8984;K</kbd> opens the Settings overlay. Hit it again, or press <kbd>Esc</kbd> with the panel focused, to close.</p>
+          </article>
+          <article class="card">
+            <h3>Sidebar toggle</h3>
+            <p><kbd>&#8984;\</kbd> hides and shows the sessions sidebar &mdash; standard macOS pattern, matches Finder and Notes.</p>
+          </article>
+          <article class="card">
+            <h3>Approve a tool call</h3>
+            <p>When the tool-approval modal is up, <kbd>&#8629;</kbd> allows the call once and <kbd>&#8984;A</kbd> always allows it for the rest of the session.</p>
+          </article>
+          <article class="card">
+            <h3>Deny a tool call</h3>
+            <p><kbd>Esc</kbd> denies the pending tool call. The model sees a tool error and decides what to do next.</p>
+          </article>
+          <article class="card">
+            <h3>Stop a turn</h3>
+            <p>Click <strong>Stop</strong> in the title bar to cancel any in-flight turn. Streams stop, the partial turn rolls back, and context stays clean.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="shared-state">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 09 shared state</span>
+          <h2 class="section__title">Shared state with the CLI</h2>
+          <p class="section__lead">
+            Both surfaces read and write the same files under
+            <code>~/.aictl/</code>. There is no sync layer &mdash; they
+            are two views of the same on-disk state.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>config</h3>
+            <p><code>~/.aictl/config</code> &mdash; provider, model, security policy, redaction rules, every <code>AICTL_*</code> knob. Edited from either surface, reread on next launch by both.</p>
+          </article>
+          <article class="card">
+            <h3>sessions</h3>
+            <p><code>~/.aictl/sessions/</code> &mdash; one JSON file per session. The desktop and the CLI list the same set; a session you started here resumes from the terminal and vice versa.</p>
+          </article>
+          <article class="card">
+            <h3>agents &amp; skills</h3>
+            <p><code>~/.aictl/agents/</code> and <code>~/.aictl/skills/</code> &mdash; the same catalogues the CLI exposes through <code>/agent</code> and <code>/skills</code>. Project-local overrides under <code>.aictl/agents/</code> work in both surfaces.</p>
+          </article>
+          <article class="card">
+            <h3>keys</h3>
+            <p>API keys go through the same keyring path. Lock from the CLI, unlock from the desktop &mdash; the keychain entry is the same.</p>
+          </article>
+          <article class="card">
+            <h3>mcp · hooks · plugins</h3>
+            <p><code>mcp.json</code>, <code>hooks.json</code>, and <code>plugins/</code> all light up in both surfaces. Configure once.</p>
+          </article>
+          <article class="card">
+            <h3>audit &amp; stats</h3>
+            <p><code>~/.aictl/audit/</code> and <code>~/.aictl/stats</code> aggregate across both surfaces. Daily and monthly token usage rolls up tool calls from desktop sessions and CLI sessions together.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="security">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 10 security</span>
+          <h2 class="section__title">Security policy</h2>
+          <p class="section__lead">
+            The same security policy the CLI ships. On by default,
+            tunable from Settings, never bypassed silently.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>CWD jail</h3>
+            <p>Tools run jailed inside the workspace. File reads and writes outside the workspace are rejected. Switch the workspace and the jail moves with it.</p>
+          </article>
+          <article class="card">
+            <h3>Shell allowlist</h3>
+            <p><code>exec_shell</code> goes through the same allow / block lists the CLI uses. No subshell, no compound commands, no hidden flag escapes.</p>
+          </article>
+          <article class="card">
+            <h3>Environment scrub</h3>
+            <p>Tool subprocesses launch with a scrubbed environment &mdash; no <code>AICTL_*</code> secrets leak into spawned processes by accident.</p>
+          </article>
+          <article class="card">
+            <h3>Injection guard</h3>
+            <p>Outbound prompts pass through the prompt-injection guard before they hit a provider. Suspicious payloads can be blocked, redacted, or just flagged depending on policy.</p>
+          </article>
+          <article class="card">
+            <h3>Redaction</h3>
+            <p>Three-layer redactor (regex, entropy, optional NER) at the network boundary. Anything matching a credential or PII pattern becomes a placeholder before the request leaves the machine.</p>
+          </article>
+          <article class="card">
+            <h3>Audit log</h3>
+            <p>Every tool call lands in <code>~/.aictl/audit/&lt;session-id&gt;</code> as JSONL. Replay any session, in any surface, after the fact.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="updates">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// 11 updates</span>
+          <h2 class="section__title">Updates &amp; uninstall</h2>
+          <p class="section__lead">
+            The app checks for updates on launch and hands them to you
+            with a one-click install. Removing it is a single drag.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Auto-update</h3>
+            <p>Updates download from GitHub Releases and install in place after a minisign signature check &mdash; independent of Apple's Developer ID codesign. No App Store, no third-party updater.</p>
+          </article>
+          <article class="card">
+            <h3>Manual check</h3>
+            <p>Settings &rarr; About &rarr; Check for updates triggers the same flow on demand.</p>
+          </article>
+          <article class="card">
+            <h3>Uninstall</h3>
+            <p>Drag <code>aictl.app</code> from <code>/Applications</code> to the Trash. Your config, agents, sessions, and keys under <code>~/.aictl/</code> are left intact &mdash; the CLI keeps working.</p>
+          </article>
+          <article class="card">
+            <h3>Wipe state</h3>
+            <p>To remove everything &mdash; config, keys, agents, sessions, audit log &mdash; delete <code>~/.aictl/</code> manually: <code>rm -rf ~/.aictl</code>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand"><a href="index.html">aictl<span class="nav__caret">_</span></a></div>
+      <div class="footer__links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/README.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/pwittchen/aictl/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+        <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+      <div class="footer__meta">
+        PolyForm Noncommercial · built by <a href="https://wittchen.io" target="_blank" rel="noopener">Piotr Wittchen</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

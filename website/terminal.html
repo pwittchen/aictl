@@ -25,6 +25,7 @@
         <a href="index.html#providers">Providers</a>
         <a href="index.html#tools">Tools</a>
         <a href="index.html#compare">Compare</a>
+        <a href="desktop.html">Desktop</a>
         <a href="terminal.html">Terminal</a>
         <a href="server.html">Server</a>
         <a href="index.html#license">License</a>
@@ -47,6 +48,7 @@
       <a href="index.html#providers" data-nav-link>Providers</a>
       <a href="index.html#tools" data-nav-link>Tools</a>
       <a href="index.html#compare" data-nav-link>Compare</a>
+      <a href="desktop.html" data-nav-link>Desktop</a>
       <a href="terminal.html" data-nav-link>Terminal</a>
       <a href="server.html" data-nav-link>Server</a>
       <a href="index.html#license" data-nav-link>License</a>
@@ -79,6 +81,77 @@
       </div>
     </section>
 
+    <section class="section section--alt" id="preview">
+      <div class="container">
+        <header class="section__head section__head--center">
+          <span class="section__kicker">// preview</span>
+          <h2 class="section__title">A look at the CLI</h2>
+          <p class="section__lead">
+            Status banner with provider, model, security state, and
+            session id; tool calls inline; a per-turn cost meter on
+            every reply.
+          </p>
+        </header>
+
+        <figure class="preview">
+          <div class="cli-demo" role="img" aria-label="aictl running in a terminal: status banner showing model claude-sonnet-4-6, a list_directory tool call result, and per-turn cost and token usage.">
+            <div class="cli-demo__bar">
+              <span class="cli-demo__dot"></span>
+              <span class="cli-demo__dot"></span>
+              <span class="cli-demo__dot"></span>
+              <span class="cli-demo__bar-shortcut">⌥⌘1</span>
+              <span class="cli-demo__bar-title">aictl</span>
+            </div>
+            <div class="cli-demo__body">
+<pre class="cli-demo__banner" aria-hidden="true"><span class="tt-face">[-_-]</span> <strong class="tt-brand">aictl</strong> <span class="tt-dim" data-cli-version>0.39.3</span> <span class="tt-ok">(latest)</span> <span class="tt-dim">— AI agent in your terminal</span>
+<span class="tt-face"> |_|</span>  <span class="tt-prov">anthropic</span> <span class="tt-dim">·</span> <span class="tt-model">claude-sonnet-4-6</span>
+      <span class="tt-dim">long-term memory · 31 tools · dir: aictl/</span>
+      <span class="tt-info">cwd jail: on</span><span class="tt-dim"> · subshell blocked · timeout: 30s · disabled tools: 0</span>
+      <span class="tt-info">keychain</span> <span class="tt-dim">(0 locked · 9 plain · 0 both)</span>
+      <span class="tt-dim">session: 9ee82912-c760-4444-bfe8-0bc000c173c0</span>
+      <span class="tt-dim">Type a message or /help for commands. Exit with "exit" or Ctrl+D</span></pre>
+<div class="cli-demo__input" aria-hidden="true">
+                <span class="cli-demo__chevron">❯</span><span>describe in one sentence contents of this dir</span>
+              </div>
+<pre class="cli-demo__convo" aria-hidden="true">  Let me look at the directory contents.
+
+  <span class="tt-tool">list_directory</span> <span class="tt-rule">──</span>
+
+  <span class="tt-tag">[FILE]</span> Cargo.toml
+  <span class="tt-tag">[FILE]</span> .DS_Store
+  <span class="tt-tag">[FILE]</span> LICENSE
+  <span class="tt-tag">[DIR] </span> .aictl
+  <span class="tt-tag">[FILE]</span> AICTL.md
+  <span class="tt-tag">[DIR] </span> target
+  <span class="tt-tag">[FILE]</span> install.sh
+  <span class="tt-tag">[DIR] </span> tests
+  <span class="tt-tag">[DIR] </span> website
+  <span class="tt-tag">[DIR] </span> .claude
+  <span class="tt-dim">… 11 lines hidden …</span>
+  <span class="tt-tag">[FILE]</span> CLAUDE.md
+  <span class="tt-tag">[DIR] </span> src
+
+  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
+  <span class="tt-status">claude-sonnet-4 · 3↑ (4320⚡) · 69↓ · 1 tool(s) · $0.0024 · 3.2s · ctx 1% · ⛁ long</span>
+
+  This is the <span class="tt-bold">aictl</span> Rust CLI project — an AI agent tool with source code,
+  documentation (README, ARCH, ROADMAP), pricing references, a website, examples,
+  tests, GitHub CI config, and an install script.
+
+  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
+  <span class="tt-status">claude-sonnet-4 · 221↑ (4320⚡) · 53↓ · 1 tool(s) · $0.0031 · 2.3s · ctx 2% · ⛁ long</span>
+
+  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
+  <span class="tt-summary">2 reqs · 1 tool(s) · 224↑ · 122↓ · $0.0054 · 6.3s · ctx 2%</span></pre>
+              <div class="cli-demo__input" aria-hidden="true">
+                <span class="cli-demo__chevron">❯</span><span class="cli-demo__cursor"></span>
+              </div>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
     <section class="section" id="toc">
       <div class="container">
         <header class="section__head">
@@ -90,6 +163,7 @@
         </header>
 
         <ul class="providers">
+          <li><a href="#preview">Preview</a></li>
           <li><a href="#getting-started">Getting started</a></li>
           <li><a href="#configuration">Configuration</a></li>
           <li><a href="#api-keys">API keys</a></li>
@@ -108,6 +182,7 @@
           <li><a href="#security">Security</a></li>
           <li><a href="#local-models">Local models</a></li>
           <li><a href="#examples">Examples</a></li>
+          <li><a href="desktop.html">Desktop</a></li>
           <li><a href="server.html">HTTP proxy server</a></li>
           <li><a href="#uninstall">Update &amp; uninstall</a></li>
         </ul>
