@@ -233,9 +233,6 @@
               Native macOS desktop app. Every provider, every tool, sessions
               and agents in a graphical wrapper.
             </p>
-            <p class="section__lead-link">
-              <a class="api-doc-link" href="#preview-terminal">I prefer the terminal — let me check the CLI ↓</a>
-            </p>
           </header>
 
           <div class="preview-block__cta preview-block__cta--top">
@@ -254,9 +251,135 @@
           </div>
 
           <figure class="preview">
-            <img class="preview__img"
-                 src="screenshot_desktop.png"
-                 alt="Screenshot of the aictl desktop app: chat window with model selector, conversation history, and per-turn cost meter." />
+            <div class="dt-demo" role="img" aria-label="aictl desktop app: title bar, sessions sidebar, chat with a list_directory tool call, and a composer at the bottom.">
+              <div class="dt-demo__chrome" aria-hidden="true">
+                <span class="dt-demo__dot dt-demo__dot--red"></span>
+                <span class="dt-demo__dot dt-demo__dot--yellow"></span>
+                <span class="dt-demo__dot dt-demo__dot--green"></span>
+              </div>
+              <div class="dt-demo__app">
+                <header class="dt-demo__titlebar">
+                  <span class="dt-demo__brand">aictl</span>
+                  <button class="dt-demo__sidebar-toggle" type="button" aria-hidden="true" tabindex="-1">
+                    <svg width="14" height="11" viewBox="0 0 17 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="0.85" y="0.85" width="15.3" height="11.3" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="5.6" y1="1.5" x2="5.6" y2="11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><rect x="1.5" y="1.5" width="3.4" height="10" fill="currentColor" opacity="0.35"/></svg>
+                  </button>
+                  <span class="dt-demo__pill">~/.aictl/workspace</span>
+                  <span class="dt-demo__spacer"></span>
+                  <span class="dt-demo__ctx">
+                    <span class="dt-demo__ctx-label">CTX</span>
+                    <span class="dt-demo__ctx-bar"><span class="dt-demo__ctx-fill" style="width: 18%"></span></span>
+                    <span class="dt-demo__ctx-value">18%</span>
+                  </span>
+                  <span class="dt-demo__stop">Stop</span>
+                </header>
+
+                <aside class="dt-demo__sidebar" aria-hidden="true">
+                  <div class="dt-demo__side-header">
+                    <span>SESSIONS</span>
+                    <span class="dt-demo__side-actions">
+                      <span class="dt-demo__ghost">+ NEW</span>
+                    </span>
+                  </div>
+                  <div class="dt-demo__filter">filter sessions…</div>
+                  <ul class="dt-demo__sessions">
+                    <li class="dt-demo__session" data-active="true">
+                      <span class="dt-demo__session-name">describe contents</span>
+                      <span class="dt-demo__session-when">now</span>
+                    </li>
+                    <li class="dt-demo__session">
+                      <span class="dt-demo__session-name">refactor agent loop</span>
+                      <span class="dt-demo__session-when">2h</span>
+                    </li>
+                    <li class="dt-demo__session">
+                      <span class="dt-demo__session-name">sync model catalog</span>
+                      <span class="dt-demo__session-when">yest</span>
+                    </li>
+                    <li class="dt-demo__session">
+                      <span class="dt-demo__session-name">audit log review</span>
+                      <span class="dt-demo__session-when">2d</span>
+                    </li>
+                    <li class="dt-demo__session">
+                      <span class="dt-demo__session-name">add MCP server</span>
+                      <span class="dt-demo__session-when">3d</span>
+                    </li>
+                  </ul>
+                  <div class="dt-demo__side-bottom">
+                    <span class="dt-demo__bottom-item">
+                      <span>SETTINGS</span>
+                      <span class="dt-demo__shortcut">⌘K</span>
+                    </span>
+                  </div>
+                </aside>
+
+                <section class="dt-demo__main">
+                  <div class="dt-demo__chat-toolbar" aria-hidden="true">
+                    <div class="dt-demo__toolbar-meta">
+                      <span class="dt-demo__toolbar-label">SESSION</span>
+                      <span class="dt-demo__toolbar-id">9ee82912</span>
+                      <span class="dt-demo__toolbar-count">· 2 messages</span>
+                    </div>
+                    <div class="dt-demo__toolbar-actions">
+                      <span class="dt-demo__ghost">Clear</span>
+                      <span class="dt-demo__ghost">Retry</span>
+                      <span class="dt-demo__ghost">Undo</span>
+                    </div>
+                  </div>
+
+                  <div class="dt-demo__messages">
+                    <article class="dt-demo__msg" data-role="user">
+                      <div class="dt-demo__msg-meta">USER</div>
+                      <div class="dt-demo__msg-body">describe in one sentence contents of this dir</div>
+                    </article>
+
+                    <article class="dt-demo__msg" data-role="assistant">
+                      <div class="dt-demo__msg-meta">ASSISTANT</div>
+                      <div class="dt-demo__msg-body">Let me look at the directory contents.</div>
+                    </article>
+
+                    <div class="dt-demo__tool" aria-hidden="true">
+                      <div class="dt-demo__tool-head">
+                        <span class="dt-demo__tool-tag">TOOL</span>
+                        <span class="dt-demo__tool-name">list_directory</span>
+                      </div>
+<pre class="dt-demo__tool-body">[FILE] Cargo.toml
+[FILE] LICENSE
+[DIR]  .aictl
+[FILE] AICTL.md
+[DIR]  target
+[FILE] install.sh
+[DIR]  tests
+[DIR]  website
+[DIR]  .claude
+[FILE] CLAUDE.md
+[DIR]  src</pre>
+                    </div>
+
+                    <article class="dt-demo__msg" data-role="assistant">
+                      <div class="dt-demo__msg-meta">ASSISTANT</div>
+                      <div class="dt-demo__msg-body">This directory is the root of the <strong>aictl</strong> Rust workspace, containing source crates (<code>aictl-cli</code>, <code>aictl-core</code>, <code>aictl-server</code>, <code>aictl-desktop</code>), docs, install scripts, and standard project files.</div>
+                    </article>
+                  </div>
+
+                  <div class="dt-demo__composer" aria-hidden="true">
+                    <div class="dt-demo__textarea">
+                      <span class="dt-demo__placeholder">Type a message</span><span class="dt-demo__caret"></span>
+                    </div>
+                    <div class="dt-demo__composer-footer">
+                      <span class="dt-demo__model">anthropic · claude-sonnet-4-6 ▾</span>
+                      <span class="dt-demo__icon-cluster">
+                        <span class="dt-demo__icon" title="Agents">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1l2.5 7.5L22 11l-7.5 2.5L12 21l-2.5-7.5L2 11l7.5-2.5z"/></svg>
+                        </span>
+                        <span class="dt-demo__icon" title="Skills">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
+                        </span>
+                        <span class="dt-demo__send">Send <kbd>↵</kbd></span>
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
           </figure>
         </div>
 
@@ -267,9 +390,6 @@
             <p class="section__lead">
               One binary, one prompt, every provider. Tools, sessions, and a
               cost meter on every turn.
-            </p>
-            <p class="section__lead-link">
-              <a class="api-doc-link" href="#preview-server">I prefer the HTTP API — let me check the server ↓</a>
             </p>
           </header>
 
@@ -348,9 +468,6 @@
               OpenAI-compatible HTTP proxy with built-in redaction, prompt-injection blocking, and audit logs.<br>
               Point any OpenAI SDK at it and reach every supported provider
               behind one master key.
-            </p>
-            <p class="section__lead-link">
-              <a class="api-doc-link" href="#preview-desktop">↑ Back to the desktop app</a>
             </p>
           </header>
 

@@ -15,15 +15,7 @@ CLI user guides: https://aictl.app/terminal.html
 > Dedicated coding capabilities may be added in the future. If you are looking for an AI agent specialized in software development today,
 > consider Claude Code, Codex, or opencode — they are purpose-built for that workflow.
 
-💻 You can use **aictl** on your desktop...
-
-![aictl screenshot desktop](screenshot_desktop.png)
-
-...and in your terminal ⌨️
-
-![aictl screenshot](screenshot.png)
-
-with the single configuration and feature parity for CLI and desktop app.
+You can use **aictl** on your desktop, and in your terminal — with the single configuration and feature parity for CLI and desktop app.
 
 In addition, you can also use [HTTP Server with LLM proxy](#http-server-aictl-server) with security features.
 

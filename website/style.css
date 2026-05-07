@@ -825,10 +825,11 @@ body.nav-open {
   transition: none;
 }
 
-/* Server install command is longer than the CLI one — widen the hero cmd
-   box so the full string fits without horizontal scroll on desktop. */
+/* Server install command is longer than the CLI one — let the box shrink
+   to exactly fit `$ <command> Copy` (no fixed width to over-allocate, no
+   horizontal scroll inside `.cmd code`). max-width keeps it sane on mobile. */
 #preview-server .preview-block__cta .cmd--hero {
-  width: 580px;
+  width: max-content;
   max-width: 100%;
 }
 
@@ -1166,6 +1167,500 @@ body.nav-open {
 
 @media (prefers-reduced-motion: reduce) {
   .cli-demo__cursor { animation: none; }
+}
+
+/* Desktop demo — static HTML/CSS recreation of the aictl Tauri app.
+   Mirrors the design tokens from crates/aictl-desktop/webview/src/styles/
+   so the demo reads as the actual app rather than a generic mock. Scoped
+   variables stay inside .dt-demo. */
+.dt-demo {
+  width: 100%;
+  max-width: 858px;
+  background: #0a0a0a;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-sans);
+  color: #e6e6e6;
+  text-align: left;
+  overflow: hidden;
+  --dt-bg: #0a0a0a;
+  --dt-fg: #e6e6e6;
+  --dt-fg-soft: rgba(230, 230, 230, 0.7);
+  --dt-fg-faint: rgba(230, 230, 230, 0.5);
+  --dt-surface: rgba(255, 255, 255, 0.03);
+  --dt-surface-strong: rgba(255, 255, 255, 0.06);
+  --dt-border: rgba(255, 255, 255, 0.1);
+  --dt-border-strong: rgba(255, 255, 255, 0.2);
+  --dt-accent: #5ed3f3;
+  --dt-accent-soft: rgba(94, 211, 243, 0.15);
+}
+
+.dt-demo__chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: #1a1a1a;
+  border-bottom: 1px solid var(--dt-border);
+}
+
+.dt-demo__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--dt-fg-faint);
+}
+
+.dt-demo__dot:nth-of-type(1) { opacity: 0.35; }
+.dt-demo__dot:nth-of-type(2) { opacity: 0.55; }
+.dt-demo__dot:nth-of-type(3) { opacity: 0.75; }
+
+.dt-demo__app {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: 38px auto;
+  grid-template-areas:
+    "title  title"
+    "side   main";
+  font-size: 13px;
+}
+
+.dt-demo__titlebar {
+  grid-area: title;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  background: var(--dt-surface);
+  border-bottom: 1px solid var(--dt-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.dt-demo__brand {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dt-fg);
+}
+
+.dt-demo__sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--dt-fg-soft);
+  cursor: default;
+}
+
+.dt-demo__pill {
+  padding: 3px 9px;
+  background: var(--dt-surface-strong);
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg-soft);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.dt-demo__spacer { flex: 1; }
+
+.dt-demo__ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
+  border: 1px solid transparent;
+  color: var(--dt-fg-soft);
+  font-size: 10.5px;
+}
+
+.dt-demo__ctx-label {
+  color: var(--dt-fg-faint);
+  letter-spacing: 0.1em;
+}
+
+.dt-demo__ctx-bar {
+  width: 60px;
+  height: 5px;
+  background: var(--dt-surface);
+  border: 1px solid var(--dt-border);
+  position: relative;
+}
+
+.dt-demo__ctx-fill {
+  display: block;
+  height: 100%;
+  background: var(--dt-accent);
+}
+
+.dt-demo__ctx-value {
+  min-width: 28px;
+  text-align: right;
+  color: var(--dt-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-demo__stop {
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.dt-demo__sidebar {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px;
+  background: var(--dt-surface);
+  border-right: 1px solid var(--dt-border);
+  font-family: var(--font-mono);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dt-demo__side-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dt-fg-faint);
+}
+
+.dt-demo__ghost {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg-soft);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dt-demo__filter {
+  margin: 0 8px 8px;
+  padding: 4px 8px;
+  background: var(--dt-bg);
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg-faint);
+  font-size: 11px;
+}
+
+.dt-demo__sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dt-demo__session {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-left: 2px solid transparent;
+  font-size: 11.5px;
+}
+
+.dt-demo__session[data-active="true"] {
+  border-left-color: var(--dt-accent);
+  background: var(--dt-surface-strong);
+}
+
+.dt-demo__session-name {
+  color: var(--dt-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt-demo__session-when {
+  color: var(--dt-fg-faint);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.dt-demo__side-bottom {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dt-border);
+}
+
+.dt-demo__bottom-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  color: var(--dt-fg-soft);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.dt-demo__shortcut {
+  padding: 1px 6px;
+  border: 1px solid var(--dt-border);
+  background: var(--dt-surface);
+  color: var(--dt-fg-faint);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.dt-demo__main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dt-demo__chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 18px;
+  background: var(--dt-surface);
+  border-bottom: 1px solid var(--dt-border);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+.dt-demo__toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dt-fg-faint);
+}
+
+.dt-demo__toolbar-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.dt-demo__toolbar-id {
+  color: var(--dt-fg-soft);
+}
+
+.dt-demo__toolbar-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.dt-demo__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.dt-demo__msg {
+  max-width: 600px;
+  margin-bottom: 18px;
+}
+
+.dt-demo__msg-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--dt-fg-faint);
+  margin-bottom: 6px;
+}
+
+.dt-demo__msg[data-role="user"] .dt-demo__msg-meta { color: var(--dt-accent); }
+
+.dt-demo__msg-body {
+  color: var(--dt-fg);
+}
+
+.dt-demo__msg-body code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--dt-surface);
+  padding: 1px 5px;
+  color: var(--dt-fg);
+}
+
+.dt-demo__tool {
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--dt-border);
+  background: var(--dt-surface);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.dt-demo__tool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dt-demo__tool-tag {
+  padding: 1px 6px;
+  background: var(--dt-accent-soft);
+  color: var(--dt-accent);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+}
+
+.dt-demo__tool-name {
+  color: var(--dt-fg-soft);
+}
+
+.dt-demo__tool-body {
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--dt-border);
+  color: var(--dt-fg-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.dt-demo__composer {
+  border-top: 1px solid var(--dt-border);
+  padding: 12px 24px;
+  background: var(--dt-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dt-demo__textarea {
+  min-height: 48px;
+  padding: 10px 12px;
+  background: var(--dt-bg);
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg-faint);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dt-demo__placeholder { color: var(--dt-fg-faint); }
+
+.dt-demo__caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--dt-fg-faint);
+  animation: blink 1.1s steps(2) infinite;
+}
+
+.dt-demo__composer-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dt-fg-faint);
+}
+
+.dt-demo__model {
+  padding: 4px 10px;
+  background: var(--dt-bg);
+  border: 1px solid var(--dt-border);
+  color: var(--dt-fg);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.dt-demo__icon-cluster {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dt-demo__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  color: var(--dt-fg-faint);
+}
+
+.dt-demo__send {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--dt-fg);
+  color: var(--dt-bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.dt-demo__send kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.7;
+}
+
+@media (max-width: 860px) {
+  .dt-demo__app { grid-template-columns: 170px 1fr; font-size: 12px; }
+  .dt-demo__messages { padding: 16px 18px; font-size: 12px; }
+  .dt-demo__pill { max-width: 140px; font-size: 10px; }
+  .dt-demo__ctx-bar { width: 44px; }
+}
+
+@media (max-width: 600px) {
+  .dt-demo__app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 38px auto;
+    grid-template-areas:
+      "title"
+      "main";
+  }
+  .dt-demo__sidebar { display: none; }
+  .dt-demo__messages { padding: 14px; font-size: 11.5px; }
+  .dt-demo__msg { max-width: 100%; }
+  .dt-demo__pill { max-width: 100px; font-size: 10px; }
+  .dt-demo__ctx { display: none; }
+  .dt-demo__toolbar-actions { display: none; }
+  .dt-demo__composer { padding: 10px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-demo__caret { animation: none; }
 }
 
 .preview-block__cta--top {
