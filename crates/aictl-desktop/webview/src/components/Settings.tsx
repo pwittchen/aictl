@@ -4297,7 +4297,7 @@ const AboutTab: Component<AboutTabProps> = (props) => {
     if (checking()) return "checking…";
     if (!checked()) return "—";
     const u = updateCheck();
-    if (!u) return `${version() ?? "—"} (latest)`;
+    if (!u) return version() ?? "—";
     return `${u.version} (update available)`;
   };
   const reveal = async (kind: "audit" | "config") => {
