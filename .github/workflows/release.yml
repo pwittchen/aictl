@@ -506,6 +506,11 @@ jobs:
           else
             log=$(git log --pretty=format:'- %s (%h)' "$GITHUB_REF_NAME" -- | grep -viE '^- (Bump version to|[Uu]pdate (ISSUES|README|CLAUDE|CHANGELOG)\.md)')
           fi
+          # Persist to a file as well so the latest.json step can embed
+          # the same body the GitHub release page shows. Multi-line
+          # content is round-tripped through jq's --arg later, so quotes
+          # / backticks / asterisks need no special handling here.
+          echo "$log" > /tmp/changelog.md
           {
             echo 'body<<EOF'
             echo "$log"
@@ -529,13 +534,25 @@ jobs:
           base="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}"
           sig_x86=$(cat artifacts/aictl-desktop-darwin-x86_64.app.tar.gz.sig)
           sig_arm=$(cat artifacts/aictl-desktop-darwin-aarch64.app.tar.gz.sig)
+          # Pull the same changelog body the release page shows so the
+          # in-app update modal renders the actual commit list rather
+          # than a generic placeholder. Append a trailing link back to
+          # the GitHub release as a fallback for anyone who wants the
+          # full discussion view.
+          {
+            cat /tmp/changelog.md
+            echo
+            echo "[View full release on GitHub](https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME)"
+          } > /tmp/notes.md
+          notes="$(cat /tmp/notes.md)"
           # `jq -n` so embedded newlines / quotes in the .sig payloads
-          # are escaped properly. The plugin parses this with serde, so
-          # malformed JSON would silently disable the updater.
+          # and the changelog body are escaped properly. The plugin
+          # parses this with serde, so malformed JSON would silently
+          # disable the updater.
           jq -n \
             --arg v "$version" \
             --arg date "$pub_date" \
-            --arg notes "Release $GITHUB_REF_NAME — see https://github.com/${{ github.repository }}/releases/tag/$GITHUB_REF_NAME" \
+            --arg notes "$notes" \
             --arg sig_x86 "$sig_x86" \
             --arg sig_arm "$sig_arm" \
             --arg url_x86 "$base/aictl-desktop-darwin-x86_64.app.tar.gz" \

@@ -3277,13 +3277,51 @@
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
-  white-space: pre-wrap;
-  max-height: 160px;
+  max-height: 200px;
   overflow-y: auto;
   color: var(--fg-soft);
+}
+
+/* Compact margins on the rendered markdown — browser defaults leave
+   16px between every paragraph and list, which dominates the modal. */
+.update-notes p,
+.update-notes ul,
+.update-notes ol {
+  margin: 0 0 var(--space-2);
+}
+
+.update-notes p:last-child,
+.update-notes ul:last-child,
+.update-notes ol:last-child {
+  margin-bottom: 0;
+}
+
+.update-notes ul,
+.update-notes ol {
+  padding-left: 18px;
+}
+
+.update-notes li {
+  margin: 2px 0;
+}
+
+.update-notes code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg);
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+}
+
+.update-notes a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.update-notes a:hover {
+  text-decoration: underline;
 }
 
 /* Primary call-to-action variant used by the in-app updater "Install

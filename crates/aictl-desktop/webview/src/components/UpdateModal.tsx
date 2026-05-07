@@ -7,6 +7,7 @@ import {
   type UpdateInfo,
   type UpdateProgress,
 } from "../lib/updater";
+import { renderMarkdown } from "../lib/markdown";
 
 interface Props {
   /// Optional pre-fetched update info; lets the caller skip the
@@ -167,7 +168,19 @@ const UpdateModal: Component<Props> = (props) => {
                 <Show when={u().notes}>
                   <div class="ctx-details-row ctx-details-row-stack">
                     <label>Release notes</label>
-                    <pre class="update-notes">{u().notes}</pre>
+                    {/* Server-side trust: notes come from latest.json
+                        which we sign + control end-to-end. markdown-it
+                        is configured with `html: false` so embedded
+                        raw HTML is escaped, and `linkify: true` turns
+                        bare URLs into anchors. The global click
+                        delegator in App.tsx routes those anchors
+                        through ipc.openUrl, so they open in the OS
+                        browser instead of navigating the webview. */}
+                    <div
+                      class="update-notes"
+                      // eslint-disable-next-line solid/no-innerhtml
+                      innerHTML={renderMarkdown(u().notes ?? "")}
+                    />
                   </div>
                 </Show>
               </>
