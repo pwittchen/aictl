@@ -15,6 +15,10 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly with CLI and that data is redacted in session, audit, history, messages in the chat (CLI) and responses
 
+## Server
+
+- add support for the claude code 3rd party inference
+
 ---
 
 ## Coding Agent
