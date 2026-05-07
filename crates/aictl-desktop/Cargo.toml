@@ -29,6 +29,7 @@ aictl-core = { path = "../aictl-core" }
 #   * opener       — open markdown / external links in the default browser
 #   * updater      — in-app self-update flow (download + install + restart)
 #   * process      — `relaunch()` after the updater swaps the bundle in
+#   * window-state — persist last window size/position across launches
 tauri = { version = "2", features = ["macos-private-api", "devtools"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
@@ -36,6 +37,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-window-state = "2"
 
 # Async runtime + serde — needed to drive the agent loop from a
 # `#[tauri::command]` and serialize `AgentEvent` across the IPC boundary.
