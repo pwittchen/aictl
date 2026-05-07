@@ -91,9 +91,10 @@ pub fn print_info(
     let max_iter = crate::config::max_iterations();
     let max_iter_source = crate::config::config_get("AICTL_MAX_ITERATIONS")
         .and_then(|v| v.parse::<usize>().ok())
-        .filter(|v| *v >= 1)
         .is_some();
-    let max_iter_display = if max_iter_source {
+    let max_iter_display = if max_iter == 0 {
+        "unlimited (0, AICTL_MAX_ITERATIONS)".to_string()
+    } else if max_iter_source {
         format!("{max_iter} (AICTL_MAX_ITERATIONS)")
     } else {
         format!("{max_iter} (default)")

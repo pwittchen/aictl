@@ -754,7 +754,17 @@ pub async fn run_agent_turn(
     let mut last_input_tokens = 0u64;
 
     let max_iter = max_iterations();
-    for llm_calls in 1..=max_iter {
+    // `0` is the documented sentinel for unlimited — drive the loop bound
+    // up to `usize::MAX` so the existing for-range still works, and skip
+    // the MaxIterations error after the loop. The runaway guard is opt-out
+    // by user choice in this mode.
+    let unlimited_iterations = max_iter == 0;
+    let iter_bound = if unlimited_iterations {
+        usize::MAX
+    } else {
+        max_iter
+    };
+    for llm_calls in 1..=iter_bound {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -1162,11 +1172,20 @@ pub async fn run_agent_turn(
         emit_status(tool_calls);
     }
 
-    Err(AictlError::MaxIterations {
-        #[allow(clippy::cast_possible_truncation)]
-        iters: max_iter as u32,
-        elapsed_secs: turn_start.elapsed().as_secs_f64(),
-    })
+    if unlimited_iterations {
+        // Reaching here means the loop counted all the way to `usize::MAX`,
+        // which is unreachable on any real machine in any reasonable lifetime.
+        // Surface a generic terminator so the type system stays happy.
+        Err(AictlError::Other(
+            "agent loop exhausted iteration counter in unlimited mode".to_string(),
+        ))
+    } else {
+        Err(AictlError::MaxIterations {
+            #[allow(clippy::cast_possible_truncation)]
+            iters: max_iter as u32,
+            elapsed_secs: turn_start.elapsed().as_secs_f64(),
+        })
+    }
 }
 
 /// Single-shot mode: run one message and print the result.

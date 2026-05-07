@@ -699,7 +699,7 @@ const NUM_KEYS: {
   {
     key: "AICTL_MAX_ITERATIONS",
     label: "Max iterations per turn",
-    help: "Cap on LLM calls inside one agent turn — bounds runaway tool-call loops. Leave blank for the default.",
+    help: "Cap on LLM calls inside one agent turn — bounds runaway tool-call loops. 0 disables the cap (unlimited). Leave blank for the default.",
     suffix: "",
     defaultValue: "20",
   },

@@ -59,14 +59,14 @@ pub const DEFAULT_AUTO_COMPACT_THRESHOLD: u8 = 80;
 
 /// Return the maximum number of LLM calls allowed in a single agent turn.
 ///
-/// Read from `AICTL_MAX_ITERATIONS` in `~/.aictl/config`. Values that are
-/// missing, unparseable, or below `1` fall back to `DEFAULT_MAX_ITERATIONS`.
-/// Bounds the agent loop so a runaway tool-call cycle terminates instead of
-/// burning tokens forever.
+/// Read from `AICTL_MAX_ITERATIONS` in `~/.aictl/config`. A value of `0`
+/// disables the cap (unlimited iterations). Missing or unparseable values
+/// fall back to `DEFAULT_MAX_ITERATIONS`. Bounds the agent loop so a runaway
+/// tool-call cycle terminates instead of burning tokens forever; opt out
+/// only when you genuinely want a long-running plan to keep going.
 pub fn max_iterations() -> usize {
     config_get("AICTL_MAX_ITERATIONS")
         .and_then(|v| v.parse::<usize>().ok())
-        .filter(|v| *v >= 1)
         .unwrap_or(DEFAULT_MAX_ITERATIONS)
 }
 
