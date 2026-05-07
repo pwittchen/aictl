@@ -1216,7 +1216,7 @@ body.nav-open {
 
 .dt-demo__app {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 230px 1fr;
   grid-template-rows: 38px auto;
   grid-template-areas:
     "title  title"
@@ -1347,6 +1347,12 @@ body.nav-open {
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dt-demo__side-actions {
+  display: inline-flex;
+  gap: 4px;
 }
 
 .dt-demo__filter {
@@ -1393,6 +1399,17 @@ body.nav-open {
   color: var(--dt-fg-faint);
   font-size: 10px;
   flex-shrink: 0;
+}
+
+.dt-demo__clear-all {
+  display: inline-block;
+  align-self: flex-start;
+  margin: 4px 8px 0;
+  padding: 4px 6px;
+  color: #f87171;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
 
 .dt-demo__side-bottom {
@@ -1636,7 +1653,7 @@ body.nav-open {
 }
 
 @media (max-width: 860px) {
-  .dt-demo__app { grid-template-columns: 170px 1fr; font-size: 12px; }
+  .dt-demo__app { grid-template-columns: 200px 1fr; font-size: 12px; }
   .dt-demo__messages { padding: 16px 18px; font-size: 12px; }
   .dt-demo__pill { max-width: 140px; font-size: 10px; }
   .dt-demo__ctx-bar { width: 44px; }
