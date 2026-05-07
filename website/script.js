@@ -40,7 +40,7 @@ document.querySelectorAll("[data-download-mac]").forEach((btn) => {
 // Reveal preview blocks on scroll, staggering header → CTA → screenshot.
 // No-ops gracefully without IntersectionObserver or under prefers-reduced-motion.
 (() => {
-  const targets = document.querySelectorAll(".preview-block--reveal");
+  const targets = document.querySelectorAll(".preview-block--reveal, .surfaces-section--reveal");
   if (!targets.length) return;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduced || typeof IntersectionObserver !== "function") {

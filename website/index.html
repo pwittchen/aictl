@@ -92,6 +92,135 @@
           <a class="btn btn--ghost" href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener"><svg class="btn__icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="currentColor" fill-rule="evenodd"><g transform="translate(-140 -7559)"><g transform="translate(56 160)"><path d="M94,7399 C99.523,7399 104,7403.59 104,7409.253 C104,7413.782 101.138,7417.624 97.167,7418.981 C96.66,7419.082 96.48,7418.762 96.48,7418.489 C96.48,7418.151 96.492,7417.047 96.492,7415.675 C96.492,7414.719 96.172,7414.095 95.813,7413.777 C98.04,7413.523 100.38,7412.656 100.38,7408.718 C100.38,7407.598 99.992,7406.684 99.35,7405.966 C99.454,7405.707 99.797,7404.664 99.252,7403.252 C99.252,7403.252 98.414,7402.977 96.505,7404.303 C95.706,7404.076 94.85,7403.962 94,7403.958 C93.15,7403.962 92.295,7404.076 91.497,7404.303 C89.586,7402.977 88.746,7403.252 88.746,7403.252 C88.203,7404.664 88.546,7405.707 88.649,7405.966 C88.01,7406.684 87.619,7407.598 87.619,7408.718 C87.619,7412.646 89.954,7413.526 92.175,7413.785 C91.889,7414.041 91.63,7414.493 91.54,7415.156 C90.97,7415.418 89.522,7415.871 88.63,7414.304 C88.63,7414.304 88.101,7413.319 87.097,7413.247 C87.097,7413.247 86.122,7413.234 87.029,7413.87 C87.029,7413.87 87.684,7414.185 88.139,7415.37 C88.139,7415.37 88.726,7417.2 91.508,7416.58 C91.513,7417.437 91.522,7418.245 91.522,7418.489 C91.522,7418.76 91.338,7419.077 90.839,7418.982 C86.865,7417.627 84,7413.783 84,7409.253 C84,7403.59 88.478,7399 94,7399"/></g></g></g></svg>View on GitHub</a>
         </div>
       </div>
+      <a href="#surfaces" class="hero__scroll" aria-label="Scroll to next section">
+        <span class="hero__scroll-bob">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 9 L12 16 L19 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="bevel"/>
+          </svg>
+        </span>
+      </a>
+    </section>
+
+    <section class="section surfaces-section--reveal" id="surfaces">
+      <div class="container">
+        <header class="section__head section__head--center">
+          <span class="section__kicker">// surfaces</span>
+          <h2 class="section__title">One engine, three ways to use it</h2>
+          <p class="section__lead">
+            The same agent loop, providers, tools, and security policy &mdash;
+            wrapped in three interfaces. Pick whichever fits your workflow.
+          </p>
+        </header>
+
+        <div class="surfaces">
+          <article class="surface" style="--surface-delay: 0ms">
+            <div class="surface__visual" aria-hidden="true">
+              <div class="mock mock--window">
+                <div class="mock__bar">
+                  <span class="mock__dot"></span>
+                  <span class="mock__dot"></span>
+                  <span class="mock__dot"></span>
+                  <span class="mock__bar-title">aictl</span>
+                </div>
+                <div class="mock__body mock__body--chat">
+                  <div class="mock__bubble mock__bubble--in">summarize report.pdf</div>
+                  <div class="mock__bubble mock__bubble--out">three takeaways<span class="mock__cursor mock__cursor--bar">&nbsp;</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="surface__body">
+              <span class="surface__kicker">// desktop</span>
+              <h3 class="surface__title">Desktop app</h3>
+              <p class="surface__desc">
+                Native macOS app with a graphical chat UI. Same providers,
+                tools, sessions, and agents as the CLI &mdash; in a window.
+              </p>
+              <a class="surface__cta" href="#install">
+                Download <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          </article>
+
+          <article class="surface" style="--surface-delay: 120ms">
+            <div class="surface__visual" aria-hidden="true">
+              <div class="mock mock--terminal">
+                <div class="mock__row"><span class="mock__prompt">$</span> aictl --auto</div>
+                <div class="mock__row"><span class="mock__prompt">›</span> draft release notes from git log</div>
+                <div class="mock__row mock__row--muted"><span class="mock__prompt">✓</span> git log · 47 commits</div>
+                <div class="mock__row mock__row--muted"><span class="mock__prompt">✓</span> search_files · 12 matches</div>
+                <div class="mock__row mock__row--muted"><span class="mock__prompt">↳</span> write_file CHANGELOG.md<span class="mock__cursor mock__cursor--block">&nbsp;</span></div>
+              </div>
+            </div>
+            <div class="surface__body">
+              <span class="surface__kicker">// cli</span>
+              <h3 class="surface__title">Command-line interface</h3>
+              <p class="surface__desc">
+                Single binary for macOS and Linux. Interactive REPL or
+                one-shot. 31 built-in tools, security policy on by default.
+              </p>
+              <a class="surface__cta" href="#install">
+                Install <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          </article>
+
+          <article class="surface" style="--surface-delay: 240ms">
+            <div class="surface__visual" aria-hidden="true">
+              <div class="mock mock--server">
+                <div class="mock__row mock__row--server">
+                  <span class="mock__light"></span>
+                  <span class="mock__method">POST</span>
+                  <span class="mock__path">/v1/chat/completions</span>
+                </div>
+                <div class="mock__row mock__row--server">
+                  <span class="mock__light" style="animation-delay: 0.4s"></span>
+                  <span class="mock__method">GET</span>
+                  <span class="mock__path">/v1/models</span>
+                </div>
+                <div class="mock__row mock__row--server">
+                  <span class="mock__light" style="animation-delay: 0.8s"></span>
+                  <span class="mock__method">GET</span>
+                  <span class="mock__path">/healthz</span>
+                </div>
+                <div class="mock__row mock__row--log">
+                  <span class="mock__tag">200</span>
+                  <span class="mock__detail">openai · 1.2s</span>
+                </div>
+              </div>
+            </div>
+            <div class="surface__body">
+              <span class="surface__kicker">// server</span>
+              <h3 class="surface__title">LLM HTTP proxy</h3>
+              <p class="surface__desc">
+                Second binary, <code>aictl-server</code>. OpenAI-compatible
+                HTTP proxy &mdash; point any OpenAI-compatible SDK at it and reach every
+                provider behind one master key.
+              </p>
+              <a class="surface__cta" href="server.html">
+                Read more <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          </article>
+        </div>
+
+        <div class="surfaces-core" aria-hidden="true">
+          <svg class="surfaces-core__lines" viewBox="0 0 600 80" preserveAspectRatio="none">
+            <path d="M 100 0 V 40 H 300 V 80" />
+            <path d="M 300 0 V 80" />
+            <path d="M 500 0 V 40 H 300 V 80" />
+          </svg>
+          <div class="surfaces-core__badge">
+            <span class="surfaces-core__pulse"></span>
+            aictl-core
+            <span class="surfaces-core__lang">rust</span>
+          </div>
+        </div>
+
+        <p class="surfaces__note">
+          A single Rust crate &mdash; <code>aictl-core</code> &mdash; powers all three.<br>
+          The agent loop, providers, tools, security, and sessions live in one library.
+        </p>
+      </div>
     </section>
 
     <section class="section section--alt" id="preview">

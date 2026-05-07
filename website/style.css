@@ -431,6 +431,51 @@ body.nav-open {
   height: 0;
 }
 
+/* Scroll-down chevron at the bottom of the hero */
+.hero__scroll {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+  transition: color 200ms ease;
+  z-index: 1;
+}
+
+.hero__scroll:hover { color: var(--fg); }
+
+.hero__scroll-bob {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  animation: heroScroll 2s ease-in-out infinite;
+}
+
+.hero__scroll svg {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes heroScroll {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50%      { transform: translateY(8px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__scroll-bob { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .hero__scroll { display: none; }
+}
+
 /* macOS download — split button + arch select */
 .download {
   display: inline-flex;
@@ -1171,6 +1216,453 @@ body.nav-open {
   margin: 0 0 16px;
   color: var(--fg-70);
   font-size: 15px;
+}
+
+/* Surfaces — desktop / CLI / server */
+.surfaces {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border);
+}
+
+.surface {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  transition: background 200ms ease;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+
+.surface:first-child { border-left: none; }
+
+.section--alt .surface { background: var(--bg-alt); }
+
+.surface:hover { background: var(--surface-hover); }
+
+.surface__visual {
+  height: 200px;
+  padding: 28px 24px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.section--alt .surface__visual { background: var(--bg); }
+
+.surface__body {
+  padding: 28px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.surface__kicker {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.surface__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.surface__desc {
+  margin: 0;
+  color: var(--fg-70);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.surface__desc code {
+  padding: 1px 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.9em;
+}
+
+.surface__cta {
+  margin-top: auto;
+  padding-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  align-self: flex-start;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.surface__cta span { transition: transform 200ms ease; display: inline-block; }
+.surface__cta:hover { color: var(--fg); border-bottom-color: var(--fg-50); }
+.surface__cta:hover span { transform: translateX(4px); }
+
+/* Mocks (interface miniatures inside each surface card) */
+.mock {
+  width: 100%;
+  max-width: 260px;
+  height: 144px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.mock__bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.mock__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-30);
+}
+
+.mock__dot:nth-of-type(1) { opacity: 0.35; }
+.mock__dot:nth-of-type(2) { opacity: 0.55; }
+.mock__dot:nth-of-type(3) { opacity: 0.75; }
+
+.mock__bar-title {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--fg-50);
+}
+
+.mock__body--chat {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.mock__bubble {
+  padding: 6px 8px;
+  background: var(--surface);
+  font-size: 10px;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  max-width: 80%;
+}
+
+.mock__bubble--in {
+  align-self: flex-end;
+  color: var(--fg-70);
+}
+
+.mock__bubble--out {
+  align-self: flex-start;
+  color: var(--fg);
+}
+
+.mock__cursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  font-weight: 400;
+  animation: blink 1.1s steps(2) infinite;
+}
+
+.mock__cursor--bar {
+  width: 2px;
+  height: 0.95em;
+  background: var(--accent);
+  vertical-align: text-bottom;
+}
+
+.mock__cursor--block {
+  width: 7px;
+  height: 0.95em;
+  background: var(--accent);
+  vertical-align: text-bottom;
+}
+
+/* Terminal mock */
+.mock--terminal {
+  padding: 12px 12px;
+  gap: 6px;
+}
+
+.mock__row {
+  font-size: 10.5px;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mock__row--muted { color: var(--fg-50); }
+
+.mock__prompt {
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+/* Server mock */
+.mock--server {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mock__row--server {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+}
+
+.mock__light {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: serverPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 0 0 transparent;
+}
+
+@keyframes serverPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.mock__method {
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--fg-50);
+  width: 34px;
+  text-transform: uppercase;
+}
+
+.mock__path {
+  color: var(--fg);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mock__row--log {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mock__tag {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+}
+
+.mock__detail {
+  font-size: 9.5px;
+  color: var(--fg-50);
+}
+
+/* Connector + core badge */
+.surfaces-core {
+  position: relative;
+  height: 120px;
+  margin-top: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.surfaces-core__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.surfaces-core__lines path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 8;
+  opacity: 0.55;
+  animation: surfacesFlow 2.4s linear infinite;
+}
+
+@keyframes surfacesFlow {
+  to { stroke-dashoffset: -36; }
+}
+
+.surfaces-core__badge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.section--alt .surfaces-core__badge { background: var(--bg-alt); }
+
+.surfaces-core__lang {
+  color: #ff7a1f;
+  position: relative;
+  padding-left: 12px;
+}
+
+.surfaces-core__lang::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translateY(-50%);
+}
+
+.surfaces-core__pulse {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.surfaces-core__pulse::before,
+.surfaces-core__pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  animation: corePulse 2s ease-out infinite;
+}
+
+.surfaces-core__pulse::after { animation-delay: 1s; }
+
+@keyframes corePulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+
+.surfaces__note {
+  margin: 32px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--fg-50);
+  line-height: 1.6;
+}
+
+.surfaces__note code {
+  padding: 2px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.9em;
+  color: var(--fg);
+}
+
+/* Reveal — sequenced fade-up tied to the IntersectionObserver in script.js */
+.surfaces-section--reveal .section__head,
+.surfaces-section--reveal .surface,
+.surfaces-section--reveal .surfaces-core,
+.surfaces-section--reveal .surfaces__note {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 700ms ease, transform 700ms ease;
+  will-change: opacity, transform;
+}
+
+.surfaces-section--reveal .surface     { transition-delay: var(--surface-delay, 0ms); }
+.surfaces-section--reveal .surfaces-core { transition-delay: 420ms; }
+.surfaces-section--reveal .surfaces__note { transition-delay: 540ms; }
+
+.surfaces-section--reveal.is-visible .section__head,
+.surfaces-section--reveal.is-visible .surface,
+.surfaces-section--reveal.is-visible .surfaces-core,
+.surfaces-section--reveal.is-visible .surfaces__note {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surfaces-section--reveal .section__head,
+  .surfaces-section--reveal .surface,
+  .surfaces-section--reveal .surfaces-core,
+  .surfaces-section--reveal .surfaces__note {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .mock__cursor,
+  .mock__light,
+  .surfaces-core__lines path,
+  .surfaces-core__pulse::before,
+  .surfaces-core__pulse::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .surfaces { grid-template-columns: 1fr; }
+  .surface { border-left: none; border-top: 1px solid var(--border); }
+  .surface:first-child { border-top: none; }
+  .surfaces-core { height: 100px; }
+  .surfaces-core__lines { display: none; }
+  .surfaces-core::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: calc(100% - 44px);
+    background: linear-gradient(to bottom, transparent, var(--accent));
+    opacity: 0.4;
+  }
+}
+
+@media (max-width: 720px) {
+  .surface__visual { height: 180px; padding: 24px; }
+  .surface__body { padding: 24px; }
 }
 
 /* Footer */
