@@ -8,6 +8,10 @@ if (!root) {
   throw new Error("missing #root mount node");
 }
 
+if (import.meta.env.PROD) {
+  window.addEventListener("contextmenu", (event) => event.preventDefault());
+}
+
 // Hydrate theme + density before first paint so the dark/light flash is
 // limited to the time the IPC call takes — much shorter than the agent
 // loop, but still worth hiding behind a quick fetch on boot.
