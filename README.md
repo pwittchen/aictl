@@ -163,9 +163,6 @@ The image runs as a non-root `aictl` user (UID 1000); the keyring backend in the
 
 The desktop frontend (`aictl-desktop`) is a Tauri v2 app with a Solid + Vite webview that reuses the same `aictl-core` engine as the CLI. It is **macOS-only** for the first release and is excluded from the workspace's default member set, so a bare `cargo build` / `cargo lint` / `cargo test` keeps working without Tauri's deps. Build it explicitly with `-p aictl-desktop`.
 
-> [!NOTE]
-> The desktop app is currently work in progress. Expect rough edges.
-
 ### Prerequisites
 
 - macOS 13.0 or newer (Apple Silicon or Intel).

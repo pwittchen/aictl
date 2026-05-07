@@ -2,10 +2,6 @@
 
 ---
 
-## Website
-
-- prepare dedicated sub-page for the destkop app
-
 ## Desktop
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
