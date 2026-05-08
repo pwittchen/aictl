@@ -250,6 +250,7 @@
           <li><a href="#workspace">Workspace</a></li>
           <li><a href="#sessions">Sessions</a></li>
           <li><a href="#composer">Chat</a></li>
+          <li><a href="#files">Files pane</a></li>
           <li><a href="#tool-approvals">Tool approvals</a></li>
           <li><a href="#settings">Settings</a></li>
           <li><a href="#shortcuts">Shortcuts</a></li>
@@ -471,6 +472,61 @@
             <p>Every assistant turn reports tokens sent, tokens received, estimated cost, and elapsed seconds. Switch from a frontier model to a local one and you see the impact on the next turn &mdash; no separate billing dashboard.</p>
           </article>
         </div>
+      </div>
+    </section>
+
+    <section class="section" id="files">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// files pane</span>
+          <h2 class="section__title">Workspace files pane</h2>
+          <p class="section__lead">
+            A tree view of the active workspace folder pinned to the
+            right of the chat. Browse, edit, and stage files alongside
+            the conversation &mdash; no second window, no external
+            editor required.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Tree view</h3>
+            <p>Every file and directory under the workspace, lazily expanded. Selecting a file opens it in the editor pane; selecting a directory scopes new-file / upload actions to that location.</p>
+          </article>
+          <article class="card">
+            <h3>Create &amp; upload</h3>
+            <p>Create a new file or directory inline, or pull any file from disk into the workspace via the native file picker. Uploads land under the selected directory (or the workspace root) and refuse to clobber an existing entry.</p>
+          </article>
+          <article class="card">
+            <h3>Rename &amp; delete</h3>
+            <p>The pencil icon swaps the row label for an inline input &mdash; <kbd>&#8629;</kbd> commits, <kbd>Esc</kbd> cancels even when focus drifts. Destructive actions (delete file, delete directory) route through a single confirm modal styled like the tool-approval prompt.</p>
+          </article>
+          <article class="card">
+            <h3>Editor with syntax highlighting</h3>
+            <p>The editor pane renders a transparent textarea over a highlight.js underlay so cursor position and token colors stay aligned. Language is picked from the file extension, with <code>Dockerfile</code> / <code>Makefile</code> bare-name fallbacks; unknown extensions render as plain text.</p>
+          </article>
+          <article class="card">
+            <h3>Resizable panes</h3>
+            <p>Drag handles between every adjacent pair of visible panes mutate per-pane widths. The chat column absorbs whatever the neighbours give up, so the conversation never gets squeezed into a narrow strip on a wide monitor.</p>
+          </article>
+          <article class="card">
+            <h3>Persistent state</h3>
+            <p>Pane visibility, pane widths, and the last-open file are remembered across launches in dedicated config keys. If the open file disappeared while the app was closed, the files pane forces itself open so you land on something useful instead of a missing editor.</p>
+          </article>
+        </div>
+
+        <p class="section__note" style="margin-top: 32px;">
+          Layout state persists through dedicated keys in
+          <code>~/.aictl/config</code>:
+          <code>AICTL_DESKTOP_FILES_VISIBLE</code>,
+          <code>AICTL_DESKTOP_OPEN_FILE</code>,
+          <code>AICTL_DESKTOP_SIDEBAR_WIDTH</code>,
+          <code>AICTL_DESKTOP_EDITOR_WIDTH</code>,
+          <code>AICTL_DESKTOP_FILES_WIDTH</code>. All file operations
+          run through the same security policy as <code>read_file</code>
+          / <code>write_file</code> &mdash; the workspace is the jail
+          root.
+        </p>
       </div>
     </section>
 

@@ -8,31 +8,52 @@ the CLI. Design rationale and roadmap live in
 
 ## Status
 
-Foundational scaffold landed. What works today:
+Daily-driver shape. What works today:
 
-- Workspace member registration (`crates/aictl-desktop`).
 - macOS-only `cfg` gate on the binary; non-macOS builds exit with a
   clear message.
 - `Role::Desktop` and `AICTL_WORKING_DIR_DESKTOP` plumbed through the
   engine, with a no-workspace sentinel in `security::load_policy`.
 - `DesktopUI` implementation of `aictl_core::AgentUI`, emitting
   `AgentEvent` over Tauri's `agent_event` channel.
-- Tauri commands for chat (`send_message`, `stop_turn`,
-  `tool_approval_response`), workspace lifecycle (`get_workspace`,
-  `set_workspace`, `pick_workspace`), sessions (list/load/delete/
-  incognito), and a couple of system entries.
-- Solid + Vite frontend with a chat surface, composer, tool-approval
-  modal, and workspace onboarding card.
+- Sessions sidebar, chat surface, composer, tool-approval modal,
+  workspace onboarding, and a horizontally-resizable three-pane layout
+  (sidebar / chat / files) with per-pane widths persisted across
+  launches.
+- Workspace files pane: tree view of the active workspace with create,
+  rename, upload-from-disk, and modal-confirmed delete actions on
+  files and directories. The pane's visibility and last-open file are
+  remembered between launches; if the open file disappeared while the
+  app was closed, the pane forces itself open so the user lands on
+  something useful.
+- Editor pane with syntax highlighting via highlight.js (language
+  picked from the file extension, with `Dockerfile` / `Makefile`
+  bare-name fallbacks; unknown extensions render as plain text).
+- Settings window with Provider, Keys, Local Models, Security,
+  Memory, Hooks, MCP, Plugins, Tools, and Agents/Skills CRUD panes.
+- In-app updater with minisign verification (download → install →
+  restart) on top of Apple's Developer ID codesign.
+- Auto-open update dialog on startup when a newer release is
+  available.
+- Stats and balance probe surfaces share the same engine paths as the
+  CLI.
 
-What's not done (later phases of the plan):
+### Desktop-only config keys
 
-- Session persistence end-to-end (history hydration / save on every
-  turn).
-- Settings panes (Provider, Keys, Security, Memory, Hooks, MCP,
-  Plugins, Tools, Local Models).
-- Stats and balance probe surfaces.
-- Agents / skills CRUD UI (engine has the APIs; UI is stubbed).
-- DMG bundling polish (background, icon position).
+Persisted in `~/.aictl/config` alongside the shared `AICTL_*` keys.
+The Tauri Settings IPC gate whitelists exactly this set:
+
+| Key | Purpose |
+|---|---|
+| `AICTL_WORKING_DIR_DESKTOP` | Workspace folder (CWD jail root) for the desktop. Independent of `AICTL_WORKING_DIR_CLI`. |
+| `AICTL_DESKTOP_DENSITY` | UI density (`comfortable` / `compact`). |
+| `AICTL_DESKTOP_NOTIFICATIONS` | Toggle macOS notifications on long-running tool completion. |
+| `AICTL_DESKTOP_SIDEBAR_VISIBLE` | Sessions sidebar shown / hidden across launches. |
+| `AICTL_DESKTOP_FILES_VISIBLE` | Workspace files pane shown / hidden across launches. |
+| `AICTL_DESKTOP_OPEN_FILE` | Last file opened in the editor pane; rehydrated on launch (path is verified — dead paths are forgotten). |
+| `AICTL_DESKTOP_SIDEBAR_WIDTH` | Pixel width of the sessions sidebar; bounded on hydration so a hand-edited value can't collapse the pane. |
+| `AICTL_DESKTOP_EDITOR_WIDTH` | Pixel width of the chat / editor column. |
+| `AICTL_DESKTOP_FILES_WIDTH` | Pixel width of the files pane. |
 
 ## Building
 
@@ -201,9 +222,12 @@ crates/aictl-desktop/
     ├── tsconfig.json
     ├── index.html
     └── src/
-        ├── App.tsx
+        ├── App.tsx                    # pane layout, drag handles, persisted widths
         ├── main.tsx
-        ├── lib/{ipc.ts,markdown.ts}
-        ├── components/{Chat,Composer,ToolApproval,Sidebar,Titlebar,EmptyWorkspace}.tsx
+        ├── lib/{ipc.ts,markdown.ts,highlight.ts}
+        ├── components/{Chat,Composer,ToolApproval,Sidebar,Titlebar,EmptyWorkspace,
+        │               FilePane,EditorPane,ConfirmDelete,Settings,Toolbar,
+        │               UpdateModal,ContextDetails,AgentEditor,SkillEditor,
+        │               McpEditor,CreatePrompt,ProviderSetup}.tsx
         └── styles/{tokens.css,components.css}
 ```
