@@ -318,7 +318,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--format <FORMAT>] [--auto] [--quiet] [--audit-file <PATH>] [--cwd <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--balance] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--format <FORMAT>] [--auto] [--quiet] [--audit-file <PATH>] [--cwd <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--category <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--pull-ner-model <SPEC>] [--list-ner-models] [--remove-ner-model <NAME>] [--clear-ner-models] [--balance] [--list-balances] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>] [--client-url <URL>] [--client-master-key <KEY>] [--serve]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -692,6 +692,8 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
 | `AICTL_SKILLS_DIR` | Override the location of the skills directory (default: `~/.aictl/skills`) |
+| `AICTL_WORKING_DIR_CLI` | Persistent working directory for the CLI — used as the CWD jail root and the spawn dir for every tool call. Accepts absolute, relative, and `~`-prefixed paths. Overridden by `--cwd <PATH>`; falls back to `AICTL_WORKING_DIR` (legacy) and then the launch directory |
+| `AICTL_WORKING_DIR` | Legacy unsuffixed fallback for the working directory. Kept working for existing configs; `AICTL_WORKING_DIR_CLI` wins when both are set |
 | `AICTL_CLIENT_HOST` | Base URL of an upstream `aictl-server` (e.g. `http://127.0.0.1:7878`). Used only when the active provider is `aictl-server`; otherwise inert. Empty/unset = direct providers (the default) |
 | `AICTL_CLIENT_MASTER_KEY` | Bearer token presented to the configured `aictl-server`. Same `/keys` lock/unlock/clear lifecycle as the provider keys. Distinct from the server's own `AICTL_SERVER_MASTER_KEY` (also covered by `/keys`) so a single host can run both roles unambiguously |
 
