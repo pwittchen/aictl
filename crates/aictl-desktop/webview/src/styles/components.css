@@ -3799,12 +3799,46 @@ button.primary:hover:not([disabled]) {
   font-weight: 700;
 }
 
-.file-pane-editor-area {
+/* Editor surface — a transparent textarea floats over a syntax-
+   highlighted <pre>. Both share font/padding/line-height so the
+   characters land on the same pixel grid, and the textarea mirrors
+   its scroll position into the pre via JS so they never drift apart.
+   `caret-color` keeps the cursor visible even though the textarea's
+   own text colour is transparent. */
+.file-pane-editor-wrap {
+  position: relative;
   flex: 1;
-  width: 100%;
   min-height: 0;
+  min-width: 0;
   background: var(--bg);
+  overflow: hidden;
+}
+
+.file-pane-editor-highlight {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
   color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  word-wrap: normal;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.file-pane-editor-area {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
   border: 0;
   outline: none;
   resize: none;
@@ -3815,6 +3849,68 @@ button.primary:hover:not([disabled]) {
   tab-size: 2;
   white-space: pre;
   overflow: auto;
+}
+
+/* Minimal hljs theme scoped to the editor only — keeps the markdown
+   code-fence styling in the chat surface untouched. Palette mirrors
+   the project's accent/danger/warning tokens so the editor stays
+   visually consistent with the rest of the desktop chrome. */
+.file-pane-editor-highlight .hljs-keyword,
+.file-pane-editor-highlight .hljs-selector-tag,
+.file-pane-editor-highlight .hljs-built_in,
+.file-pane-editor-highlight .hljs-type,
+.file-pane-editor-highlight .hljs-literal {
+  color: #c678dd;
+}
+
+.file-pane-editor-highlight .hljs-string,
+.file-pane-editor-highlight .hljs-attr,
+.file-pane-editor-highlight .hljs-template-tag,
+.file-pane-editor-highlight .hljs-template-variable,
+.file-pane-editor-highlight .hljs-addition {
+  color: #98c379;
+}
+
+.file-pane-editor-highlight .hljs-number,
+.file-pane-editor-highlight .hljs-symbol,
+.file-pane-editor-highlight .hljs-bullet {
+  color: #d19a66;
+}
+
+.file-pane-editor-highlight .hljs-comment,
+.file-pane-editor-highlight .hljs-quote {
+  color: var(--fg-faint);
+  font-style: italic;
+}
+
+.file-pane-editor-highlight .hljs-title,
+.file-pane-editor-highlight .hljs-title.function_,
+.file-pane-editor-highlight .hljs-section,
+.file-pane-editor-highlight .hljs-attribute,
+.file-pane-editor-highlight .hljs-link {
+  color: #61afef;
+}
+
+.file-pane-editor-highlight .hljs-tag,
+.file-pane-editor-highlight .hljs-name,
+.file-pane-editor-highlight .hljs-deletion,
+.file-pane-editor-highlight .hljs-variable,
+.file-pane-editor-highlight .hljs-regexp {
+  color: #e06c75;
+}
+
+.file-pane-editor-highlight .hljs-meta,
+.file-pane-editor-highlight .hljs-meta-keyword,
+.file-pane-editor-highlight .hljs-meta-string {
+  color: var(--fg-faint);
+}
+
+.file-pane-editor-highlight .hljs-strong {
+  font-weight: 600;
+}
+
+.file-pane-editor-highlight .hljs-emphasis {
+  font-style: italic;
 }
 
 /* Editor header icon buttons (Revert / Save). currentColor inherits

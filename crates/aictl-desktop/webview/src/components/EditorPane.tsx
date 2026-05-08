@@ -1,7 +1,16 @@
 import type { Component } from "solid-js";
-import { Match, Show, Switch, createEffect, createSignal, onCleanup } from "solid-js";
+import {
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+} from "solid-js";
 
 import { ipc, type FileContents } from "../lib/ipc";
+import { highlightCode, languageForPath } from "../lib/highlight";
 
 interface Props {
   /// Workspace-relative file path the user picked from the tree. The
@@ -132,6 +141,27 @@ const EditorPane: Component<Props> = (props) => {
     void refresh();
   });
 
+  // Recompute the highlighted underlay only when the buffer or path
+  // changes — both cheap-to-track signals — so a non-mutating render
+  // (selection change, focus shift) doesn't burn CPU re-tokenizing the
+  // entire file. The trailing newline keeps the pre at the same height
+  // as the textarea when the file ends without one.
+  const language = createMemo(() => languageForPath(props.path));
+  const highlightedHtml = createMemo(() =>
+    highlightCode(`${buffer()}\n`, language()),
+  );
+
+  let textareaRef: HTMLTextAreaElement | undefined;
+  let preRef: HTMLPreElement | undefined;
+  /// Mirror the textarea's scroll position onto the underlay. The two
+  /// elements occupy the same rect; without this the highlighted layer
+  /// would drift behind every time the user scrolls.
+  const syncScroll = () => {
+    if (!textareaRef || !preRef) return;
+    preRef.scrollTop = textareaRef.scrollTop;
+    preRef.scrollLeft = textareaRef.scrollLeft;
+  };
+
   // ⌘S / Ctrl-S saves the active file. The textarea swallows keydown,
   // so we listen on the window for the shortcut.
   const onKey = (e: KeyboardEvent) => {
@@ -221,14 +251,26 @@ const EditorPane: Component<Props> = (props) => {
           </div>
         </Match>
         <Match when={open()}>
-          <textarea
-            class="file-pane-editor-area"
-            spellcheck={false}
-            value={buffer()}
-            onInput={(e) =>
-              setBuffer((e.currentTarget as HTMLTextAreaElement).value)
-            }
-          />
+          <div class="file-pane-editor-wrap">
+            <pre
+              ref={preRef}
+              class={`file-pane-editor-highlight hljs${
+                language() ? ` language-${language()}` : ""
+              }`}
+              aria-hidden="true"
+              innerHTML={highlightedHtml()}
+            />
+            <textarea
+              ref={textareaRef}
+              class="file-pane-editor-area"
+              spellcheck={false}
+              value={buffer()}
+              onInput={(e) =>
+                setBuffer((e.currentTarget as HTMLTextAreaElement).value)
+              }
+              onScroll={syncScroll}
+            />
+          </div>
         </Match>
         <Match when={true}>
           <div class="file-pane-empty">Loading…</div>
