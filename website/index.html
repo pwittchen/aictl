@@ -212,6 +212,30 @@
           </div>
         </div>
 
+        <div class="surfaces-security" aria-hidden="true">
+          <svg class="surfaces-security__line" viewBox="0 0 600 80" preserveAspectRatio="none">
+            <path d="M 300 0 V 80" />
+          </svg>
+          <div class="surfaces-security__badge">
+            <span class="surfaces-security__pulse"></span>
+            Security Layer
+            <span class="surfaces-security__note">part of aictl-core</span>
+          </div>
+        </div>
+
+        <div class="surfaces-backends" aria-hidden="true">
+          <svg class="surfaces-backends__lines" viewBox="0 0 600 80" preserveAspectRatio="none">
+            <path d="M 300 0 V 40 H 100 V 80" />
+            <path d="M 300 0 V 80" />
+            <path d="M 300 0 V 40 H 500 V 80" />
+          </svg>
+          <div class="surfaces-backends__nodes">
+            <span class="surfaces-backends__node">Cloud LLM APIs</span>
+            <span class="surfaces-backends__node">Ollama</span>
+            <span class="surfaces-backends__node">Local · MLX / GGUF</span>
+          </div>
+        </div>
+
         <p class="surfaces__note">
           A single Rust crate &mdash; <code>aictl-core</code> &mdash; powers all three.<br>
           The agent loop, providers, tools, security, and sessions live in one library.
