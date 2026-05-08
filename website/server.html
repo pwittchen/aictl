@@ -83,6 +83,96 @@
       </div>
     </section>
 
+    <section class="section section--alt" id="preview">
+      <div class="container">
+        <div class="preview-block preview-block--reveal">
+          <header class="section__head section__head--center">
+            <span class="section__kicker">// preview</span>
+            <h2 class="section__title">A look at the server</h2>
+            <p class="section__lead">
+              Boot banner with bind address, master key source, provider
+              list, audit and redaction state; live request log with
+              method, path, upstream provider, status, and latency.
+            </p>
+          </header>
+
+          <figure class="preview">
+            <div class="server-demo" role="img" aria-label="Animated terminal showing aictl-server starting up and serving requests across multiple providers">
+            <div class="server-demo__bar">
+              <span class="server-demo__dot"></span>
+              <span class="server-demo__dot"></span>
+              <span class="server-demo__dot"></span>
+              <span class="server-demo__bar-title">~ aictl-server</span>
+            </div>
+            <div class="server-demo__body" aria-hidden="true">
+              <div class="server-demo__row" style="--demo-delay: 200ms"><span class="server-demo__prompt">$</span> aictl-server</div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 700ms">aictl-server v0.39.3 &mdash; OpenAI-compatible LLM proxy</div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 1000ms"><span class="server-demo__label">listening</span><span class="server-demo__hl">http://127.0.0.1:7878</span></div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 1300ms"><span class="server-demo__label">master key</span>resolved from keyring</div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 1600ms"><span class="server-demo__label">providers</span>openai · anthropic · gemini · grok · mistral · deepseek · kimi · zai · ollama</div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 1900ms"><span class="server-demo__label">audit</span>~/.aictl/server-audit.log</div>
+              <div class="server-demo__row server-demo__row--muted" style="--demo-delay: 2200ms"><span class="server-demo__label">redaction</span>on (regex + entropy)</div>
+              <div class="server-demo__row" style="--demo-delay: 2500ms"><span class="server-demo__ok">●</span> ready</div>
+              <div class="server-demo__spacer" style="--demo-delay: 2900ms"></div>
+
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 3100ms">
+                <span class="server-demo__time">[14:32:18]</span>
+                <span class="server-demo__method">POST</span>
+                <span class="server-demo__path">/v1/chat/completions</span>
+                <span class="server-demo__provider">openai · gpt-4o-mini</span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">1.24s</span>
+              </div>
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 3500ms">
+                <span class="server-demo__time">[14:32:21]</span>
+                <span class="server-demo__method">POST</span>
+                <span class="server-demo__path">/v1/chat/completions</span>
+                <span class="server-demo__provider">anthropic · sonnet-4-6</span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">2.18s</span>
+              </div>
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 3900ms">
+                <span class="server-demo__time">[14:32:24]</span>
+                <span class="server-demo__method server-demo__method--get">GET</span>
+                <span class="server-demo__path">/v1/models</span>
+                <span class="server-demo__provider"></span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">3ms</span>
+              </div>
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 4300ms">
+                <span class="server-demo__time">[14:32:25]</span>
+                <span class="server-demo__method">POST</span>
+                <span class="server-demo__path">/v1/chat/completions</span>
+                <span class="server-demo__provider">deepseek · v3</span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">3.41s</span>
+              </div>
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 4700ms">
+                <span class="server-demo__time">[14:32:28]</span>
+                <span class="server-demo__method server-demo__method--get">GET</span>
+                <span class="server-demo__path">/v1/stats</span>
+                <span class="server-demo__provider"></span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">12ms</span>
+              </div>
+              <div class="server-demo__row server-demo__row--log" style="--demo-delay: 5100ms">
+                <span class="server-demo__time">[14:32:30]</span>
+                <span class="server-demo__method">POST</span>
+                <span class="server-demo__path">/v1/chat/completions</span>
+                <span class="server-demo__provider">gemini · 2.5-flash</span>
+                <span class="server-demo__status">200</span>
+                <span class="server-demo__latency">0.97s</span>
+              </div>
+              <div class="server-demo__row server-demo__row--cursor" style="--demo-delay: 5500ms">
+                <span class="server-demo__cursor"></span>
+              </div>
+            </div>
+          </div>
+        </figure>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="toc">
       <div class="container">
         <header class="section__head">
@@ -94,7 +184,8 @@
           </p>
         </header>
 
-        <ul class="providers" style="grid-template-columns: repeat(5, 1fr);">
+        <ul class="providers" style="grid-template-columns: repeat(6, 1fr);">
+          <li><a href="#preview">Preview</a></li>
           <li><a href="#install">Install</a></li>
           <li><a href="#quickstart">Quickstart</a></li>
           <li><a href="#docker">Docker</a></li>

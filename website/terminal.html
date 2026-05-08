@@ -83,17 +83,18 @@
 
     <section class="section section--alt" id="preview">
       <div class="container">
-        <header class="section__head section__head--center">
-          <span class="section__kicker">// preview</span>
-          <h2 class="section__title">A look at the CLI</h2>
-          <p class="section__lead">
-            Status banner with provider, model, security state, and
-            session id; tool calls inline; a per-turn cost meter on
-            every reply.
-          </p>
-        </header>
+        <div class="preview-block preview-block--reveal">
+          <header class="section__head section__head--center">
+            <span class="section__kicker">// preview</span>
+            <h2 class="section__title">A look at the CLI</h2>
+            <p class="section__lead">
+              Status banner with provider, model, security state, and
+              session id; tool calls inline; a per-turn cost meter on
+              every reply.
+            </p>
+          </header>
 
-        <figure class="preview">
+          <figure class="preview">
           <div class="cli-demo" role="img" aria-label="aictl running in a terminal: status banner showing model claude-sonnet-4-6, a list_directory tool call result, and per-turn cost and token usage.">
             <div class="cli-demo__bar">
               <span class="cli-demo__dot"></span>
@@ -149,6 +150,7 @@
             </div>
           </div>
         </figure>
+        </div>
       </div>
     </section>
 
