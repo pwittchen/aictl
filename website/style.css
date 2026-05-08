@@ -1412,32 +1412,6 @@ body.nav-open {
   letter-spacing: 0.04em;
 }
 
-.dt-demo__side-bottom {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--dt-border);
-}
-
-.dt-demo__bottom-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  color: var(--dt-fg-soft);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-}
-
-.dt-demo__shortcut {
-  padding: 1px 6px;
-  border: 1px solid var(--dt-border);
-  background: var(--dt-surface);
-  color: var(--dt-fg-faint);
-  font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .dt-demo__main {
   grid-area: main;
   display: flex;
