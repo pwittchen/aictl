@@ -9,7 +9,7 @@ AI agent for your terminal and desktop + HTTP LLM proxy server — 74 built-in c
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
 **User guides**:
-- Desktop: https://aictl.app/desktop.html
+- Desktop (macOS) : https://aictl.app/desktop.html
 - Terminal: https://aictl.app/terminal.html
 - Server: https://aictl.app/server.html
 
