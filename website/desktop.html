@@ -25,7 +25,7 @@
         <a href="desktop.html">Desktop</a>
         <a href="terminal.html">Terminal</a>
         <a href="server.html">Server</a>
-        <a href="index.html#license">License</a>
+        <a href="#license">License</a>
       </nav>
       <a class="btn btn--primary nav__cta" href="#download">Download</a>
       <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
@@ -45,7 +45,7 @@
       <a href="desktop.html" data-nav-link>Desktop</a>
       <a href="terminal.html" data-nav-link>Terminal</a>
       <a href="server.html" data-nav-link>Server</a>
-      <a href="index.html#license" data-nav-link>License</a>
+      <a href="#license" data-nav-link>License</a>
     </nav>
     <a class="btn btn--primary nav__drawer-cta" href="#download" data-nav-link>Download</a>
   </aside>
@@ -244,8 +244,7 @@
           </p>
         </header>
 
-        <ul class="providers">
-          <li><a href="#preview">Preview</a></li>
+        <ul class="providers" style="grid-template-columns: repeat(7, 1fr);">
           <li><a href="#download">Download</a></li>
           <li><a href="#what-you-get">What you get</a></li>
           <li><a href="#workspace">Workspace</a></li>
@@ -257,8 +256,9 @@
           <li><a href="#shared-state">Shared state</a></li>
           <li><a href="#security">Security</a></li>
           <li><a href="#updates">Updates</a></li>
+          <li><a href="#license">License</a></li>
           <li><a href="terminal.html">Terminal</a></li>
-          <li><a href="server.html">HTTP proxy server</a></li>
+          <li><a href="server.html">Server</a></li>
         </ul>
       </div>
     </section>
@@ -677,7 +677,7 @@
       </div>
     </section>
 
-    <section class="section" id="updates">
+    <section class="section section--alt" id="updates">
       <div class="container">
         <header class="section__head">
           <span class="section__kicker">// 11 updates</span>
@@ -704,6 +704,39 @@
           <article class="card">
             <h3>Wipe state</h3>
             <p>To remove everything &mdash; config, keys, agents, sessions, audit log &mdash; delete <code>~/.aictl/</code> manually: <code>rm -rf ~/.aictl</code>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="license">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// license</span>
+          <h2 class="section__title">Free for non-commercial use</h2>
+          <p class="section__lead">
+            aictl is released under the
+            <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0</a>.
+          </p>
+        </header>
+
+        <div class="grid grid--2">
+          <article class="card">
+            <h3>Non-commercial &mdash; free</h3>
+            <p>
+              Free to use for personal projects, research, education, and
+              non-profit organizations. Read the source, run it, modify it,
+              share it &mdash; at no cost.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Commercial &mdash; contact me</h3>
+            <p>
+              Commercial use requires a separate license. If you or your
+              company want to use aictl at work or inside a product, email
+              <a href="mailto:piotr@wittchen.io"><strong>piotr@wittchen.io</strong></a>
+              to arrange a commercial license.
+            </p>
           </article>
         </div>
       </div>
