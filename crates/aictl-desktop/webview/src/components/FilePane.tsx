@@ -141,6 +141,21 @@ const FilePane: Component<Props> = (props) => {
     }
   };
 
+  const uploadFile = async () => {
+    try {
+      const newRel = await ipc.workspaceUploadFile(createBase());
+      if (newRel) {
+        // Carry the user's selection over to the freshly-copied file so
+        // the editor opens it on demand and the row stays highlighted
+        // through the next fs-watcher refresh.
+        setSelected({ path: newRel, kind: "file" });
+        setTreeError(null);
+      }
+    } catch (err) {
+      setTreeError(`${err}`);
+    }
+  };
+
   const deleteEntry = async (rel: string) => {
     try {
       await ipc.workspaceDelete(rel);
@@ -257,6 +272,25 @@ const FilePane: Component<Props> = (props) => {
               aria-hidden="true"
             >
               <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="file-pane-action"
+            aria-label="Upload file"
+            title="Upload file from disk"
+            onClick={() => void uploadFile()}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              width="14"
+              height="14"
+              aria-hidden="true"
+            >
+              <path d="M7.25 10.25a.75.75 0 0 0 1.5 0V4.56l2.22 2.22a.75.75 0 1 0 1.06-1.06l-3.5-3.5a.75.75 0 0 0-1.06 0l-3.5 3.5a.75.75 0 0 0 1.06 1.06l2.22-2.22v5.69Z" />
+              <path d="M3.5 9.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 14h6.5A2.75 2.75 0 0 0 14 11.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25h-6.5c-.69 0-1.25-.56-1.25-1.25v-1.5Z" />
             </svg>
           </button>
           <button

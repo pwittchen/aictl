@@ -19,6 +19,8 @@
 use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
+use tauri::AppHandle;
+use tauri_plugin_dialog::DialogExt;
 
 use crate::workspace;
 
@@ -298,6 +300,87 @@ pub async fn workspace_delete(rel_path: String) -> Result<(), String> {
             .map_err(|e| format!("failed to delete '{}': {e}", target.display()))?;
     }
     Ok(())
+}
+
+/// Open the native file picker and copy the chosen file into the
+/// workspace under `dest_rel_dir`. Returns the workspace-relative path
+/// of the new entry, or `None` if the user cancelled the picker. The
+/// destination directory is validated the same way every other command
+/// here does it (jail-checked via `resolve_inside`); the source can sit
+/// anywhere on disk because the user picked it explicitly. Refuses to
+/// clobber an existing entry — same conservative stance the create
+/// commands take.
+#[tauri::command]
+pub async fn workspace_upload_file(
+    app: AppHandle,
+    dest_rel_dir: String,
+) -> Result<Option<String>, String> {
+    let workspace = workspace::resolve()?.ok_or_else(|| "no workspace selected".to_string())?;
+    let dest_dir = if dest_rel_dir.trim().is_empty() {
+        workspace.clone()
+    } else {
+        resolve_inside(&workspace, &dest_rel_dir)?
+    };
+    let dest_meta = tokio::fs::metadata(&dest_dir)
+        .await
+        .map_err(|e| format!("failed to stat '{}': {e}", dest_dir.display()))?;
+    if !dest_meta.is_dir() {
+        return Err(format!("'{}' is not a directory", dest_dir.display()));
+    }
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose a file to copy into the workspace")
+        .pick_file(move |path| {
+            let chosen = path.and_then(|p| p.into_path().ok());
+            let _ = tx.send(chosen);
+        });
+    let Some(source) = rx
+        .await
+        .map_err(|_| "file picker dropped before responding".to_string())?
+    else {
+        return Ok(None);
+    };
+
+    let source_meta = tokio::fs::metadata(&source)
+        .await
+        .map_err(|e| format!("failed to stat '{}': {e}", source.display()))?;
+    if !source_meta.is_file() {
+        return Err(format!("'{}' is not a regular file", source.display()));
+    }
+    let file_name = source
+        .file_name()
+        .ok_or_else(|| "selected path has no file name".to_string())?
+        .to_string_lossy()
+        .into_owned();
+    // Sanity-check the basename — defence against an OS that hands us
+    // back something weird in `file_name()`. Same lexical guard the
+    // rename path uses.
+    let mut comps = Path::new(&file_name).components();
+    let only = comps.next();
+    if comps.next().is_some() || !matches!(only, Some(Component::Normal(_))) {
+        return Err(format!("invalid file name '{file_name}'"));
+    }
+
+    let target = dest_dir.join(&file_name);
+    if tokio::fs::try_exists(&target)
+        .await
+        .map_err(|e| format!("failed to stat '{}': {e}", target.display()))?
+    {
+        return Err(format!("'{file_name}' already exists in destination"));
+    }
+
+    tokio::fs::copy(&source, &target)
+        .await
+        .map_err(|e| format!("failed to copy '{}': {e}", source.display()))?;
+
+    let new_rel = target
+        .strip_prefix(&workspace)
+        .map_err(|e| format!("failed to compute new path: {e}"))?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(Some(new_rel))
 }
 
 /// Overwrite an existing text file inside the workspace. Refuses to

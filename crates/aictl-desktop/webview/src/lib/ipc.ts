@@ -480,6 +480,9 @@ export const ipc = {
       newName,
     });
   },
+  async workspaceUploadFile(destRelDir: string) {
+    return invoke<string | null>("workspace_upload_file", { destRelDir });
+  },
   async revealAuditLog() {
     return invoke<void>("reveal_audit_log");
   },
