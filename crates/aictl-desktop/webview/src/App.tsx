@@ -463,6 +463,12 @@ const App: Component = () => {
         }
         setUpdateInfo(info);
         setLatestVersion(info.version);
+        // Auto-open the update dialog on startup so the user sees the
+        // new version without having to spot the titlebar badge.
+        // "Not now" only closes for the current launch — the dialog
+        // re-opens next time until the badge's X is used or the
+        // update is installed.
+        setShowUpdate(true);
       })
       .catch(() => {});
     void ipc

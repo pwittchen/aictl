@@ -6,7 +6,6 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
 - in the destkop app, add possiblity to to list directory tree of the workspace, preview and edit text files (do not preview/edit non-editable files). File contents should be displayed in the additional pane/view on the right and there should be possibility to open workspace treeview from the right (closed by default)
-- when there's new version of the app available, then display update window on the app startup
 - add speech to text input method
 
 ## CLI
