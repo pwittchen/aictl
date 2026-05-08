@@ -45,6 +45,8 @@
   --titlebar-height: 38px;
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 56px;
+  --files-pane-width: 280px;
+  --editor-pane-width: 480px;
 }
 
 * {

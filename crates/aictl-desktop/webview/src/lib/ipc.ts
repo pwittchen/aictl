@@ -320,6 +320,20 @@ export interface LocalModelsStatus {
   mlx: MlxStatus;
 }
 
+export interface TreeEntry {
+  name: string;
+  /// Workspace-relative POSIX path (no leading slash). Empty for the
+  /// workspace root itself; otherwise something like "src/main.rs".
+  path: string;
+  kind: "dir" | "file";
+}
+
+export interface FileContents {
+  path: string;
+  contents: string;
+  size_bytes: number;
+}
+
 export interface ContextStatus {
   model: string | null;
   provider: string | null;
@@ -438,6 +452,27 @@ export const ipc = {
       "read_workspace_image",
       { path },
     );
+  },
+  async workspaceTree(relDir: string) {
+    return invoke<TreeEntry[]>("workspace_tree", { relDir });
+  },
+  async workspaceReadFile(relPath: string) {
+    return invoke<FileContents>("workspace_read_file", { relPath });
+  },
+  async workspaceWriteFile(relPath: string, contents: string) {
+    return invoke<FileContents>("workspace_write_file", {
+      relPath,
+      contents,
+    });
+  },
+  async workspaceDelete(relPath: string) {
+    return invoke<void>("workspace_delete", { relPath });
+  },
+  async workspaceCreateFile(relPath: string) {
+    return invoke<void>("workspace_create_file", { relPath });
+  },
+  async workspaceCreateDir(relPath: string) {
+    return invoke<void>("workspace_create_dir", { relPath });
   },
   async revealAuditLog() {
     return invoke<void>("reveal_audit_log");
@@ -729,5 +764,12 @@ export const ipc = {
     return listen<{ path: string | null }>("workspace_changed", (e) =>
       cb(e.payload.path),
     );
+  },
+  /// Coalesced filesystem-change notifications from the desktop's
+  /// recursive `notify` watcher. Fires on create/modify/remove inside
+  /// the workspace; the frontend re-fetches whatever it currently has
+  /// on screen.
+  onWorkspaceFsChanged(cb: () => void): Promise<UnlistenFn> {
+    return listen("workspace_fs_changed", () => cb());
   },
 };

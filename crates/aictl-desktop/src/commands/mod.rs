@@ -9,6 +9,7 @@
 pub mod agents;
 pub mod chat;
 pub mod context;
+pub mod files;
 pub mod hooks;
 pub mod images;
 pub mod local_models;

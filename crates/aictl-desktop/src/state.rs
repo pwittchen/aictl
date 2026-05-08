@@ -63,6 +63,10 @@ pub struct AppState {
     /// turn completes.
     pub last_input_tokens: AtomicU64,
     pub last_output_tokens: AtomicU64,
+    /// Recursive filesystem watcher anchored at the active workspace.
+    /// Dropping the prior `FsWatcher` tears down its kernel handles, so
+    /// `Mutex<Option<...>>` is enough — no separate shutdown signal.
+    pub fs_watcher: Mutex<Option<crate::fs_watcher::FsWatcher>>,
 }
 
 impl AppState {
@@ -78,6 +82,7 @@ impl AppState {
             next_progress_id: AtomicU64::new(1),
             last_input_tokens: AtomicU64::new(0),
             last_output_tokens: AtomicU64::new(0),
+            fs_watcher: Mutex::new(None),
         }
     }
 

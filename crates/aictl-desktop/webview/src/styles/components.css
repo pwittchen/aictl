@@ -3,20 +3,68 @@
 .app {
   display: grid;
   grid-template-rows: var(--titlebar-height) 1fr;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns:
+    var(--sidebar-width)
+    1fr
+    var(--editor-pane-width)
+    var(--files-pane-width);
   grid-template-areas:
-    "titlebar titlebar"
-    "sidebar  main";
+    "titlebar titlebar titlebar titlebar"
+    "sidebar  main     editor   files";
   width: 100%;
   height: 100%;
   transition: grid-template-columns 160ms ease;
 }
 
 .app[data-sidebar-hidden="true"] {
-  grid-template-columns: 0 1fr;
+  grid-template-columns:
+    0
+    1fr
+    var(--editor-pane-width)
+    var(--files-pane-width);
+}
+
+.app[data-editor-hidden="true"] {
+  grid-template-columns:
+    var(--sidebar-width)
+    1fr
+    0
+    var(--files-pane-width);
+}
+
+.app[data-files-hidden="true"] {
+  grid-template-columns:
+    var(--sidebar-width)
+    1fr
+    var(--editor-pane-width)
+    0;
+}
+
+.app[data-sidebar-hidden="true"][data-editor-hidden="true"] {
+  grid-template-columns: 0 1fr 0 var(--files-pane-width);
+}
+
+.app[data-sidebar-hidden="true"][data-files-hidden="true"] {
+  grid-template-columns: 0 1fr var(--editor-pane-width) 0;
+}
+
+.app[data-editor-hidden="true"][data-files-hidden="true"] {
+  grid-template-columns: var(--sidebar-width) 1fr 0 0;
+}
+
+.app[data-sidebar-hidden="true"][data-editor-hidden="true"][data-files-hidden="true"] {
+  grid-template-columns: 0 1fr 0 0;
 }
 
 .app[data-sidebar-hidden="true"] .sidebar {
+  display: none;
+}
+
+.app[data-files-hidden="true"] .file-pane {
+  display: none;
+}
+
+.app[data-editor-hidden="true"] .editor-pane {
   display: none;
 }
 
@@ -96,6 +144,34 @@
 
 .titlebar .sidebar-toggle[aria-pressed="false"] {
   color: var(--fg-faint);
+}
+
+.titlebar .files-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--fg-faint);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 80ms ease, background 80ms ease;
+}
+
+.titlebar .files-toggle:hover {
+  color: var(--fg);
+  background: var(--surface-strong);
+}
+
+.titlebar .files-toggle[aria-pressed="true"] {
+  color: var(--fg);
+}
+
+.titlebar .files-toggle svg {
+  display: block;
 }
 
 .titlebar .workspace-pill {
@@ -3341,4 +3417,423 @@ button.primary {
 button.primary:hover:not([disabled]) {
   background: var(--accent);
   color: var(--bg);
+}
+
+/* ---- Right-side workspace file pane ---- */
+
+.file-pane {
+  grid-area: files;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-pane {
+  grid-area: editor;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-pane-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+
+.editor-pane-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Keep the real file path (mixed case, extension casing) — only the
+     header chrome around it inherits uppercase from the parent. */
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.editor-pane-meta {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.file-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+.file-pane-title {
+  /* Same weight as the sidebar's "Sessions" label — no bold. */
+}
+
+.file-pane-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.file-pane-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--fg-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 80ms ease, background 80ms ease;
+}
+
+.file-pane-action:hover:not([disabled]) {
+  color: var(--fg);
+  background: var(--surface-strong);
+}
+
+.file-pane-action svg {
+  display: block;
+}
+
+/* Create-file / create-dir modal — reuses .tool-modal for the shell. */
+.create-prompt-target {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+
+.create-prompt-target code {
+  font-family: var(--font-mono);
+  color: var(--fg-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.create-prompt-input {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  margin-bottom: var(--space-3);
+}
+
+.create-prompt-input:focus {
+  border-color: var(--accent);
+}
+
+.create-prompt-error {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tool-modal .actions button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.file-pane-close {
+  background: transparent;
+  border: 0;
+  color: var(--fg-faint);
+  cursor: pointer;
+  padding: 0 var(--space-2);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.file-pane-close:hover {
+  color: var(--fg);
+}
+
+.file-pane-tree {
+  overflow: auto;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  min-height: 0;
+}
+
+.file-pane-error {
+  padding: var(--space-2) var(--space-3);
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.tree-node {
+  display: contents;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 0 var(--space-2);
+  color: var(--fg-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  position: relative;
+}
+
+.tree-row:hover {
+  background: var(--surface-strong);
+  color: var(--fg);
+}
+
+.tree-row[data-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tree-row[data-selected="true"]:hover {
+  background: var(--accent-soft);
+}
+
+.tree-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 2px 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-row-trash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: var(--space-1);
+  background: transparent;
+  border: 0;
+  color: var(--fg-faint);
+  cursor: pointer;
+  border-radius: 3px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 80ms ease, color 80ms ease, background 80ms ease;
+}
+
+.tree-row:hover .tree-row-trash,
+.tree-row-trash:focus-visible {
+  opacity: 1;
+}
+
+.tree-row-trash:hover:not([disabled]) {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.tree-row-trash svg {
+  display: block;
+}
+
+.tree-row-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-1);
+  flex-shrink: 0;
+}
+
+.tree-row-confirm-yes {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.tree-row-confirm-yes:hover:not([disabled]) {
+  background: var(--danger);
+  color: var(--bg);
+}
+
+.tree-row-confirm-no {
+  background: transparent;
+  border: 0;
+  color: var(--fg-faint);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tree-row-confirm-no:hover {
+  color: var(--fg);
+}
+
+.tree-caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--fg-faint);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tree-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.tree-icon-folder {
+  color: var(--fg-soft);
+}
+
+.tree-row-file .tree-icon {
+  color: var(--fg-faint);
+}
+
+.tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-empty {
+  padding: 2px var(--space-2);
+  color: var(--fg-faint);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.file-pane-dot {
+  margin-left: var(--space-1);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.file-pane-editor-area {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--fg);
+  border: 0;
+  outline: none;
+  resize: none;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+/* Editor header icon buttons (Revert / Save). currentColor inherits
+   from --fg so the glyphs follow the active theme — white on dark,
+   black on light. */
+.editor-pane-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: background 80ms ease, opacity 80ms ease;
+}
+
+.editor-pane-icon:hover:not([disabled]) {
+  background: var(--surface-strong);
+}
+
+.editor-pane-icon[disabled] {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.editor-pane-icon svg {
+  display: block;
+}
+
+.file-pane-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-3);
+  color: var(--fg-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-pane-empty-error {
+  color: var(--danger);
 }

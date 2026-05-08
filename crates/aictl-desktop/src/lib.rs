@@ -19,6 +19,7 @@
 
 pub mod chat;
 pub mod commands;
+pub mod fs_watcher;
 pub mod state;
 pub mod ui;
 pub mod workspace;
@@ -94,6 +95,13 @@ pub fn run() {
             move |app| {
                 app.manage(state.clone());
                 ui::install_warning_sink(app.handle().clone());
+                // Start the workspace fs watcher (best-effort) so the
+                // file pane and editor refresh when anything inside the
+                // workspace changes — the assistant's tool calls,
+                // external editors, git checkouts, all of it.
+                if let Ok(Some(ws)) = workspace::resolve() {
+                    fs_watcher::install(app.handle(), &state, &ws);
+                }
                 Ok(())
             }
         })
@@ -143,6 +151,12 @@ pub fn run() {
             commands::settings::tool_set_disabled,
             commands::chat::compact_chat,
             commands::images::read_workspace_image,
+            commands::files::workspace_tree,
+            commands::files::workspace_read_file,
+            commands::files::workspace_write_file,
+            commands::files::workspace_delete,
+            commands::files::workspace_create_file,
+            commands::files::workspace_create_dir,
             commands::mcp::mcp_status,
             commands::mcp::mcp_toggle,
             commands::mcp::mcp_create,

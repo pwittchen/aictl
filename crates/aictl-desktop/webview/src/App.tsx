@@ -25,6 +25,8 @@ import EmptyWorkspace from "./components/EmptyWorkspace";
 import Titlebar from "./components/Titlebar";
 import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
+import FilePane from "./components/FilePane";
+import EditorPane from "./components/EditorPane";
 import Settings, { type Tab as SettingsTab } from "./components/Settings";
 import ContextDetails from "./components/ContextDetails";
 import UpdateModal from "./components/UpdateModal";
@@ -122,6 +124,30 @@ const App: Component = () => {
       return next;
     });
   };
+  // File-pane visibility — closed by default per the spec, persisted
+  // across launches the same way the sidebar toggle is.
+  const [filesVisible, setFilesVisible] = createSignal(false);
+  const toggleFiles = () => {
+    setFilesVisible((v) => {
+      const next = !v;
+      void ipc.configWrite(
+        "AICTL_DESKTOP_FILES_VISIBLE",
+        next ? "true" : "false",
+      );
+      return next;
+    });
+  };
+  // Path of the file currently shown in the editor pane. The pane
+  // itself sits between the chat and the tree; null means no editor
+  // is rendered. Hiding the tree does not close the editor — the user
+  // may want to keep editing the file with more screen real estate.
+  const [openFilePath, setOpenFilePath] = createSignal<string | null>(null);
+  // Bumped every time the backend's recursive `notify` watcher reports a
+  // change inside the workspace. The file pane and editor read this as
+  // a refresh signal — they re-fetch their current view rather than
+  // diffing the event payload (which is just a coalesced "something
+  // moved" pulse anyway).
+  const [fsTick, setFsTick] = createSignal(0);
   const [autoAccept, setAutoAccept] = createSignal(false);
   const [activeSession, setActiveSession] = createSignal<ActiveSession>({
     id: null,
@@ -422,6 +448,13 @@ const App: Component = () => {
     }
 
     try {
+      const raw = await ipc.configValue("AICTL_DESKTOP_FILES_VISIBLE");
+      if (raw === "true") setFilesVisible(true);
+    } catch {
+      // Default-false if the read fails.
+    }
+
+    try {
       setWorkspace(await ipc.getWorkspace());
       setActiveSession(await ipc.getActiveSession());
     } catch (err) {
@@ -489,6 +522,14 @@ const App: Component = () => {
         toggleSidebar();
         return;
       }
+      // ⌘. toggles the right-side file pane. ⌘\ already owns the
+      // sidebar, so the file pane gets the closest free chord.
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        if (!workspace().path) return;
+        e.preventDefault();
+        toggleFiles();
+        return;
+      }
       // ⌘, / Ctrl-, toggles the Settings overlay (matches the macOS
       // Preferences convention). Settings has its own Esc handler for
       // the close path, so we only flip the open state here and leave
@@ -522,8 +563,12 @@ const App: Component = () => {
     onCleanup(() => document.removeEventListener("click", onClick));
 
     const offEvent = await ipc.onAgentEvent(handleEvent);
+    const offFs = await ipc.onWorkspaceFsChanged(() => {
+      setFsTick((t) => t + 1);
+    });
     const offWs = await ipc.onWorkspaceChanged(async () => {
       setWorkspace(await ipc.getWorkspace());
+      setOpenFilePath(null);
       append({
         kind: "warning",
         text: "workspace changed — subsequent tool calls will run in the new directory.",
@@ -531,6 +576,7 @@ const App: Component = () => {
     });
     onCleanup(() => {
       offEvent();
+      offFs();
       offWs();
     });
   });
@@ -770,9 +816,20 @@ const App: Component = () => {
   const sidebarHidden = createMemo(
     () => !workspace().path || !sidebarVisible(),
   );
+  const filesPaneHidden = createMemo(
+    () => !workspace().path || !filesVisible(),
+  );
+  const editorPaneHidden = createMemo(
+    () => !workspace().path || openFilePath() === null,
+  );
 
   return (
-    <div class="app" data-sidebar-hidden={String(sidebarHidden())}>
+    <div
+      class="app"
+      data-sidebar-hidden={String(sidebarHidden())}
+      data-files-hidden={String(filesPaneHidden())}
+      data-editor-hidden={String(editorPaneHidden())}
+    >
       <Titlebar
         workspace={workspace()}
         onPickWorkspace={pickWorkspace}
@@ -783,6 +840,8 @@ const App: Component = () => {
         contextPct={contextPct()}
         contextTokens={contextTokens()}
         onShowContextDetails={() => setShowContextDetails(true)}
+        filesVisible={filesVisible()}
+        onToggleFiles={toggleFiles}
         updateAvailable={latestVersion()}
         onShowUpdate={() => openUpdate(updateInfo())}
         onDismissUpdate={() => {
@@ -859,6 +918,21 @@ const App: Component = () => {
           </div>
         </Show>
       </main>
+      <Show when={workspace().path && openFilePath() !== null}>
+        <EditorPane
+          path={openFilePath()!}
+          fsTick={fsTick()}
+          onClose={() => setOpenFilePath(null)}
+        />
+      </Show>
+      <Show when={workspace().path && filesVisible()}>
+        <FilePane
+          workspaceKey={workspace().path ?? ""}
+          fsTick={fsTick()}
+          onClose={toggleFiles}
+          onOpenFile={(path) => setOpenFilePath(path)}
+        />
+      </Show>
       <Show when={pending()}>
         {(p) => (
           <ToolApproval

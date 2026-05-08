@@ -23,6 +23,10 @@ interface Props {
   updateAvailable: string | null;
   onShowUpdate: () => void;
   onDismissUpdate: () => void;
+  /// File-pane toggle. Hidden until a workspace is picked because the
+  /// pane has nothing to show without one.
+  filesVisible: boolean;
+  onToggleFiles: () => void;
 }
 
 const Titlebar: Component<Props> = (props) => {
@@ -129,6 +133,43 @@ const Titlebar: Component<Props> = (props) => {
             tokens={props.contextTokens}
             onClick={props.onShowContextDetails}
           />
+        </Show>
+        <Show when={props.workspace.path}>
+          <button
+            type="button"
+            class="files-toggle"
+            aria-label={props.filesVisible ? "Hide files pane" : "Show files pane"}
+            aria-pressed={String(props.filesVisible)}
+            title={props.filesVisible ? "Hide files (⌘.)" : "Show files (⌘.)"}
+            onClick={props.onToggleFiles}
+          >
+            <Show
+              when={props.filesVisible}
+              fallback={
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  width="16"
+                  height="16"
+                  aria-hidden="true"
+                >
+                  <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H12.5A1.5 1.5 0 0 1 14 5.5v1.401a2.986 2.986 0 0 0-1.5-.401h-9c-.546 0-1.059.146-1.5.401V3.5ZM2 9.5v3A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-3A1.5 1.5 0 0 0 12.5 8h-9A1.5 1.5 0 0 0 2 9.5Z" />
+                </svg>
+              }
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                width="16"
+                height="16"
+                aria-hidden="true"
+              >
+                <path d="M3 3.5A1.5 1.5 0 0 1 4.5 2h1.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H11.5A1.5 1.5 0 0 1 13 5.5v1H3v-3ZM3.081 8a1.5 1.5 0 0 0-1.423 1.974l1 3A1.5 1.5 0 0 0 4.081 14h7.838a1.5 1.5 0 0 0 1.423-1.026l1-3A1.5 1.5 0 0 0 12.919 8H3.081Z" />
+              </svg>
+            </Show>
+          </button>
         </Show>
         <button
           type="button"

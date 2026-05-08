@@ -6,11 +6,13 @@
 //! `pick_workspace` → `set_workspace` so the new value lands in
 //! `~/.aictl/config` and the security policy reads it on the next turn.
 
+use std::sync::Arc;
+
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::{ui, workspace};
+use crate::{fs_watcher, state::AppState, ui, workspace};
 
 #[derive(Serialize)]
 pub struct WorkspaceState {
@@ -44,9 +46,17 @@ pub fn get_workspace() -> WorkspaceState {
 }
 
 #[tauri::command]
-pub fn set_workspace(app: AppHandle, path: String) -> Result<WorkspaceState, String> {
+pub fn set_workspace(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<WorkspaceState, String> {
     let canonical = workspace::set(&path)?;
     let path_str = canonical.to_string_lossy().into_owned();
+    // Reanchor the recursive fs watcher on the new root. Dropping the
+    // old watcher (inside `install`) tears down its kernel handles, so
+    // we don't leak inotify slots on repeated workspace switches.
+    fs_watcher::install(&app, &state, &canonical);
     ui::emit_workspace_changed(&app, Some(&path_str));
     Ok(WorkspaceState {
         path: Some(path_str),
@@ -60,9 +70,13 @@ pub fn set_workspace(app: AppHandle, path: String) -> Result<WorkspaceState, Str
 /// surfaces this alongside the folder picker so a brand-new install
 /// has a one-click path that does not depend on the native dialog.
 #[tauri::command]
-pub fn use_default_workspace(app: AppHandle) -> Result<WorkspaceState, String> {
+pub fn use_default_workspace(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+) -> Result<WorkspaceState, String> {
     let canonical = workspace::use_default()?;
     let path_str = canonical.to_string_lossy().into_owned();
+    fs_watcher::install(&app, &state, &canonical);
     ui::emit_workspace_changed(&app, Some(&path_str));
     Ok(WorkspaceState {
         path: Some(path_str),
