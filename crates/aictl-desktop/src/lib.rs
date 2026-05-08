@@ -157,6 +157,7 @@ pub fn run() {
             commands::files::workspace_delete,
             commands::files::workspace_create_file,
             commands::files::workspace_create_dir,
+            commands::files::workspace_rename,
             commands::mcp::mcp_status,
             commands::mcp::mcp_toggle,
             commands::mcp::mcp_create,

@@ -565,6 +565,33 @@
   transition: opacity 80ms ease;
 }
 
+/* Override the .ghost border — the icons read better as bare glyphs
+   in the cramped session row, mirroring the trash/edit chrome in the
+   file pane. Selectors are scoped under `.sidebar button` to outrank
+   the `.sidebar button.ghost` rule above. */
+.sidebar button.session-row-edit,
+.sidebar button.session-row-trash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 2px 4px;
+}
+
+.sidebar button.session-row-edit svg,
+.sidebar button.session-row-trash svg {
+  display: block;
+}
+
+.sidebar button.session-row-edit:hover:not([disabled]),
+.sidebar button.session-row-trash:hover:not([disabled]) {
+  border-color: transparent;
+}
+
+.sidebar button.session-row-trash:hover:not([disabled]) {
+  color: var(--danger);
+}
+
 .session-row:hover .session-row-actions,
 .session-row[data-active="true"] .session-row-actions {
   opacity: 1;
@@ -3529,6 +3556,14 @@ button.primary:hover:not([disabled]) {
   display: block;
 }
 
+/* Confirm-delete modal — reuses .tool-modal for the shell. */
+.confirm-delete-note {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
 /* Create-file / create-dir modal — reuses .tool-modal for the shell. */
 .create-prompt-target {
   margin: 0 0 var(--space-3);
@@ -3658,7 +3693,8 @@ button.primary:hover:not([disabled]) {
   text-overflow: ellipsis;
 }
 
-.tree-row-trash {
+.tree-row-trash,
+.tree-row-edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3677,7 +3713,9 @@ button.primary:hover:not([disabled]) {
 }
 
 .tree-row:hover .tree-row-trash,
-.tree-row-trash:focus-visible {
+.tree-row:hover .tree-row-edit,
+.tree-row-trash:focus-visible,
+.tree-row-edit:focus-visible {
   opacity: 1;
 }
 
@@ -3686,47 +3724,35 @@ button.primary:hover:not([disabled]) {
   background: var(--danger-soft);
 }
 
-.tree-row-trash svg {
+.tree-row-edit:hover:not([disabled]) {
+  color: var(--fg);
+  background: var(--surface-strong);
+}
+
+.tree-row-trash svg,
+.tree-row-edit svg {
   display: block;
 }
 
-.tree-row-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: var(--space-1);
-  flex-shrink: 0;
-}
-
-.tree-row-confirm-yes {
-  background: transparent;
-  border: 1px solid var(--danger);
-  color: var(--danger);
-  padding: 1px 6px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-
-.tree-row-confirm-yes:hover:not([disabled]) {
-  background: var(--danger);
-  color: var(--bg);
-}
-
-.tree-row-confirm-no {
-  background: transparent;
-  border: 0;
-  color: var(--fg-faint);
-  cursor: pointer;
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 1;
-}
-
-.tree-row-confirm-no:hover {
+.tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
   color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
 }
+
+.tree-row-error {
+  padding: 2px var(--space-2);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 
 .tree-caret {
   display: inline-block;

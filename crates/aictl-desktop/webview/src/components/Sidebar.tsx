@@ -1,7 +1,16 @@
 import type { Component } from "solid-js";
-import { For, Show, createEffect, createResource, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 
 import { ipc, type ActiveSession, type SessionRow } from "../lib/ipc";
+import ConfirmDelete from "./ConfirmDelete";
 
 interface Props {
   activeSession: ActiveSession;
@@ -62,12 +71,28 @@ const Sidebar: Component<Props> = (props) => {
     );
   };
 
+  // Tracks whether the rename was cancelled via Esc, so the input's
+  // blur handler doesn't race-submit the half-typed name right after
+  // we've already set `renamingId` to null. Cleared every time a fresh
+  // rename begins.
+  let renameCancelled = false;
+
   const beginRename = (row: SessionRow) => {
+    renameCancelled = false;
     setRenamingId(row.id);
     setRenameValue(row.name ?? "");
   };
 
+  const cancelRename = () => {
+    renameCancelled = true;
+    setRenamingId(null);
+  };
+
   const submitRename = async () => {
+    if (renameCancelled) {
+      renameCancelled = false;
+      return;
+    }
     const id = renamingId();
     const name = renameValue().trim();
     if (!id || !name) {
@@ -77,6 +102,21 @@ const Sidebar: Component<Props> = (props) => {
     await props.onRenameSession(id, name);
     setRenamingId(null);
   };
+
+  // Window-level Esc handler so the user can cancel an in-flight rename
+  // even after clicking somewhere outside the input — without this they
+  // would be stranded with no obvious exit when the input lost focus
+  // and the submit was a no-op (empty name).
+  onMount(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (renamingId() === null) return;
+      e.preventDefault();
+      cancelRename();
+    };
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
 
   return (
     <aside class="sidebar">
@@ -153,7 +193,12 @@ const Sidebar: Component<Props> = (props) => {
                             void submitRename();
                           } else if (e.key === "Escape") {
                             e.preventDefault();
-                            setRenamingId(null);
+                            cancelRename();
+                            // Drop focus so the trailing blur fires
+                            // immediately, sees the cancelled flag, and
+                            // exits without committing the half-typed
+                            // name.
+                            (e.currentTarget as HTMLInputElement).blur();
                           }
                         }}
                         onBlur={() => void submitRename()}
@@ -163,48 +208,60 @@ const Sidebar: Component<Props> = (props) => {
                       {fmtRelative(row.modified_secs)}
                     </span>
                   </div>
-                  <div class="session-row-actions">
-                    <button
-                      type="button"
-                      class="ghost mini"
-                      title="Rename"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        beginRename(row);
-                      }}
-                    >
-                      ✎
-                    </button>
-                    <Show
-                      when={pendingDelete() === row.id}
-                      fallback={
-                        <button
-                          type="button"
-                          class="ghost mini"
-                          title="Delete session"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPendingDelete(row.id);
-                          }}
-                        >
-                          ✕
-                        </button>
-                      }
-                    >
+                  <Show when={renamingId() !== row.id}>
+                    <div class="session-row-actions">
                       <button
                         type="button"
-                        class="ghost mini danger"
-                        title="Confirm delete"
+                        class="ghost mini session-row-edit"
+                        aria-label="Rename session"
+                        title="Rename"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPendingDelete(null);
-                          void props.onDeleteSession(row.id);
+                          beginRename(row);
                         }}
                       >
-                        Delete?
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          width="12"
+                          height="12"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M11.013 2.513a1.75 1.75 0 0 1 2.475 2.474L6.226 12.25a2.751 2.751 0 0 1-.892.596l-2.047.848a.75.75 0 0 1-.98-.98l.848-2.047a2.75 2.75 0 0 1 .596-.892l7.262-7.261Z"
+                          />
+                        </svg>
                       </button>
-                    </Show>
-                  </div>
+                      <button
+                        type="button"
+                        class="ghost mini session-row-trash"
+                        aria-label="Delete session"
+                        title="Delete session"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingDelete(row.id);
+                        }}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          width="12"
+                          height="12"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            clip-rule="evenodd"
+                            d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  </Show>
                 </li>
               );
             }}
@@ -268,6 +325,30 @@ const Sidebar: Component<Props> = (props) => {
           <kbd class="shortcut">⌘,</kbd>
         </button>
       </nav>
+      <Show when={pendingDelete()}>
+        {(id) => {
+          const row = () =>
+            (sessions() ?? []).find((s) => s.id === id());
+          const label = () => {
+            const r = row();
+            if (!r) return id();
+            return r.name ?? `(${shortId(r.id)})`;
+          };
+          return (
+            <ConfirmDelete
+              title="Delete session"
+              detail={label()}
+              note="The session and its transcript will be removed."
+              onCancel={() => setPendingDelete(null)}
+              onConfirm={() => {
+                const target = id();
+                setPendingDelete(null);
+                void props.onDeleteSession(target);
+              }}
+            />
+          );
+        }}
+      </Show>
     </aside>
   );
 };

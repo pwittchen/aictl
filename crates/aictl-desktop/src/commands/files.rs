@@ -211,6 +211,66 @@ pub async fn workspace_create_dir(rel_path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Rename a file or directory inside the workspace. The new name is
+/// taken as a single basename (no slashes), so the entry stays in its
+/// current parent — moves across directories are intentionally not
+/// supported here. Returns the workspace-relative path of the renamed
+/// entry so the frontend can update its selection without a follow-up
+/// listing.
+#[tauri::command]
+pub async fn workspace_rename(old_rel_path: String, new_name: String) -> Result<String, String> {
+    let workspace = workspace::resolve()?.ok_or_else(|| "no workspace selected".to_string())?;
+    let source = resolve_inside(&workspace, &old_rel_path)?;
+    if source == workspace {
+        return Err("refusing to rename the workspace root".to_string());
+    }
+
+    let trimmed = new_name.trim();
+    if trimmed.is_empty() {
+        return Err("name cannot be empty".to_string());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("name cannot contain slashes".to_string());
+    }
+    // Reject anything that isn't a single Normal component — guards against
+    // `..`, drive letters, leading slashes, and stray dots.
+    let mut comps = Path::new(trimmed).components();
+    let only = comps.next();
+    if comps.next().is_some() {
+        return Err(format!("invalid name '{trimmed}'"));
+    }
+    if !matches!(only, Some(Component::Normal(_))) {
+        return Err(format!("invalid name '{trimmed}'"));
+    }
+
+    let parent = source
+        .parent()
+        .ok_or_else(|| "no parent directory".to_string())?;
+    let target = parent.join(trimmed);
+    if target == source {
+        // Renaming to the existing name is a noop — succeed without touching
+        // the disk so the UI doesn't surface a spurious "already exists".
+        return Ok(normalize_rel(&old_rel_path));
+    }
+    if tokio::fs::try_exists(&target)
+        .await
+        .map_err(|e| format!("failed to stat '{}': {e}", target.display()))?
+    {
+        return Err(format!("'{trimmed}' already exists"));
+    }
+
+    tokio::fs::rename(&source, &target)
+        .await
+        .map_err(|e| format!("failed to rename '{}': {e}", source.display()))?;
+
+    let new_rel = target
+        .strip_prefix(&workspace)
+        .map_err(|e| format!("failed to compute new path: {e}"))?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(new_rel)
+}
+
 /// Recursively delete a file or directory inside the workspace. The
 /// frontend prompts the user for confirmation first; this command
 /// performs no second-guessing beyond the path-jail check (a hostile

@@ -1,7 +1,8 @@
 import type { Component } from "solid-js";
-import { For, Show, createEffect, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 
 import { ipc, type TreeEntry } from "../lib/ipc";
+import ConfirmDelete from "./ConfirmDelete";
 import CreatePrompt from "./CreatePrompt";
 
 interface Props {
@@ -28,7 +29,58 @@ const FilePane: Component<Props> = (props) => {
   // delete pattern: first click on the trash icon arms the row, second
   // click confirms. Clicking another row's trash, or anywhere outside
   // the row, clears the arming.
-  const [pendingDelete, setPendingDelete] = createSignal<string | null>(null);
+  // Path + kind targeted by the open delete-confirmation modal. `null`
+  // means no modal is showing — the trash icon on every row triggers it
+  // by writing the row's path/kind here.
+  const [pendingDelete, setPendingDelete] = createSignal<
+    { path: string; kind: "file" | "dir" } | null
+  >(null);
+  // Rename-in-progress state. Mirrors the Sidebar's session rename
+  // pattern: the matching row swaps its label for an input, Enter
+  // submits, Escape cancels, blur submits.
+  const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
+  const [renameValue, setRenameValue] = createSignal("");
+  const [renameError, setRenameError] = createSignal<string | null>(null);
+
+  const beginRename = (rel: string) => {
+    const idx = rel.lastIndexOf("/");
+    setRenamingPath(rel);
+    setRenameValue(idx === -1 ? rel : rel.slice(idx + 1));
+    setRenameError(null);
+    // Cancel any other inline action so the row isn't confusingly armed.
+    setPendingDelete(null);
+  };
+
+  const cancelRename = () => {
+    setRenamingPath(null);
+    setRenameValue("");
+    setRenameError(null);
+  };
+
+  const submitRename = async () => {
+    const rel = renamingPath();
+    if (!rel) return;
+    const newName = renameValue().trim();
+    const idx = rel.lastIndexOf("/");
+    const oldName = idx === -1 ? rel : rel.slice(idx + 1);
+    // Empty or unchanged name — treat as cancel rather than nag.
+    if (!newName || newName === oldName) {
+      cancelRename();
+      return;
+    }
+    try {
+      const newRel = await ipc.workspaceRename(rel, newName);
+      // Carry the user's selection over to the new path so the
+      // highlight doesn't snap back to the workspace root after the
+      // tree refresh.
+      setSelected((cur) =>
+        cur && cur.path === rel ? { path: newRel, kind: cur.kind } : cur,
+      );
+      cancelRename();
+    } catch (err) {
+      setRenameError(`${err}`);
+    }
+  };
   // Explicit user selection in the tree, distinct from the editor's
   // `openPath`. Tracks `kind` so the create-prompt can decide whether to
   // anchor the new entry on the selection itself (a dir) or on its
@@ -93,7 +145,7 @@ const FilePane: Component<Props> = (props) => {
     try {
       await ipc.workspaceDelete(rel);
       // The fs watcher will fire next and trigger a tree refresh; nothing
-      // to do here beyond clearing the inline-confirm state.
+      // to do here beyond clearing the modal state.
     } catch (err) {
       setTreeError(`${err}`);
     } finally {
@@ -146,8 +198,25 @@ const FilePane: Component<Props> = (props) => {
     setSelected(null);
     setCreateMode(null);
     setCreateError(null);
+    setRenamingPath(null);
+    setRenameValue("");
+    setRenameError(null);
     void loadDir("");
   });
+
+  // Window-level Esc handler so the user can cancel an in-flight rename
+  // even after clicking somewhere outside the input. Without this, the
+  // rename row stays "frozen" — the input has no focus, the user has
+  // nothing obvious to click on, and Esc inside the now-unfocused input
+  // wouldn't reach the input's onKeyDown.
+  const onWindowKey = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    if (renamingPath() === null) return;
+    e.preventDefault();
+    cancelRename();
+  };
+  window.addEventListener("keydown", onWindowKey);
+  onCleanup(() => window.removeEventListener("keydown", onWindowKey));
 
   // Refresh on every fs-watcher pulse: re-fetch every directory we've
   // expanded so newly-added entries show up and removed ones disappear.
@@ -236,12 +305,19 @@ const FilePane: Component<Props> = (props) => {
           children_={children()}
           loading={loading()}
           selected={selected()}
-          pendingDelete={pendingDelete()}
+          renamingPath={renamingPath()}
+          renameValue={renameValue()}
+          renameError={renameError()}
           onToggleDir={toggleDir}
           onOpenFile={props.onOpenFile}
           onToggleSelect={toggleSelect}
-          onArmDelete={setPendingDelete}
-          onConfirmDelete={(rel) => void deleteEntry(rel)}
+          onRequestDelete={(rel, kind) =>
+            setPendingDelete({ path: rel, kind })
+          }
+          onBeginRename={beginRename}
+          onChangeRenameValue={setRenameValue}
+          onSubmitRename={() => void submitRename()}
+          onCancelRename={cancelRename}
         />
       </section>
       <Show when={createMode() !== null}>
@@ -252,6 +328,23 @@ const FilePane: Component<Props> = (props) => {
           onSubmit={(name) => void submitCreate(name)}
           onCancel={cancelCreate}
         />
+      </Show>
+      <Show when={pendingDelete()}>
+        {(target) => (
+          <ConfirmDelete
+            title={
+              target().kind === "dir" ? "Delete directory" : "Delete file"
+            }
+            detail={target().path}
+            note={
+              target().kind === "dir"
+                ? "Everything inside this directory will be removed."
+                : null
+            }
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => void deleteEntry(target().path)}
+          />
+        )}
       </Show>
     </aside>
   );
@@ -269,14 +362,20 @@ interface TreeNodeProps {
   /// Currently-selected entry, drives the row highlight. Also tells the
   /// create-prompt where to land new entries.
   selected: { path: string; kind: "file" | "dir" } | null;
-  /// Path that's currently armed for deletion (first trash click). The
-  /// matching row swaps its trash icon for a "delete?" confirm button.
-  pendingDelete: string | null;
+  /// Path of the row currently in rename mode. The matching row hides
+  /// its label and shows an input instead. `null` means no row is
+  /// being renamed.
+  renamingPath: string | null;
+  renameValue: string;
+  renameError: string | null;
   onToggleDir: (rel: string) => void;
   onOpenFile: (rel: string) => void;
   onToggleSelect: (rel: string, kind: "file" | "dir") => void;
-  onArmDelete: (rel: string | null) => void;
-  onConfirmDelete: (rel: string) => void;
+  onRequestDelete: (rel: string, kind: "file" | "dir") => void;
+  onBeginRename: (rel: string) => void;
+  onChangeRenameValue: (value: string) => void;
+  onSubmitRename: () => void;
+  onCancelRename: () => void;
 }
 
 const TreeNode: Component<TreeNodeProps> = (props) => {
@@ -288,6 +387,7 @@ const TreeNode: Component<TreeNodeProps> = (props) => {
     props.selected !== null &&
     props.selected.path === props.rel &&
     props.selected.kind === "dir";
+  const isRenaming = () => props.renamingPath === props.rel;
 
   return (
     <div class="tree-node">
@@ -297,30 +397,53 @@ const TreeNode: Component<TreeNodeProps> = (props) => {
           data-selected={String(isSelected())}
           style={{ "padding-left": `${props.depth * 12 + 6}px` }}
         >
-          <button
-            type="button"
-            class="tree-row-main"
-            onClick={() => {
-              props.onToggleSelect(props.rel, "dir");
-              props.onToggleDir(props.rel);
-            }}
+          <Show
+            when={isRenaming()}
+            fallback={
+              <button
+                type="button"
+                class="tree-row-main"
+                onClick={() => {
+                  props.onToggleSelect(props.rel, "dir");
+                  props.onToggleDir(props.rel);
+                }}
+              >
+                <span class="tree-caret" aria-hidden="true">
+                  {isOpen() ? "▾" : "▸"}
+                </span>
+                <span class="tree-icon tree-icon-folder" aria-hidden="true">
+                  <FolderIcon open={isOpen()} />
+                </span>
+                <span class="tree-label">{props.name}</span>
+              </button>
+            }
           >
-            <span class="tree-caret" aria-hidden="true">
-              {isOpen() ? "▾" : "▸"}
-            </span>
-            <span class="tree-icon tree-icon-folder" aria-hidden="true">
-              <FolderIcon open={isOpen()} />
-            </span>
-            <span class="tree-label">{props.name}</span>
-          </button>
-          <TrashAction
-            rel={props.rel}
-            label={`directory ${props.name}`}
-            armed={props.pendingDelete === props.rel}
-            onArm={props.onArmDelete}
-            onConfirm={props.onConfirmDelete}
-          />
+            <RenameInput
+              value={props.renameValue}
+              onInput={props.onChangeRenameValue}
+              onSubmit={props.onSubmitRename}
+              onCancel={props.onCancelRename}
+            />
+          </Show>
+          <Show when={!isRenaming()}>
+            <EditAction
+              label={`directory ${props.name}`}
+              onClick={() => props.onBeginRename(props.rel)}
+            />
+            <TrashAction
+              label={`directory ${props.name}`}
+              onClick={() => props.onRequestDelete(props.rel, "dir")}
+            />
+          </Show>
         </div>
+        <Show when={isRenaming() && props.renameError}>
+          <div
+            class="tree-row-error"
+            style={{ "padding-left": `${props.depth * 12 + 24}px` }}
+          >
+            {props.renameError}
+          </div>
+        </Show>
       </Show>
       <Show when={isOpen()}>
         <Show when={isLoading() && !entries()}>
@@ -350,48 +473,87 @@ const TreeNode: Component<TreeNodeProps> = (props) => {
                 children_={props.children_}
                 loading={props.loading}
                 selected={props.selected}
-                pendingDelete={props.pendingDelete}
+                renamingPath={props.renamingPath}
+                renameValue={props.renameValue}
+                renameError={props.renameError}
                 onToggleDir={props.onToggleDir}
                 onOpenFile={props.onOpenFile}
                 onToggleSelect={props.onToggleSelect}
-                onArmDelete={props.onArmDelete}
-                onConfirmDelete={props.onConfirmDelete}
+                onRequestDelete={props.onRequestDelete}
+                onBeginRename={props.onBeginRename}
+                onChangeRenameValue={props.onChangeRenameValue}
+                onSubmitRename={props.onSubmitRename}
+                onCancelRename={props.onCancelRename}
               />
             ) : (
-              <div
-                class="tree-row tree-row-file"
-                data-selected={String(
-                  props.selected !== null &&
-                    props.selected.path === entry.path &&
-                    props.selected.kind === "file",
-                )}
-                style={{
-                  "padding-left": `${(props.depth + 1) * 12 + 6}px`,
-                }}
-              >
-                <button
-                  type="button"
-                  class="tree-row-main"
-                  onClick={() => {
-                    props.onToggleSelect(entry.path, "file");
-                    props.onOpenFile(entry.path);
-                  }}
-                  title={entry.path}
-                >
-                  <span class="tree-caret" aria-hidden="true" />
-                  <span class="tree-icon" aria-hidden="true">
-                    ·
-                  </span>
-                  <span class="tree-label">{entry.name}</span>
-                </button>
-                <TrashAction
-                  rel={entry.path}
-                  label={`file ${entry.name}`}
-                  armed={props.pendingDelete === entry.path}
-                  onArm={props.onArmDelete}
-                  onConfirm={props.onConfirmDelete}
-                />
-              </div>
+              (() => {
+                const fileRenaming = () => props.renamingPath === entry.path;
+                return (
+                  <>
+                    <div
+                      class="tree-row tree-row-file"
+                      data-selected={String(
+                        props.selected !== null &&
+                          props.selected.path === entry.path &&
+                          props.selected.kind === "file",
+                      )}
+                      style={{
+                        "padding-left": `${(props.depth + 1) * 12 + 6}px`,
+                      }}
+                    >
+                      <Show
+                        when={fileRenaming()}
+                        fallback={
+                          <button
+                            type="button"
+                            class="tree-row-main"
+                            onClick={() => {
+                              props.onToggleSelect(entry.path, "file");
+                              props.onOpenFile(entry.path);
+                            }}
+                            title={entry.path}
+                          >
+                            <span class="tree-caret" aria-hidden="true" />
+                            <span class="tree-icon" aria-hidden="true">
+                              ·
+                            </span>
+                            <span class="tree-label">{entry.name}</span>
+                          </button>
+                        }
+                      >
+                        <RenameInput
+                          value={props.renameValue}
+                          onInput={props.onChangeRenameValue}
+                          onSubmit={props.onSubmitRename}
+                          onCancel={props.onCancelRename}
+                        />
+                      </Show>
+                      <Show when={!fileRenaming()}>
+                        <EditAction
+                          label={`file ${entry.name}`}
+                          onClick={() => props.onBeginRename(entry.path)}
+                        />
+                        <TrashAction
+                          label={`file ${entry.name}`}
+                          onClick={() =>
+                            props.onRequestDelete(entry.path, "file")
+                          }
+                        />
+                      </Show>
+                    </div>
+                    <Show when={fileRenaming() && props.renameError}>
+                      <div
+                        class="tree-row-error"
+                        style={{
+                          "padding-left": `${(props.depth + 1) * 12 + 24}px`,
+                        }}
+                      >
+                        {props.renameError}
+                      </div>
+                    </Show>
+                  </>
+                );
+              })()
             )
           }
         </For>
@@ -435,72 +597,112 @@ const FolderIcon: Component<{ open: boolean }> = (props) => (
   </Show>
 );
 
+interface RenameInputProps {
+  value: string;
+  onInput: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
+const RenameInput: Component<RenameInputProps> = (props) => {
+  // Tracks whether Esc was the reason the input lost focus. Without
+  // this, the unmount blur fires `onSubmit` right after `onCancel`
+  // and races to commit the user's mid-typed name as a real rename.
+  let cancelled = false;
+  return (
+    <input
+      type="text"
+      class="tree-rename-input"
+      value={props.value}
+      autofocus
+      onClick={(e) => e.stopPropagation()}
+      onInput={(e) => props.onInput(e.currentTarget.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          props.onSubmit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelled = true;
+          props.onCancel();
+          // Drop focus so any pending blur fires immediately and sees
+          // the cancelled flag, instead of running on a future click.
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      onBlur={() => {
+        if (cancelled) return;
+        props.onSubmit();
+      }}
+    />
+  );
+};
+
+interface EditActionProps {
+  label: string;
+  onClick: () => void;
+}
+
+const EditAction: Component<EditActionProps> = (props) => (
+  <button
+    type="button"
+    class="tree-row-edit"
+    aria-label={`Rename ${props.label}`}
+    title="Rename"
+    onClick={(e) => {
+      e.stopPropagation();
+      props.onClick();
+    }}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      <path
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+        d="M11.013 2.513a1.75 1.75 0 0 1 2.475 2.474L6.226 12.25a2.751 2.751 0 0 1-.892.596l-2.047.848a.75.75 0 0 1-.98-.98l.848-2.047a2.75 2.75 0 0 1 .596-.892l7.262-7.261Z"
+      />
+    </svg>
+  </button>
+);
+
 interface TrashProps {
-  rel: string;
   /// Used as the aria-label for screen readers ("delete file foo.txt").
   label: string;
-  armed: boolean;
-  onArm: (rel: string | null) => void;
-  onConfirm: (rel: string) => void;
+  onClick: () => void;
 }
 
 const TrashAction: Component<TrashProps> = (props) => (
-  <Show
-    when={props.armed}
-    fallback={
-      <button
-        type="button"
-        class="tree-row-trash"
-        aria-label={`Delete ${props.label}`}
-        title="Delete"
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onArm(props.rel);
-        }}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          fill="currentColor"
-          width="14"
-          height="14"
-          aria-hidden="true"
-        >
-          <path
-            fill-rule="evenodd"
-            clip-rule="evenodd"
-            d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z"
-          />
-        </svg>
-      </button>
-    }
+  <button
+    type="button"
+    class="tree-row-trash"
+    aria-label={`Delete ${props.label}`}
+    title="Delete"
+    onClick={(e) => {
+      e.stopPropagation();
+      props.onClick();
+    }}
   >
-    <span class="tree-row-confirm">
-      <button
-        type="button"
-        class="tree-row-confirm-yes"
-        title={`Confirm delete ${props.label}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onConfirm(props.rel);
-        }}
-      >
-        Delete?
-      </button>
-      <button
-        type="button"
-        class="tree-row-confirm-no"
-        aria-label="Cancel delete"
-        title="Cancel"
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onArm(null);
-        }}
-      >
-        ✕
-      </button>
-    </span>
-  </Show>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      <path
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+        d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z"
+      />
+    </svg>
+  </button>
 );
 
 export default FilePane;

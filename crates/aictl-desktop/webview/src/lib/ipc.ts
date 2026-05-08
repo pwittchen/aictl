@@ -474,6 +474,12 @@ export const ipc = {
   async workspaceCreateDir(relPath: string) {
     return invoke<void>("workspace_create_dir", { relPath });
   },
+  async workspaceRename(oldRelPath: string, newName: string) {
+    return invoke<string>("workspace_rename", {
+      oldRelPath,
+      newName,
+    });
+  },
   async revealAuditLog() {
     return invoke<void>("reveal_audit_log");
   },
