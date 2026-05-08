@@ -142,6 +142,20 @@ const App: Component = () => {
   // is rendered. Hiding the tree does not close the editor — the user
   // may want to keep editing the file with more screen real estate.
   const [openFilePath, setOpenFilePath] = createSignal<string | null>(null);
+  // Persisted across launches via `AICTL_DESKTOP_OPEN_FILE` so reopening
+  // the app restores the same editor pane. The wrapper is used by every
+  // call site that reflects a user-initiated change (open from tree,
+  // close button, workspace switch); raw `setOpenFilePath` is reserved
+  // for the hydration path so the read-then-set round-trip doesn't
+  // immediately rewrite its own source value.
+  const setOpenFile = (path: string | null) => {
+    setOpenFilePath(path);
+    if (path === null) {
+      void ipc.configClear("AICTL_DESKTOP_OPEN_FILE").catch(() => {});
+    } else {
+      void ipc.configWrite("AICTL_DESKTOP_OPEN_FILE", path).catch(() => {});
+    }
+  };
   // Pane widths in pixels. Drag handles between adjacent visible panes
   // mutate these signals; a debounced effect persists them through
   // AICTL_DESKTOP_*_WIDTH keys so launches restore the user's layout.
@@ -500,6 +514,32 @@ const App: Component = () => {
       append({ kind: "error", text: `failed to read app state: ${err}` });
     }
 
+    // Restore the previously-open editor file once the workspace is known
+    // (the path is workspace-relative). If the file is gone or unreadable,
+    // forget the persisted path and force-open the files view so the user
+    // lands somewhere useful instead of a missing pane.
+    if (workspace().path) {
+      try {
+        const savedFile = await ipc.configValue("AICTL_DESKTOP_OPEN_FILE");
+        if (savedFile && savedFile.trim() !== "") {
+          try {
+            await ipc.workspaceReadFile(savedFile);
+            setOpenFilePath(savedFile);
+          } catch {
+            void ipc.configClear("AICTL_DESKTOP_OPEN_FILE").catch(() => {});
+            if (!filesVisible()) {
+              setFilesVisible(true);
+              void ipc
+                .configWrite("AICTL_DESKTOP_FILES_VISIBLE", "true")
+                .catch(() => {});
+            }
+          }
+        }
+      } catch {
+        // No persisted path / read failed — leave the editor closed.
+      }
+    }
+
     try {
       const [list, current] = await Promise.all([
         ipc.listModels(),
@@ -607,7 +647,10 @@ const App: Component = () => {
     });
     const offWs = await ipc.onWorkspaceChanged(async () => {
       setWorkspace(await ipc.getWorkspace());
-      setOpenFilePath(null);
+      // Open path is workspace-relative; switching workspaces invalidates
+      // it. Clear the persisted key too so the new workspace doesn't try
+      // to restore a stale path on next launch.
+      setOpenFile(null);
       append({
         kind: "warning",
         text: "workspace changed — subsequent tool calls will run in the new directory.",
@@ -1030,7 +1073,7 @@ const App: Component = () => {
         <EditorPane
           path={openFilePath()!}
           fsTick={fsTick()}
-          onClose={() => setOpenFilePath(null)}
+          onClose={() => setOpenFile(null)}
         />
       </Show>
       <Show when={workspace().path && filesVisible()}>
@@ -1038,7 +1081,7 @@ const App: Component = () => {
           workspaceKey={workspace().path ?? ""}
           fsTick={fsTick()}
           onClose={toggleFiles}
-          onOpenFile={(path) => setOpenFilePath(path)}
+          onOpenFile={(path) => setOpenFile(path)}
         />
       </Show>
       <Show when={!sidebarHidden()}>
