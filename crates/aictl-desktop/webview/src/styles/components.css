@@ -13,7 +13,7 @@
     "sidebar  main     editor   files";
   width: 100%;
   height: 100%;
-  transition: grid-template-columns 160ms ease;
+  position: relative;
 }
 
 .app[data-sidebar-hidden="true"] {
@@ -3958,4 +3958,26 @@ button.primary:hover:not([disabled]) {
 
 .file-pane-empty-error {
   color: var(--danger);
+}
+
+/* Drag handles for resizing panes. Each handle is a thin absolute
+   strip pinned to the gridline between two panes. The 6px hit area
+   is wider than the visible 1px line so the cursor doesn't have to
+   land pixel-perfect; `transform: translateX(-50%)` centers the strip
+   on the gridline regardless of which side it's anchored from. */
+.resize-handle {
+  position: absolute;
+  top: var(--titlebar-height);
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 5;
+  transform: translateX(-50%);
+  transition: background 80ms ease;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent-soft);
 }

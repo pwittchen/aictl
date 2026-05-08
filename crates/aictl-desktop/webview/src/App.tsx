@@ -142,6 +142,23 @@ const App: Component = () => {
   // is rendered. Hiding the tree does not close the editor — the user
   // may want to keep editing the file with more screen real estate.
   const [openFilePath, setOpenFilePath] = createSignal<string | null>(null);
+  // Pane widths in pixels. Drag handles between adjacent visible panes
+  // mutate these signals; a debounced effect persists them through
+  // AICTL_DESKTOP_*_WIDTH keys so launches restore the user's layout.
+  // The chat (main) is always the 1fr column — it absorbs whatever the
+  // user takes from or gives back to its neighbours.
+  const SIDEBAR_DEFAULT = 240;
+  const EDITOR_DEFAULT = 480;
+  const FILES_DEFAULT = 280;
+  const SIDEBAR_MIN = 160;
+  const SIDEBAR_MAX = 600;
+  const EDITOR_MIN = 280;
+  const EDITOR_MAX = 1000;
+  const FILES_MIN = 200;
+  const FILES_MAX = 700;
+  const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
+  const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
+  const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
   // Bumped every time the backend's recursive `notify` watcher reports a
   // change inside the workspace. The file pane and editor read this as
   // a refresh signal — they re-fetch their current view rather than
@@ -453,6 +470,28 @@ const App: Component = () => {
     } catch {
       // Default-false if the read fails.
     }
+
+    // Hydrate persisted pane widths. Bad/out-of-range values are
+    // ignored so a hand-edited config can't strand the user with a
+    // 5px-wide chat.
+    const hydrateWidth = (
+      key: string,
+      min: number,
+      max: number,
+      setter: (n: number) => void,
+    ) => {
+      void ipc
+        .configValue(key)
+        .then((raw) => {
+          if (!raw) return;
+          const n = Number.parseInt(raw, 10);
+          if (Number.isFinite(n) && n >= min && n <= max) setter(n);
+        })
+        .catch(() => {});
+    };
+    hydrateWidth("AICTL_DESKTOP_SIDEBAR_WIDTH", SIDEBAR_MIN, SIDEBAR_MAX, setSidebarWidth);
+    hydrateWidth("AICTL_DESKTOP_EDITOR_WIDTH", EDITOR_MIN, EDITOR_MAX, setEditorWidth);
+    hydrateWidth("AICTL_DESKTOP_FILES_WIDTH", FILES_MIN, FILES_MAX, setFilesWidth);
 
     try {
       setWorkspace(await ipc.getWorkspace());
@@ -823,12 +862,81 @@ const App: Component = () => {
     () => !workspace().path || openFilePath() === null,
   );
 
+  /// Computed CSS grid columns. Hidden panes collapse to `0` so the
+  /// drag handles for them disappear; the chat column (1fr) takes
+  /// whatever's left.
+  const gridColumns = createMemo(() => {
+    const s = sidebarHidden() ? "0" : `${sidebarWidth()}px`;
+    const e = editorPaneHidden() ? "0" : `${editorWidth()}px`;
+    const f = filesPaneHidden() ? "0" : `${filesWidth()}px`;
+    return `${s} 1fr ${e} ${f}`;
+  });
+
+  /// Generic pointer-driven resize. Captures the start position once,
+  /// then translates every move into a width delta. The min/max bounds
+  /// are baked in so a user dragging into a corner can't reduce a pane
+  /// below something usable. Persistence happens once on pointerup so
+  /// we don't spam `~/.aictl/config` for every pixel.
+  const startResize =
+    (which: "sidebar" | "editor" | "files") => (e: PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const initial =
+        which === "sidebar"
+          ? sidebarWidth()
+          : which === "editor"
+            ? editorWidth()
+            : filesWidth();
+      let last = initial;
+      const clampWidth = (raw: number) => {
+        if (which === "sidebar") {
+          return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, raw));
+        }
+        if (which === "editor") {
+          return Math.max(EDITOR_MIN, Math.min(EDITOR_MAX, raw));
+        }
+        return Math.max(FILES_MIN, Math.min(FILES_MAX, raw));
+      };
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX;
+        // Sidebar grows right; editor + files grow left, so the delta
+        // is inverted for those two.
+        const next = clampWidth(
+          which === "sidebar" ? initial + dx : initial - dx,
+        );
+        if (which === "sidebar") setSidebarWidth(next);
+        else if (which === "editor") setEditorWidth(next);
+        else setFilesWidth(next);
+        last = next;
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        const key =
+          which === "sidebar"
+            ? "AICTL_DESKTOP_SIDEBAR_WIDTH"
+            : which === "editor"
+              ? "AICTL_DESKTOP_EDITOR_WIDTH"
+              : "AICTL_DESKTOP_FILES_WIDTH";
+        void ipc.configWrite(key, String(last));
+      };
+      // Lock cursor + suppress text selection app-wide so nothing on
+      // the chat surface highlights as the user sweeps the handle.
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    };
+
   return (
     <div
       class="app"
       data-sidebar-hidden={String(sidebarHidden())}
       data-files-hidden={String(filesPaneHidden())}
       data-editor-hidden={String(editorPaneHidden())}
+      style={{ "grid-template-columns": gridColumns() }}
     >
       <Titlebar
         workspace={workspace()}
@@ -931,6 +1039,32 @@ const App: Component = () => {
           fsTick={fsTick()}
           onClose={toggleFiles}
           onOpenFile={(path) => setOpenFilePath(path)}
+        />
+      </Show>
+      <Show when={!sidebarHidden()}>
+        <div
+          class="resize-handle"
+          aria-hidden="true"
+          style={{ left: `${sidebarWidth()}px` }}
+          onPointerDown={startResize("sidebar")}
+        />
+      </Show>
+      <Show when={!editorPaneHidden()}>
+        <div
+          class="resize-handle"
+          aria-hidden="true"
+          style={{
+            right: `${(filesPaneHidden() ? 0 : filesWidth()) + editorWidth()}px`,
+          }}
+          onPointerDown={startResize("editor")}
+        />
+      </Show>
+      <Show when={!filesPaneHidden()}>
+        <div
+          class="resize-handle"
+          aria-hidden="true"
+          style={{ right: `${filesWidth()}px` }}
+          onPointerDown={startResize("files")}
         />
       </Show>
       <Show when={pending()}>
