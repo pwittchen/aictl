@@ -23,7 +23,6 @@ interface Props {
   onDeleteSession: (id: string) => void | Promise<void>;
   onClearAll: () => void | Promise<void>;
   onRenameSession: (id: string, name: string) => void | Promise<void>;
-  onOpenSettings: () => void;
 }
 
 const fmtRelative = (secs: number): string => {
@@ -308,23 +307,6 @@ const Sidebar: Component<Props> = (props) => {
         </Show>
       </div>
 
-      {/*
-        Sidebar footer — non-session menu items live here so they stay
-        pinned at the bottom while the session list scrolls. Settings is
-        the only entry for now; Agents / Skills / Stats / Help land in
-        later phases of the desktop plan.
-      */}
-      <nav class="sidebar-section bottom-section">
-        <button
-          type="button"
-          class="bottom-item"
-          title="Open settings (⌘,)"
-          onClick={() => props.onOpenSettings()}
-        >
-          <span>Settings</span>
-          <kbd class="shortcut">⌘,</kbd>
-        </button>
-      </nav>
       <Show when={pendingDelete()}>
         {(id) => {
           const row = () =>

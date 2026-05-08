@@ -1125,6 +1125,7 @@ const App: Component = () => {
         onShowContextDetails={() => setShowContextDetails(true)}
         filesVisible={filesVisible()}
         onToggleFiles={toggleFiles}
+        onOpenSettings={() => setShowSettings(true)}
         updateAvailable={latestVersion()}
         onShowUpdate={() => openUpdate(updateInfo())}
         onDismissUpdate={() => {
@@ -1151,7 +1152,6 @@ const App: Component = () => {
           onDeleteSession={deleteSession}
           onClearAll={clearAllSessions}
           onRenameSession={renameSession}
-          onOpenSettings={() => setShowSettings(true)}
         />
       </Show>
       <main class="main">
