@@ -489,11 +489,11 @@ const App: Component = () => {
         toggleSidebar();
         return;
       }
-      // ⌘K / Ctrl-K toggles the Settings overlay. Settings has its
-      // own Esc handler for the close path, so we only flip the open
-      // state here and leave the close to the panel itself when the
-      // overlay is visible.
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      // ⌘, / Ctrl-, toggles the Settings overlay (matches the macOS
+      // Preferences convention). Settings has its own Esc handler for
+      // the close path, so we only flip the open state here and leave
+      // the close to the panel itself when the overlay is visible.
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault();
         setShowSettings((v) => !v);
       }
