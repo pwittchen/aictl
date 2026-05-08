@@ -4,7 +4,7 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent for your terminal and desktop + HTTP LLM proxy server — 74 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon. Security-first by default.
+AI agent for your terminal and desktop + HTTP LLM proxy server — 79 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon. Security-first by default.
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
@@ -849,6 +849,7 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 |-------|-------|--------|
 | `gemini-3.1-pro-preview` | $2.00 | $12.00 |
 | `gemini-3-flash-preview` | $0.50 | $3.00 |
+| `gemini-3.1-flash-lite` | $0.25 | $1.50 |
 | `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
 | `gemini-2.5-flash` | $0.30 | $2.50 |
@@ -881,6 +882,9 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `mistral-large-latest` | $2.00 | $6.00 |
 | `mistral-medium-latest` | $0.40 | $2.00 |
 | `mistral-small-latest` | $0.10 | $0.30 |
+| `magistral-medium-2509` | $2.00 | $5.00 |
+| `magistral-small-2509` | $0.50 | $1.50 |
+| `devstral-2512` | $0.40 | $2.00 |
 | `codestral-latest` | $0.30 | $0.90 |
 
 #### DeepSeek
@@ -889,11 +893,12 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `deepseek-v4-pro` | $1.74 | $3.48 |
 | `deepseek-v4-flash` | $0.14 | $0.28 |
 | `deepseek-chat` | $0.28 | $0.42 |
 | `deepseek-reasoner` | $0.28 | $0.42 |
 
-`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility.
+`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context); the listed price is the standard list rate — DeepSeek is offering a 75% promotional discount through 2026-05-31.
 
 #### Kimi
 

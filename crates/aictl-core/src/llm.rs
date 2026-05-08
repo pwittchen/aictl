@@ -100,6 +100,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-2.5-flash", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-2.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.1-flash-lite", "LLM_GEMINI_API_KEY"),
     (
         "gemini",
         "gemini-3.1-flash-lite-preview",
@@ -119,10 +120,14 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "magistral-medium-2509", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "magistral-small-2509", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "devstral-2512", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
+    ("deepseek", "deepseek-v4-pro", "LLM_DEEPSEEK_API_KEY"),
     ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6-thinking", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
@@ -374,11 +379,23 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("mistral-small") {
         return Some((0.10, 0.30));
     }
+    if model.starts_with("magistral-medium") {
+        return Some((2.00, 5.00));
+    }
+    if model.starts_with("magistral-small") {
+        return Some((0.50, 1.50));
+    }
+    if model.starts_with("devstral") {
+        return Some((0.40, 2.00));
+    }
     if model.starts_with("codestral") {
         return Some((0.30, 0.90));
     }
 
     // DeepSeek — V4
+    if model.starts_with("deepseek-v4-pro") {
+        return Some((1.74, 3.48));
+    }
     if model.starts_with("deepseek-v4-flash") {
         return Some((0.14, 0.28));
     }
