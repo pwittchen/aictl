@@ -7,6 +7,11 @@ import {
   onMount,
 } from "solid-js";
 import type { Component } from "solid-js";
+import {
+  LogicalSize,
+  currentMonitor,
+  getCurrentWindow,
+} from "@tauri-apps/api/window";
 
 import {
   ipc,
@@ -121,6 +126,11 @@ const App: Component = () => {
         "AICTL_DESKTOP_SIDEBAR_VISIBLE",
         next ? "true" : "false",
       );
+      if (next && workspace().path) {
+        void growWindowTo(
+          requiredLayoutWidth(true, openFilePath() !== null, filesVisible()),
+        );
+      }
       return next;
     });
   };
@@ -134,6 +144,15 @@ const App: Component = () => {
         "AICTL_DESKTOP_FILES_VISIBLE",
         next ? "true" : "false",
       );
+      if (next && workspace().path) {
+        void growWindowTo(
+          requiredLayoutWidth(
+            sidebarVisible(),
+            openFilePath() !== null,
+            true,
+          ),
+        );
+      }
       return next;
     });
   };
@@ -149,11 +168,17 @@ const App: Component = () => {
   // for the hydration path so the read-then-set round-trip doesn't
   // immediately rewrite its own source value.
   const setOpenFile = (path: string | null) => {
+    const wasOpen = openFilePath() !== null;
     setOpenFilePath(path);
     if (path === null) {
       void ipc.configClear("AICTL_DESKTOP_OPEN_FILE").catch(() => {});
     } else {
       void ipc.configWrite("AICTL_DESKTOP_OPEN_FILE", path).catch(() => {});
+      if (!wasOpen && workspace().path) {
+        void growWindowTo(
+          requiredLayoutWidth(sidebarVisible(), true, filesVisible()),
+        );
+      }
     }
   };
   // Pane widths in pixels. Drag handles between adjacent visible panes
@@ -170,9 +195,95 @@ const App: Component = () => {
   const EDITOR_MAX = 1000;
   const FILES_MIN = 200;
   const FILES_MAX = 700;
+  // Floor for the chat column when computing whether the layout fits
+  // the current window. Sized to keep the composer footer (model
+  // picker + agent / skill / auto-accept icons + Send button with its
+  // ⌘↵ chip) on a single row alongside the standard horizontal
+  // padding — auto-grow reserves at least this many pixels, and
+  // auto-close drops side panes once the chat column would dip below
+  // it.
+  const CHAT_MIN_WIDTH = 520;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
+  // Total CSS-pixel width the layout needs given which panes are
+  // visible. Uses each pane's *current* width (not just its min) so
+  // the auto-grow path lands on the user's persisted layout instead of
+  // collapsing every pane to its minimum.
+  const requiredLayoutWidth = (
+    sidebarOn: boolean,
+    editorOn: boolean,
+    filesOn: boolean,
+  ) => {
+    let total = CHAT_MIN_WIDTH;
+    if (sidebarOn) total += sidebarWidth();
+    if (editorOn) total += editorWidth();
+    if (filesOn) total += filesWidth();
+    return total;
+  };
+  // Grow the window to at least `target` CSS pixels wide, capped at
+  // the current monitor's work area. Height is left alone. Called on
+  // every pane-open so a small window auto-expands instead of leaving
+  // the new pane crammed into a too-narrow chat column. Failures are
+  // swallowed — the worst-case fallback is a tight layout the user
+  // can resize manually.
+  const growWindowTo = async (target: number) => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth >= target) return;
+    try {
+      const win = getCurrentWindow();
+      const [innerPhys, scale, monitor] = await Promise.all([
+        win.innerSize(),
+        win.scaleFactor(),
+        currentMonitor(),
+      ]);
+      const curLogicalWidth = innerPhys.width / scale;
+      const curLogicalHeight = innerPhys.height / scale;
+      let next = Math.ceil(target);
+      if (monitor) {
+        const maxLogicalWidth =
+          monitor.workArea.size.width / monitor.scaleFactor;
+        next = Math.min(next, Math.floor(maxLogicalWidth));
+      }
+      if (next <= curLogicalWidth) return;
+      await win.setSize(new LogicalSize(next, Math.ceil(curLogicalHeight)));
+    } catch (err) {
+      console.warn("auto-resize failed", err);
+    }
+  };
+  // Close the most-ancillary visible pane until the rest of the
+  // layout fits the current window width. Order: files → editor →
+  // sidebar (chat stays). Each close is persisted through the same
+  // config keys the toggles use so a relaunch reflects the
+  // auto-collapsed layout.
+  const closeExcessPanes = () => {
+    if (typeof window === "undefined") return;
+    if (!workspace().path) return;
+    const avail = window.innerWidth;
+    let s = sidebarVisible();
+    let e = openFilePath() !== null;
+    let f = filesVisible();
+    if (requiredLayoutWidth(s, e, f) <= avail) return;
+    if (f) {
+      setFilesVisible(false);
+      void ipc
+        .configWrite("AICTL_DESKTOP_FILES_VISIBLE", "false")
+        .catch(() => {});
+      f = false;
+      if (requiredLayoutWidth(s, e, f) <= avail) return;
+    }
+    if (e) {
+      setOpenFile(null);
+      e = false;
+      if (requiredLayoutWidth(s, e, f) <= avail) return;
+    }
+    if (s) {
+      setSidebarVisible(false);
+      void ipc
+        .configWrite("AICTL_DESKTOP_SIDEBAR_VISIBLE", "false")
+        .catch(() => {});
+    }
+  };
   // Bumped every time the backend's recursive `notify` watcher reports a
   // change inside the workspace. The file pane and editor read this as
   // a refresh signal — they re-fetch their current view rather than
@@ -640,6 +751,27 @@ const App: Component = () => {
     };
     document.addEventListener("click", onClick);
     onCleanup(() => document.removeEventListener("click", onClick));
+
+    // Auto-collapse panes that no longer fit when the user shrinks
+    // the window. rAF-coalesced so a corner-drag doesn't hammer the
+    // signals on every pixel — only the final settled width matters.
+    let resizeRaf = 0;
+    const onResize = () => {
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        closeExcessPanes();
+      });
+    };
+    window.addEventListener("resize", onResize);
+    onCleanup(() => {
+      window.removeEventListener("resize", onResize);
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    });
+    // Hydrated state may already overflow the restored window (e.g. a
+    // tighter monitor on this launch); collapse panes once after the
+    // visibility / open-file hydration above has settled.
+    closeExcessPanes();
 
     const offEvent = await ipc.onAgentEvent(handleEvent);
     const offFs = await ipc.onWorkspaceFsChanged(() => {

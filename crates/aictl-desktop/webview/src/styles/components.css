@@ -695,6 +695,13 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Belt-and-braces: even though `App.tsx` keeps the window wide
+     enough that the composer never has to clip, anything extreme
+     (mid-resize, stylesheet load order on first paint) is contained
+     inside the chat column instead of leaking into the editor / files
+     panes that sit to its right. */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .message-list {
@@ -961,6 +968,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  /* Anchor the row to a single line so the Send button never reflows
+     under the icon cluster — the model picker is the only flexible
+     child and shrinks first when the column tightens. */
+  flex-wrap: nowrap;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-faint);
@@ -970,6 +982,11 @@
 
 .composer .model-picker {
   max-width: 60%;
+  /* Picker is the only shrinkable child of the footer flex row; the
+     icons and Send button stay at their intrinsic widths and the
+     picker absorbs the difference. */
+  min-width: 0;
+  flex: 0 1 auto;
   padding: 5px 26px 5px 8px;
   background: var(--bg);
   color: var(--fg);
@@ -1023,6 +1040,9 @@
   transition: color 120ms ease;
   text-transform: none;
   letter-spacing: 0;
+  /* Icon buttons keep their intrinsic 26px footprint — only the
+     model picker is allowed to shrink in the footer flex row. */
+  flex-shrink: 0;
 }
 
 .composer .agent-icon svg {
@@ -1067,6 +1087,7 @@
   transition: color 120ms ease;
   text-transform: none;
   letter-spacing: 0;
+  flex-shrink: 0;
 }
 
 .composer .skill-icon svg {
@@ -1222,6 +1243,7 @@
   transition: color 120ms ease;
   text-transform: none;
   letter-spacing: 0;
+  flex-shrink: 0;
 }
 
 .composer .auto-accept-icon svg {
@@ -1306,6 +1328,11 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  /* Send + ⌘↵ chip must stay on one row even when the chat column
+     gets squeezed — wrapping would push the kbd hint under the
+     label. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .composer button:hover {
