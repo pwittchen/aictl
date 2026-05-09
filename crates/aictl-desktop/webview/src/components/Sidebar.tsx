@@ -271,41 +271,33 @@ const Sidebar: Component<Props> = (props) => {
         </ul>
 
         <Show when={(sessions() ?? []).length > 0}>
-          <Show
-            when={showClearAll()}
-            fallback={
-              <button
-                type="button"
-                class="ghost danger-link"
-                onClick={() => setShowClearAll(true)}
-              >
-                Clear all sessions…
-              </button>
-            }
+          <button
+            type="button"
+            class="ghost danger-link"
+            onClick={() => setShowClearAll(true)}
           >
-            <div class="confirm-row">
-              <span>Delete every session?</span>
-              <button
-                type="button"
-                class="ghost mini"
-                onClick={() => setShowClearAll(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                class="ghost mini danger"
-                onClick={() => {
-                  setShowClearAll(false);
-                  void props.onClearAll();
-                }}
-              >
-                Yes
-              </button>
-            </div>
-          </Show>
+            Clear all sessions…
+          </button>
         </Show>
       </div>
+
+      <Show when={showClearAll()}>
+        {(() => {
+          const count = (sessions() ?? []).length;
+          return (
+            <ConfirmDelete
+              title="Clear all sessions"
+              detail={`${count} session${count === 1 ? "" : "s"}`}
+              note="Every session and its transcript will be removed."
+              onCancel={() => setShowClearAll(false)}
+              onConfirm={() => {
+                setShowClearAll(false);
+                void props.onClearAll();
+              }}
+            />
+          );
+        })()}
+      </Show>
 
       <Show when={pendingDelete()}>
         {(id) => {

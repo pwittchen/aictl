@@ -578,16 +578,6 @@
   list-style: none;
 }
 
-.confirm-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--fg-soft);
-}
-
 .chat-toolbar {
   display: flex;
   align-items: center;
