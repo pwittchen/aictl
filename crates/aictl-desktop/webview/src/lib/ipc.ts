@@ -571,6 +571,9 @@ export const ipc = {
       },
     });
   },
+  async mcpReload() {
+    return invoke<void>("mcp_reload");
+  },
 
   // -- hooks ----
   async hooksStatus() {

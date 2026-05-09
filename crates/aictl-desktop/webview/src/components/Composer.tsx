@@ -36,6 +36,12 @@ interface Props {
   /// session as well as future ones.
   pluginsEnabled: boolean;
   onPluginsEnabledChange: (next: boolean) => Promise<void>;
+  /// MCP master switch (server-rack icon) — mirrors
+  /// `AICTL_MCP_ENABLED`. Same real-time reload semantics as the
+  /// plugins toggle, but covers external MCP servers (stdio + remote)
+  /// instead of locally-installed plugin tools.
+  mcpEnabled: boolean;
+  onMcpEnabledChange: (next: boolean) => Promise<void>;
   /// Set by the parent when /retry surfaces the previous prompt — the
   /// composer fills its textarea with the value and immediately calls
   /// `onPrefillConsumed` so the same prefill isn't reapplied on every
@@ -320,7 +326,34 @@ const Composer: Component<Props> = (props) => {
     if (pluginsFlashTimer !== undefined) {
       window.clearTimeout(pluginsFlashTimer);
     }
+    if (mcpFlashTimer !== undefined) {
+      window.clearTimeout(mcpFlashTimer);
+    }
   });
+
+  // MCP toggle (server-rack icon) — flips AICTL_MCP_ENABLED via the
+  // parent and reloads the engine's catalogue so spawned children stop
+  // (or start) without an app restart.
+  const [mcpFlash, setMcpFlash] = createSignal<string | null>(null);
+  let mcpFlashTimer: number | undefined;
+  const toggleMcp = async () => {
+    if (props.disabled) return;
+    const next = !props.mcpEnabled;
+    try {
+      await props.onMcpEnabledChange(next);
+      if (mcpFlashTimer !== undefined) {
+        window.clearTimeout(mcpFlashTimer);
+      }
+      setMcpFlash(next ? "MCP servers enabled" : "MCP servers disabled");
+      mcpFlashTimer = window.setTimeout(() => setMcpFlash(null), 1800);
+    } catch (err) {
+      if (mcpFlashTimer !== undefined) {
+        window.clearTimeout(mcpFlashTimer);
+      }
+      setMcpFlash(`failed to toggle MCP: ${err}`);
+      mcpFlashTimer = window.setTimeout(() => setMcpFlash(null), 1800);
+    }
+  };
 
   // Plugins toggle (cube icon) — flips AICTL_PLUGINS_ENABLED via the
   // parent, which also reloads the engine's plugin catalogue so the
@@ -693,6 +726,47 @@ const Composer: Component<Props> = (props) => {
           </div>
         </Show>
         <Show when={skillFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="mcp-icon"
+          data-active={String(props.mcpEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.mcpEnabled ? "true" : "false"}
+          aria-label={
+            props.mcpEnabled
+              ? "MCP servers enabled (click to disable every Model Context Protocol server)"
+              : "MCP servers disabled (click to re-enable)"
+          }
+          title={
+            props.mcpEnabled
+              ? "MCP servers enabled — click to disable"
+              : "MCP servers disabled — click to enable"
+          }
+          onClick={() => void toggleMcp()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.354 2a2 2 0 0 0-1.857 1.257l-.338.845C3.43 4.035 3.71 4 4 4h8c.29 0 .571.035.84.102l-.337-.845A2 2 0 0 0 10.646 2H5.354Z" />
+            <path
+              fill-rule="evenodd"
+              d="M2 13a2 2 0 0 1 2-2h8a2 2 0 1 1 0 4H4a2 2 0 0 1-2-2Zm10.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM9 13.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4 5.5a2 2 0 1 0 0 4h8a2 2 0 1 0 0-4H4Zm8 2.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM9.75 7.5a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <Show when={mcpFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">

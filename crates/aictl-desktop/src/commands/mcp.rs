@@ -270,6 +270,15 @@ pub fn mcp_create(args: McpCreateArgs) -> Result<(), String> {
     Ok(())
 }
 
+/// Tear down the live MCP catalogue and rebuild it from config. The
+/// composer's MCP toggle calls this right after flipping
+/// `AICTL_MCP_ENABLED` so a disable closes every spawned child and an
+/// enable spawns the configured servers without an app restart.
+#[tauri::command]
+pub async fn mcp_reload() {
+    mcp::reload().await;
+}
+
 fn read_enabled_map(path: &PathBuf) -> Option<HashMap<String, bool>> {
     let raw = std::fs::read_to_string(path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&raw).ok()?;

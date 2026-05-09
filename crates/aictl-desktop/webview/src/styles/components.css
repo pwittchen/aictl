@@ -1247,6 +1247,52 @@
   cursor: not-allowed;
 }
 
+/* MCP master toggle: server-rack icon. Flips `AICTL_MCP_ENABLED` and
+   reloads the engine's MCP catalogue, tearing down spawned child
+   processes on disable and re-spawning them on enable — no restart
+   required. */
+.composer .mcp-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .mcp-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .mcp-icon:hover,
+.composer .mcp-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .mcp-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .mcp-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .mcp-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Plugins master toggle: cube icon. Flips `AICTL_PLUGINS_ENABLED`
    and reloads the engine's plugin catalogue so the change takes
    effect immediately. */

@@ -328,6 +328,11 @@ const App: Component = () => {
   // writes `true` when the key is missing so the UI and engine never
   // disagree about the current state.
   const [pluginsEnabled, setPluginsEnabled] = createSignal(true);
+  // MCP master switch — same default-on opt-in as plugins. The CLI
+  // gate (`AICTL_MCP_ENABLED`) defaults to off, so the desktop writes
+  // `true` on first launch to make the disk icon's default-on visual
+  // honest. Toggling reloads the engine's MCP catalogue immediately.
+  const [mcpEnabled, setMcpEnabled] = createSignal(true);
   // Composer's globe icon mirrors the per-tool disabled list in
   // `AICTL_SECURITY_DISABLED_TOOLS` for the three web-facing tools
   // (`search_web`, `fetch_url`, `extract_website`). Active when none of
@@ -472,6 +477,34 @@ const App: Component = () => {
     await ipc.configWrite("AICTL_PLUGINS_ENABLED", next ? "true" : "false");
     await ipc.pluginsReload();
     setPluginsEnabled(next);
+  };
+
+  // MCP master switch — same lifecycle as plugins. First-launch read
+  // writes `true` so the engine spawns configured servers in line with
+  // the icon's default-on visual; subsequent reads just mirror config.
+  const refreshMcpEnabled = async () => {
+    try {
+      const raw = await ipc.configValue("AICTL_MCP_ENABLED");
+      if (raw === null || raw === undefined || raw === "") {
+        await ipc.configWrite("AICTL_MCP_ENABLED", "true");
+        await ipc.mcpReload();
+        setMcpEnabled(true);
+        return;
+      }
+      setMcpEnabled(raw !== "false" && raw !== "0");
+    } catch {
+      setMcpEnabled(true);
+    }
+  };
+
+  /// MCP master switch — flips `AICTL_MCP_ENABLED` and reloads the
+  /// engine's MCP catalogue so the change applies in real time. The
+  /// reload tears down spawned child processes when disabled and
+  /// re-spawns them when enabled.
+  const setMcpEnabledMaster = async (next: boolean) => {
+    await ipc.configWrite("AICTL_MCP_ENABLED", next ? "true" : "false");
+    await ipc.mcpReload();
+    setMcpEnabled(next);
   };
 
   /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades to
@@ -792,6 +825,7 @@ const App: Component = () => {
     void refreshWebEnabled();
     void refreshImageEnabled();
     void refreshPluginsEnabled();
+    void refreshMcpEnabled();
     void refreshNotifications();
     // Fire-and-forget probe of the updater manifest. Populates both the
     // titlebar badge and the prefetched `updateInfo` the modal opens
@@ -1319,6 +1353,8 @@ const App: Component = () => {
               onToolsEnabledChange={setToolsMasterEnabled}
               pluginsEnabled={pluginsEnabled()}
               onPluginsEnabledChange={setPluginsEnabledMaster}
+              mcpEnabled={mcpEnabled()}
+              onMcpEnabledChange={setMcpEnabledMaster}
               prefill={composerPrefill()}
               onPrefillConsumed={() => setComposerPrefill(null)}
               models={models()}

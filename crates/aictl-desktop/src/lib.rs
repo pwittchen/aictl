@@ -162,6 +162,7 @@ pub fn run() {
             commands::mcp::mcp_status,
             commands::mcp::mcp_toggle,
             commands::mcp::mcp_create,
+            commands::mcp::mcp_reload,
             commands::hooks::hooks_status,
             commands::hooks::hook_toggle,
             commands::hooks::hook_delete,

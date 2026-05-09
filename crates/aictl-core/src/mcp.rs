@@ -28,6 +28,7 @@ pub mod transport;
 
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::RwLock;
 
 use serde_json::Value;
 
@@ -63,6 +64,7 @@ pub struct McpTool {
 /// One configured server. The `client` is `None` when the server is disabled,
 /// failed to spawn, or failed its handshake — every other field is still
 /// populated so `/mcp` and `--list-mcp` can render meaningful output.
+#[derive(Clone)]
 pub struct McpServer {
     pub name: String,
     pub transport: TransportKind,
@@ -75,10 +77,14 @@ pub struct McpServer {
     client: Option<Arc<dyn Transport>>,
 }
 
-static SERVERS: OnceLock<Vec<McpServer>> = OnceLock::new();
+static SERVERS: OnceLock<RwLock<Vec<McpServer>>> = OnceLock::new();
 
-fn servers() -> &'static [McpServer] {
-    SERVERS.get().map_or(&[], Vec::as_slice)
+fn store() -> &'static RwLock<Vec<McpServer>> {
+    SERVERS.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+fn snapshot() -> Vec<McpServer> {
+    store().read().map(|g| g.clone()).unwrap_or_default()
 }
 
 /// Initialize the MCP catalogue. Idempotent: subsequent calls are no-ops.
@@ -93,19 +99,30 @@ fn servers() -> &'static [McpServer] {
 /// `--mcp-server <name>` CLI flag without persisting the disable list to
 /// `~/.aictl/config`.
 pub async fn init_with(only: Option<&str>) {
-    if SERVERS.get().is_some() {
-        return;
+    let collected = build_catalogue(only).await;
+    if let Ok(mut w) = store().write() {
+        *w = collected;
     }
+}
+
+/// Tear down the live catalogue and rebuild it from config. Honors the
+/// current `AICTL_MCP_ENABLED` gate, so flipping it off and reloading
+/// clears every spawned server. Used by the desktop's MCP toggle so a
+/// config change applies without an app restart.
+pub async fn reload() {
+    shutdown().await;
+    init_with(None).await;
+}
+
+async fn build_catalogue(only: Option<&str>) -> Vec<McpServer> {
     if !enabled() {
-        let _ = SERVERS.set(Vec::new());
-        return;
+        return Vec::new();
     }
     let entries = match config::load() {
         Ok(e) => e,
         Err(reason) => {
             eprintln!("mcp: config error — {reason}");
-            let _ = SERVERS.set(Vec::new());
-            return;
+            return Vec::new();
         }
     };
     let disabled = config::disabled_set();
@@ -134,9 +151,7 @@ pub async fn init_with(only: Option<&str>) {
             spawn_one(cfg, startup_timeout).await
         }
     });
-    let collected = futures_util::future::join_all(futures).await;
-
-    let _ = SERVERS.set(collected);
+    futures_util::future::join_all(futures).await
 }
 
 async fn spawn_one(cfg: config::ServerConfig, startup_timeout: std::time::Duration) -> McpServer {
@@ -204,7 +219,7 @@ async fn spawn_one(cfg: config::ServerConfig, startup_timeout: std::time::Durati
 /// Snapshot of all configured servers. Used by `/mcp` and the system-prompt
 /// catalog injection.
 pub fn list() -> Vec<ServerSummary> {
-    servers()
+    snapshot()
         .iter()
         .map(|s| ServerSummary {
             name: s.name.clone(),
@@ -233,15 +248,22 @@ pub struct ServerSummary {
 
 /// Total tool count across every Ready server.
 pub fn total_tools() -> usize {
-    servers().iter().map(|s| s.tools.len()).sum()
+    store()
+        .read()
+        .map(|g| g.iter().map(|s| s.tools.len()).sum())
+        .unwrap_or(0)
 }
 
 /// Number of servers in `Failed` state — used by the welcome banner.
 pub fn failed_count() -> usize {
-    servers()
-        .iter()
-        .filter(|s| matches!(s.state, ServerState::Failed(_)))
-        .count()
+    store()
+        .read()
+        .map(|g| {
+            g.iter()
+                .filter(|s| matches!(s.state, ServerState::Failed(_)))
+                .count()
+        })
+        .unwrap_or(0)
 }
 
 /// Split a qualified `mcp__<server>__<tool>` name into its parts. Returns
@@ -266,7 +288,8 @@ pub fn qualify(server: &str, tool: &str) -> String {
 /// `mcp__server__tool` qualified name.
 fn locate(qualified: &str) -> Option<(Arc<dyn Transport>, String)> {
     let (server, tool) = split_qualified(qualified)?;
-    let s = servers().iter().find(|s| s.name == server)?;
+    let guard = store().read().ok()?;
+    let s = guard.iter().find(|s| s.name == server)?;
     if !matches!(s.state, ServerState::Ready) {
         return None;
     }
@@ -323,7 +346,7 @@ pub async fn call_tool(qualified: &str, body: &str) -> String {
 /// Best-effort shutdown of every Ready server. Called on exit so child
 /// processes do not outlive aictl when the user presses Ctrl+C / `/exit`.
 pub async fn shutdown() {
-    for s in servers() {
+    for s in snapshot() {
         if let Some(client) = &s.client {
             client.shutdown().await;
         }
