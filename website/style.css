@@ -1597,6 +1597,10 @@ body.nav-open {
   color: var(--dt-fg-faint);
 }
 
+.dt-demo__icon--ok {
+  color: #4ade80;
+}
+
 .dt-demo__send {
   display: inline-flex;
   align-items: center;
