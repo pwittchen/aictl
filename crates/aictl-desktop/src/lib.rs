@@ -22,6 +22,8 @@ pub mod commands;
 pub mod fs_watcher;
 pub mod state;
 pub mod ui;
+#[cfg(feature = "voice")]
+pub mod voice;
 pub mod workspace;
 
 use aictl_core::config::{self, Role};
@@ -72,6 +74,14 @@ pub fn run() {
     // gets injected into the system prompt and surfaced in the Plugins
     // tab. Gated behind `AICTL_PLUGINS_ENABLED` inside `init`.
     aictl_core::plugins::init();
+
+    // Reap any `~/.aictl/whisper/*.part` files left behind by a download
+    // that was killed mid-stream (app force-quit, OS reboot, etc.). The
+    // download path overwrites with `O_TRUNC` so leftovers are not
+    // strictly harmful, but a 140 MB partial sitting forever after a
+    // single failed launch is noisy on disk.
+    #[cfg(feature = "voice")]
+    voice::cleanup_partial_downloads();
 
     let app_state = std::sync::Arc::new(state::AppState::new());
 
@@ -211,6 +221,10 @@ pub fn run() {
             commands::local_models::local_models_remove_mlx,
             commands::local_models::local_models_clear_gguf,
             commands::local_models::local_models_clear_mlx,
+            commands::voice::voice_status,
+            commands::voice::voice_ensure_model,
+            commands::voice::voice_transcribe,
+            commands::voice::voice_cancel_download,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build aictl-desktop")
@@ -220,6 +234,23 @@ pub fn run() {
             // would survive the desktop quitting.
             if let RunEvent::Exit = event {
                 tauri::async_runtime::block_on(aictl_core::mcp::shutdown());
+                // Drop the whisper context and any in-flight download
+                // *before* the macOS runtime tears down — whisper.cpp's
+                // Metal teardown path crashes if it runs after
+                // `NSApplication` has finalised, which is what surfaces
+                // as "aictl-desktop unexpectedly quit" after a clean
+                // ⌘Q. Doing it here, on the main thread, while Cocoa is
+                // still live, sidesteps the issue.
+                #[cfg(feature = "voice")]
+                voice::shutdown();
+                // Skip the remaining static destructors. After this
+                // hook returns, Tauri's runtime has nothing left to do
+                // — every native resource we own is already released.
+                // Any third-party crate with a flaky `Drop` (Metal
+                // command queues, GPU caches, etc.) running at full
+                // teardown would otherwise risk turning a clean quit
+                // into an OS-level crash dialog.
+                std::process::exit(0);
             }
         });
 }

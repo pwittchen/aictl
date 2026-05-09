@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shown by macOS the first time the WebView calls
+	     `navigator.mediaDevices.getUserMedia({audio: true})` from the
+	     composer mic button. Audio is captured in the WebView, ferried
+	     to whisper.cpp in-process via Tauri IPC, and never leaves the
+	     device. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>aictl uses the microphone to transcribe your voice into the message composer with a local Whisper model. Audio is processed on-device and never sent to any server.</string>
+</dict>
+</plist>

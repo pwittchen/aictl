@@ -1692,6 +1692,308 @@
   height: 13px;
 }
 
+/* Voice-to-text mic button. Sits immediately to the left of the Send
+   button; same compact icon shape as the other composer toggles
+   (memory / tools / web / image). Inherits the global `.composer
+   button` background-fill on hover, so we override back to a transparent
+   treatment to match the rest of the icon-style toggles. */
+.composer .voice-icon {
+  margin-left: var(--space-1, 4px);
+  padding: 4px;
+  background: transparent;
+  color: var(--fg-faint);
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .voice-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .voice-icon:hover,
+.composer .voice-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg);
+}
+
+.composer .voice-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Voice-transcription modal. Brutalist surface — sharp corners, mono
+   typography, accent-coloured wave bars — to match the tool-approval
+   modal and the rest of the composer chrome. */
+.voice-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  /* Softer animation in than the rest of the app — mic permission
+     prompts already feel jumpy, so we don't want a hard pop. */
+  animation: voice-modal-fade 120ms ease-out;
+}
+
+@keyframes voice-modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.voice-modal {
+  min-width: 360px;
+  max-width: 460px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+
+.voice-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.voice-modal-title {
+  color: var(--fg);
+}
+
+.voice-modal-model {
+  color: var(--fg-faint);
+  font-size: 10px;
+}
+
+.voice-modal-body {
+  padding: var(--space-5) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 132px;
+}
+
+.voice-modal-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.voice-modal-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: voice-modal-spin 0.9s linear infinite;
+}
+
+@keyframes voice-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.voice-modal-message {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fg-soft);
+  line-height: 1.4;
+}
+
+.voice-modal-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.voice-modal-error {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: var(--space-3);
+  border: 1px solid var(--danger);
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Download progress display: a thin track with an accent-coloured
+   fill, plus a percentage / byte-count meta line below. The
+   indeterminate state slides a short bar back and forth so the user
+   knows the request is alive even before the first byte arrives. */
+.voice-modal-download {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.voice-modal-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--surface-strong);
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-modal-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 80ms linear;
+  width: 0%;
+}
+
+.voice-modal-progress-fill[data-indeterminate="true"] {
+  width: 30% !important;
+  animation: voice-modal-indet 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-modal-indet {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(370%);
+  }
+}
+
+.voice-modal-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  letter-spacing: 0.04em;
+}
+
+.voice-modal-check {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Live frequency visualisation. Each bar is `transform: scaleY(level)`
+   driven from JS (rAF). `transform-origin: bottom` makes them grow up
+   from the floor, which feels more "voice meter"-like than centred
+   scaling. */
+.voice-modal-visualizer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 64px;
+}
+
+.voice-modal-bar {
+  display: block;
+  width: 6px;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: center;
+  transform: scaleY(0.06);
+  transition: transform 60ms linear;
+}
+
+.voice-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.voice-modal-cancel,
+.voice-modal-accept {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-modal-cancel:hover {
+  background: var(--surface);
+}
+
+.voice-modal-accept {
+  background: var(--fg);
+  color: var(--bg);
+  border-color: var(--fg);
+}
+
+.voice-modal-accept:hover:not([disabled]) {
+  background: var(--fg-faint);
+}
+
+.voice-modal-accept[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.voice-modal-cancel kbd,
+.voice-modal-accept kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.18);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.7;
+}
+
+.voice-modal-accept kbd {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .empty-state {
   flex: 1;
   display: flex;

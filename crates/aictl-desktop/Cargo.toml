@@ -41,15 +41,24 @@ tauri-plugin-window-state = "2"
 
 # Async runtime + serde — needed to drive the agent loop from a
 # `#[tauri::command]` and serialize `AgentEvent` across the IPC boundary.
-tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros", "fs"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 notify = "8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+futures-util = "0.3"
+
+# whisper.cpp bindings for the desktop's voice-to-text composer button.
+# Metal lights up the Apple-Silicon GPU path; CoreML is intentionally
+# off (it would demand a separate `.mlmodelc` artifact alongside every
+# `ggml-*.bin` we ship). Gated behind the `voice` feature so a
+# `--no-default-features` build can skip the whisper.cpp compile.
+whisper-rs = { version = "0.16", default-features = false, features = ["metal"], optional = true }
 
 [features]
-default = []
+default = ["voice"]
 # Pass-throughs to the engine's native-inference flags so a desktop
 # build can opt into local providers when the user explicitly asks for
 # them. The default release ships without these — see the risks table
@@ -57,3 +66,6 @@ default = []
 gguf = ["aictl-core/gguf"]
 mlx = ["aictl-core/mlx"]
 redaction-ner = ["aictl-core/redaction-ner"]
+# Voice-to-text composer button. Bundles whisper.cpp via `whisper-rs`
+# and downloads the `ggml-base.bin` multilingual model on first use.
+voice = ["dep:whisper-rs"]

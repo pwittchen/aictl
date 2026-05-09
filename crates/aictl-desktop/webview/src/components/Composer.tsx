@@ -15,11 +15,13 @@ import {
   type AgentRow,
   type ModelEntry,
   type SkillRow,
+  type VoiceStatus,
 } from "../lib/ipc";
 import SecurityShield, {
   type ShieldCheck,
   type ShieldState,
 } from "./SecurityShield";
+import VoiceModal from "./VoiceModal";
 
 interface Props {
   disabled: boolean;
@@ -138,6 +140,62 @@ const groupModels = (entries: ModelEntry[]): Group[] => {
 const Composer: Component<Props> = (props) => {
   const [text, setText] = createSignal("");
   const [pickerError, setPickerError] = createSignal<string | null>(null);
+  // Voice-to-text modal — populated lazily on first mic-button click so
+  // the desktop doesn't pay the `voice_status` IPC cost at startup.
+  const [voiceOpen, setVoiceOpen] = createSignal(false);
+  const [voiceStatus, setVoiceStatus] = createSignal<VoiceStatus | null>(null);
+  const [voiceError, setVoiceError] = createSignal<string | null>(null);
+  let voiceErrorTimer: number | undefined;
+  let textareaRef: HTMLTextAreaElement | undefined;
+
+  const flashVoiceError = (msg: string) => {
+    if (voiceErrorTimer !== undefined) {
+      window.clearTimeout(voiceErrorTimer);
+    }
+    setVoiceError(msg);
+    voiceErrorTimer = window.setTimeout(() => setVoiceError(null), 2400);
+  };
+
+  const openVoiceModal = async () => {
+    if (props.disabled) return;
+    try {
+      const status = await ipc.voiceStatus();
+      setVoiceStatus(status);
+      if (!status.available) {
+        flashVoiceError(
+          "voice support is not compiled into this build (rebuild with --features voice)",
+        );
+        return;
+      }
+      setVoiceOpen(true);
+    } catch (err) {
+      flashVoiceError(`voice unavailable: ${err}`);
+    }
+  };
+
+  const onVoiceAccept = (transcribed: string) => {
+    setVoiceOpen(false);
+    const cleaned = transcribed.trim();
+    if (!cleaned) {
+      flashVoiceError("nothing transcribed — try again");
+      return;
+    }
+    const current = text();
+    const next =
+      current.length === 0
+        ? cleaned
+        : current.endsWith(" ") || current.endsWith("\n")
+          ? current + cleaned
+          : `${current} ${cleaned}`;
+    setText(next);
+    // Hand focus back so the user can keep typing or hit ⌘↵ to send.
+    queueMicrotask(() => textareaRef?.focus());
+  };
+
+  const onVoiceCancel = () => {
+    setVoiceOpen(false);
+    queueMicrotask(() => textareaRef?.focus());
+  };
   // Transient flash next to the auto-accept toggle. Cleared after a
   // short delay so the message doesn't linger past its useful life.
   const [autoFlash, setAutoFlash] = createSignal<string | null>(null);
@@ -342,6 +400,21 @@ const Composer: Component<Props> = (props) => {
     }
   };
   const onDocKey = (e: KeyboardEvent) => {
+    // ⌘⇧M — open the voice transcription modal. Same modifier shape as
+    // the rest of the app's global shortcuts (⌘\, ⌘., ⌘,) and matches
+    // the mic-mute mnemonic used by Slack / Discord. Suppressed while
+    // the modal is already open (it owns its own keymap then).
+    const isMicShortcut =
+      (e.metaKey || e.ctrlKey) &&
+      e.shiftKey &&
+      (e.key === "m" || e.key === "M");
+    if (isMicShortcut) {
+      if (props.disabled || voiceOpen()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void openVoiceModal();
+      return;
+    }
     if (e.key !== "Escape") return;
     if (modelMenuOpen()) {
       e.preventDefault();
@@ -381,6 +454,9 @@ const Composer: Component<Props> = (props) => {
     }
     if (mcpFlashTimer !== undefined) {
       window.clearTimeout(mcpFlashTimer);
+    }
+    if (voiceErrorTimer !== undefined) {
+      window.clearTimeout(voiceErrorTimer);
     }
   });
 
@@ -592,6 +668,7 @@ const Composer: Component<Props> = (props) => {
   return (
     <div class="composer">
       <textarea
+        ref={(el) => (textareaRef = el)}
         placeholder={
           props.disabled ? "Pick a workspace to start chatting…" : "Type a message"
         }
@@ -1175,6 +1252,43 @@ const Composer: Component<Props> = (props) => {
                 <div class="panel">{msg()}</div>
               </div>
             </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="voice-icon"
+          disabled={props.disabled}
+          aria-label="Start voice transcription (Cmd+Shift+M)"
+          title="voice → text (whisper, on-device) — ⌘⇧M"
+          onClick={() => void openVoiceModal()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M8 1a2 2 0 0 0-2 2v4a2 2 0 1 0 4 0V3a2 2 0 0 0-2-2Z" />
+            <path d="M4.5 7A.75.75 0 0 0 3 7a5.001 5.001 0 0 0 4.25 4.944V13.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.556A5.001 5.001 0 0 0 13 7a.75.75 0 0 0-1.5 0 3.5 3.5 0 1 1-7 0Z" />
+          </svg>
+        </button>
+        <Show when={voiceError()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <Show when={voiceOpen() && voiceStatus()}>
+          {(status) => (
+            <VoiceModal
+              modelLabel={status().model_label}
+              modelPresent={status().model_present}
+              onAccept={onVoiceAccept}
+              onCancel={onVoiceCancel}
+            />
           )}
         </Show>
         <button type="button" disabled={props.disabled} onClick={submit}>

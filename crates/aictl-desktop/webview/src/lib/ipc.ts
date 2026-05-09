@@ -348,6 +348,27 @@ export interface FileContents {
   size_bytes: number;
 }
 
+export interface VoiceStatus {
+  /// `true` when the desktop binary was built with `--features voice`.
+  /// When `false`, the mic button is hidden in the composer.
+  available: boolean;
+  /// Where the bundled Whisper model lives on disk (regardless of
+  /// whether it has been downloaded yet).
+  model_path: string;
+  /// `true` when the model file is on disk.
+  model_present: boolean;
+  /// Filename label shown in the modal header.
+  model_label: string;
+}
+
+export interface VoiceEnsureResult {
+  /// `true` when a download was kicked off in the background and the
+  /// frontend should listen for `progress_*` events on the `agent_event`
+  /// channel before calling `voiceTranscribe`.
+  started: boolean;
+  status: VoiceStatus;
+}
+
 export interface ContextStatus {
   model: string | null;
   provider: string | null;
@@ -796,6 +817,25 @@ export const ipc = {
   },
   async localModelsClearMlx() {
     return invoke<number>("local_models_clear_mlx");
+  },
+
+  // -- voice ----
+  async voiceStatus() {
+    return invoke<VoiceStatus>("voice_status");
+  },
+  async voiceEnsureModel() {
+    return invoke<VoiceEnsureResult>("voice_ensure_model");
+  },
+  async voiceTranscribe(samples: Float32Array) {
+    // Tauri's IPC serialiser turns typed arrays into a regular `number[]`
+    // before crossing the bridge — convert eagerly so the call site
+    // doesn't have to think about the shape on the Rust side.
+    return invoke<string>("voice_transcribe", {
+      samples: Array.from(samples),
+    });
+  },
+  async voiceCancelDownload() {
+    return invoke<void>("voice_cancel_download");
   },
 
   // -- events ----

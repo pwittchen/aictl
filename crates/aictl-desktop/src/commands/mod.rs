@@ -23,4 +23,5 @@ pub mod settings;
 pub mod skills;
 pub mod stats;
 pub mod system;
+pub mod voice;
 pub mod workspace;

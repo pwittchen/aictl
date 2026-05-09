@@ -6,10 +6,6 @@
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
 
-## Desktop
-
-- add speech to text input method
-
 ## Server
 
 - add support for the claude code 3rd party inference
