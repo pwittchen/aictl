@@ -67,6 +67,15 @@ interface Props {
   /// (and can outlive a Settings close) rather than nested inside this
   /// overlay.
   onShowUpdate?: (info: UpdateInfo | null) => void;
+  /// Delete a single session — App-level so the sidebar refresh and
+  /// active-session reset semantics match the sidebar's own Delete
+  /// button. SessionsTab wires its row-level button through this so
+  /// the left panel and the chat pane stay coherent.
+  onDeleteSession: (id: string) => Promise<void>;
+  /// Bulk-delete every session. Same App-level handler as the sidebar's
+  /// Clear-All — guarantees the sidebar refreshes and the active chat
+  /// resets when the current session lands in the wipe.
+  onClearAllSessions: () => Promise<void>;
 }
 
 export type Tab =
@@ -219,7 +228,10 @@ const Settings: Component<Props> = (props) => {
               <PluginsTab />
             </Show>
             <Show when={tab() === "sessions"}>
-              <SessionsTab />
+              <SessionsTab
+                onDeleteSession={props.onDeleteSession}
+                onClearAll={props.onClearAllSessions}
+              />
             </Show>
             <Show when={tab() === "context"}>
               <ContextTab />
@@ -3254,7 +3266,7 @@ const MemoryViewer: Component<{
   });
   return (
     <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
-      <div class="prompt-viewer">
+      <div class="prompt-viewer memory-viewer">
         <header class="prompt-viewer-header">
           <div>
             <h3>Memory</h3>
@@ -3555,17 +3567,34 @@ const PluginsTab: Component = () => {
   );
 };
 
-const SessionsTab: Component = () => {
+const SessionsTab: Component<{
+  /// Wrap the App-level deleteSession so the sidebar list refreshes and
+  /// the chat resets when the active session is the one being removed.
+  /// Settings-local refetch still runs after to refresh this tab's table.
+  onDeleteSession: (id: string) => Promise<void>;
+  /// Same wrapper for bulk clear — App-level handler ensures a fresh
+  /// session window opens whenever the active conversation is wiped.
+  onClearAll: () => Promise<void>;
+}> = (props) => {
   const [rows, { refetch }] = createResource<SessionRow[]>(() =>
     ipc.listSessions(),
   );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
 
-  const remove = async (id: string) => {
+  // Both delete paths are destructive and irreversible (`clear_sessions`
+  // walks ~/.aictl/sessions/ and unlinks every file; per-row delete is
+  // a single unlink), so each is gated behind a ConfirmDelete modal —
+  // mirrors the memory tab's pattern.
+  const [pendingDelete, setPendingDelete] = createSignal<SessionRow | null>(
+    null,
+  );
+  const [pendingDeleteAll, setPendingDeleteAll] = createSignal(false);
+
+  const performRemove = async (row: SessionRow) => {
     setError(null);
     try {
-      await ipc.deleteSession(id);
+      await props.onDeleteSession(row.id);
       await refetch();
       setFeedback("session deleted");
     } catch (err) {
@@ -3573,10 +3602,10 @@ const SessionsTab: Component = () => {
     }
   };
 
-  const clearAll = async () => {
+  const performClearAll = async () => {
     setError(null);
     try {
-      await ipc.clearSessions();
+      await props.onClearAll();
       await refetch();
       setFeedback("all sessions cleared");
     } catch (err) {
@@ -3627,7 +3656,14 @@ const SessionsTab: Component = () => {
         <button type="button" onClick={() => void newIncognito()}>
           Start incognito session
         </button>
-        <button type="button" onClick={() => void clearAll()}>
+        <button
+          type="button"
+          onClick={() => {
+            if ((rows() ?? []).length > 0) {
+              setPendingDeleteAll(true);
+            }
+          }}
+        >
           Delete all sessions
         </button>
       </div>
@@ -3664,7 +3700,7 @@ const SessionsTab: Component = () => {
                     <button
                       type="button"
                       class="ghost mini danger"
-                      onClick={() => void remove(row.id)}
+                      onClick={() => setPendingDelete(row)}
                     >
                       Delete
                     </button>
@@ -3674,6 +3710,39 @@ const SessionsTab: Component = () => {
             </For>
           </tbody>
         </table>
+      </Show>
+      <Show when={pendingDelete()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Delete session"
+            detail={row().name ?? row().id}
+            note={
+              row().active
+                ? "This is the active session — the chat pane will be reset to a fresh session."
+                : "The conversation file will be removed. This cannot be undone."
+            }
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingDelete(null);
+              void performRemove(target);
+            }}
+          />
+        )}
+      </Show>
+      <Show when={pendingDeleteAll()}>
+        <ConfirmDelete
+          title="Delete all sessions"
+          detail={`${(rows() ?? []).length} session${
+            (rows() ?? []).length === 1 ? "" : "s"
+          }`}
+          note="Every saved conversation under ~/.aictl/sessions/ will be removed. This cannot be undone."
+          onCancel={() => setPendingDeleteAll(false)}
+          onConfirm={() => {
+            setPendingDeleteAll(false);
+            void performClearAll();
+          }}
+        />
       </Show>
     </div>
   );

@@ -1605,7 +1605,7 @@
    modal backdrop because it's transient and non-blocking. */
 .auto-accept-toast {
   position: fixed;
-  top: calc(var(--titlebar-height, 38px) + var(--space-3));
+  top: calc(var(--titlebar-height, 48px) + var(--space-3));
   right: var(--space-4);
   z-index: 95;
   pointer-events: none;
@@ -1742,6 +1742,9 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
+  /* Same titlebar carve-out as the other modal overlays so the voice
+     panel never crowds the macOS traffic lights. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
   /* Softer animation in than the rest of the app — mic permission
      prompts already feel jumpy, so we don't want a hard pop. */
   animation: voice-modal-fade 120ms ease-out;
@@ -2084,6 +2087,10 @@
   background: rgba(0, 0, 0, 0.55);
   z-index: 80;
   padding: var(--space-5);
+  /* Stretch alignment lets the panel ride flush with the top edge,
+     which would put it directly under the macOS traffic lights —
+     reserve enough space to clear them. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .settings-panel {
@@ -2862,6 +2869,10 @@
   background: rgba(0, 0, 0, 0.5);
   z-index: 100;
   padding: var(--space-6);
+  /* Reserve a top stripe for the macOS traffic lights — without it a
+     tall panel (or one centered close to the top edge) clips behind
+     the close/min/max buttons that sit inside the overlay region. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .tool-modal .panel {
@@ -3111,6 +3122,9 @@
   background: rgba(0, 0, 0, 0.6);
   z-index: 90;
   padding: var(--space-5);
+  /* Same titlebar carve-out as the other modal overlays so the panel
+     never crowds the macOS traffic lights. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .prompt-viewer {
@@ -3121,6 +3135,16 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Memory entries are short single-fact strings (1000-char cap), so the
+   prompt-viewer's 820px × full-height shell looks oversized. The
+   modifier shrinks the panel and lets it size to its content instead
+   of stretching to fill the overlay vertically. */
+.prompt-viewer.memory-viewer {
+  width: min(520px, 100%);
+  align-self: center;
+  max-height: min(60vh, 100%);
 }
 
 .prompt-viewer-header {
@@ -3616,6 +3640,9 @@
   background: rgba(0, 0, 0, 0.55);
   z-index: 90;
   padding: var(--space-5);
+  /* Same titlebar carve-out as the other modal overlays — shared by
+     ContextDetails and the in-app updater dialog. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .ctx-details-panel {
@@ -3801,6 +3828,9 @@
   background: rgba(0, 0, 0, 0.55);
   z-index: 90;
   padding: var(--space-5);
+  /* Clear the macOS traffic lights so a tall editor panel never
+     extends over the close/min/max buttons. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .editor-modal-panel {
@@ -4733,6 +4763,8 @@ button.primary:hover:not([disabled]) {
   background: rgba(0, 0, 0, 0.55);
   z-index: 100;
   padding: var(--space-5);
+  /* Same titlebar carve-out as the other modal overlays. */
+  padding-top: calc(var(--titlebar-height) + var(--space-3));
 }
 
 .security-modal-panel {

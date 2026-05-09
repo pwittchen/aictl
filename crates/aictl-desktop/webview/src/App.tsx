@@ -1662,6 +1662,8 @@ const App: Component = () => {
           onRefreshModels={refreshModels}
           initialTab={settingsInitialTab()}
           onShowUpdate={openUpdate}
+          onDeleteSession={deleteSession}
+          onClearAllSessions={clearAllSessions}
         />
       </Show>
     </div>
