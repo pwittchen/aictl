@@ -1082,18 +1082,25 @@
   cursor: not-allowed;
 }
 
-/* Floating skill menu. Anchored to the composer footer so it pops up
-   above the bolt icon. position:absolute keeps it out of the layout
-   flow, the bottom offset (composer footer + padding) parks it just
-   over the textarea. */
+/* Floating skill / agent menu. Anchored to a per-button wrapper
+   (`.composer-icon-anchor`) so the dropdown always pops up directly
+   above the icon that opened it — independent of how many sibling
+   icons sit to its right in the footer row. */
 .composer {
   position: relative;
 }
 
+.composer .composer-icon-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .composer .skill-menu {
   position: absolute;
-  bottom: calc(var(--space-3) + 32px);
-  right: var(--space-6);
+  bottom: calc(100% + var(--space-2));
+  left: 0;
   z-index: 90;
   min-width: 240px;
   max-width: 360px;
@@ -4237,10 +4244,6 @@ button.primary:hover:not([disabled]) {
 
 .composer .security-icon[data-state="error"] {
   color: var(--danger);
-}
-
-.composer .security-icon:hover:not([disabled]) {
-  filter: brightness(1.15);
 }
 
 .composer .security-icon[disabled] {

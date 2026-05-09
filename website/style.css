@@ -1601,6 +1601,10 @@ body.nav-open {
   color: #4ade80;
 }
 
+.dt-demo__icon--accent {
+  color: var(--accent);
+}
+
 .dt-demo__send {
   display: inline-flex;
   align-items: center;

@@ -563,6 +563,7 @@ const Composer: Component<Props> = (props) => {
           disabled={props.disabled}
           onOpenSettings={props.onOpenSecuritySettings}
         />
+        <span class="composer-icon-anchor">
         <button
           type="button"
           class="agent-icon"
@@ -649,6 +650,7 @@ const Composer: Component<Props> = (props) => {
             </Show>
           </div>
         </Show>
+        </span>
         <Show when={agentFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
@@ -658,6 +660,7 @@ const Composer: Component<Props> = (props) => {
             </Portal>
           )}
         </Show>
+        <span class="composer-icon-anchor">
         <button
           type="button"
           class="skill-icon"
@@ -744,6 +747,7 @@ const Composer: Component<Props> = (props) => {
             </Show>
           </div>
         </Show>
+        </span>
         <Show when={skillFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
