@@ -328,6 +328,10 @@ const App: Component = () => {
   // config key the Settings → Tools panel manages, so the two surfaces
   // round-trip without an app restart.
   const [webEnabled, setWebEnabled] = createSignal(true);
+  // Sibling toggle for the two image tools (`read_image`,
+  // `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS` plumbing as
+  // the web toggle so the Settings → Tools panel stays in sync.
+  const [imageEnabled, setImageEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
     provider: null,
@@ -403,6 +407,31 @@ const App: Component = () => {
       await ipc.toolSetDisabled(name, disable);
     }
     setWebEnabled(next);
+  };
+
+  // Image tools toggle — mirror of the web flow for `read_image` and
+  // `generate_image`. Same `AICTL_SECURITY_DISABLED_TOOLS` gate.
+  const IMAGE_TOOLS = ["read_image", "generate_image"];
+  const refreshImageEnabled = async () => {
+    try {
+      const raw =
+        (await ipc.configValue("AICTL_SECURITY_DISABLED_TOOLS")) ?? "";
+      const disabled = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      setImageEnabled(!IMAGE_TOOLS.some((t) => disabled.includes(t)));
+    } catch {
+      setImageEnabled(true);
+    }
+  };
+
+  const setImageTools = async (next: boolean) => {
+    const disable = !next;
+    for (const name of IMAGE_TOOLS) {
+      await ipc.toolSetDisabled(name, disable);
+    }
+    setImageEnabled(next);
   };
 
   // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
@@ -703,6 +732,7 @@ const App: Component = () => {
     void refreshToolsEnabled();
     void refreshApprovalDefault();
     void refreshWebEnabled();
+    void refreshImageEnabled();
     void refreshNotifications();
     // Fire-and-forget probe of the updater manifest. Populates both the
     // titlebar badge and the prefetched `updateInfo` the modal opens
@@ -1238,6 +1268,8 @@ const App: Component = () => {
               onLoadedAgentChange={setLoadedAgent}
               webEnabled={webEnabled()}
               onWebEnabledChange={setWebTools}
+              imageEnabled={imageEnabled()}
+              onImageEnabledChange={setImageTools}
             />
           </div>
         </Show>
@@ -1331,6 +1363,7 @@ const App: Component = () => {
             void refreshToolsEnabled();
             void refreshApprovalDefault();
             void refreshWebEnabled();
+            void refreshImageEnabled();
             void refreshNotifications();
             void refreshProviderSetup();
           }}

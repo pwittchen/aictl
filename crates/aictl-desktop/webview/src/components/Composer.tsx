@@ -55,6 +55,11 @@ interface Props {
   /// → Tools panel reflects the change without a restart.
   webEnabled: boolean;
   onWebEnabledChange: (next: boolean) => Promise<void>;
+  /// Picture icon — sibling toggle for the two image tools
+  /// (`read_image`, `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS`
+  /// plumbing as the web toggle.
+  imageEnabled: boolean;
+  onImageEnabledChange: (next: boolean) => Promise<void>;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -296,6 +301,9 @@ const Composer: Component<Props> = (props) => {
     if (webFlashTimer !== undefined) {
       window.clearTimeout(webFlashTimer);
     }
+    if (imageFlashTimer !== undefined) {
+      window.clearTimeout(imageFlashTimer);
+    }
   });
 
   // Globe toggle — flips all three web tools as one unit. Same toast
@@ -318,6 +326,28 @@ const Composer: Component<Props> = (props) => {
       }
       setWebFlash(`failed to toggle web tools: ${err}`);
       webFlashTimer = window.setTimeout(() => setWebFlash(null), 1800);
+    }
+  };
+
+  // Picture toggle — same shape as the globe; flips both image tools.
+  const [imageFlash, setImageFlash] = createSignal<string | null>(null);
+  let imageFlashTimer: number | undefined;
+  const toggleImage = async () => {
+    if (props.disabled) return;
+    const next = !props.imageEnabled;
+    try {
+      await props.onImageEnabledChange(next);
+      if (imageFlashTimer !== undefined) {
+        window.clearTimeout(imageFlashTimer);
+      }
+      setImageFlash(next ? "image tools enabled" : "image tools disabled");
+      imageFlashTimer = window.setTimeout(() => setImageFlash(null), 1800);
+    } catch (err) {
+      if (imageFlashTimer !== undefined) {
+        window.clearTimeout(imageFlashTimer);
+      }
+      setImageFlash(`failed to toggle image tools: ${err}`);
+      imageFlashTimer = window.setTimeout(() => setImageFlash(null), 1800);
     }
   };
 
@@ -599,6 +629,46 @@ const Composer: Component<Props> = (props) => {
           </div>
         </Show>
         <Show when={skillFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="image-icon"
+          data-active={String(props.imageEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.imageEnabled ? "true" : "false"}
+          aria-label={
+            props.imageEnabled
+              ? "Image tools enabled (click to disable read_image, generate_image)"
+              : "Image tools disabled (click to enable read_image, generate_image)"
+          }
+          title={
+            props.imageEnabled
+              ? "image tools enabled — click to disable"
+              : "image tools disabled — click to enable"
+          }
+          onClick={() => void toggleImage()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm10.5 5.707a.5.5 0 0 0-.146-.353l-1-1a.5.5 0 0 0-.708 0L9.354 9.646a.5.5 0 0 1-.708 0L6.354 7.354a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0-.146.353V12a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5V9.707ZM12 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <Show when={imageFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">
