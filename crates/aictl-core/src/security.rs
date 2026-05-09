@@ -1,12 +1,18 @@
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use crate::config::{AICTL_WORKING_DIR_DESKTOP, Role, config_get, config_get_scoped, role};
 use crate::tools::ToolCall;
 
 pub mod redaction;
 
-static POLICY: OnceLock<SecurityPolicy> = OnceLock::new();
+static POLICY: RwLock<Option<Arc<SecurityPolicy>>> = RwLock::new(None);
+/// `--unrestricted` is a launch-time flag; on `reload()` we want to keep
+/// the same toothless policy in place rather than re-reading config.
+/// Stored beside the policy itself so a Settings-tab edit can never
+/// silently re-arm the engine on a binary the operator launched in
+/// unrestricted mode.
+static UNRESTRICTED: OnceLock<bool> = OnceLock::new();
 
 // --- Default blocked commands ---
 
@@ -102,7 +108,29 @@ pub fn init(unrestricted: bool) -> Vec<String> {
     // `--unrestricted` leaves it running if the user has configured it,
     // consistent with how the audit log behaves.
     let redaction_warnings = redaction::init();
-    let policy = if unrestricted {
+    UNRESTRICTED.set(unrestricted).ok();
+    let policy = build_policy(unrestricted);
+    *POLICY.write().expect("security policy lock poisoned") = Some(Arc::new(policy));
+    redaction_warnings
+}
+
+/// Re-read the policy from config and atomically swap the cached
+/// snapshot. The desktop's Settings overlay calls this after a per-tool
+/// toggle (`AICTL_SECURITY_DISABLED_TOOLS`) or any other security key
+/// edit so the change takes effect on the next tool call without an
+/// app restart. `--unrestricted` launches stay unrestricted — the flag
+/// is captured at `init()` time.
+pub fn reload() {
+    let unrestricted = UNRESTRICTED.get().copied().unwrap_or(false);
+    let policy = build_policy(unrestricted);
+    *POLICY.write().expect("security policy lock poisoned") = Some(Arc::new(policy));
+}
+
+/// Build a fresh `SecurityPolicy` from current config (or an inert one
+/// when the binary was launched with `--unrestricted`). Extracted so
+/// `init` and `reload` share the same construction path.
+fn build_policy(unrestricted: bool) -> SecurityPolicy {
+    if unrestricted {
         SecurityPolicy {
             enabled: false,
             injection_guard: false,
@@ -128,40 +156,49 @@ pub fn init(unrestricted: bool) -> Vec<String> {
         }
     } else {
         load_policy()
-    };
-    POLICY.set(policy).ok();
-    redaction_warnings
+    }
 }
 
-/// Access the global security policy.
-/// Returns a permissive default if `init()` has not been called (e.g. in tests).
-pub fn policy() -> &'static SecurityPolicy {
-    static DEFAULT: OnceLock<SecurityPolicy> = OnceLock::new();
-    POLICY.get().unwrap_or_else(|| {
-        DEFAULT.get_or_init(|| SecurityPolicy {
-            enabled: false,
-            injection_guard: false,
-            shell: ShellPolicy {
-                allowed_commands: vec![],
-                blocked_commands: vec![],
-                block_subshell: false,
-            },
-            paths: PathPolicy {
-                working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-                restrict_to_cwd: false,
-                blocked_paths: vec![],
-                allowed_paths: vec![],
-            },
-            resources: ResourcePolicy {
-                shell_timeout_secs: 0,
-                max_file_write_bytes: 0,
-            },
-            env: EnvPolicy {
-                blocked_env_vars: vec![],
-            },
-            disabled_tools: vec![],
+/// Access the global security policy. Returns a permissive default if
+/// `init()` has not been called (tests, defensive fallback). Returned
+/// as an `Arc` so callers see a consistent snapshot even if a
+/// concurrent `reload()` swaps the live policy mid-evaluation.
+pub fn policy() -> Arc<SecurityPolicy> {
+    static DEFAULT: OnceLock<Arc<SecurityPolicy>> = OnceLock::new();
+    if let Some(p) = POLICY
+        .read()
+        .expect("security policy lock poisoned")
+        .clone()
+    {
+        return p;
+    }
+    DEFAULT
+        .get_or_init(|| {
+            Arc::new(SecurityPolicy {
+                enabled: false,
+                injection_guard: false,
+                shell: ShellPolicy {
+                    allowed_commands: vec![],
+                    blocked_commands: vec![],
+                    block_subshell: false,
+                },
+                paths: PathPolicy {
+                    working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                    restrict_to_cwd: false,
+                    blocked_paths: vec![],
+                    allowed_paths: vec![],
+                },
+                resources: ResourcePolicy {
+                    shell_timeout_secs: 0,
+                    max_file_write_bytes: 0,
+                },
+                env: EnvPolicy {
+                    blocked_env_vars: vec![],
+                },
+                disabled_tools: vec![],
+            })
         })
-    })
+        .clone()
 }
 
 fn load_policy() -> SecurityPolicy {
@@ -420,7 +457,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
         }
         "archive" => check_archive(input),
         "checksum" => check_checksum(input),
-        name if name.starts_with("mcp__") => check_mcp_tool(name, input, pol),
+        name if name.starts_with("mcp__") => check_mcp_tool(name, input, &pol),
         _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
     }
 }

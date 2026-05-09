@@ -1247,6 +1247,51 @@
   cursor: not-allowed;
 }
 
+/* Web tools toggle: globe icon. Drives `search_web`, `fetch_url`, and
+   `extract_website` in `AICTL_SECURITY_DISABLED_TOOLS` as a single
+   unit. Same accent treatment as the other composer icons. */
+.composer .web-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .web-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .web-icon:hover,
+.composer .web-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .web-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .web-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .web-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Floating confirmation toast. Mirrors the brutalist panel used by
    `.tool-modal .panel` (same border, background, mono font) so the
    feedback feels like part of the same UI vocabulary, but skips the

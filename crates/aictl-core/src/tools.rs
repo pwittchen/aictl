@@ -273,6 +273,31 @@ pub fn tools_enabled() -> bool {
     crate::config::config_get("AICTL_TOOLS_ENABLED").is_none_or(|v| v != "false" && v != "0")
 }
 
+/// Names of the three web-facing tools driven by the desktop's globe
+/// icon. Co-located here so the security-denial branch can issue a
+/// targeted "web tools are off" message instead of the generic
+/// "Security policy denied" string.
+const WEB_TOOLS: &[&str] = &["search_web", "fetch_url", "extract_website"];
+
+/// Render the tool-result body produced when the security gate refuses
+/// a call. The web-tool trio gets a hand-crafted message that names the
+/// affordance (the globe icon in the desktop, the
+/// `AICTL_SECURITY_DISABLED_TOOLS` config key in CLI / server contexts)
+/// so the model can relay something actionable to the user instead of
+/// surfacing a generic "tool 'X' is disabled by security policy" line.
+fn denial_message(tool_name: &str, reason: &str) -> String {
+    if WEB_TOOLS.contains(&tool_name) && reason.contains("disabled") {
+        return format!(
+            "Web tools (`search_web`, `fetch_url`, `extract_website`) are currently disabled, so `{tool_name}` cannot run. \
+             Tell the user that you cannot fetch information from the web right now. \
+             They can re-enable web tools by clicking the globe icon next to the Send button in the desktop app, \
+             or by removing the entry from `AICTL_SECURITY_DISABLED_TOOLS` in `~/.aictl/config`. \
+             Do not retry this tool until the user has done so."
+        );
+    }
+    format!("Security policy denied: {reason}")
+}
+
 pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
     // Global tools switch
     if !tools_enabled() {
@@ -311,7 +336,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
             tool_call,
             crate::audit::Outcome::DeniedByPolicy { reason: &reason },
         );
-        return ToolOutput::text(format!("Security policy denied: {reason}"));
+        return ToolOutput::text(denial_message(&tool_call.name, &reason));
     }
 
     let input = &tool_call.input;

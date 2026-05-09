@@ -16,7 +16,7 @@
 
 use aictl_core::config::{self, AICTL_WORKING_DIR_DESKTOP};
 use aictl_core::keys::{self, ClearOutcome, KeyLocation, LockOutcome, SetOutcome, UnlockOutcome};
-use aictl_core::security::redaction;
+use aictl_core::security::{self, redaction};
 use aictl_core::tools::BUILTIN_TOOLS;
 use serde::{Deserialize, Serialize};
 
@@ -143,6 +143,12 @@ fn is_allowed(key: &str) -> bool {
 /// take effect until the user restarts the app. Mirrors the boot-time
 /// `security::init()` warning suppression — settings-tab feedback is
 /// surfaced through the writer, not via this reload path.
+///
+/// The security gate (CWD jail, shell allow/block lists, blocked env
+/// vars, disabled-tools list, …) lives in a separate `RwLock` and gets
+/// the same treatment via `security::reload()` — without it, a
+/// Settings-tab edit to `AICTL_SECURITY_DISABLED_TOOLS` would write to
+/// disk but the cached policy would still rubber-stamp every call.
 fn reload_policy_for(key: &str) {
     let touches_redaction = matches!(
         key,
@@ -155,6 +161,15 @@ fn reload_policy_for(key: &str) {
     );
     if touches_redaction {
         let _ = redaction::reload();
+    }
+    // Every other AICTL_SECURITY_* key feeds `security::load_policy`
+    // (master enable, injection guard, CWD restrict, shell allow/block
+    // lists, path lists, blocked envs, shell timeout, max write,
+    // disabled tools). The redaction-only keys are already handled
+    // above, so anything else with the prefix triggers a hot reload.
+    let touches_security = key.starts_with("AICTL_SECURITY_") && !touches_redaction;
+    if touches_security {
+        security::reload();
     }
 }
 
@@ -443,6 +458,11 @@ pub fn tool_set_disabled(args: ToolToggleArgs) -> Result<bool, String> {
     } else {
         config::config_set("AICTL_SECURITY_DISABLED_TOOLS", &current.join(","));
     }
+    // The cached `SecurityPolicy` snapshot was captured at boot; without
+    // a reload here `validate_tool` would still rubber-stamp the call
+    // we just disabled. The redaction layer has the same shape (see
+    // `redaction::reload`); we mirror it for the security gate.
+    security::reload();
     Ok(args.disabled)
 }
 

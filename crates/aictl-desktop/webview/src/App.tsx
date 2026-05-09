@@ -197,12 +197,12 @@ const App: Component = () => {
   const FILES_MAX = 700;
   // Floor for the chat column when computing whether the layout fits
   // the current window. Sized to keep the composer footer (model
-  // picker + agent / skill / auto-accept icons + Send button with its
-  // ⌘↵ chip) on a single row alongside the standard horizontal
-  // padding — auto-grow reserves at least this many pixels, and
-  // auto-close drops side panes once the chat column would dip below
-  // it.
-  const CHAT_MIN_WIDTH = 520;
+  // picker + agent / skill / auto-accept / globe icons + Send button
+  // with its ⌘↵ chip) on a single row alongside the standard
+  // horizontal padding — auto-grow reserves at least this many pixels,
+  // and auto-close drops side panes once the chat column would dip
+  // below it.
+  const CHAT_MIN_WIDTH = 550;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
@@ -321,6 +321,13 @@ const App: Component = () => {
   const [providerSetupDismissed, setProviderSetupDismissed] =
     createSignal(false);
   const [toolsEnabled, setToolsEnabled] = createSignal(true);
+  // Composer's globe icon mirrors the per-tool disabled list in
+  // `AICTL_SECURITY_DISABLED_TOOLS` for the three web-facing tools
+  // (`search_web`, `fetch_url`, `extract_website`). Active when none of
+  // them are disabled — flipping the icon writes through to the same
+  // config key the Settings → Tools panel manages, so the two surfaces
+  // round-trip without an app restart.
+  const [webEnabled, setWebEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
     provider: null,
@@ -365,6 +372,37 @@ const App: Component = () => {
     } catch {
       setToolsEnabled(true);
     }
+  };
+
+  // Web tools toggle — derived from `AICTL_SECURITY_DISABLED_TOOLS`.
+  // Active iff none of the three web tools sit in the disabled list.
+  // Re-read whenever Settings closes so a per-tool flip from the
+  // Tools panel reflects on the composer icon.
+  const WEB_TOOLS = ["search_web", "fetch_url", "extract_website"];
+  const refreshWebEnabled = async () => {
+    try {
+      const raw =
+        (await ipc.configValue("AICTL_SECURITY_DISABLED_TOOLS")) ?? "";
+      const disabled = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      setWebEnabled(!WEB_TOOLS.some((t) => disabled.includes(t)));
+    } catch {
+      setWebEnabled(true);
+    }
+  };
+
+  /// Flip every web tool to `next` in one shot. The Settings → Tools
+  /// panel reads from the same config key, so a refetch on the next
+  /// open reflects the change. Failures bubble back through the
+  /// composer's flash so the user knows the toggle didn't stick.
+  const setWebTools = async (next: boolean) => {
+    const disable = !next;
+    for (const name of WEB_TOOLS) {
+      await ipc.toolSetDisabled(name, disable);
+    }
+    setWebEnabled(next);
   };
 
   // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
@@ -664,6 +702,7 @@ const App: Component = () => {
 
     void refreshToolsEnabled();
     void refreshApprovalDefault();
+    void refreshWebEnabled();
     void refreshNotifications();
     // Fire-and-forget probe of the updater manifest. Populates both the
     // titlebar badge and the prefetched `updateInfo` the modal opens
@@ -1197,6 +1236,8 @@ const App: Component = () => {
               onLoadedSkillChange={setLoadedSkill}
               loadedAgent={loadedAgent()}
               onLoadedAgentChange={setLoadedAgent}
+              webEnabled={webEnabled()}
+              onWebEnabledChange={setWebTools}
             />
           </div>
         </Show>
@@ -1289,6 +1330,7 @@ const App: Component = () => {
             setSettingsInitialTab(undefined);
             void refreshToolsEnabled();
             void refreshApprovalDefault();
+            void refreshWebEnabled();
             void refreshNotifications();
             void refreshProviderSetup();
           }}
