@@ -32,6 +32,7 @@ mod image;
 mod json_query;
 mod lint;
 mod list_processes;
+mod memory;
 mod notify;
 mod run_code;
 mod shell;
@@ -135,7 +136,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 31;
+pub const TOOL_COUNT: usize = 32;
 
 /// `(name, one-line description)` for every built-in tool. Both the CLI's
 /// `/tools` printer and the desktop Settings panel render from this single
@@ -226,6 +227,10 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     (
         "notify",
         "send a desktop notification (osascript on macOS, notify-send on Linux)",
+    ),
+    (
+        "save_memory",
+        "persist a fact about the user to long-term memory (~/.aictl/memory.json)",
     ),
 ];
 
@@ -385,6 +390,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "checksum" => checksum::tool_checksum(input).await,
         "clipboard" => clipboard::tool_clipboard(input).await,
         "notify" => notify::tool_notify(input).await,
+        "save_memory" => memory::tool_save_memory(input),
         other if other.starts_with("mcp__") => crate::mcp::call_tool(other, input).await,
         other => {
             if let Some(plugin) = crate::plugins::find(other) {

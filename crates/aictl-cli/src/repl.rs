@@ -332,6 +332,14 @@ async fn dispatch_slash_command(
             commands::run_mcp_menu(&|msg| ui.show_error(msg));
             ReplAction::Continue
         }
+        commands::CommandResult::Memory => {
+            commands::run_memory_menu(&|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
+        commands::CommandResult::Remember(fact) => {
+            commands::run_remember(&fact, &|msg| ui.show_error(msg));
+            ReplAction::Continue
+        }
         commands::CommandResult::Balance => {
             commands::run_balance().await;
             ReplAction::Continue

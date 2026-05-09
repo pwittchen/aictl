@@ -346,6 +346,10 @@ const App: Component = () => {
   // `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS` plumbing as
   // the web toggle so the Settings → Tools panel stays in sync.
   const [imageEnabled, setImageEnabled] = createSignal(true);
+  // Memory icon — mirrors `AICTL_MEMORY_ENABLED` (default on). Round-
+  // trips through the same `memory_set_enabled` Tauri command the
+  // Settings → Memory panel calls so the two surfaces stay in sync.
+  const [memoryEnabled, setMemoryEnabled] = createSignal(true);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
     provider: null,
@@ -456,6 +460,23 @@ const App: Component = () => {
       await ipc.toolSetDisabled(name, disable);
     }
     setImageEnabled(next);
+  };
+
+  // Memory master switch — reads the engine's MemoryStatus rather than
+  // the raw config key so the icon follows the same source of truth as
+  // the Settings panel.
+  const refreshMemoryEnabled = async () => {
+    try {
+      const status = await ipc.memoryStatus();
+      setMemoryEnabled(status.enabled);
+    } catch {
+      setMemoryEnabled(true);
+    }
+  };
+
+  const setMemoryEnabledMaster = async (next: boolean) => {
+    const status = await ipc.memorySetEnabled(next);
+    setMemoryEnabled(status.enabled);
   };
 
   // Plugins toggle — reads `AICTL_PLUGINS_ENABLED` and treats a missing
@@ -960,6 +981,7 @@ const App: Component = () => {
     void refreshApprovalDefault();
     void refreshWebEnabled();
     void refreshImageEnabled();
+    void refreshMemoryEnabled();
     void refreshPluginsEnabled();
     void refreshMcpEnabled();
     void refreshNotifications();
@@ -1505,6 +1527,8 @@ const App: Component = () => {
               onWebEnabledChange={setWebTools}
               imageEnabled={imageEnabled()}
               onImageEnabledChange={setImageTools}
+              memoryEnabled={memoryEnabled()}
+              onMemoryEnabledChange={setMemoryEnabledMaster}
               securityState={securityState()}
               securityChecks={securityChecks()}
               onOpenSecuritySettings={() => {
@@ -1605,6 +1629,7 @@ const App: Component = () => {
             void refreshApprovalDefault();
             void refreshWebEnabled();
             void refreshImageEnabled();
+            void refreshMemoryEnabled();
             void refreshPluginsEnabled();
             void refreshNotifications();
             void refreshSecurityStatus();

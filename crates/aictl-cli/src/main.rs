@@ -13,8 +13,8 @@ use clap::Parser;
 // keep working without an enormous import sweep.
 pub(crate) use aictl_core::{Message, Provider, Role, build_system_prompt, with_esc_cancel};
 pub(crate) use aictl_core::{
-    agents, audit, config, error, hooks, keys, llm, mcp, message, plugins, run, security, session,
-    skills, stats, tools,
+    agents, audit, config, error, hooks, keys, llm, mcp, memory, message, plugins, run, security,
+    session, skills, stats, tools,
 };
 
 use config::{config_get, load_config};
@@ -175,6 +175,15 @@ struct Cli {
     /// `--force` is set.
     #[arg(long = "pull-skill", value_name = "NAME")]
     pull_skill: Option<String>,
+
+    /// List all stored long-term memories and exit.
+    #[arg(long = "list-memories")]
+    list_memories: bool,
+
+    /// Append a fact to long-term memory (~/.aictl/memory.json) and exit.
+    /// No-op when memory is disabled or in incognito mode.
+    #[arg(long = "remember", value_name = "FACT")]
+    remember: Option<String>,
 
     /// Interactive configuration wizard for provider, model, and API keys
     #[arg(long = "config")]
@@ -520,6 +529,32 @@ async fn handle_agent_skill_flags(cli: &Cli) -> bool {
     }
     if let Some(name) = cli.pull_skill.as_deref() {
         pull_remote_skill(name, cli.force).await;
+        return true;
+    }
+    if cli.list_memories {
+        commands::print_memories_cli();
+        return true;
+    }
+    if let Some(fact) = cli.remember.as_deref() {
+        match memory::add(fact) {
+            memory::AddOutcome::Saved(entry) => {
+                println!("Memory saved: {}", entry.text);
+            }
+            memory::AddOutcome::Disabled => {
+                eprintln!(
+                    "Memory is disabled (AICTL_MEMORY_ENABLED=false or incognito). Use /memory to enable it."
+                );
+                std::process::exit(1);
+            }
+            memory::AddOutcome::Empty => {
+                eprintln!("Error: --remember requires a non-empty fact");
+                std::process::exit(1);
+            }
+            memory::AddOutcome::IoError(e) => {
+                eprintln!("Error: failed to save memory: {e}");
+                std::process::exit(1);
+            }
+        }
         return true;
     }
     false

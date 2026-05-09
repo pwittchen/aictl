@@ -33,6 +33,7 @@ pub mod hooks;
 pub mod keys;
 pub mod llm;
 pub mod mcp;
+pub mod memory;
 pub mod message;
 pub mod plugins;
 pub mod run;

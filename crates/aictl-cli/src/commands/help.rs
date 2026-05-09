@@ -30,6 +30,11 @@ pub(super) fn print_help() {
         ("/plugins", "manage external plugin tools"),
         ("/hooks", "manage lifecycle hooks (list, toggle, test-fire)"),
         ("/mcp", "manage MCP servers (list, view tools, toggle)"),
+        ("/memory", "manage long-term memory (toggle, view, delete)"),
+        (
+            "/remember",
+            "save a fact to long-term memory (/remember <fact>)",
+        ),
         (
             "/roadmap",
             "view the project roadmap (use /roadmap <section> to filter)",

@@ -80,6 +80,12 @@ interface Props {
   /// plumbing as the web toggle.
   imageEnabled: boolean;
   onImageEnabledChange: (next: boolean) => Promise<void>;
+  /// Memory icon — flips `AICTL_MEMORY_ENABLED`. When off the engine
+  /// stops loading saved facts into the system prompt and the
+  /// `save_memory` tool refuses to write. Settings → Memory exposes
+  /// the same switch.
+  memoryEnabled: boolean;
+  onMemoryEnabledChange: (next: boolean) => Promise<void>;
   /// Aggregated posture for the shield icon. `App` reads the relevant
   /// config keys + keyring presence and pushes the result down here so
   /// every other composer toggle keeps its single-source-of-truth shape.
@@ -470,6 +476,30 @@ const Composer: Component<Props> = (props) => {
       }
       setWebFlash(`failed to toggle web tools: ${err}`);
       webFlashTimer = window.setTimeout(() => setWebFlash(null), 1800);
+    }
+  };
+
+  // Memory toggle — flips AICTL_MEMORY_ENABLED through the parent. Same
+  // toast pattern as the web/image toggles. Independent of the master
+  // tools switch since memory is a prompt-side feature, not a tool gate.
+  const [memoryFlash, setMemoryFlash] = createSignal<string | null>(null);
+  let memoryFlashTimer: number | undefined;
+  const toggleMemory = async () => {
+    if (props.disabled) return;
+    const next = !props.memoryEnabled;
+    try {
+      await props.onMemoryEnabledChange(next);
+      if (memoryFlashTimer !== undefined) {
+        window.clearTimeout(memoryFlashTimer);
+      }
+      setMemoryFlash(next ? "memory enabled" : "memory disabled");
+      memoryFlashTimer = window.setTimeout(() => setMemoryFlash(null), 1800);
+    } catch (err) {
+      if (memoryFlashTimer !== undefined) {
+        window.clearTimeout(memoryFlashTimer);
+      }
+      setMemoryFlash(`failed to toggle memory: ${err}`);
+      memoryFlashTimer = window.setTimeout(() => setMemoryFlash(null), 1800);
     }
   };
 
@@ -1061,6 +1091,42 @@ const Composer: Component<Props> = (props) => {
           </svg>
         </button>
         <Show when={webFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="memory-icon"
+          data-active={String(props.memoryEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.memoryEnabled ? "true" : "false"}
+          aria-label={
+            props.memoryEnabled
+              ? "Memory enabled (click to disable long-term memory)"
+              : "Memory disabled (click to enable long-term memory)"
+          }
+          title={
+            props.memoryEnabled
+              ? "memory enabled — click to disable"
+              : "memory disabled — click to enable"
+          }
+          onClick={() => void toggleMemory()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M5.566 4.657A4.505 4.505 0 0 1 6.75 4.5h10.5c.41 0 .806.055 1.183.157A3 3 0 0 0 15.75 3h-7.5a3 3 0 0 0-2.684 1.657ZM2.25 12a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3v-6ZM5.25 7.5c-.41 0-.806.055-1.184.157A3 3 0 0 1 6.75 6h10.5a3 3 0 0 1 2.683 1.657A4.505 4.505 0 0 0 18.75 7.5H5.25Z" />
+          </svg>
+        </button>
+        <Show when={memoryFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">

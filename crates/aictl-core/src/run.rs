@@ -272,6 +272,10 @@ pub fn build_system_prompt() -> String {
         prompt.push_str("\n\n# Behavior overrides\n\n");
         prompt.push_str(&behavior);
     }
+    // Long-term memory injects past facts the agent has learned about the
+    // user. The helper short-circuits to an empty string when memory is
+    // disabled or the session is incognito, so an unconditional concat is safe.
+    prompt.push_str(&crate::memory::prompt_block());
     prompt
 }
 

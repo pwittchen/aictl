@@ -1509,6 +1509,51 @@
   cursor: not-allowed;
 }
 
+/* Memory toggle: card-stack icon. Drives `AICTL_MEMORY_ENABLED`. Same
+   accent treatment as the other composer icons; sits right of the
+   globe in the toolbar. */
+.composer .memory-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .memory-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .memory-icon:hover,
+.composer .memory-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .memory-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .memory-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .memory-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Image tools toggle: picture icon. Drives `read_image` and
    `generate_image` in `AICTL_SECURITY_DISABLED_TOOLS` as a single
    unit. Mirrors the web-icon styling. */
@@ -2327,6 +2372,37 @@
   text-align: right;
 }
 
+/* Memory list rows: keep each entry on a single line and truncate
+   with an ellipsis so long facts don't blow out the table height.
+   The full text is exposed via the row's `title` tooltip and the
+   per-row View button (which opens the modal viewer). The selector
+   is intentionally specific (table + cell + element) so it outweighs
+   `.settings-keys-table td.settings-desc` which sets `white-space: normal`
+   for keys / hooks / plugins rows that *should* wrap. */
+.settings-keys-table.settings-memory-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-keys-table.settings-memory-table td.settings-memory-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  max-width: 0; /* lets the cell shrink to fit the table-layout column */
+}
+
+/* The actions cell stays a real <td> — `.settings-keys-actions` (display:
+   flex) goes on an inner <div> so the cell still participates in table
+   layout. Without this split, the flex display turns the <td> into a
+   flex container whose box height is independent of the row's height,
+   leaving its bottom border floating below the other columns'. */
+.settings-keys-table.settings-memory-table td.settings-memory-actions-cell {
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .settings-name-cell {
   display: flex;
   align-items: center;
@@ -2510,6 +2586,12 @@
   overflow: auto;
   font-family: var(--font-mono);
   font-size: 12px;
+  /* Wrap long unbroken text (memory prose, multi-sentence facts) inside
+     the box instead of forcing a horizontal scrollbar. Short single-line
+     details (file paths, session labels) are unaffected — there's
+     nothing to wrap. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .tool-modal .actions {

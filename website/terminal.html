@@ -100,7 +100,7 @@
             <div class="cli-demo__body">
 <pre class="cli-demo__banner" aria-hidden="true"><span class="tt-face">[-_-]</span> <strong class="tt-brand">aictl</strong> <span class="tt-dim" data-cli-version>0.39.3</span> <span class="tt-ok">(latest)</span> <span class="tt-dim">— AI agent in your terminal</span>
 <span class="tt-face"> |_|</span>  <span class="tt-prov">anthropic</span> <span class="tt-dim">·</span> <span class="tt-model">claude-sonnet-4-6</span>
-      <span class="tt-dim">31 tools · dir: aictl/</span>
+      <span class="tt-dim">32 tools · dir: aictl/</span>
       <span class="tt-info">cwd jail: on</span><span class="tt-dim"> · subshell blocked · timeout: 30s · disabled tools: 0</span>
       <span class="tt-info">keychain</span> <span class="tt-dim">(0 locked · 9 plain · 0 both)</span>
       <span class="tt-dim">session: 9ee82912-c760-4444-bfe8-0bc000c173c0</span>
@@ -304,6 +304,7 @@
               <li><code>AICTL_PROMPT_FALLBACK</code> — when the primary prompt file is missing, fall back to <code>CLAUDE.md</code> then <code>AGENTS.md</code> (default <code>true</code>)</li>
               <li><code>AICTL_WORKING_DIR_CLI</code> — persistent working directory for the CLI; used as the CWD jail root and the spawn dir for every tool call. Accepts absolute, relative, and <code>~</code>-prefixed paths. Overridden by <code>--cwd</code>; falls back to <code>AICTL_WORKING_DIR</code> (legacy unsuffixed key) and finally the launch directory</li>
               <li><code>AICTL_TOOLS_ENABLED</code> — <code>false</code> disables every tool; the LLM answers in plain text only (default <code>true</code>)</li>
+              <li><code>AICTL_MEMORY_ENABLED</code> — when <code>true</code> (default), saved facts in <code>~/.aictl/memory.json</code> are loaded into the system prompt of every conversation; the <code>save_memory</code> tool and <code>/remember</code> are write-enabled. Incognito mode overrides this for both reads and writes</li>
               <li><code>AICTL_AUTO_COMPACT_THRESHOLD</code> — context usage % at which the REPL auto-compacts (1–100, default <code>80</code>)</li>
               <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>30</code>)</li>
               <li><code>AICTL_MAX_ITERATIONS</code> — max LLM calls per agent turn (default <code>20</code>)</li>
@@ -557,6 +558,8 @@
               <li><code>/plugins</code> — manage external plugin tools (list, view manifest, toggle)</li>
               <li><code>/hooks</code> — manage lifecycle hooks (view, toggle, test-fire, reload)</li>
               <li><code>/mcp</code> — manage external MCP servers (list, view tools &amp; schemas, toggle)</li>
+              <li><code>/memory</code> — manage long-term memory (toggle, browse, delete)</li>
+              <li><code>/remember &lt;fact&gt;</code> — save a fact to long-term memory</li>
               <li><code>/tools</code> — list available tools</li>
               <li><code>/ping</code> — validate API keys and probe provider connectivity</li>
               <li><code>/balance</code> — show remaining credit / quota for each configured cloud provider</li>
@@ -627,6 +630,8 @@
               <li><code>--skill &lt;name&gt;</code> — invoke a saved skill for one turn</li>
               <li><code>--list-skills</code> — print saved skills and exit (add <code>--category &lt;name&gt;</code> to filter)</li>
               <li><code>--pull-skill &lt;name&gt;</code> — pull an official skill from the aictl repo (add <code>--force</code> to overwrite)</li>
+              <li><code>--remember &lt;fact&gt;</code> — append a fact to long-term memory and exit</li>
+              <li><code>--list-memories</code> — print saved long-term memories and exit</li>
               <li><code>--session &lt;id|name&gt;</code> — resume a session</li>
               <li><code>--list-sessions</code> — print saved sessions and exit</li>
               <li><code>--clear-sessions</code> — delete all saved sessions</li>
@@ -1003,7 +1008,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
     <section class="section" id="tools-ref">
       <div class="container">
         <header class="section__head">
-          <span class="section__kicker">// 31 tools</span>
+          <span class="section__kicker">// 32 tools</span>
           <h2 class="section__title">Tools the agent can use</h2>
           <p class="section__lead">
             Every tool call is validated by the security policy and
@@ -1056,6 +1061,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
               <li><code>system_info</code> — OS, CPU, memory, disk info (macOS + Linux)</li>
               <li><code>clipboard</code> — read / write the system clipboard (pbcopy, wl-copy, xclip)</li>
               <li><code>notify</code> — desktop notifications (osascript / notify-send)</li>
+              <li><code>save_memory</code> — persist a fact about the user to long-term memory (<code>~/.aictl/memory.json</code>); auto-loaded into the system prompt of every future conversation</li>
             </ul>
           </div>
         </div>

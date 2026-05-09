@@ -25,6 +25,7 @@ mod hooks;
 mod info;
 mod keys;
 mod mcp;
+mod memory;
 mod menu;
 mod mlx;
 mod model;
@@ -51,6 +52,7 @@ pub use hooks::{print_hooks_cli, run_hooks_menu};
 pub use info::print_info;
 pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unlock_keys};
 pub use mcp::{print_mcp_cli, run_mcp_menu};
+pub use memory::{print_memories_cli, run_memory_menu, run_remember};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
 pub use ping::run_ping;
@@ -89,10 +91,12 @@ pub const COMMANDS: &[&str] = &[
     "keys",
     "gguf",
     "mcp",
+    "memory",
     "mlx",
     "model",
     "ping",
     "plugins",
+    "remember",
     "retry",
     "roadmap",
     "security",
@@ -167,6 +171,12 @@ pub enum CommandResult {
     /// Open the MCP servers management menu (list servers, view tools,
     /// toggle the `AICTL_MCP_ENABLED` master switch).
     Mcp,
+    /// Open the long-term memory management menu (toggle, view, delete,
+    /// clear). Disabled in incognito mode.
+    Memory,
+    /// `/remember <fact>` — append one fact to long-term memory. Carries
+    /// the trimmed argument; an empty arg surfaces a usage hint.
+    Remember(String),
     /// Check connectivity and API key validity for all providers.
     Ping,
     /// Re-run the interactive configuration wizard.
@@ -255,6 +265,8 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "plugins" => CommandResult::Plugins,
         "hooks" => CommandResult::Hooks,
         "mcp" => CommandResult::Mcp,
+        "memory" => CommandResult::Memory,
+        "remember" => CommandResult::Remember(args.to_string()),
         "retry" => CommandResult::Retry,
         "roadmap" => {
             let query = if args.is_empty() {

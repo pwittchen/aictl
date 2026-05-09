@@ -14,6 +14,7 @@ pub mod hooks;
 pub mod images;
 pub mod local_models;
 pub mod mcp;
+pub mod memory;
 pub mod models;
 pub mod plugins;
 pub mod server;

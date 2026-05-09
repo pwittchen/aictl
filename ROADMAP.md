@@ -4,7 +4,6 @@
 
 ## Desktop/CLI
 
-- add brand new memory feature - user should be able to enable long term memory and then agent should intelligently save all memories about the user to the ~/.aictl/memory.json file. User should be able to turn on/off this feature and also browse all memories and remove any of them or all of them. This feature should be disabled in incognito mode. All memories should be loaded to the prompt, so agent would adjust his answers according to the memory. In the CLI there should be command /remember which will add fact to the memory and /memory command should allow to manage all memories. It should be mirrored in the desktop app in the settings behind Memory sub-setting. Besides that  when user uses in the conversation (on dekstop or CLI) text like: remember, memorize or something like that, agent should also add this to the memory. User should see information in the CLI or desktop app that fact was added to the memory.
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
 
 ## Desktop

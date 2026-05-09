@@ -163,6 +163,19 @@ export interface HooksStatus {
   hooks: HookRow[];
 }
 
+export interface MemoryRow {
+  id: string;
+  text: string;
+  created_at: number;
+}
+
+export interface MemoryStatus {
+  enabled: boolean;
+  count: number;
+  max_entries: number;
+  entries: MemoryRow[];
+}
+
 export interface SkillRow {
   name: string;
   description: string;
@@ -709,6 +722,23 @@ export const ipc = {
   },
   async pluginsReload() {
     return invoke<void>("plugins_reload");
+  },
+
+  // -- memory ----
+  async memoryStatus() {
+    return invoke<MemoryStatus>("memory_status");
+  },
+  async memorySetEnabled(enabled: boolean) {
+    return invoke<MemoryStatus>("memory_set_enabled", { enabled });
+  },
+  async memoryAdd(text: string) {
+    return invoke<MemoryRow>("memory_add", { text });
+  },
+  async memoryRemove(id: string) {
+    return invoke<void>("memory_remove", { id });
+  },
+  async memoryClear() {
+    return invoke<void>("memory_clear");
   },
 
   // -- stats ----

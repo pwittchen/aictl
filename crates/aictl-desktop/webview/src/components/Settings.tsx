@@ -23,6 +23,8 @@ import {
   type KeyRow,
   type LocalModelsStatus,
   type McpStatus,
+  type MemoryRow,
+  type MemoryStatus,
   type ModelEntry,
   type OllamaProbeResult,
   type OllamaStatus,
@@ -42,6 +44,7 @@ import {
 import { renderMarkdown } from "../lib/markdown";
 import { checkUpdate, type UpdateInfo } from "../lib/updater";
 import AgentEditor from "./AgentEditor";
+import ConfirmDelete from "./ConfirmDelete";
 import McpEditor from "./McpEditor";
 import SkillEditor from "./SkillEditor";
 
@@ -73,6 +76,7 @@ export type Tab =
   | "keys"
   | "server"
   | "mcp"
+  | "memory"
   | "hooks"
   | "skills"
   | "agents"
@@ -97,6 +101,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "shell", label: "Shell" },
   { id: "server", label: "LLM Servers" },
   { id: "mcp", label: "MCP Servers" },
+  { id: "memory", label: "Memory" },
   { id: "hooks", label: "Hooks" },
   { id: "skills", label: "Skills" },
   { id: "agents", label: "Agents" },
@@ -194,6 +199,9 @@ const Settings: Component<Props> = (props) => {
             </Show>
             <Show when={tab() === "mcp"}>
               <McpTab />
+            </Show>
+            <Show when={tab() === "memory"}>
+              <MemoryTab />
             </Show>
             <Show when={tab() === "models"}>
               <ModelsTab onRefreshModels={props.onRefreshModels} />
@@ -2985,6 +2993,295 @@ const DEFAULT_PLUGIN_BODY = `#!/bin/sh
 # Non-zero exit codes surface as "[exit N] <stderr>" to the agent.
 cat
 `;
+
+const MemoryTab: Component = () => {
+  const [status, { refetch }] = createResource<MemoryStatus>(() =>
+    ipc.memoryStatus(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [draft, setDraft] = createSignal("");
+  const [saving, setSaving] = createSignal(false);
+  // Row whose full text is shown in the modal. `null` = closed.
+  const [viewing, setViewing] = createSignal<MemoryRow | null>(null);
+  // Row pending delete confirmation. `null` = no prompt open.
+  const [pendingDelete, setPendingDelete] = createSignal<MemoryRow | null>(null);
+  // True when the "clear all" confirmation modal is open.
+  const [pendingClearAll, setPendingClearAll] = createSignal(false);
+
+  const setEnabled = async (on: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.memorySetEnabled(on);
+      await refetch();
+      setFeedback(
+        on
+          ? "memory enabled — facts will load into the system prompt"
+          : "memory disabled — saved entries kept on disk but not loaded",
+      );
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const add = async () => {
+    setError(null);
+    setFeedback(null);
+    const text = draft().trim();
+    if (text === "") {
+      setError("Fact is empty.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const row = await ipc.memoryAdd(text);
+      setDraft("");
+      setFeedback(`saved: ${row.text}`);
+      await refetch();
+    } catch (err) {
+      setError(`${err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const performRemove = async (row: MemoryRow) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.memoryRemove(row.id);
+      await refetch();
+      setFeedback("memory deleted");
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const performClearAll = async () => {
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.memoryClear();
+      await refetch();
+      setFeedback("all memories cleared");
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const formatDate = (secs: number) => {
+    if (!secs) return "—";
+    const d = new Date(secs * 1000);
+    return d.toLocaleString();
+  };
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Memory</h3>
+      <p class="settings-hint">
+        Long-term facts the agent has learned about you. Stored in{" "}
+        <code>~/.aictl/memory.json</code> and injected into the system
+        prompt of every conversation when memory is enabled. Disabled in
+        incognito sessions.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={feedback()}>
+        <p class="settings-success">{feedback()}</p>
+      </Show>
+      <BoolRow
+        label="Memory enabled"
+        help="When on, saved facts load into the system prompt at the start of every turn."
+        on={status()?.enabled ?? false}
+        onChange={(v) => void setEnabled(v)}
+      />
+      <Show when={status()}>
+        {(s) => (
+          <p class="settings-meta">
+            {s().count} / {s().max_entries} memories stored.
+          </p>
+        )}
+      </Show>
+      <div class="settings-row settings-row-stack">
+        <label>Add a memory</label>
+        <div class="settings-control-line">
+          <input
+            type="text"
+            class="settings-text-input"
+            placeholder="e.g. user is a senior Rust engineer"
+            value={draft()}
+            onInput={(e) => setDraft(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void add();
+              }
+            }}
+          />
+          <button
+            type="button"
+            disabled={saving() || draft().trim() === ""}
+            onClick={() => void add()}
+          >
+            {saving() ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+      <Show
+        when={(status()?.entries ?? []).length > 0}
+        fallback={
+          <p class="settings-hint">
+            <em>No memories saved yet.</em>
+          </p>
+        }
+      >
+        <div class="settings-actions">
+          <button
+            type="button"
+            class="ghost mini danger"
+            onClick={() => {
+              if ((status()?.entries.length ?? 0) > 0) {
+                setPendingClearAll(true);
+              }
+            }}
+          >
+            Clear all
+          </button>
+        </div>
+        <table class="settings-keys-table settings-memory-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Memory</th>
+              <th>Saved</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <For each={status()?.entries ?? []}>
+              {(row, i) => (
+                <tr>
+                  <td>{i() + 1}</td>
+                  <td
+                    class="settings-desc settings-memory-cell"
+                    title={row.text}
+                  >
+                    {row.text}
+                  </td>
+                  <td>{formatDate(row.created_at)}</td>
+                  <td class="settings-memory-actions-cell">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => setViewing(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => setPendingDelete(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
+      <Show when={viewing()}>
+        {(row) => (
+          <MemoryViewer
+            row={row()}
+            formattedDate={formatDate(row().created_at)}
+            onClose={() => setViewing(null)}
+          />
+        )}
+      </Show>
+      <Show when={pendingDelete()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Delete memory"
+            detail={row().text}
+            note="The fact will no longer be loaded into the system prompt."
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingDelete(null);
+              void performRemove(target);
+            }}
+          />
+        )}
+      </Show>
+      <Show when={pendingClearAll()}>
+        <ConfirmDelete
+          title="Clear all memories"
+          detail={`${status()?.entries.length ?? 0} memor${
+            (status()?.entries.length ?? 0) === 1 ? "y" : "ies"
+          }`}
+          note="Every saved fact will be removed."
+          onCancel={() => setPendingClearAll(false)}
+          onConfirm={() => {
+            setPendingClearAll(false);
+            void performClearAll();
+          }}
+        />
+      </Show>
+    </div>
+  );
+};
+
+const MemoryViewer: Component<{
+  row: MemoryRow;
+  formattedDate: string;
+  onClose: () => void;
+}> = (props) => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
+  return (
+    <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
+      <div class="prompt-viewer">
+        <header class="prompt-viewer-header">
+          <div>
+            <h3>Memory</h3>
+            <p class="settings-meta">
+              Saved {props.formattedDate} ·{" "}
+              <code>{props.row.id}</code>
+            </p>
+          </div>
+          <div class="prompt-viewer-actions">
+            <button
+              type="button"
+              class="settings-close"
+              aria-label="Close viewer"
+              title="Close (Esc)"
+              onClick={props.onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div class="prompt-viewer-body">
+          <pre class="prompt-viewer-source">{props.row.text}</pre>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PluginsTab: Component = () => {
   const [status, { refetch }] = createResource<PluginsStatus>(() =>

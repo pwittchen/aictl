@@ -318,7 +318,7 @@ Skip this step if you plan to reinstall and want to keep your API keys, agents, 
 ## Usage
 
 ```bash
-aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--format <FORMAT>] [--auto] [--quiet] [--audit-file <PATH>] [--cwd <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--category <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--pull-ner-model <SPEC>] [--list-ner-models] [--remove-ner-model <NAME>] [--clear-ner-models] [--balance] [--list-balances] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>] [--client-url <URL>] [--client-master-key <KEY>] [--serve]
+aictl [--version] [--update] [--uninstall] [--config] [--provider <PROVIDER>] [--model <MODEL>] [--message <MESSAGE>] [--format <FORMAT>] [--auto] [--quiet] [--audit-file <PATH>] [--cwd <PATH>] [--unrestricted] [--incognito] [--agent <NAME>] [--list-agents] [--pull-agent <NAME>] [--skill <NAME>] [--list-skills] [--pull-skill <NAME>] [--list-memories] [--remember <FACT>] [--category <NAME>] [--force] [--session <ID|NAME>] [--list-sessions] [--clear-sessions] [--lock-keys] [--unlock-keys] [--clear-keys] [--pull-gguf-model <SPEC>] [--list-gguf-models] [--remove-gguf-model <NAME>] [--clear-gguf-models] [--pull-mlx-model <SPEC>] [--list-mlx-models] [--remove-mlx-model <NAME>] [--clear-mlx-models] [--pull-ner-model <SPEC>] [--list-ner-models] [--remove-ner-model <NAME>] [--clear-ner-models] [--balance] [--list-balances] [--list-plugins] [--list-hooks] [--list-mcp] [--mcp-server <NAME>] [--client-url <URL>] [--client-master-key <KEY>] [--serve]
 ```
 
 Omit `--message` to enter interactive REPL mode with persistent conversation history.
@@ -352,6 +352,8 @@ The interactive REPL supports slash commands:
 | `/plugins` | Manage external plugin tools — list installed plugins, view a manifest, toggle the master switch (`AICTL_PLUGINS_ENABLED`) |
 | `/hooks` | Manage lifecycle hooks — view all configured hooks per event, toggle individual entries on/off, test-fire a hook with a synthetic payload, or reload `~/.aictl/hooks.json` |
 | `/mcp` | Manage external MCP (Model Context Protocol) servers — list configured servers, view tool catalogues with input schemas, toggle the master switch (`AICTL_MCP_ENABLED`) |
+| `/memory` | Manage long-term memory — toggle on/off, browse saved facts, delete one, or clear all. Disabled in incognito mode |
+| `/remember` | Save a fact to long-term memory: `/remember <fact>`. The fact is loaded into the system prompt of every future conversation. No-op in incognito mode |
 | `/balance` | Show remaining credit / quota for each configured cloud provider (real numbers from DeepSeek and Kimi; "unknown" with a billing-dashboard hint elsewhere) |
 | `/tools` | Show available tools |
 | `/keys` | Manage API key storage — lock (config → keyring), unlock (keyring → config), or clear (both stores) |
@@ -385,6 +387,8 @@ Only `--version` (`-v`) and `--help` (`-h`) have short flags. All other options 
 | `--skill` | Invoke a saved skill by name for a single turn. In single-shot mode the skill body is injected as a transient system prompt for the `--message` call only; in REPL mode it applies to the first user turn, then the REPL reverts to normal |
 | `--list-skills` | Print saved skills from `~/.aictl/skills/` and exit. Combine with `--category <name>` to filter |
 | `--pull-skill` | Download an official skill from the aictl repo into `~/.aictl/skills/<name>/SKILL.md`. Combine with `--force` to skip the overwrite prompt |
+| `--list-memories` | Print saved long-term memories from `~/.aictl/memory.json` and exit |
+| `--remember` | Append a fact to long-term memory (`~/.aictl/memory.json`) and exit. No-op when memory is disabled or running in incognito mode |
 | `--auto` | Run in autonomous mode (skip tool confirmation prompts) |
 | `--quiet` | Suppress tool calls and reasoning, only print the final answer (requires `--auto`) |
 | `--format` | Output format for single-shot (`--message`) mode: `md` (default — raw markdown source from the LLM, with streaming when stdout is a TTY), `text` (markdown stripped to plain prose), or `json` (one-line `{"answer", "model", "provider"}` envelope on stdout; reasoning/tool chatter and streaming suppressed). Ignored in interactive REPL |
@@ -690,6 +694,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 | `AICTL_LLM_TIMEOUT` | Per-call LLM response timeout in seconds. Applied to every provider (remote APIs, Ollama, native GGUF/MLX) and to the compaction and agent-generation calls. `0` disables the timeout. Default: `30` |
 | `AICTL_MAX_ITERATIONS` | Maximum number of LLM calls allowed in a single agent turn before the loop aborts. Accepts a positive integer (default: `20`) |
 | `AICTL_SKILLS_DIR` | Override the location of the skills directory (default: `~/.aictl/skills`) |
+| `AICTL_MEMORY_ENABLED` | Enable or disable long-term memory. When `true` (default), saved facts in `~/.aictl/memory.json` are loaded into the system prompt of every conversation; the `save_memory` tool and `/remember` are write-enabled. Incognito mode is a stronger kill-switch and overrides this flag for both reads and writes |
 | `AICTL_WORKING_DIR_CLI` | Persistent working directory for the CLI — used as the CWD jail root and the spawn dir for every tool call. Accepts absolute, relative, and `~`-prefixed paths. Overridden by `--cwd <PATH>`; falls back to `AICTL_WORKING_DIR` (legacy) and then the launch directory |
 | `AICTL_WORKING_DIR` | Legacy unsuffixed fallback for the working directory. Kept working for existing configs; `AICTL_WORKING_DIR_CLI` wins when both are set |
 | `AICTL_CLIENT_HOST` | Base URL of an upstream `aictl-server` (e.g. `http://127.0.0.1:7878`). Used only when the active provider is `aictl-server`; otherwise inert. Empty/unset = direct providers (the default) |
@@ -1127,6 +1132,7 @@ Available tools:
 | `checksum` | Compute SHA-256 and/or MD5 cryptographic digests of a file. Input is a bare file path (returns both digests) or `sha256 <path>` / `md5 <path>` to pick one algorithm. The file is streamed through the hashers so arbitrarily large files work without loading them into memory. Output is one `SHA-256: <hex>` and/or `MD5: <hex>` line — consistent across platforms (no `shasum` vs `sha256sum` drift) |
 | `clipboard` | Read from or write to the system clipboard. Input is either `read` (or empty) to fetch the current clipboard contents, or `write` on the first line followed by the content on subsequent lines. Content is piped on stdin so arbitrary bytes round-trip safely. Cross-platform: macOS uses `pbcopy` / `pbpaste`; Linux prefers Wayland (`wl-copy` / `wl-paste`) with X11 (`xclip` / `xsel`) fallback. Write size capped at 1 MB |
 | `notify` | Send a desktop notification. First line is the title (required, max 256 bytes); remaining lines are the body (optional, max 4096 bytes). Cross-platform: macOS uses the bundled `osascript`; Linux uses `notify-send` from libnotify. Useful in `--auto` mode or for long-running tasks to signal completion without the user watching the terminal |
+| `save_memory` | Persist a fact about the user to long-term memory (`~/.aictl/memory.json`) so it survives across sessions. Input is the fact text. Saved entries are auto-loaded into the system prompt of every future conversation under a `# Memory` block. Skipped silently in incognito mode or when `AICTL_MEMORY_ENABLED=false`. The agent calls this when the user asks to "remember" / "memorize" / "save" something or when it spots a stable preference / role / ongoing-work fact worth keeping |
 
 #### Image capabilities by provider
 
