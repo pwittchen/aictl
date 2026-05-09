@@ -215,6 +215,31 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
+  // Model picker — custom dropdown so we can cap height + width. Native
+  // <select> popups ignore CSS, so on machines with many providers the
+  // option list expanded to fill the screen.
+  const [modelMenuOpen, setModelMenuOpen] = createSignal(false);
+  const [modelQuery, setModelQuery] = createSignal("");
+  let modelButtonRef: HTMLButtonElement | undefined;
+  let modelMenuRef: HTMLDivElement | undefined;
+  let modelSearchRef: HTMLInputElement | undefined;
+
+  const openModelMenu = () => {
+    setPickerError(null);
+    setModelQuery("");
+    setModelMenuOpen(true);
+    // Defer focus so the input exists in the DOM by the time we reach
+    // for it — Solid renders the menu in the same tick the signal flips.
+    queueMicrotask(() => modelSearchRef?.focus());
+  };
+  const closeModelMenu = () => setModelMenuOpen(false);
+  const toggleModelMenu = () => {
+    if (props.disabled) return;
+    if (modelMenuOpen()) closeModelMenu();
+    else openModelMenu();
+  };
+
+
   // Agent picker — same UX as the skill picker. Stored separately so a
   // user can have one of each loaded simultaneously.
   const [agentMenuOpen, setAgentMenuOpen] = createSignal(false);
@@ -289,11 +314,16 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
-  // Outside-click + Esc dismissal. Mirrors the model picker's behavior
-  // so the menu doesn't trap the user.
+  // Outside-click + Esc dismissal for every popover anchored to the
+  // composer footer (model / skill / agent).
   const onDocPointer = (e: MouseEvent) => {
     const target = e.target;
     if (!(target instanceof Node)) return;
+    if (modelMenuOpen()) {
+      const insideModel =
+        modelMenuRef?.contains(target) || modelButtonRef?.contains(target);
+      if (!insideModel) closeModelMenu();
+    }
     if (skillMenuOpen()) {
       const insideSkill =
         skillMenuRef?.contains(target) || skillButtonRef?.contains(target);
@@ -307,6 +337,10 @@ const Composer: Component<Props> = (props) => {
   };
   const onDocKey = (e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
+    if (modelMenuOpen()) {
+      e.preventDefault();
+      closeModelMenu();
+    }
     if (skillMenuOpen()) {
       e.preventDefault();
       closeSkillMenu();
@@ -474,11 +508,20 @@ const Composer: Component<Props> = (props) => {
 
   const groups = createMemo(() => groupModels(props.models));
 
-  const encode = (provider: string, model: string) => `${provider}|${model}`;
-
-  const activeKey = createMemo(() => {
-    const a = props.activeModel;
-    return a.provider && a.model ? encode(a.provider, a.model) : "";
+  const filteredGroups = createMemo(() => {
+    const q = modelQuery().trim().toLowerCase();
+    if (!q) return groups();
+    return groups()
+      .map((group) => ({
+        ...group,
+        models: group.models.filter(
+          (m) =>
+            m.toLowerCase().includes(q) ||
+            group.label.toLowerCase().includes(q) ||
+            group.provider.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((group) => group.models.length > 0);
   });
 
   createEffect(() => {
@@ -506,13 +549,8 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
-  const onModelChange = async (e: Event & { currentTarget: HTMLSelectElement }) => {
-    const value = e.currentTarget.value;
-    if (!value) return;
-    const sep = value.indexOf("|");
-    if (sep < 0) return;
-    const provider = value.slice(0, sep);
-    const model = value.slice(sep + 1);
+  const selectModel = async (provider: string, model: string) => {
+    closeModelMenu();
     setPickerError(null);
     try {
       await props.onChangeModel(provider, model);
@@ -533,30 +571,103 @@ const Composer: Component<Props> = (props) => {
         onKeyDown={onKeyDown}
       />
       <div class="footer">
-        <select
-          class="model-picker"
-          value={activeKey()}
-          onChange={onModelChange}
-          disabled={props.disabled}
-          title={pickerError() ?? "Switch active model"}
-        >
-          <Show when={!activeKey()}>
-            <option value="" disabled>
-              select model…
-            </option>
+        <span class="model-picker-anchor">
+          <button
+            type="button"
+            class="model-picker"
+            ref={(el) => (modelButtonRef = el)}
+            disabled={props.disabled}
+            aria-haspopup="menu"
+            aria-expanded={modelMenuOpen() ? "true" : "false"}
+            title={pickerError() ?? "Switch active model"}
+            onClick={toggleModelMenu}
+          >
+            <span class="model-picker-label">
+              {props.activeModel.model ?? "select model…"}
+            </span>
+          </button>
+          <Show when={modelMenuOpen()}>
+            <div
+              class="skill-menu model-menu"
+              role="menu"
+              ref={(el) => (modelMenuRef = el)}
+            >
+              <div class="model-menu-search">
+                <input
+                  type="text"
+                  class="model-menu-search-input"
+                  placeholder="search models…"
+                  value={modelQuery()}
+                  ref={(el) => (modelSearchRef = el)}
+                  onInput={(e) => setModelQuery(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (modelQuery()) {
+                        setModelQuery("");
+                      } else {
+                        closeModelMenu();
+                      }
+                    }
+                  }}
+                />
+              </div>
+              <div class="model-menu-body">
+                <Show when={pickerError()}>
+                  <div class="skill-menu-error">{pickerError()}</div>
+                </Show>
+                <Show
+                  when={filteredGroups().length > 0}
+                  fallback={
+                    <Show when={!pickerError()}>
+                      <div class="skill-menu-empty">
+                        {groups().length === 0
+                          ? "no models available"
+                          : "no matches"}
+                      </div>
+                    </Show>
+                  }
+                >
+                  <For each={filteredGroups()}>
+                    {(group) => (
+                      <div class="model-menu-group">
+                        <div class="model-menu-group-label">{group.label}</div>
+                        <ul class="skill-menu-list">
+                          <For each={group.models}>
+                            {(model) => {
+                              const active =
+                                props.activeModel.provider === group.provider &&
+                                props.activeModel.model === model;
+                              return (
+                                <li>
+                                  <button
+                                    type="button"
+                                    class="skill-menu-item"
+                                    role="menuitemradio"
+                                    data-active={String(active)}
+                                    aria-checked={active ? "true" : "false"}
+                                    onClick={() =>
+                                      void selectModel(group.provider, model)
+                                    }
+                                  >
+                                    <span class="skill-menu-item-name">
+                                      {model}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            }}
+                          </For>
+                        </ul>
+                      </div>
+                    )}
+                  </For>
+                </Show>
+              </div>
+            </div>
           </Show>
-          <For each={groups()}>
-            {(group) => (
-              <optgroup label={group.label}>
-                <For each={group.models}>
-                  {(model) => (
-                    <option value={encode(group.provider, model)}>{model}</option>
-                  )}
-                </For>
-              </optgroup>
-            )}
-          </For>
-        </select>
+        </span>
         <SecurityShield
           state={props.securityState}
           checks={props.securityChecks}

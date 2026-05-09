@@ -943,16 +943,24 @@
   letter-spacing: 0.1em;
 }
 
-.composer .model-picker {
-  max-width: 60%;
-  /* Picker is the only shrinkable child of the footer flex row; the
-     icons and Send button stay at their intrinsic widths and the
-     picker absorbs the difference. Floor it at a width that still
-     shows a model name — the auto-collapse logic in `App.tsx`
-     (CHAT_MIN_WIDTH) keeps the chat column wide enough that this
-     minimum doesn't force an overflow. */
-  min-width: 140px;
+/* Picker is the only shrinkable child of the footer flex row; the
+   icons and Send button stay at their intrinsic widths and the picker
+   absorbs the difference. The anchor owns the flex sizing so the
+   absolutely-positioned popup below stays anchored to the visible
+   button. */
+.composer .model-picker-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   flex: 0 1 auto;
+  min-width: 140px;
+  max-width: 60%;
+}
+
+.composer .model-picker {
+  width: 100%;
+  display: flex;
+  align-items: center;
   padding: 5px 26px 5px 8px;
   background: var(--bg);
   color: var(--fg);
@@ -961,6 +969,7 @@
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: none;
+  text-align: left;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -975,6 +984,14 @@
   background-repeat: no-repeat;
 }
 
+.composer .model-picker-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .composer .model-picker:hover {
   border-color: var(--fg-faint);
 }
@@ -987,6 +1004,70 @@
 .composer .model-picker[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Model dropdown — same visual shell as `.skill-menu` but the scroll
+   surface is the inner `.model-menu-body` instead of the menu itself,
+   so the search input sits in a fixed header that the list cannot
+   slide behind. Mirror the parent's height cap on the body so the
+   total popup height stays roughly the same as `.skill-menu`. */
+.composer .model-menu {
+  min-width: 240px;
+  max-width: 320px;
+  max-height: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.composer .model-menu-body {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.composer .model-menu-group + .model-menu-group {
+  border-top: 1px solid var(--border);
+}
+
+.composer .model-menu-group-label {
+  padding: var(--space-2) var(--space-3) 2px;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+}
+
+/* Fixed header above the scrollable list — items can't slide behind
+   it because the scroll surface is `.model-menu-body`, not the menu
+   itself. */
+.composer .model-menu-search {
+  flex: 0 0 auto;
+  padding: var(--space-2);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.composer .model-menu-search-input {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--surface, var(--bg));
+  color: var(--fg);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+}
+
+.composer .model-menu-search-input:focus {
+  outline: none;
+  border-color: var(--accent, var(--fg));
+}
+
+.composer .model-menu-search-input::placeholder {
+  color: var(--fg-faint);
 }
 
 /* Agent picker — sparkles icon. Sits one slot in from the right-hand
