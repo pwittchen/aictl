@@ -2,6 +2,10 @@
 
 ---
 
+## Website
+
+- prepare 'Use Cases' page
+
 ## Desktop/CLI
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
