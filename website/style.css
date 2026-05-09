@@ -1119,12 +1119,12 @@ body.nav-open {
 .cli-demo .tt-bold   { font-weight: 600; }
 
 /* Input block — mirrors the actual REPL's dark-gray prompt rectangle
-   (`\x1b[48;5;236m` ≈ #303030 on top of #1f2228) with explicit top/bottom
-   padding so the block reads as a distinct input area rather than a
-   trailing line. */
+   (`\x1b[48;5;236m` ≈ #303030 on top of #1f2228). Negative horizontal
+   margin bleeds the rectangle past the body's padding so it spans the
+   full terminal width like the real CLI. */
 .cli-demo__input {
-  margin: 14px 0;
-  padding: 14px 16px;
+  margin: 14px -22px;
+  padding: 14px 22px;
   background: var(--surface-hover);
   font-family: var(--font-mono);
   font-size: 13px;
@@ -1154,6 +1154,7 @@ body.nav-open {
   .cli-demo__banner,
   .cli-demo__convo,
   .cli-demo__input { font-size: 11.5px; }
+  .cli-demo__input { margin: 14px -18px; padding: 14px 18px; }
 }
 
 @media (max-width: 600px) {
@@ -1161,7 +1162,7 @@ body.nav-open {
   .cli-demo__banner,
   .cli-demo__convo,
   .cli-demo__input { font-size: 10px; line-height: 1.6; }
-  .cli-demo__input { padding: 12px 12px; }
+  .cli-demo__input { margin: 14px -14px; padding: 12px 14px; }
   .cli-demo__bar-shortcut { display: none; }
 }
 
