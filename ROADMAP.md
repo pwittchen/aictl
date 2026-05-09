@@ -5,6 +5,7 @@
 ## Desktop
 
 - investigate redaction NER mechanisms - ensure it works correctly on desktop and that data is redacted in session, audit, history, messages in the chat (Desktop) and responses
+- add globe icon enabling/disabling search_web tool
 - add speech to text input method
 
 ## CLI
