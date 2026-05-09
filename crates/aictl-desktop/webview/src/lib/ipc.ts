@@ -262,6 +262,7 @@ export interface ServerStatus {
   host: string | null;
   master_key_set: boolean;
   fully_configured: boolean;
+  enabled: boolean;
 }
 
 export interface ServerProbeResult {
@@ -278,6 +279,7 @@ export interface OllamaStatus {
   host: string;
   default_host: string;
   overridden: boolean;
+  enabled: boolean;
 }
 
 export interface OllamaProbeResult {

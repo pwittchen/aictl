@@ -148,12 +148,46 @@ pub fn client_url() -> Option<String> {
 /// own key belongs to the server role and is intentionally separate.
 #[must_use]
 pub fn active_server() -> Option<(String, String)> {
+    if !aictl_client_enabled() {
+        return None;
+    }
     let url = client_url()?;
     let key = crate::keys::get_secret("AICTL_CLIENT_MASTER_KEY")?;
     if key.is_empty() {
         return None;
     }
     Some((url, key))
+}
+
+/// Whether the `aictl-server` route is enabled at all. Reads
+/// `AICTL_CLIENT_ENABLED` from `~/.aictl/config`; defaults to `true` so
+/// existing configurations keep routing once the host + key are set.
+/// When `false`, [`active_server`] returns `None` and the rest of the
+/// dispatch path treats `aictl-server` as if it were never configured.
+#[must_use]
+pub fn aictl_client_enabled() -> bool {
+    bool_flag("AICTL_CLIENT_ENABLED", true)
+}
+
+/// Whether the Ollama provider is enabled. Reads `LLM_OLLAMA_ENABLED`
+/// from `~/.aictl/config`; defaults to `true` so existing Ollama users
+/// keep working. When `false`, [`crate::llm::ollama::call_ollama`] short
+/// circuits with an error and [`crate::llm::ollama::list_models`]
+/// returns an empty vec.
+#[must_use]
+pub fn ollama_enabled() -> bool {
+    bool_flag("LLM_OLLAMA_ENABLED", true)
+}
+
+fn bool_flag(key: &str, default: bool) -> bool {
+    let Some(raw) = config_get(key) else {
+        return default;
+    };
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "false" | "0" | "no" | "off" => false,
+        "true" | "1" | "yes" | "on" => true,
+        _ => default,
+    }
 }
 
 // --- Spinner phrases ---

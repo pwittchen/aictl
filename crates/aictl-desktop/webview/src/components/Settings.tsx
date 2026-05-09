@@ -1233,9 +1233,26 @@ const ServerTab: Component = () => {
     }
   };
 
+  const setEnabled = async (next: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (next) {
+        await ipc.configClear("AICTL_CLIENT_ENABLED");
+      } else {
+        await ipc.configWrite("AICTL_CLIENT_ENABLED", "false");
+      }
+      await refetch();
+      setFeedback(next ? "aictl-server enabled" : "aictl-server disabled");
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
   return (
     <div class="settings-tab-content">
-      <h3>aictl-server</h3>
+      <h3>LLM Servers</h3>
+      <h4 class="settings-subhead">aictl-server</h4>
       <p class="settings-hint">
         Route LLM calls through a self-hosted{" "}
         <code>aictl-server</code> by selecting the{" "}
@@ -1249,6 +1266,12 @@ const ServerTab: Component = () => {
       <Show when={feedback()}>
         <p class="settings-success">{feedback()}</p>
       </Show>
+      <BoolRow
+        label="Enabled"
+        help="When off, the aictl-server route is hidden from model pickers and dispatch is short-circuited even if the host and master key are set. Stored in AICTL_CLIENT_ENABLED."
+        on={status()?.enabled ?? true}
+        onChange={(next) => void setEnabled(next)}
+      />
       <div class="settings-row settings-row-stack">
         <label>Host URL</label>
         <div class="settings-control-line">
@@ -1410,6 +1433,22 @@ const OllamaSection: Component = () => {
     }
   };
 
+  const setEnabled = async (next: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (next) {
+        await ipc.configClear("LLM_OLLAMA_ENABLED");
+      } else {
+        await ipc.configWrite("LLM_OLLAMA_ENABLED", "false");
+      }
+      await refetch();
+      setFeedback(next ? "Ollama enabled" : "Ollama disabled");
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
   return (
     <>
       <p class="settings-hint">
@@ -1424,6 +1463,12 @@ const OllamaSection: Component = () => {
       <Show when={feedback()}>
         <p class="settings-success">{feedback()}</p>
       </Show>
+      <BoolRow
+        label="Enabled"
+        help="When off, Ollama models disappear from the picker and chat calls short-circuit with an error. Stored in LLM_OLLAMA_ENABLED."
+        on={status()?.enabled ?? true}
+        onChange={(next) => void setEnabled(next)}
+      />
       <div class="settings-row settings-row-stack">
         <label>Host URL</label>
         <div class="settings-control-line">

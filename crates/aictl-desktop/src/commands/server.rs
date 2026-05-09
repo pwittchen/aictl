@@ -14,6 +14,7 @@ pub struct ServerStatus {
     pub host: Option<String>,
     pub master_key_set: bool,
     pub fully_configured: bool,
+    pub enabled: bool,
 }
 
 #[tauri::command]
@@ -29,6 +30,7 @@ pub fn server_status() -> ServerStatus {
         host,
         master_key_set,
         fully_configured,
+        enabled: config::aictl_client_enabled(),
     }
 }
 
@@ -49,6 +51,9 @@ pub struct ProbeResult {
 /// validity in one click.
 #[tauri::command]
 pub async fn server_probe() -> Result<ProbeResult, String> {
+    if !config::aictl_client_enabled() {
+        return Err("aictl-server is disabled (AICTL_CLIENT_ENABLED=false)".to_string());
+    }
     let Some((url, key)) = config::active_server() else {
         return Err(
             "aictl-server is not configured (set AICTL_CLIENT_HOST and the master key first)"
@@ -126,6 +131,7 @@ pub struct OllamaStatus {
     pub host: String,
     pub default_host: &'static str,
     pub overridden: bool,
+    pub enabled: bool,
 }
 
 const OLLAMA_DEFAULT_HOST: &str = "http://localhost:11434";
@@ -141,6 +147,7 @@ pub fn ollama_status() -> OllamaStatus {
             .unwrap_or_else(|| OLLAMA_DEFAULT_HOST.to_string()),
         default_host: OLLAMA_DEFAULT_HOST,
         overridden: configured.is_some(),
+        enabled: config::ollama_enabled(),
     }
 }
 
@@ -160,6 +167,9 @@ pub struct OllamaProbeResult {
 /// reachable. Mirrors the CLI's `/ping` for Ollama.
 #[tauri::command]
 pub async fn ollama_probe() -> Result<OllamaProbeResult, String> {
+    if !config::ollama_enabled() {
+        return Err("Ollama is disabled (LLM_OLLAMA_ENABLED=false)".to_string());
+    }
     let host = config::config_get("LLM_OLLAMA_HOST")
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())

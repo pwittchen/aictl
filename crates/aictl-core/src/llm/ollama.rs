@@ -51,6 +51,9 @@ struct OllamaModelEntry {
 /// Fetch the list of locally available Ollama model names.
 /// Returns an empty vec if Ollama is not running or errors.
 pub async fn list_models() -> Vec<String> {
+    if !crate::config::ollama_enabled() {
+        return Vec::new();
+    }
     let url = format!("{}/api/tags", base_url());
     let client = crate::config::http_client();
     let resp = client
@@ -84,6 +87,11 @@ pub async fn call_ollama(
     messages: &[Message],
     on_token: Option<TokenSink>,
 ) -> Result<(String, TokenUsage), AictlError> {
+    if !crate::config::ollama_enabled() {
+        return Err(AictlError::Other(
+            "Ollama is disabled in config (LLM_OLLAMA_ENABLED=false). Re-enable it from Settings → LLM Servers or via /config to use this provider.".to_string(),
+        ));
+    }
     let client = crate::config::http_client();
     let url = format!("{}/api/chat", base_url());
 
