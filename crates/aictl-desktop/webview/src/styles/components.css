@@ -4246,6 +4246,11 @@ button.primary:hover:not([disabled]) {
   color: var(--danger);
 }
 
+.composer .security-icon:hover,
+.composer .security-icon:hover:not([disabled]) {
+  background: transparent;
+}
+
 .composer .security-icon[disabled] {
   opacity: 0.4;
   cursor: not-allowed;
