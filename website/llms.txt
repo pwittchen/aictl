@@ -1,25 +1,27 @@
 # aictl
 
-> aictl is a single-binary AI agent CLI for the terminal. It exposes 70 cloud models across eight providers (OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai) plus three local backends (Ollama, native GGUF via llama.cpp, native MLX on Apple Silicon) behind one interface, with 31 built-in tools, user-installable plugin tools, user-defined lifecycle hooks, an interactive REPL, agents, skills, sessions, and a security policy that is on by default.
+> aictl is a native AI agent for the terminal and the macOS desktop. One Rust engine (`aictl-core`) drives three surfaces: a single-binary CLI for macOS and Linux (`aictl-cli`), a native macOS desktop app (`aictl-desktop`, signed and notarized), and an OpenAI-compatible HTTP LLM proxy (`aictl-server`). Same agent loop, providers, tools, sessions, agents, skills, plugins, hooks, MCP, long-term memory, and security policy across all three. The CLI and desktop ship 79 cloud models across eight providers (OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai), three local backends (Ollama, native GGUF via llama.cpp, native MLX on Apple Silicon), and an `aictl-server` provider that fronts every other one over HTTP — twelve providers behind one interface — plus 32 built-in tools, user-installable plugin tools, user-defined lifecycle hooks, MCP servers, and long-term memory.
 
-aictl is written in Rust and ships as one binary with no runtime dependencies on macOS or Linux. API keys are stored in the system keyring (macOS Keychain or Linux Secret Service) with a transparent plain-text fallback. Every tool call passes through a security policy (CWD jail, shell allowlists, environment scrubbing, prompt-injection guard, output sanitization, per-session audit log, opt-in credential and PII redaction at the network boundary). The project is open source under the PolyForm Noncommercial License 1.0.0; commercial use requires a separate license.
+aictl is written in Rust and ships as a single binary with no runtime dependencies on macOS or Linux. The desktop app is macOS-only at this stage, signed with a Developer ID and notarized by Apple, and shares the same `~/.aictl/` directory (config, keys, sessions, agents, skills, hooks, MCP, audit, stats, memory) as the CLI — so anything you set up on one surface is immediately available on the other. API keys are stored in the system keyring (macOS Keychain or Linux Secret Service) with a transparent plain-text fallback. Every tool call passes through a security policy (CWD jail, shell allowlists, environment scrubbing, prompt-injection guard, output sanitization, per-session audit log, opt-in credential and PII redaction at the network boundary). The CLI and the server are also distributed as Docker images (`docker/cli.Dockerfile`, `docker/server.Dockerfile`). The project is open source under the PolyForm Noncommercial License 1.0.0; commercial use requires a separate license.
 
 ## Site
 
-- [Home](https://aictl.app/index.html): Overview, features, providers, tools, comparison with other AI coding tools, install steps, license.
-- [Terminal](https://aictl.app/terminal.html): End-to-end documentation — install, configuration, API keys, secure key storage, providers and models, usage modes, REPL commands, CLI flags, agents, skills, plugins, hooks, sessions, security policy.
-- [Server](https://aictl.app/server): aictl-server, an OpenAI-compatible HTTP LLM proxy with built-in redaction, prompt-injection blocking, and audit. Pure proxy — no agent loop. Pairs with the CLI against the same `~/.aictl/config`.
+- [Home](https://aictl.app/index.html): Overview of the three surfaces (desktop, terminal, server), feature grid, providers, tools, comparison with other AI coding tools, install steps for both the desktop app and the CLI, supported platforms, license.
+- [Desktop](https://aictl.app/desktop.html): aictl-desktop reference — download (Apple Silicon / Intel), workspace folder, sessions sidebar, chat & composer (model picker, agent / skill / MCP / plugins / tools / image / web / memory / auto-accept toggles, voice-to-text), workspace files pane, tool approvals, settings, keyboard shortcuts, shared state with the CLI, security policy, auto-update and uninstall.
+- [Terminal](https://aictl.app/terminal.html): aictl-cli reference — install, configuration, API keys, secure key storage, providers and models, usage modes, REPL commands, CLI flags, agents, skills, plugins, hooks, MCP, sessions, long-term memory, security policy.
+- [Server](https://aictl.app/server.html): aictl-server, an OpenAI-compatible HTTP LLM proxy with built-in redaction, prompt-injection blocking, and audit logging. Pure proxy — no agent loop, no tools. Pairs with the CLI and desktop against the same `~/.aictl/config`; the CLI can also select `aictl-server` as a provider to route every cloud call through it.
 - [install.sh](https://aictl.app/install.sh): The CLI one-liner installer (`curl -sSf https://aictl.app/install.sh | sh`).
 - [server/install.sh](https://aictl.app/server/install.sh): The server one-liner installer (`curl -fsSL https://aictl.app/server/install.sh | sh`).
 
 ## Source
 
-- [GitHub repository](https://github.com/pwittchen/aictl): Full source code.
+- [GitHub repository](https://github.com/pwittchen/aictl): Full source code (Cargo workspace: `aictl-core`, `aictl-cli`, `aictl-server`, `aictl-desktop`).
 - [README](https://github.com/pwittchen/aictl/blob/master/README.md): User-facing documentation.
 - [ARCH.md](https://github.com/pwittchen/aictl/blob/master/ARCH.md): Architecture notes.
 - [SERVER.md](https://github.com/pwittchen/aictl/blob/master/SERVER.md): aictl-server canonical reference (REST API, configuration, security, deployment).
+- [DESIGN.md](https://github.com/pwittchen/aictl/blob/master/DESIGN.md): Visual design system shared by the website and the desktop app.
 - [ROADMAP](https://github.com/pwittchen/aictl/blob/master/ROADMAP.md): Planned work.
-- [Releases](https://github.com/pwittchen/aictl/releases): Prebuilt binaries for macOS and Linux on x86_64 and aarch64.
+- [Releases](https://github.com/pwittchen/aictl/releases): Prebuilt CLI binaries for macOS and Linux on x86_64 and aarch64, plus signed and notarized macOS desktop app DMGs (Apple Silicon and Intel).
 - [Issues](https://github.com/pwittchen/aictl/issues): Bug reports and feature requests.
 - [LICENSE](https://github.com/pwittchen/aictl/blob/master/LICENSE): PolyForm Noncommercial License 1.0.0.
 
