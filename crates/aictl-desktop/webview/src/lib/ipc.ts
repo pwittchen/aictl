@@ -703,6 +703,9 @@ export const ipc = {
   async pluginDelete(name: string) {
     return invoke<void>("plugin_delete", { args: { name } });
   },
+  async pluginsReload() {
+    return invoke<void>("plugins_reload");
+  },
 
   // -- stats ----
   async statsSnapshot() {

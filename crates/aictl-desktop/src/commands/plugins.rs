@@ -107,3 +107,12 @@ pub struct PluginDeleteArgs {
 pub fn plugin_delete(args: PluginDeleteArgs) -> Result<(), String> {
     plugins::delete_plugin(&args.name)
 }
+
+/// Re-walk the plugins directory and refresh the in-memory catalogue.
+/// The composer's plugins toggle calls this right after flipping
+/// `AICTL_PLUGINS_ENABLED` so the change takes effect on the next
+/// agent turn instead of waiting for an app restart.
+#[tauri::command]
+pub fn plugins_reload() {
+    plugins::reload();
+}

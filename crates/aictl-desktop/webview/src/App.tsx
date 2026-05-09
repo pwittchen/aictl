@@ -321,6 +321,13 @@ const App: Component = () => {
   const [providerSetupDismissed, setProviderSetupDismissed] =
     createSignal(false);
   const [toolsEnabled, setToolsEnabled] = createSignal(true);
+  // Plugins master switch — mirror of `AICTL_PLUGINS_ENABLED`. The CLI
+  // defaults to disabled (third-party code must be opted in), but the
+  // desktop opts in on first launch so the cube icon's default-on state
+  // matches the engine's runtime behaviour. `refreshPluginsEnabled`
+  // writes `true` when the key is missing so the UI and engine never
+  // disagree about the current state.
+  const [pluginsEnabled, setPluginsEnabled] = createSignal(true);
   // Composer's globe icon mirrors the per-tool disabled list in
   // `AICTL_SECURITY_DISABLED_TOOLS` for the three web-facing tools
   // (`search_web`, `fetch_url`, `extract_website`). Active when none of
@@ -432,6 +439,39 @@ const App: Component = () => {
       await ipc.toolSetDisabled(name, disable);
     }
     setImageEnabled(next);
+  };
+
+  // Plugins toggle — reads `AICTL_PLUGINS_ENABLED` and treats a missing
+  // key as the desktop's default-on opt-in (the desktop writes `true`
+  // on first read so the engine matches what the cube icon shows). A
+  // value of "false" or "0" pins the icon to the disabled state.
+  const refreshPluginsEnabled = async () => {
+    try {
+      const raw = await ipc.configValue("AICTL_PLUGINS_ENABLED");
+      if (raw === null || raw === undefined || raw === "") {
+        // First launch — opt the desktop into plugins so the icon's
+        // default-on state matches the engine. The reload below picks
+        // up the change without an app restart.
+        await ipc.configWrite("AICTL_PLUGINS_ENABLED", "true");
+        await ipc.pluginsReload();
+        setPluginsEnabled(true);
+        return;
+      }
+      setPluginsEnabled(raw !== "false" && raw !== "0");
+    } catch {
+      setPluginsEnabled(true);
+    }
+  };
+
+  /// Plugins master switch — flips `AICTL_PLUGINS_ENABLED` and reloads
+  /// the in-memory plugin catalogue so the change takes effect on the
+  /// next agent turn instead of waiting for an app restart. Failures
+  /// bubble back to the composer's flash so the icon doesn't lie about
+  /// what landed in config.
+  const setPluginsEnabledMaster = async (next: boolean) => {
+    await ipc.configWrite("AICTL_PLUGINS_ENABLED", next ? "true" : "false");
+    await ipc.pluginsReload();
+    setPluginsEnabled(next);
   };
 
   /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades to
@@ -751,6 +791,7 @@ const App: Component = () => {
     void refreshApprovalDefault();
     void refreshWebEnabled();
     void refreshImageEnabled();
+    void refreshPluginsEnabled();
     void refreshNotifications();
     // Fire-and-forget probe of the updater manifest. Populates both the
     // titlebar badge and the prefetched `updateInfo` the modal opens
@@ -1276,6 +1317,8 @@ const App: Component = () => {
               onAutoAcceptChange={setAutoAccept}
               toolsEnabled={toolsEnabled()}
               onToolsEnabledChange={setToolsMasterEnabled}
+              pluginsEnabled={pluginsEnabled()}
+              onPluginsEnabledChange={setPluginsEnabledMaster}
               prefill={composerPrefill()}
               onPrefillConsumed={() => setComposerPrefill(null)}
               models={models()}
@@ -1383,6 +1426,7 @@ const App: Component = () => {
             void refreshApprovalDefault();
             void refreshWebEnabled();
             void refreshImageEnabled();
+            void refreshPluginsEnabled();
             void refreshNotifications();
             void refreshProviderSetup();
           }}

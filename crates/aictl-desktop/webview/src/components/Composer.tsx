@@ -30,6 +30,12 @@ interface Props {
   /// to the web and image subset toggles so the icons reflect a
   /// single global on/off state.
   onToolsEnabledChange: (next: boolean) => Promise<void>;
+  /// Plugins master switch (cube icon) — mirrors
+  /// `AICTL_PLUGINS_ENABLED`. Flipping it reloads the engine's plugin
+  /// catalogue immediately so the change applies to the current
+  /// session as well as future ones.
+  pluginsEnabled: boolean;
+  onPluginsEnabledChange: (next: boolean) => Promise<void>;
   /// Set by the parent when /retry surfaces the previous prompt — the
   /// composer fills its textarea with the value and immediately calls
   /// `onPrefillConsumed` so the same prefill isn't reapplied on every
@@ -311,7 +317,34 @@ const Composer: Component<Props> = (props) => {
     if (toolsFlashTimer !== undefined) {
       window.clearTimeout(toolsFlashTimer);
     }
+    if (pluginsFlashTimer !== undefined) {
+      window.clearTimeout(pluginsFlashTimer);
+    }
   });
+
+  // Plugins toggle (cube icon) — flips AICTL_PLUGINS_ENABLED via the
+  // parent, which also reloads the engine's plugin catalogue so the
+  // change applies in real time. Same flash pattern as the siblings.
+  const [pluginsFlash, setPluginsFlash] = createSignal<string | null>(null);
+  let pluginsFlashTimer: number | undefined;
+  const togglePlugins = async () => {
+    if (props.disabled) return;
+    const next = !props.pluginsEnabled;
+    try {
+      await props.onPluginsEnabledChange(next);
+      if (pluginsFlashTimer !== undefined) {
+        window.clearTimeout(pluginsFlashTimer);
+      }
+      setPluginsFlash(next ? "plugins enabled" : "plugins disabled");
+      pluginsFlashTimer = window.setTimeout(() => setPluginsFlash(null), 1800);
+    } catch (err) {
+      if (pluginsFlashTimer !== undefined) {
+        window.clearTimeout(pluginsFlashTimer);
+      }
+      setPluginsFlash(`failed to toggle plugins: ${err}`);
+      pluginsFlashTimer = window.setTimeout(() => setPluginsFlash(null), 1800);
+    }
+  };
 
   // Master tools toggle — flips AICTL_TOOLS_ENABLED via the parent and
   // cascades to web + image subset toggles so the three icons share a
@@ -660,6 +693,42 @@ const Composer: Component<Props> = (props) => {
           </div>
         </Show>
         <Show when={skillFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="plugins-icon"
+          data-active={String(props.pluginsEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.pluginsEnabled ? "true" : "false"}
+          aria-label={
+            props.pluginsEnabled
+              ? "Plugins enabled (click to disable user plugin tools)"
+              : "Plugins disabled (click to re-enable user plugin tools)"
+          }
+          title={
+            props.pluginsEnabled
+              ? "plugins enabled — click to disable"
+              : "plugins disabled — click to enable"
+          }
+          onClick={() => void togglePlugins()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M8.372 1.349a.75.75 0 0 0-.744 0l-4.81 2.748L8 7.131l5.182-3.034-4.81-2.748ZM14 5.357 8.75 8.43v6.005l4.872-2.784A.75.75 0 0 0 14 11V5.357ZM7.25 14.435V8.43L2 5.357V11c0 .27.144.518.378.651l4.872 2.784Z" />
+          </svg>
+        </button>
+        <Show when={pluginsFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">

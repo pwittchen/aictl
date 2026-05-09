@@ -189,6 +189,7 @@ pub fn run() {
             commands::plugins::plugins_status,
             commands::plugins::plugin_save,
             commands::plugins::plugin_delete,
+            commands::plugins::plugins_reload,
             commands::stats::stats_snapshot,
             commands::stats::stats_clear,
             commands::stats::stats_daily,
