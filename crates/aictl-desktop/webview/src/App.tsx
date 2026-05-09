@@ -197,12 +197,14 @@ const App: Component = () => {
   const FILES_MAX = 700;
   // Floor for the chat column when computing whether the layout fits
   // the current window. Sized to keep the composer footer (model
-  // picker + agent / skill / auto-accept / globe icons + Send button
-  // with its ⌘↵ chip) on a single row alongside the standard
-  // horizontal padding — auto-grow reserves at least this many pixels,
-  // and auto-close drops side panes once the chat column would dip
-  // below it.
-  const CHAT_MIN_WIDTH = 550;
+  // picker + agent / skill / mcp / plugins / tools / image / web /
+  // auto-accept icons + Send button with its ⌘↵ chip) on a single row
+  // alongside the standard horizontal padding — auto-grow reserves at
+  // least this many pixels, and auto-close drops side panes once the
+  // chat column would dip below it. Bumped each time we add a new
+  // composer toggle so the model picker keeps a readable minimum
+  // instead of collapsing to a sliver.
+  const CHAT_MIN_WIDTH = 720;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);

@@ -957,8 +957,11 @@
   max-width: 60%;
   /* Picker is the only shrinkable child of the footer flex row; the
      icons and Send button stay at their intrinsic widths and the
-     picker absorbs the difference. */
-  min-width: 0;
+     picker absorbs the difference. Floor it at a width that still
+     shows a model name — the auto-collapse logic in `App.tsx`
+     (CHAT_MIN_WIDTH) keeps the chat column wide enough that this
+     minimum doesn't force an overflow. */
+  min-width: 140px;
   flex: 0 1 auto;
   padding: 5px 26px 5px 8px;
   background: var(--bg);
