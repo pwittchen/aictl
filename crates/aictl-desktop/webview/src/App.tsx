@@ -197,14 +197,16 @@ const App: Component = () => {
   const FILES_MAX = 700;
   // Floor for the chat column when computing whether the layout fits
   // the current window. Sized to keep the composer footer (model
-  // picker + agent / skill / mcp / plugins / tools / image / web /
-  // auto-accept icons + Send button with its ⌘↵ chip) on a single row
-  // alongside the standard horizontal padding — auto-grow reserves at
-  // least this many pixels, and auto-close drops side panes once the
-  // chat column would dip below it. Bumped each time we add a new
-  // composer toggle so the model picker keeps a readable minimum
-  // instead of collapsing to a sliver.
-  const CHAT_MIN_WIDTH = 720;
+  // picker + security shield + agent / skill / mcp / plugins / tools /
+  // image / web / memory / auto-accept / voice icons + Send button
+  // with its ⌘↵ chip) on a single row alongside the standard
+  // horizontal padding — auto-grow reserves at least this many pixels,
+  // and auto-close drops side panes once the chat column would dip
+  // below it. Locked to 895 to match the Tauri `minWidth` floor: the
+  // OS-level resize boundary and the auto-collapse trigger move
+  // together so a user dragging the window to its smallest size lands
+  // on a chat-only layout that's still wide enough for the composer.
+  const CHAT_MIN_WIDTH = 895;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
@@ -1384,14 +1386,33 @@ const App: Component = () => {
             ? editorWidth()
             : filesWidth();
       let last = initial;
+      // Dynamic upper bound: the chat column must keep at least
+      // CHAT_MIN_WIDTH after this drag, so the active pane can't grow
+      // past `window.innerWidth - CHAT_MIN_WIDTH - <other visible panes>`.
+      // Recomputed per move so resizing one pane doesn't have to start
+      // from a stale snapshot.
+      const otherVisibleWidth = () => {
+        let other = 0;
+        if (which !== "sidebar" && !sidebarHidden()) other += sidebarWidth();
+        if (which !== "editor" && !editorPaneHidden()) other += editorWidth();
+        if (which !== "files" && !filesPaneHidden()) other += filesWidth();
+        return other;
+      };
       const clampWidth = (raw: number) => {
+        const budget =
+          (typeof window !== "undefined" ? window.innerWidth : Infinity) -
+          CHAT_MIN_WIDTH -
+          otherVisibleWidth();
         if (which === "sidebar") {
-          return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, raw));
+          const max = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, budget));
+          return Math.max(SIDEBAR_MIN, Math.min(max, raw));
         }
         if (which === "editor") {
-          return Math.max(EDITOR_MIN, Math.min(EDITOR_MAX, raw));
+          const max = Math.min(EDITOR_MAX, Math.max(EDITOR_MIN, budget));
+          return Math.max(EDITOR_MIN, Math.min(max, raw));
         }
-        return Math.max(FILES_MIN, Math.min(FILES_MAX, raw));
+        const max = Math.min(FILES_MAX, Math.max(FILES_MIN, budget));
+        return Math.max(FILES_MIN, Math.min(max, raw));
       };
       const onMove = (ev: PointerEvent) => {
         const dx = ev.clientX - startX;
