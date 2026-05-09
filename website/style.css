@@ -777,7 +777,7 @@ body.nav-open {
 .preview__img {
   display: block;
   width: 100%;
-  max-width: 858px;
+  max-width: 1080px;
   height: auto;
 }
 
@@ -836,7 +836,7 @@ body.nav-open {
 /* Server demo — animated terminal mock used as the third preview */
 .server-demo {
   width: 100%;
-  max-width: 858px;
+  max-width: 1080px;
   background: var(--bg);
   border: 1px solid var(--border-strong);
   font-family: var(--font-mono);
@@ -1020,7 +1020,7 @@ body.nav-open {
    rule still holds for everything else. */
 .cli-demo {
   width: 100%;
-  max-width: 858px;
+  max-width: 1080px;
   background: var(--bg);
   border: 1px solid var(--border-strong);
   font-family: var(--font-mono);
@@ -1176,7 +1176,7 @@ body.nav-open {
    variables stay inside .dt-demo. */
 .dt-demo {
   width: 100%;
-  max-width: 858px;
+  max-width: 1080px;
   background: #0a0a0a;
   border: 1px solid var(--border-strong);
   font-family: var(--font-sans);
