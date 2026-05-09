@@ -11,7 +11,7 @@ use std::sync::Arc;
 use aictl_core::error::AictlError;
 use aictl_core::keys;
 use aictl_core::message::{Message, Role};
-use aictl_core::run::{self, MemoryMode, Provider};
+use aictl_core::run::{self, Provider};
 use aictl_core::session;
 use aictl_core::skills;
 use tauri::AppHandle;
@@ -103,7 +103,6 @@ pub async fn run_turn(
         &req.user_message,
         &mut auto,
         &ui,
-        MemoryMode::ShortTerm,
         // Streaming is on for the desktop unconditionally — the
         // webview consumes `StreamChunk` events and renders progressive
         // markdown. The CLI's `--quiet` / non-TTY auto-disable doesn't

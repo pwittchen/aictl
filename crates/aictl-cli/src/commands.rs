@@ -8,9 +8,9 @@
 //!
 //! Each slash command lives in its own submodule so this file stays focused
 //! on dispatch. Types and helpers that the rest of the crate uses
-//! (`MemoryMode`, `compact`, `run_*_menu`, `select_*`, `print_*`, CLI
-//! helpers) are re-exported below to preserve the `crate::commands::X`
-//! paths that callers use.
+//! (`compact`, `run_*_menu`, `select_*`, `print_*`, CLI helpers) are
+//! re-exported below to preserve the `crate::commands::X` paths that
+//! callers use.
 
 mod agent;
 mod balance;
@@ -25,7 +25,6 @@ mod hooks;
 mod info;
 mod keys;
 mod mcp;
-mod memory;
 mod menu;
 mod mlx;
 mod model;
@@ -52,7 +51,6 @@ pub use hooks::{print_hooks_cli, run_hooks_menu};
 pub use info::print_info;
 pub use keys::{run_clear_keys_unconfirmed, run_keys_menu, run_lock_keys, run_unlock_keys};
 pub use mcp::{print_mcp_cli, run_mcp_menu};
-pub use memory::{MemoryMode, select_memory};
 pub use mlx::run_mlx_menu;
 pub use model::select_model;
 pub use ping::run_ping;
@@ -91,7 +89,6 @@ pub const COMMANDS: &[&str] = &[
     "keys",
     "gguf",
     "mcp",
-    "memory",
     "mlx",
     "model",
     "ping",
@@ -133,8 +130,6 @@ pub enum CommandResult {
     Model(Option<String>),
     /// Switch auto/human-in-the-loop behavior.
     Behavior,
-    /// Switch memory mode (long-term/short-term).
-    Memory,
     /// Update to the latest version.
     Update,
     /// Uninstall the aictl binary from every known install location.
@@ -250,7 +245,6 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
             CommandResult::Model(query)
         }
         "behavior" => CommandResult::Behavior,
-        "memory" => CommandResult::Memory,
         "update" => CommandResult::Update,
         "uninstall" => CommandResult::Uninstall,
         "version" => CommandResult::Version,
@@ -440,14 +434,6 @@ mod tests {
         assert!(matches!(
             handle("/behavior", "", &noop_error),
             CommandResult::Behavior
-        ));
-    }
-
-    #[test]
-    fn cmd_memory() {
-        assert!(matches!(
-            handle("/memory", "", &noop_error),
-            CommandResult::Memory
         ));
     }
 

@@ -25,7 +25,6 @@ pub async fn compact(
     model: &str,
     messages: &mut Vec<Message>,
     ui: &dyn AgentUI,
-    memory: &str,
     is_auto: bool,
 ) {
     if messages.len() <= 1 {
@@ -70,15 +69,7 @@ pub async fn compact(
     match result {
         Ok(usage) => {
             println!();
-            ui.show_token_usage(
-                &usage,
-                model,
-                false,
-                0,
-                std::time::Duration::ZERO,
-                0,
-                memory,
-            );
+            ui.show_token_usage(&usage, model, false, 0, std::time::Duration::ZERO, 0);
             if is_auto {
                 AUTO_COMPACTIONS.fetch_add(1, Ordering::Relaxed);
             } else {

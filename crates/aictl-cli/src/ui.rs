@@ -260,7 +260,6 @@ impl AgentUI for PlainUI {
         _tool_calls: u32,
         _elapsed: Duration,
         _context_pct: u8,
-        _memory: &str,
     ) {
     }
 
@@ -368,12 +367,7 @@ impl InteractiveUI {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn print_welcome(
-        provider: &str,
-        model: &str,
-        memory: crate::commands::MemoryMode,
-        version_info: &str,
-    ) {
+    pub fn print_welcome(provider: &str, model: &str, version_info: &str) {
         const BLANK: &str = "      ";
         const MASCOTS: [[&str; 2]; 6] = [
             ["[o_o] ", " |_|  "],
@@ -470,7 +464,7 @@ impl InteractiveUI {
             model.with(Color::Yellow),
         );
 
-        // Line 2: memory · tools · dir
+        // Line 2: tools · dir
         let cwd = std::env::current_dir()
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
@@ -483,11 +477,9 @@ impl InteractiveUI {
             "tools disabled".to_string()
         };
         eprintln!(
-            "{PAD}{} {}{} {} {} {} {}",
+            "{PAD}{} {}{} {} {}",
             PIPE.with(Color::DarkGrey),
             m[2].with(Color::Cyan),
-            format!("{memory} memory").with(Color::DarkGrey),
-            "·".with(Color::DarkGrey),
             tools_info
                 .as_str()
                 .with(if aictl_core::tools::tools_enabled() {
@@ -963,7 +955,6 @@ impl AgentUI for InteractiveUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
-        memory: &str,
     ) {
         let display_model = if model.starts_with("claude-") {
             model.rsplit_once('-').map_or(model, |(prefix, _)| prefix)
@@ -979,9 +970,8 @@ impl AgentUI for InteractiveUI {
         } else {
             String::new()
         };
-        let short_mem = memory.strip_suffix("-term").unwrap_or(memory);
         let text = format!(
-            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}% · ⛁ {short_mem}",
+            "{display_model} · {}↑{cache_str} · {}↓ · {} tool(s){cost_str} · {:.1}s · ctx {context_pct}%",
             usage.input_tokens,
             usage.output_tokens,
             tool_calls,

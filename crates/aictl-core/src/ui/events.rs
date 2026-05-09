@@ -101,7 +101,6 @@ pub struct TokenUsageEvent {
     pub tool_calls: u32,
     pub elapsed_ms: u64,
     pub context_pct: u8,
-    pub memory: String,
 }
 
 /// Wire shape of a turn-final summary. Mirrors the args of
@@ -132,7 +131,6 @@ impl TokenUsageEvent {
         tool_calls: u32,
         elapsed: std::time::Duration,
         context_pct: u8,
-        memory: &str,
     ) -> Self {
         Self {
             model: model.to_string(),
@@ -144,7 +142,6 @@ impl TokenUsageEvent {
             tool_calls,
             elapsed_ms: u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
             context_pct,
-            memory: memory.to_string(),
         }
     }
 }

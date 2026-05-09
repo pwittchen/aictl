@@ -23,8 +23,8 @@ use std::sync::OnceLock;
 use clap::ValueEnum;
 
 use crate::config::{
-    self, MAX_MESSAGES, SHORT_TERM_MEMORY_WINDOW, SPINNER_PHRASES, SYSTEM_PROMPT,
-    SYSTEM_PROMPT_CHAT_ONLY, load_prompt_file, max_iterations,
+    self, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, SYSTEM_PROMPT_CHAT_ONLY, load_prompt_file,
+    max_iterations,
 };
 use crate::error::AictlError;
 use crate::hooks::{self, HookContext, HookEvent};
@@ -45,26 +45,6 @@ static STDOUT_IS_TTY: OnceLock<bool> = OnceLock::new();
 
 pub fn stdout_is_tty() -> bool {
     *STDOUT_IS_TTY.get_or_init(|| std::io::stdout().is_terminal())
-}
-
-/// Memory mode: controls conversation history optimization. Frontends
-/// expose this via a slash command (`/memory`) and a CLI flag; the agent
-/// loop reads it to decide whether to compact older messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemoryMode {
-    /// All messages, no optimization.
-    LongTerm,
-    /// Sliding window with most recent messages and optional compaction.
-    ShortTerm,
-}
-
-impl std::fmt::Display for MemoryMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::LongTerm => write!(f, "long-term"),
-            Self::ShortTerm => write!(f, "short-term"),
-        }
-    }
 }
 
 /// Result of a single agent turn.
@@ -661,17 +641,6 @@ async fn handle_tool_call(
     }
 }
 
-/// Build a windowed view of messages for short-term memory mode.
-/// Keeps the system prompt (first message) and the most recent `window` messages.
-fn windowed_messages(messages: &[Message], window: usize) -> Vec<Message> {
-    if messages.len() <= 1 + window {
-        return messages.to_vec();
-    }
-    let mut result = vec![messages[0].clone()];
-    result.extend_from_slice(&messages[messages.len() - window..]);
-    result
-}
-
 /// Run one turn of the agent loop: send `user_message`, handle tool calls,
 /// return the final text answer.
 ///
@@ -689,7 +658,6 @@ pub async fn run_agent_turn(
     user_message: &str,
     auto: &mut bool,
     ui: &dyn AgentUI,
-    memory: MemoryMode,
     streaming: bool,
     skill: Option<&Skill>,
 ) -> Result<TurnResult, AictlError> {
@@ -772,18 +740,7 @@ pub async fn run_agent_turn(
         let phrase = SPINNER_PHRASES[nanos % SPINNER_PHRASES.len()];
         ui.start_spinner(phrase);
 
-        // In LongTerm mode we pass the history directly as a slice, avoiding a
-        // full clone of every message on every loop iteration. ShortTerm mode
-        // still materializes a windowed Vec, but `short_term_buf` owns it only
-        // when that branch runs.
-        let short_term_buf;
-        let raw_slice: &[Message] = match memory {
-            MemoryMode::LongTerm => messages.as_slice(),
-            MemoryMode::ShortTerm => {
-                short_term_buf = windowed_messages(messages, SHORT_TERM_MEMORY_WINDOW);
-                &short_term_buf
-            }
-        };
+        let raw_slice: &[Message] = messages.as_slice();
 
         // Merge the skill body into the base system prompt for this call
         // only. Anthropic and Gemini keep just the last System message they
@@ -1078,7 +1035,6 @@ pub async fn run_agent_turn(
                 tool_calls,
                 call_elapsed,
                 context_pct,
-                &memory.to_string(),
             );
         };
 
@@ -1238,7 +1194,6 @@ pub async fn run_agent_single(
         user_message,
         &mut auto,
         ui,
-        MemoryMode::LongTerm,
         streaming,
         skill,
     )

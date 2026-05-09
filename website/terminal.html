@@ -100,7 +100,7 @@
             <div class="cli-demo__body">
 <pre class="cli-demo__banner" aria-hidden="true"><span class="tt-face">[-_-]</span> <strong class="tt-brand">aictl</strong> <span class="tt-dim" data-cli-version>0.39.3</span> <span class="tt-ok">(latest)</span> <span class="tt-dim">— AI agent in your terminal</span>
 <span class="tt-face"> |_|</span>  <span class="tt-prov">anthropic</span> <span class="tt-dim">·</span> <span class="tt-model">claude-sonnet-4-6</span>
-      <span class="tt-dim">long-term memory · 31 tools · dir: aictl/</span>
+      <span class="tt-dim">31 tools · dir: aictl/</span>
       <span class="tt-info">cwd jail: on</span><span class="tt-dim"> · subshell blocked · timeout: 30s · disabled tools: 0</span>
       <span class="tt-info">keychain</span> <span class="tt-dim">(0 locked · 9 plain · 0 both)</span>
       <span class="tt-dim">session: 9ee82912-c760-4444-bfe8-0bc000c173c0</span>
@@ -127,14 +127,14 @@
   <span class="tt-tag">[DIR] </span> src
 
   <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
-  <span class="tt-status">claude-sonnet-4 · 3↑ (4320⚡) · 69↓ · 1 tool(s) · $0.0024 · 3.2s · ctx 1% · ⛁ long</span>
+  <span class="tt-status">claude-sonnet-4 · 3↑ (4320⚡) · 69↓ · 1 tool(s) · $0.0024 · 3.2s · ctx 1%</span>
 
   This is the <span class="tt-bold">aictl</span> Rust CLI project — an AI agent tool with source code,
   documentation (README, ARCH, ROADMAP), pricing references, a website, examples,
   tests, GitHub CI config, and an install script.
 
   <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
-  <span class="tt-status">claude-sonnet-4 · 221↑ (4320⚡) · 53↓ · 1 tool(s) · $0.0031 · 2.3s · ctx 2% · ⛁ long</span>
+  <span class="tt-status">claude-sonnet-4 · 221↑ (4320⚡) · 53↓ · 1 tool(s) · $0.0031 · 2.3s · ctx 2%</span>
 
   <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>
   <span class="tt-summary">2 reqs · 1 tool(s) · 224↑ · 122↓ · $0.0054 · 6.3s · ctx 2%</span></pre>
@@ -299,7 +299,6 @@
             <ul>
               <li><code>AICTL_PROVIDER</code> — default provider (e.g. <code>anthropic</code>, <code>openai</code>, <code>gemini</code>, <code>grok</code>, <code>mistral</code>, <code>deepseek</code>, <code>kimi</code>, <code>zai</code>, <code>ollama</code>, <code>gguf</code>, <code>mlx</code>, or <code>aictl-server</code>)</li>
               <li><code>AICTL_MODEL</code> — default model name</li>
-              <li><code>AICTL_MEMORY</code> — <code>long-term</code> (all messages, default) or <code>short-term</code> (last 20-message sliding window)</li>
               <li><code>AICTL_INCOGNITO</code> — <code>true</code> to start the REPL without saving sessions (default <code>false</code>)</li>
               <li><code>AICTL_PROMPT_FILE</code> — project prompt filename loaded from the current directory (default <code>AICTL.md</code>)</li>
               <li><code>AICTL_PROMPT_FALLBACK</code> — when the primary prompt file is missing, fall back to <code>CLAUDE.md</code> then <code>AGENTS.md</code> (default <code>true</code>)</li>
@@ -538,7 +537,6 @@
               <li><code>/clear</code> — clear conversation context</li>
               <li><code>/compact</code> — summarize the conversation</li>
               <li><code>/context</code> — show tokens &amp; messages vs. limits</li>
-              <li><code>/memory</code> — switch long-term / short-term memory</li>
               <li><code>/history</code> — view the in-memory conversation (filter by role or keyword)</li>
               <li><code>/copy</code> — copy last response to clipboard</li>
               <li><code>/retry</code> — remove the last exchange and retry the prompt</li>

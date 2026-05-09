@@ -3,14 +3,14 @@
 //! The Settings overlay in the webview reads and writes through these
 //! handlers; everything they touch lives in `~/.aictl/config` or the
 //! system keyring (via `aictl_core::keys`). The CLI's slash commands
-//! (`/config`, `/keys`, `/security`, `/memory`) target the same keys, so
-//! changes round-trip between the two binaries.
+//! (`/config`, `/keys`, `/security`) target the same keys, so changes
+//! round-trip between the two binaries.
 //!
 //! Whitelisting which config keys are settable from the desktop is
 //! deliberate: the Settings UI exposes a small surface — workspace,
-//! provider/model, security flags, memory mode, auto-compact threshold,
-//! LLM timeout — and the catch-all `config_set` command refuses anything
-//! outside that set. A future "Advanced" tab can grow the list.
+//! provider/model, security flags, auto-compact threshold, LLM timeout —
+//! and the catch-all `config_set` command refuses anything outside that
+//! set. A future "Advanced" tab can grow the list.
 //! Workspace / provider-model edits go through their dedicated commands
 //! (`set_workspace`, `set_active_model`) rather than this generic path.
 
@@ -27,7 +27,6 @@ const ALLOWED_CONFIG_KEYS: &[&str] = &[
     "AICTL_AUTO_COMPACT_THRESHOLD",
     "AICTL_LLM_TIMEOUT",
     "AICTL_MAX_ITERATIONS",
-    "AICTL_MEMORY",
     "AICTL_SECURITY",
     "AICTL_SECURITY_INJECTION_GUARD",
     "AICTL_SECURITY_AUDIT_LOG",

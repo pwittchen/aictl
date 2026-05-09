@@ -1,7 +1,7 @@
 //! End-to-end tests for [`crate::run::run_agent_turn`] driven by a scripted
 //! mock LLM. Covers the full loop: message accumulation, tool-call parsing,
 //! dispatch, duplicate detection, malformed-tag retry, denial handling, auto
-//! mode, memory-window windowing, and iteration cap.
+//! mode, and iteration cap.
 //!
 //! The mock lives at [`crate::llm::mock`]; its [`MockGuard`] serializes these
 //! tests across parallel `cargo test` threads and resets shared state
@@ -11,7 +11,6 @@ use std::cell::Cell;
 
 use regex::Regex;
 
-use crate::commands::MemoryMode;
 use crate::llm::TokenUsage;
 use crate::llm::mock::MockGuard;
 use crate::message::{Message, Role};
@@ -80,7 +79,6 @@ impl AgentUI for ScriptedUI {
         _tool_calls: u32,
         _elapsed: std::time::Duration,
         _context_pct: u8,
-        _memory: &str,
     ) {
     }
     fn show_summary(
@@ -114,7 +112,6 @@ async fn plain_final_answer_no_tool_calls() {
         "what is the answer?",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -168,7 +165,6 @@ async fn token_usage_accumulates_across_turn() {
         "time?",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -204,7 +200,6 @@ async fn tool_call_executes_and_result_is_injected() {
         "add it",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -251,7 +246,6 @@ async fn tool_call_denied_by_user_continues_loop_with_denial_message() {
         "hi",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -299,7 +293,6 @@ async fn auto_accept_flips_auto_mode_for_rest_of_turn() {
         "hi",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -333,7 +326,6 @@ async fn duplicate_tool_call_aborts_turn_with_clear_error() {
         "math please",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -368,7 +360,6 @@ async fn malformed_tool_call_triggers_retry_prompt_then_recovers() {
         "hi",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -409,7 +400,6 @@ async fn unknown_tool_returns_message_and_keeps_looping() {
         "try a weird tool",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -430,104 +420,6 @@ async fn unknown_tool_returns_message_and_keeps_looping() {
         tool_result
             .content
             .contains("Unknown tool: nonexistent_tool")
-    );
-}
-
-// --- Memory modes ---
-
-#[tokio::test]
-async fn short_term_memory_windows_the_history() {
-    use crate::config::SHORT_TERM_MEMORY_WINDOW;
-
-    let guard = MockGuard::new();
-    // Push enough tool calls that the total history (system + user + N *
-    // (assistant + tool_result)) exceeds `1 + window`, so the windowing
-    // branch actually trims messages. Each input must be unique to dodge
-    // the duplicate-call guard. We stay well under the 20-iteration cap.
-    let tool_rounds = SHORT_TERM_MEMORY_WINDOW / 2 + 2;
-    for i in 0..tool_rounds {
-        guard.push_response(format!("<tool name=\"calculate\">{i} + 1</tool>"));
-    }
-    guard.push_response("Done.");
-
-    let mut messages = make_system_messages();
-    let mut auto = true;
-    let ui = quiet_ui();
-
-    let turn = run_agent_turn(
-        &Provider::Mock,
-        "",
-        "mock-model",
-        &mut messages,
-        "run many tools",
-        &mut auto,
-        &ui,
-        MemoryMode::ShortTerm,
-        false,
-        None,
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(turn.answer, "Done.");
-
-    // The last LLM call should see a windowed view: system message + the
-    // tail of the conversation, capped at `1 + SHORT_TERM_MEMORY_WINDOW`.
-    let calls = guard.calls();
-    let last = calls.last().expect("at least one call");
-    assert!(
-        last.len() <= 1 + SHORT_TERM_MEMORY_WINDOW,
-        "short-term view too large: {} messages (limit {})",
-        last.len(),
-        1 + SHORT_TERM_MEMORY_WINDOW
-    );
-    assert!(matches!(last[0].role, Role::System));
-    // Sanity: the full `messages` vec at turn end must be larger than the
-    // windowed view — otherwise the windowing branch wasn't actually
-    // exercised and the test would pass trivially.
-    assert!(
-        messages.len() > 1 + SHORT_TERM_MEMORY_WINDOW,
-        "full history ({}) must exceed window ({}) to exercise windowing",
-        messages.len(),
-        1 + SHORT_TERM_MEMORY_WINDOW
-    );
-}
-
-#[tokio::test]
-async fn long_term_memory_keeps_full_history() {
-    let guard = MockGuard::new();
-    guard.push_response("<tool name=\"calculate\">1 + 1</tool>");
-    guard.push_response("<tool name=\"calculate\">2 + 2</tool>");
-    guard.push_response("Done.");
-
-    let mut messages = make_system_messages();
-    let mut auto = true;
-    let ui = quiet_ui();
-
-    run_agent_turn(
-        &Provider::Mock,
-        "",
-        "mock-model",
-        &mut messages,
-        "run two tools",
-        &mut auto,
-        &ui,
-        MemoryMode::LongTerm,
-        false,
-        None,
-    )
-    .await
-    .unwrap();
-
-    // Third LLM call receives the full history: system + user + (assistant +
-    // tool_result) * 2 = 6 messages.
-    let calls = guard.calls();
-    let last = calls.last().unwrap();
-    assert_eq!(
-        last.len(),
-        6,
-        "long-term history should not be windowed (got {} messages)",
-        last.len()
     );
 }
 
@@ -558,7 +450,6 @@ async fn max_iterations_cap_terminates_the_loop() {
         "loop forever",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -600,7 +491,6 @@ async fn streaming_flag_is_wired_through_to_the_mock() {
         "hi",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         true, // streaming on
         None,
     )
@@ -629,7 +519,6 @@ async fn provider_error_propagates_out_of_the_turn() {
         "hi",
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )
@@ -806,7 +695,6 @@ async fn mock_sees_original_in_off_mode() {
         user_msg,
         &mut auto,
         &ui,
-        MemoryMode::LongTerm,
         false,
         None,
     )

@@ -17,7 +17,7 @@
 use crossterm::style::{Color, Stylize};
 use rustyline::error::ReadlineError;
 
-use crate::commands::{self, MemoryMode};
+use crate::commands;
 use crate::config::{self, MAX_MESSAGES, auto_compact_threshold, config_get, config_set};
 use crate::error::AictlError;
 use crate::message::{Message, Role};
@@ -205,7 +205,6 @@ async fn handle_repl_input(
     api_key: &mut String,
     model: &mut String,
     auto: &mut bool,
-    memory: &mut MemoryMode,
     version_info: &str,
 ) -> ReplAction {
     if input.is_empty() {
@@ -218,16 +217,7 @@ async fn handle_repl_input(
     let result = commands::handle(input, last_answer, &|msg| ui.show_error(msg));
     if matches!(result, commands::CommandResult::NotACommand) {
         add_redacted_history(rl, input);
-        handle_user_turn(
-            provider,
-            api_key,
-            model,
-            messages,
-            last_input_tokens,
-            ui,
-            *memory,
-        )
-        .await;
+        handle_user_turn(provider, api_key, model, messages, last_input_tokens, ui).await;
         return ReplAction::RunAgentTurn;
     }
 
@@ -243,7 +233,6 @@ async fn handle_repl_input(
         api_key,
         model,
         auto,
-        memory,
         version_info,
     )
     .await
@@ -265,7 +254,6 @@ async fn dispatch_slash_command(
     api_key: &mut String,
     model: &mut String,
     auto: &mut bool,
-    memory: &mut MemoryMode,
     version_info: &str,
 ) -> ReplAction {
     if matches!(result, commands::CommandResult::Exit) {
@@ -280,16 +268,7 @@ async fn dispatch_slash_command(
             ReplAction::Continue
         }
         commands::CommandResult::Compact => {
-            handle_compact(
-                provider,
-                api_key,
-                model,
-                messages,
-                ui,
-                *memory,
-                last_input_tokens,
-            )
-            .await;
+            handle_compact(provider, api_key, model, messages, ui, last_input_tokens).await;
             ReplAction::Continue
         }
         commands::CommandResult::Session => {
@@ -321,7 +300,7 @@ async fn dispatch_slash_command(
         commands::CommandResult::Info => {
             let pname = provider_display_name(provider);
             let ollama_models = llm::ollama::list_models().await;
-            commands::print_info(&pname, model, *auto, *memory, version_info, &ollama_models);
+            commands::print_info(&pname, model, *auto, version_info, &ollama_models);
             ReplAction::Continue
         }
         commands::CommandResult::Security => {
@@ -398,10 +377,6 @@ async fn dispatch_slash_command(
             handle_behavior(auto);
             ReplAction::Continue
         }
-        commands::CommandResult::Memory => {
-            handle_memory(memory);
-            ReplAction::Continue
-        }
     }
 }
 
@@ -427,19 +402,9 @@ async fn handle_compact(
     model: &str,
     messages: &mut Vec<Message>,
     ui: &InteractiveUI,
-    memory: MemoryMode,
     last_input_tokens: &mut u64,
 ) {
-    commands::compact(
-        provider,
-        api_key,
-        model,
-        messages,
-        ui,
-        &memory.to_string(),
-        false,
-    )
-    .await;
+    commands::compact(provider, api_key, model, messages, ui, false).await;
     *last_input_tokens = 0;
     session::save_current(messages);
 }
@@ -708,20 +673,6 @@ fn handle_behavior(auto: &mut bool) {
     println!();
 }
 
-fn handle_memory(memory: &mut MemoryMode) {
-    let Some(new_memory) = commands::select_memory(*memory) else {
-        return;
-    };
-    *memory = new_memory;
-    config_set("AICTL_MEMORY", &format!("{new_memory}"));
-    println!();
-    println!(
-        "  {} switched to {new_memory} memory",
-        "✓".with(Color::Green)
-    );
-    println!();
-}
-
 /// Fall-through path for a non-slash input: auto-compact if we're near the
 /// context limit, then leave it to the caller to run the agent turn.
 async fn handle_user_turn(
@@ -731,7 +682,6 @@ async fn handle_user_turn(
     messages: &mut Vec<Message>,
     last_input_tokens: &mut u64,
     ui: &InteractiveUI,
-    memory: MemoryMode,
 ) {
     let token_pct = llm::pct(*last_input_tokens, llm::context_limit(model));
     let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
@@ -744,16 +694,7 @@ async fn handle_user_turn(
         "  {} context at {context_pct}%, auto-compacting...",
         "⚠".with(Color::Yellow)
     );
-    commands::compact(
-        provider,
-        api_key,
-        model,
-        messages,
-        ui,
-        &memory.to_string(),
-        true,
-    )
-    .await;
+    commands::compact(provider, api_key, model, messages, ui, true).await;
     *last_input_tokens = 0;
     session::save_current(messages);
 }
@@ -817,14 +758,13 @@ async fn run_and_display_turn(
     ui: &InteractiveUI,
     last_answer: &mut String,
     last_input_tokens: &mut u64,
-    memory: MemoryMode,
     skill: Option<&Skill>,
 ) {
     let msg_len_before = messages.len();
     // Interactive REPL is always a TTY; honor user's AICTL_STREAMING preference.
     let streaming = stdout_is_tty() && config::streaming_enabled();
     match run_agent_turn(
-        provider, api_key, model, messages, input, auto, ui, memory, streaming, skill,
+        provider, api_key, model, messages, input, auto, ui, streaming, skill,
     )
     .await
     {
@@ -893,10 +833,6 @@ pub(crate) async fn run_interactive(
     };
 
     let mut auto = auto;
-    let mut memory = match config_get("AICTL_MEMORY").as_deref() {
-        Some("short-term") => MemoryMode::ShortTerm,
-        _ => MemoryMode::LongTerm,
-    };
     let ui = InteractiveUI::new();
 
     let mut messages = vec![Message {
@@ -975,12 +911,7 @@ pub(crate) async fn run_interactive(
         String::new()
     };
 
-    InteractiveUI::print_welcome(
-        &provider_display_name(&provider),
-        &model,
-        memory,
-        &version_info,
-    );
+    InteractiveUI::print_welcome(&provider_display_name(&provider), &model, &version_info);
 
     let mut rl = rustyline::Editor::new()
         .map_err(|e| AictlError::Other(format!("readline init failed: {e}")))?;
@@ -1059,7 +990,6 @@ pub(crate) async fn run_interactive(
                         &mut api_key,
                         &mut model,
                         &mut auto,
-                        &mut memory,
                         &version_info,
                     )
                     .await
@@ -1095,7 +1025,6 @@ pub(crate) async fn run_interactive(
                     &ui,
                     &mut last_answer,
                     &mut last_input_tokens,
-                    memory,
                     turn_skill.as_ref(),
                 )
                 .await;

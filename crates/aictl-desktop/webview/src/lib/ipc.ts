@@ -36,7 +36,6 @@ export type AgentEvent =
       tool_calls: number;
       elapsed_ms: number;
       context_pct: number;
-      memory: string;
     }
   | { kind: "summary"; [k: string]: unknown }
   | { kind: "progress_begin"; id: number; label: string; total: number | null }

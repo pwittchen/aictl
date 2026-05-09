@@ -338,11 +338,10 @@ The interactive REPL supports slash commands:
 | `/copy` | Copy last response to clipboard |
 | `/help` | Show available commands |
 | `/history` | View the in-memory conversation; optional role or keyword filter (e.g. `/history user rust`) |
-| `/info` | Show setup info (provider, model, behavior, memory, agent, version, OS, binary size) |
+| `/info` | Show setup info (provider, model, behavior, agent, version, OS, binary size) |
 | `/roadmap` | Fetch and render the project roadmap; optional section filter (e.g. `/roadmap desktop`) |
 | `/gguf` | Manage native GGUF models (view downloaded, pull, remove, clear all) |
 | `/mlx` | Manage native MLX models (Apple Silicon; view downloaded, pull, remove, clear all) |
-| `/memory` | Switch memory mode: long-term (all messages) or short-term (sliding window) |
 | `/security` | Show current security policy (blocked commands, CWD jail, timeouts, etc.) |
 | `/session` | Manage sessions (show current info, set name, view/load/delete saved, clear all) |
 | `/skills` | Manage skills (create manually, create with AI, view/invoke/delete) — one-turn markdown playbooks |
@@ -677,13 +676,12 @@ It walks you through selecting a provider, model, and entering API keys. You can
 
 #### Basic configuration
 
-You need to configure API key for the provider and model you want to use. `AICTL_MEMORY` and `AICTL_INCOGNITO` params are optional.
+You need to configure API key for the provider and model you want to use. `AICTL_INCOGNITO` is optional.
 
 | Key | Description |
 |-----|-------------|
 | `AICTL_PROVIDER` | Default provider (`openai`, `anthropic`, `gemini`, `grok`, `mistral`, `deepseek`, `kimi`, `zai`, `ollama`, `gguf`, `mlx`, or `aictl-server`) |
 | `AICTL_MODEL` | Default model name |
-| `AICTL_MEMORY` | Memory mode: `long-term` (all messages, default) or `short-term` (sliding window) |
 | `AICTL_INCOGNITO` | Start interactive REPL without saving sessions. Accepts `true` or `false` (default: `false`) |
 | `AICTL_PROMPT_FILE` | Filename for the project prompt file loaded from the current directory (default: `AICTL.md`) |
 | `AICTL_PROMPT_FALLBACK` | When the primary prompt file is missing, fall back to `CLAUDE.md` then `AGENTS.md`. Accepts `true` or `false` (default: `true`) |

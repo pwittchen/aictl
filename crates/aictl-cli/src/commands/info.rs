@@ -2,14 +2,11 @@ use crossterm::style::{Color, Stylize};
 
 use crate::agents;
 
-use super::memory::MemoryMode;
-
 #[allow(clippy::too_many_lines)]
 pub fn print_info(
     provider: &str,
     model: &str,
     auto: bool,
-    memory: MemoryMode,
     version_info: &str,
     ollama_models: &[String],
 ) {
@@ -75,7 +72,6 @@ pub fn print_info(
     };
     println!("  {} {routing_display}", "routing:  ".with(Color::Cyan));
     println!("  {} {behavior}", "behavior: ".with(Color::Cyan));
-    println!("  {} {memory}", "memory:   ".with(Color::Cyan));
     let timeout_secs = crate::config::llm_timeout().as_secs();
     let timeout_source = crate::config::config_get("AICTL_LLM_TIMEOUT")
         .and_then(|v| v.parse::<u64>().ok())

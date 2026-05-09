@@ -149,7 +149,6 @@ pub trait AgentUI {
     /// (whether or not a tool call was detected). Draws the bottom frame
     /// in the interactive UI; no-op in plain UI.
     fn stream_end(&self) {}
-    #[allow(clippy::too_many_arguments)]
     fn show_token_usage(
         &self,
         usage: &TokenUsage,
@@ -158,7 +157,6 @@ pub trait AgentUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
-        memory: &str,
     );
     fn show_summary(
         &self,

@@ -774,25 +774,6 @@ const GeneralTab: Component<{
     }
   };
 
-  const memoryMode = (): "long-term" | "short-term" =>
-    get("AICTL_MEMORY") === "short-term" ? "short-term" : "long-term";
-
-  const setMemory = async (mode: "long-term" | "short-term") => {
-    setError(null);
-    setFeedback(null);
-    try {
-      if (mode === "long-term") {
-        await ipc.configClear("AICTL_MEMORY");
-      } else {
-        await ipc.configWrite("AICTL_MEMORY", "short-term");
-      }
-      await refetch();
-      setFeedback(`memory mode = ${mode}`);
-    } catch (err) {
-      setError(`${err}`);
-    }
-  };
-
   const approvalMode = (): "ask" | "auto" =>
     get("AICTL_TOOL_APPROVAL") === "auto" ? "auto" : "ask";
 
@@ -851,30 +832,6 @@ const GeneralTab: Component<{
             {props.workspace.path ? "Change workspace…" : "Pick workspace…"}
           </button>
         </div>
-      </div>
-
-      <h4 class="settings-subhead">Memory</h4>
-      <div class="settings-row settings-row-stack">
-        <label>Conversation memory</label>
-        <div class="settings-control-line">
-          <select
-            class="settings-select"
-            value={memoryMode()}
-            onChange={(e) =>
-              void setMemory(
-                e.currentTarget.value as "long-term" | "short-term",
-              )
-            }
-          >
-            <option value="long-term">Long-term (full history)</option>
-            <option value="short-term">Short-term (recent window)</option>
-          </select>
-        </div>
-        <p class="settings-hint">
-          Long-term sends the full transcript on every turn. Short-term
-          sends only the most recent window — cheaper, but the agent
-          forgets older context. Mirrors the CLI's <code>/memory</code>.
-        </p>
       </div>
 
       <h4 class="settings-subhead">Tool approval</h4>

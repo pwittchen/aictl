@@ -229,7 +229,6 @@ impl AgentUI for DesktopUI {
         tool_calls: u32,
         elapsed: Duration,
         context_pct: u8,
-        memory: &str,
     ) {
         // Mirror provider-reported token counts into AppState so the
         // Context tab can read the latest values without a round-trip
@@ -250,7 +249,6 @@ impl AgentUI for DesktopUI {
                 tool_calls,
                 elapsed,
                 context_pct,
-                memory,
             )),
         );
     }

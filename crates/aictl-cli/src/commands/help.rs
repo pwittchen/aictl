@@ -38,7 +38,6 @@ pub(super) fn print_help() {
         ("/session", "manage sessions"),
         ("/skills", "manage skills (one-turn markdown playbooks)"),
         ("/stats", "view and manage usage statistics"),
-        ("/memory", "switch memory mode (long-term/short-term)"),
         ("/tools", "show available tools"),
         ("/keys", "manage API keys (lock, unlock, clear)"),
         ("/config", "re-run the configuration wizard"),
