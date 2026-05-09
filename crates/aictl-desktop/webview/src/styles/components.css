@@ -1247,6 +1247,51 @@
   cursor: not-allowed;
 }
 
+/* Master tools toggle: wrench icon. Flips `AICTL_TOOLS_ENABLED` and
+   cascades to the web + image subset toggles so the three composer
+   icons share a single on/off state. */
+.composer .tools-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .tools-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .tools-icon:hover,
+.composer .tools-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .tools-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .tools-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .tools-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Web tools toggle: globe icon. Drives `search_web`, `fetch_url`, and
    `extract_website` in `AICTL_SECURITY_DISABLED_TOOLS` as a single
    unit. Same accent treatment as the other composer icons. */

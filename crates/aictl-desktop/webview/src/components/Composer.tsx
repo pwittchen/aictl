@@ -26,6 +26,10 @@ interface Props {
   /// the auto-accept dropdown — the agent runs chat-only so there are
   /// no tool calls to approve.
   toolsEnabled: boolean;
+  /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades
+  /// to the web and image subset toggles so the icons reflect a
+  /// single global on/off state.
+  onToolsEnabledChange: (next: boolean) => Promise<void>;
   /// Set by the parent when /retry surfaces the previous prompt — the
   /// composer fills its textarea with the value and immediately calls
   /// `onPrefillConsumed` so the same prefill isn't reapplied on every
@@ -304,14 +308,41 @@ const Composer: Component<Props> = (props) => {
     if (imageFlashTimer !== undefined) {
       window.clearTimeout(imageFlashTimer);
     }
+    if (toolsFlashTimer !== undefined) {
+      window.clearTimeout(toolsFlashTimer);
+    }
   });
+
+  // Master tools toggle — flips AICTL_TOOLS_ENABLED via the parent and
+  // cascades to web + image subset toggles so the three icons share a
+  // single on/off semantic. Same flash pattern as the siblings.
+  const [toolsFlash, setToolsFlash] = createSignal<string | null>(null);
+  let toolsFlashTimer: number | undefined;
+  const toggleTools = async () => {
+    if (props.disabled) return;
+    const next = !props.toolsEnabled;
+    try {
+      await props.onToolsEnabledChange(next);
+      if (toolsFlashTimer !== undefined) {
+        window.clearTimeout(toolsFlashTimer);
+      }
+      setToolsFlash(next ? "tools enabled" : "tools disabled");
+      toolsFlashTimer = window.setTimeout(() => setToolsFlash(null), 1800);
+    } catch (err) {
+      if (toolsFlashTimer !== undefined) {
+        window.clearTimeout(toolsFlashTimer);
+      }
+      setToolsFlash(`failed to toggle tools: ${err}`);
+      toolsFlashTimer = window.setTimeout(() => setToolsFlash(null), 1800);
+    }
+  };
 
   // Globe toggle — flips all three web tools as one unit. Same toast
   // pattern as the auto-accept button so feedback feels consistent.
   const [webFlash, setWebFlash] = createSignal<string | null>(null);
   let webFlashTimer: number | undefined;
   const toggleWeb = async () => {
-    if (props.disabled) return;
+    if (props.disabled || !props.toolsEnabled) return;
     const next = !props.webEnabled;
     try {
       await props.onWebEnabledChange(next);
@@ -333,7 +364,7 @@ const Composer: Component<Props> = (props) => {
   const [imageFlash, setImageFlash] = createSignal<string | null>(null);
   let imageFlashTimer: number | undefined;
   const toggleImage = async () => {
-    if (props.disabled) return;
+    if (props.disabled || !props.toolsEnabled) return;
     const next = !props.imageEnabled;
     try {
       await props.onImageEnabledChange(next);
@@ -352,7 +383,7 @@ const Composer: Component<Props> = (props) => {
   };
 
   const toggleAutoAccept = () => {
-    if (props.disabled) return;
+    if (props.disabled || !props.toolsEnabled) return;
     const next = !props.autoAccept;
     props.onAutoAcceptChange(next);
     if (autoFlashTimer !== undefined) {
@@ -639,9 +670,50 @@ const Composer: Component<Props> = (props) => {
         </Show>
         <button
           type="button"
+          class="tools-icon"
+          data-active={String(props.toolsEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.toolsEnabled ? "true" : "false"}
+          aria-label={
+            props.toolsEnabled
+              ? "All tools enabled (click to disable every tool)"
+              : "All tools disabled (click to re-enable)"
+          }
+          title={
+            props.toolsEnabled
+              ? "all tools enabled — click to disable"
+              : "all tools disabled — click to enable"
+          }
+          onClick={() => void toggleTools()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M15 4.5A3.5 3.5 0 0 1 11.435 8c-.99-.019-2.093.132-2.7.913l-4.13 5.31a2.015 2.015 0 1 1-2.827-2.828l5.309-4.13c.78-.607.932-1.71.914-2.7L8 4.5a3.5 3.5 0 0 1 4.477-3.362c.325.094.39.497.15.736L10.6 3.902a.48.48 0 0 0-.033.653c.271.314.565.608.879.879a.48.48 0 0 0 .653-.033l2.027-2.027c.239-.24.642-.175.736.15.09.31.138.637.138.976ZM3.75 13a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"
+              clip-rule="evenodd"
+            />
+            <path d="M11.5 9.5c.313 0 .62-.029.917-.084l1.962 1.962a2.121 2.121 0 0 1-3 3l-2.81-2.81 1.35-1.734c.05-.064.158-.158.426-.233.278-.078.639-.11 1.062-.102l.093.001ZM5 4l1.446 1.445a2.256 2.256 0 0 1-.047.21c-.075.268-.169.377-.233.427l-.61.474L4 5H2.655a.25.25 0 0 1-.224-.139l-1.35-2.7a.25.25 0 0 1 .047-.289l.745-.745a.25.25 0 0 1 .289-.047l2.7 1.35A.25.25 0 0 1 5 2.654V4Z" />
+          </svg>
+        </button>
+        <Show when={toolsFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
           class="image-icon"
           data-active={String(props.imageEnabled)}
-          disabled={props.disabled}
+          disabled={props.disabled || !props.toolsEnabled}
           aria-pressed={props.imageEnabled ? "true" : "false"}
           aria-label={
             props.imageEnabled
@@ -649,9 +721,11 @@ const Composer: Component<Props> = (props) => {
               : "Image tools disabled (click to enable read_image, generate_image)"
           }
           title={
-            props.imageEnabled
-              ? "image tools enabled — click to disable"
-              : "image tools disabled — click to enable"
+            !props.toolsEnabled
+              ? "tools master switch is off — enable it to use image tools"
+              : props.imageEnabled
+                ? "image tools enabled — click to disable"
+                : "image tools disabled — click to enable"
           }
           onClick={() => void toggleImage()}
         >
@@ -681,7 +755,7 @@ const Composer: Component<Props> = (props) => {
           type="button"
           class="web-icon"
           data-active={String(props.webEnabled)}
-          disabled={props.disabled}
+          disabled={props.disabled || !props.toolsEnabled}
           aria-pressed={props.webEnabled ? "true" : "false"}
           aria-label={
             props.webEnabled
@@ -689,9 +763,11 @@ const Composer: Component<Props> = (props) => {
               : "Web tools disabled (click to enable search_web, fetch_url, extract_website)"
           }
           title={
-            props.webEnabled
-              ? "web tools enabled — click to disable"
-              : "web tools disabled — click to enable"
+            !props.toolsEnabled
+              ? "tools master switch is off — enable it to use web tools"
+              : props.webEnabled
+                ? "web tools enabled — click to disable"
+                : "web tools disabled — click to enable"
           }
           onClick={() => void toggleWeb()}
         >
@@ -717,47 +793,47 @@ const Composer: Component<Props> = (props) => {
             </Portal>
           )}
         </Show>
-        <Show when={props.toolsEnabled}>
-          <button
-            type="button"
-            class="auto-accept-icon"
-            data-active={String(props.autoAccept)}
-            disabled={props.disabled}
-            aria-pressed={props.autoAccept ? "true" : "false"}
-            aria-label={
-              props.autoAccept
-                ? "Auto-accept tools (click to disable)"
-                : "Human-in-the-loop (click to auto-accept)"
-            }
-            title={
-              props.autoAccept
+        <button
+          type="button"
+          class="auto-accept-icon"
+          data-active={String(props.autoAccept)}
+          disabled={props.disabled || !props.toolsEnabled}
+          aria-pressed={props.autoAccept ? "true" : "false"}
+          aria-label={
+            props.autoAccept
+              ? "Auto-accept tools (click to disable)"
+              : "Human-in-the-loop (click to auto-accept)"
+          }
+          title={
+            !props.toolsEnabled
+              ? "tools master switch is off — enable it to use auto-accept"
+              : props.autoAccept
                 ? "auto-accept enabled — click for human-in-the-loop"
                 : "human-in-the-loop — click to auto-accept tools"
-            }
-            onClick={toggleAutoAccept}
+          }
+          onClick={toggleAutoAccept}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 4.5c1.215 0 2.417.055 3.604.162a.68.68 0 0 1 .615.597c.124 1.038.208 2.088.25 3.15l-1.689-1.69a.75.75 0 0 0-1.06 1.061l2.999 3a.75.75 0 0 0 1.06 0l3.001-3a.75.75 0 1 0-1.06-1.06l-1.748 1.747a41.31 41.31 0 0 0-.264-3.386 2.18 2.18 0 0 0-1.97-1.913 41.512 41.512 0 0 0-7.477 0 2.18 2.18 0 0 0-1.969 1.913 41.16 41.16 0 0 0-.16 1.61.75.75 0 1 0 1.495.12c.041-.52.093-1.038.154-1.552a.68.68 0 0 1 .615-.597A40.012 40.012 0 0 1 10 4.5ZM5.281 9.22a.75.75 0 0 0-1.06 0l-3.001 3a.75.75 0 1 0 1.06 1.06l1.748-1.747c.042 1.141.13 2.27.264 3.386a2.18 2.18 0 0 0 1.97 1.913 41.533 41.533 0 0 0 7.477 0 2.18 2.18 0 0 0 1.969-1.913c.064-.534.117-1.071.16-1.61a.75.75 0 1 0-1.495-.12c-.041.52-.093 1.037-.154 1.552a.68.68 0 0 1-.615.597 40.013 40.013 0 0 1-7.208 0 .68.68 0 0 1-.615-.597 39.785 39.785 0 0 1-.25-3.15l1.689 1.69a.75.75 0 0 0 1.06-1.061l-2.999-3Z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-          <Show when={autoFlash()}>
-            {(msg) => (
-              <Portal mount={document.body}>
-                <div class="auto-accept-toast" role="status" aria-live="polite">
-                  <div class="panel">{msg()}</div>
-                </div>
-              </Portal>
-            )}
-          </Show>
+            <path
+              fill-rule="evenodd"
+              d="M10 4.5c1.215 0 2.417.055 3.604.162a.68.68 0 0 1 .615.597c.124 1.038.208 2.088.25 3.15l-1.689-1.69a.75.75 0 0 0-1.06 1.061l2.999 3a.75.75 0 0 0 1.06 0l3.001-3a.75.75 0 1 0-1.06-1.06l-1.748 1.747a41.31 41.31 0 0 0-.264-3.386 2.18 2.18 0 0 0-1.97-1.913 41.512 41.512 0 0 0-7.477 0 2.18 2.18 0 0 0-1.969 1.913 41.16 41.16 0 0 0-.16 1.61.75.75 0 1 0 1.495.12c.041-.52.093-1.038.154-1.552a.68.68 0 0 1 .615-.597A40.012 40.012 0 0 1 10 4.5ZM5.281 9.22a.75.75 0 0 0-1.06 0l-3.001 3a.75.75 0 1 0 1.06 1.06l1.748-1.747c.042 1.141.13 2.27.264 3.386a2.18 2.18 0 0 0 1.97 1.913 41.533 41.533 0 0 0 7.477 0 2.18 2.18 0 0 0 1.969-1.913c.064-.534.117-1.071.16-1.61a.75.75 0 1 0-1.495-.12c-.041.52-.093 1.037-.154 1.552a.68.68 0 0 1-.615.597 40.013 40.013 0 0 1-7.208 0 .68.68 0 0 1-.615-.597 39.785 39.785 0 0 1-.25-3.15l1.689 1.69a.75.75 0 0 0 1.06-1.061l-2.999-3Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <Show when={autoFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
         </Show>
         <button type="button" disabled={props.disabled} onClick={submit}>
           Send{" "}

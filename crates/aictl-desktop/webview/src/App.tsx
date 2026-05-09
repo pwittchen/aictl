@@ -434,6 +434,24 @@ const App: Component = () => {
     setImageEnabled(next);
   };
 
+  /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades to
+  /// the web + image subset toggles so the composer's three icons share
+  /// a single semantic. Turning master OFF disables every tool the
+  /// agent can call (the engine reads `AICTL_TOOLS_ENABLED` to gate
+  /// dispatch entirely) AND clears the web/image active state so their
+  /// icons reflect the disabled status. Turning master ON re-enables
+  /// the subset toggles in lockstep.
+  const setToolsMasterEnabled = async (next: boolean) => {
+    if (next) {
+      await ipc.configClear("AICTL_TOOLS_ENABLED");
+    } else {
+      await ipc.configWrite("AICTL_TOOLS_ENABLED", "false");
+    }
+    setToolsEnabled(next);
+    await setWebTools(next);
+    await setImageTools(next);
+  };
+
   // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
   // and re-read every time Settings closes so a freshly-saved choice
   // takes effect without a desktop restart. The composer's local
@@ -1257,6 +1275,7 @@ const App: Component = () => {
               autoAccept={autoAccept()}
               onAutoAcceptChange={setAutoAccept}
               toolsEnabled={toolsEnabled()}
+              onToolsEnabledChange={setToolsMasterEnabled}
               prefill={composerPrefill()}
               onPrefillConsumed={() => setComposerPrefill(null)}
               models={models()}
