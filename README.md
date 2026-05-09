@@ -4,11 +4,12 @@
 [![RELEASE](https://github.com/pwittchen/aictl/actions/workflows/release.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/release.yml)
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
-AI agent for your terminal and desktop + HTTP LLM proxy server — 79 built-in cloud models across 8 providers, plus any model available through Ollama, native GGUF inference via llama.cpp, or native MLX inference on Apple Silicon. Security-first by default.
+Native AI agent for your terminal and macOS desktop.
+Run cloud and local AI models through one secure runtime.
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
-**User guides**:
+**User guides (main components)**:
 - Desktop (macOS) : https://aictl.app/desktop.html
 - Terminal: https://aictl.app/terminal.html
 - Server: https://aictl.app/server.html
