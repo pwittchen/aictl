@@ -989,12 +989,12 @@
   cursor: not-allowed;
 }
 
-/* Agent picker — sparkles icon. Anchors the right-hand icon cluster
-   (agent / skill / auto-accept), so it carries the `margin-left: auto`
-   that pushes everything that follows up against the right edge.
-   Visual treatment matches `.skill-icon` so the row reads as a set. */
+/* Agent picker — sparkles icon. Sits one slot in from the right-hand
+   anchor (the shield owns `margin-left: auto` now), so it just keeps a
+   small gap from the shield. Visual treatment matches `.skill-icon` so
+   the row reads as a set. */
 .composer .agent-icon {
-  margin-left: auto;
+  margin-left: var(--space-1, 4px);
   background: transparent;
   border: 0;
   padding: 4px;
@@ -4198,5 +4198,280 @@ button.primary:hover:not([disabled]) {
 
 .resize-handle:hover,
 .resize-handle:active {
+  background: var(--accent-soft);
+}
+
+/* Security shield — anchors the right-hand composer icon cluster.
+   Color is driven entirely by `data-state`: green when every defense is
+   on, yellow when at least one knob is missing, red when the master
+   policy is off. */
+.composer .security-icon {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, opacity 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+}
+
+.composer .security-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .security-icon[data-state="ok"] {
+  color: #4ade80;
+}
+
+.composer .security-icon[data-state="warn"] {
+  color: var(--warning);
+}
+
+.composer .security-icon[data-state="error"] {
+  color: var(--danger);
+}
+
+.composer .security-icon:hover:not([disabled]) {
+  filter: brightness(1.15);
+}
+
+.composer .security-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Security details modal — same brutalist shell as ctx-details. The
+   banner area at the top mirrors the shield colour so the modal carries
+   the verdict at a glance. */
+.security-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+  padding: var(--space-5);
+}
+
+.security-modal-panel {
+  width: min(520px, 100%);
+  max-height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.security-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.security-modal-header h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.security-modal-close {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-soft);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.security-modal-close:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.security-modal-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.security-modal-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+  background: var(--surface);
+}
+
+.security-modal-banner[data-state="ok"] {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.security-modal-banner[data-state="warn"] {
+  border-color: rgba(244, 193, 69, 0.5);
+  background: var(--warning-soft);
+}
+
+.security-modal-banner[data-state="error"] {
+  border-color: rgba(255, 95, 86, 0.5);
+  background: var(--danger-soft);
+}
+
+.security-modal-shield {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.security-modal-shield svg {
+  width: 32px;
+  height: 32px;
+}
+
+.security-modal-banner[data-state="ok"] .security-modal-shield {
+  color: #4ade80;
+}
+
+.security-modal-banner[data-state="warn"] .security-modal-shield {
+  color: var(--warning);
+}
+
+.security-modal-banner[data-state="error"] .security-modal-shield {
+  color: var(--danger);
+}
+
+.security-modal-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.security-modal-banner-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg);
+}
+
+.security-modal-banner p {
+  margin: 0;
+  color: var(--fg-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.security-modal-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.security-modal-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.security-modal-check:last-child {
+  border-bottom: 0;
+}
+
+.security-modal-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.security-modal-check-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.security-modal-check[data-ok="true"] .security-modal-check-icon {
+  color: #4ade80;
+}
+
+.security-modal-check[data-ok="false"] .security-modal-check-icon {
+  color: var(--danger);
+}
+
+.security-modal-check-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--fg);
+  min-width: 0;
+}
+
+.security-modal-check-hint {
+  color: var(--fg-faint);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.security-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.security-modal-footer button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.security-modal-footer button:hover {
+  border-color: var(--border-strong);
+}
+
+.security-modal-footer .security-modal-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.security-modal-footer .security-modal-primary:hover {
   background: var(--accent-soft);
 }

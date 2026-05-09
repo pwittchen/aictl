@@ -16,6 +16,10 @@ import {
   type ModelEntry,
   type SkillRow,
 } from "../lib/ipc";
+import SecurityShield, {
+  type ShieldCheck,
+  type ShieldState,
+} from "./SecurityShield";
 
 interface Props {
   disabled: boolean;
@@ -76,6 +80,15 @@ interface Props {
   /// plumbing as the web toggle.
   imageEnabled: boolean;
   onImageEnabledChange: (next: boolean) => Promise<void>;
+  /// Aggregated posture for the shield icon. `App` reads the relevant
+  /// config keys + keyring presence and pushes the result down here so
+  /// every other composer toggle keeps its single-source-of-truth shape.
+  securityState: ShieldState;
+  securityChecks: ShieldCheck[];
+  /// Open Settings on the Security tab — used by the shield modal's
+  /// "Open Settings" button. App owns the overlay state so the button
+  /// just delegates upwards.
+  onOpenSecuritySettings: () => void;
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -544,6 +557,12 @@ const Composer: Component<Props> = (props) => {
             )}
           </For>
         </select>
+        <SecurityShield
+          state={props.securityState}
+          checks={props.securityChecks}
+          disabled={props.disabled}
+          onOpenSettings={props.onOpenSecuritySettings}
+        />
         <button
           type="button"
           class="agent-icon"

@@ -375,6 +375,16 @@ const App: Component = () => {
   // asset with a short timeout, so a flaky network just leaves the
   // signal null and the badge stays hidden.
   const [latestVersion, setLatestVersion] = createSignal<string | null>(null);
+  // Aggregated security/redaction/keyring posture for the composer's
+  // shield icon. Populated by `refreshSecurityStatus` on mount and
+  // every Settings close. The shape mirrors `SecurityShield`'s `checks`
+  // prop so the composer can pass it straight through.
+  const [securityState, setSecurityState] = createSignal<
+    "ok" | "warn" | "error"
+  >("ok");
+  const [securityChecks, setSecurityChecks] = createSignal<
+    { label: string; ok: boolean; hint?: string }[]
+  >([]);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
   const append = (msg: Message) => setMessages((prev) => [...prev, msg]);
@@ -610,6 +620,130 @@ const App: Component = () => {
     setShowProviderSetup(true);
   };
 
+  /// Re-evaluate the composer shield by reading the relevant config
+  /// keys plus the keyring presence. The shield turns red the moment
+  /// `AICTL_SECURITY` is off (the engine's master gate); otherwise it
+  /// goes green only when every recommended hardening knob is on AND
+  /// no API key sits in plain text. Anything in between is yellow.
+  const refreshSecurityStatus = async () => {
+    const isOn = (raw: string | null, defaultOn: boolean): boolean => {
+      if (raw === null || raw === undefined || raw === "") return defaultOn;
+      return raw !== "false" && raw !== "0";
+    };
+    try {
+      const [
+        sec,
+        injection,
+        audit,
+        cwd,
+        subshell,
+        redactionMode,
+        detectorsRaw,
+        ner,
+        keys,
+      ] = await Promise.all([
+        ipc.configValue("AICTL_SECURITY"),
+        ipc.configValue("AICTL_SECURITY_INJECTION_GUARD"),
+        ipc.configValue("AICTL_SECURITY_AUDIT_LOG"),
+        ipc.configValue("AICTL_SECURITY_CWD_RESTRICT"),
+        ipc.configValue("AICTL_SECURITY_BLOCK_SUBSHELL"),
+        ipc.configValue("AICTL_SECURITY_REDACTION"),
+        ipc.configValue("AICTL_REDACTION_DETECTORS"),
+        ipc.configValue("AICTL_REDACTION_NER"),
+        ipc.keysStatus().catch(() => []),
+      ]);
+
+      const securityOn = isOn(sec, true);
+      const injectionOn = isOn(injection, true);
+      const auditOn = isOn(audit, true);
+      const cwdOn = isOn(cwd, true);
+      const subshellOn = isOn(subshell, true);
+
+      const mode = (redactionMode ?? "").trim().toLowerCase();
+      const redactionOn = mode === "redact" || mode === "block";
+      const detectorsAllOn = (detectorsRaw ?? "").trim() === "";
+      const nerOn = isOn(ner, false);
+
+      const llmKeys = keys.filter(
+        (k) => k.name.startsWith("LLM_") && k.location !== "unset",
+      );
+      // Plain-text and "both" both mean a copy lives on disk in clear
+      // text — neither is acceptable for the green state.
+      const leakingKeys = llmKeys.filter(
+        (k) => k.location === "plain" || k.location === "both",
+      );
+      const keysOk = leakingKeys.length === 0;
+
+      const checks: { label: string; ok: boolean; hint?: string }[] = [
+        {
+          label: "Security policy enabled",
+          ok: securityOn,
+          hint: securityOn
+            ? undefined
+            : "AICTL_SECURITY is off — CWD jail, shell allow-list, and tool denial are bypassed.",
+        },
+        {
+          label: "Prompt-injection guard",
+          ok: injectionOn,
+        },
+        {
+          label: "Audit log",
+          ok: auditOn,
+        },
+        {
+          label: "Workspace-only file access",
+          ok: cwdOn,
+        },
+        {
+          label: "Block shell metacharacters",
+          ok: subshellOn,
+        },
+        {
+          label: "Outbound redaction",
+          ok: redactionOn,
+          hint: redactionOn
+            ? undefined
+            : "Set AICTL_SECURITY_REDACTION to 'redact' or 'block' to strip secrets before they leave the machine.",
+        },
+        {
+          label: "All redaction detectors enabled",
+          ok: detectorsAllOn,
+          hint: detectorsAllOn
+            ? undefined
+            : "AICTL_REDACTION_DETECTORS narrows the active detector set.",
+        },
+        {
+          label: "NER pass enabled",
+          ok: nerOn,
+          hint: nerOn
+            ? undefined
+            : "AICTL_REDACTION_NER is off — names, locations, and organizations are not redacted.",
+        },
+        {
+          label:
+            llmKeys.length === 0
+              ? "API keys stored in keyring"
+              : `API keys stored in keyring (${llmKeys.length} configured)`,
+          ok: keysOk,
+          hint: keysOk
+            ? undefined
+            : `${leakingKeys.length} key(s) sit in plain config — lock them through Settings → API Keys.`,
+        },
+      ];
+
+      let state: "ok" | "warn" | "error";
+      if (!securityOn) state = "error";
+      else if (checks.every((c) => c.ok)) state = "ok";
+      else state = "warn";
+
+      setSecurityState(state);
+      setSecurityChecks(checks);
+    } catch {
+      // On a probe failure leave the shield in its previous state
+      // rather than flashing a misleading colour.
+    }
+  };
+
   // Notification preference (`AICTL_DESKTOP_NOTIFICATIONS`). Cached so
   // the answer-arrived branch doesn't have to round-trip on every
   // turn.
@@ -829,6 +963,7 @@ const App: Component = () => {
     void refreshPluginsEnabled();
     void refreshMcpEnabled();
     void refreshNotifications();
+    void refreshSecurityStatus();
     // Fire-and-forget probe of the updater manifest. Populates both the
     // titlebar badge and the prefetched `updateInfo` the modal opens
     // with, so a click on the badge skips its own re-check round-trip.
@@ -1370,6 +1505,12 @@ const App: Component = () => {
               onWebEnabledChange={setWebTools}
               imageEnabled={imageEnabled()}
               onImageEnabledChange={setImageTools}
+              securityState={securityState()}
+              securityChecks={securityChecks()}
+              onOpenSecuritySettings={() => {
+                setSettingsInitialTab("security");
+                setShowSettings(true);
+              }}
             />
           </div>
         </Show>
@@ -1466,6 +1607,7 @@ const App: Component = () => {
             void refreshImageEnabled();
             void refreshPluginsEnabled();
             void refreshNotifications();
+            void refreshSecurityStatus();
             void refreshProviderSetup();
           }}
           models={models()}
