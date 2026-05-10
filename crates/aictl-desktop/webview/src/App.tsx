@@ -299,11 +299,11 @@ const App: Component = () => {
   // moved" pulse anyway).
   const [fsTick, setFsTick] = createSignal(0);
   const [autoAccept, setAutoAccept] = createSignal(false);
-  // Editor placement: "panes" (default — editor lives in its own grid
-  // column next to the chat) or "tabs" (chat and editor share the main
-  // column, switched via a tab strip). Hydrated on mount and updated
+  // Editor placement: "tabs" (default — chat and editor share the main
+  // column, switched via a tab strip) or "panes" (editor lives in its
+  // own grid column next to the chat). Hydrated on mount and updated
   // live whenever Settings → Appearance dispatches the change event.
-  const [layout, setLayout] = createSignal<"panes" | "tabs">("panes");
+  const [layout, setLayout] = createSignal<"panes" | "tabs">("tabs");
   // Which tab is currently active when `layout === "tabs"`. Driven by
   // file-open / file-close transitions and by manual tab clicks. Has
   // no effect in panes mode.
@@ -1065,9 +1065,9 @@ const App: Component = () => {
 
     try {
       const raw = await ipc.configValue("AICTL_DESKTOP_LAYOUT");
-      if (raw === "tabs") setLayout("tabs");
+      if (raw === "panes") setLayout("panes");
     } catch {
-      // Default to "panes" if the read fails.
+      // Default to "tabs" if the read fails.
     }
 
     // Settings → Appearance dispatches this when the user flips the

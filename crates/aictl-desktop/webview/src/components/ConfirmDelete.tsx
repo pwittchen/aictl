@@ -11,6 +11,12 @@ interface Props {
   /// Optional second line under the detail (extra warning, file path,
   /// row count, etc.). Skipped when null.
   note?: string | null;
+  /// Confirm button label. Defaults to "Delete" for the destructive
+  /// case; reusers (lock/unlock prompts) override to "Lock" / "Unlock".
+  confirmLabel?: string;
+  /// Confirm button visual variant. Defaults to "deny" (red) for
+  /// destructive prompts; non-destructive reusers can pass "allow".
+  confirmVariant?: "allow" | "deny";
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -45,8 +51,12 @@ const ConfirmDelete: Component<Props> = (props) => {
           <button type="button" onClick={props.onCancel}>
             Cancel Esc
           </button>
-          <button type="button" data-variant="deny" onClick={props.onConfirm}>
-            Delete ↩
+          <button
+            type="button"
+            data-variant={props.confirmVariant ?? "deny"}
+            onClick={props.onConfirm}
+          >
+            {props.confirmLabel ?? "Delete"} ↩
           </button>
         </div>
       </div>

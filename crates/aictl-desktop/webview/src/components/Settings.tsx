@@ -373,8 +373,13 @@ interface KeysTabProps {
 const KeysTab: Component<KeysTabProps> = (props) => {
   const [rows, { refetch }] = createResource<KeyRow[]>(() => ipc.keysStatus());
   const [backend] = createResource<KeyBackend>(() => ipc.keysBackend());
-  const [editing, setEditing] = createSignal<string | null>(null);
+  const [editing, setEditing] = createSignal<KeyRow | null>(null);
   const [draft, setDraft] = createSignal("");
+  const [pendingClear, setPendingClear] = createSignal<KeyRow | null>(null);
+  const [pendingLock, setPendingLock] = createSignal<KeyRow | null>(null);
+  const [pendingUnlock, setPendingUnlock] = createSignal<KeyRow | null>(null);
+  const [pendingLockAll, setPendingLockAll] = createSignal(false);
+  const [pendingUnlockAll, setPendingUnlockAll] = createSignal(false);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
@@ -523,7 +528,11 @@ const KeysTab: Component<KeysTabProps> = (props) => {
             type="button"
             disabled={!anyLockable()}
             title="Move every plain-config key into the system keyring"
-            onClick={() => void lockAll()}
+            onClick={() => {
+              setFeedback(null);
+              setError(null);
+              setPendingLockAll(true);
+            }}
           >
             Lock All
           </button>
@@ -531,7 +540,11 @@ const KeysTab: Component<KeysTabProps> = (props) => {
             type="button"
             disabled={!anyUnlockable()}
             title="Move every keyring-stored key back into plain config"
-            onClick={() => void unlockAll()}
+            onClick={() => {
+              setFeedback(null);
+              setError(null);
+              setPendingUnlockAll(true);
+            }}
           >
             Unlock All
           </button>
@@ -557,107 +570,241 @@ const KeysTab: Component<KeysTabProps> = (props) => {
                 <td>
                   <span data-status={row.location}>{row.location}</span>
                 </td>
-                <td class="settings-keys-actions">
-                  <Show
-                    when={editing() === row.name}
-                    fallback={
-                      <>
-                        <button
-                          type="button"
-                          class="ghost mini"
-                          onClick={() => {
-                            setEditing(row.name);
-                            setDraft("");
-                            setFeedback(null);
-                            setError(null);
-                          }}
-                        >
-                          {row.location === "unset" ? "Set" : "Replace"}
-                        </button>
-                        <Show
-                          when={
-                            backend()?.available &&
-                            (row.location === "plain" || row.location === "both")
-                          }
-                        >
-                          <button
-                            type="button"
-                            class="ghost mini"
-                            title="Move from plain config to system keyring"
-                            onClick={() => void lock(row.name)}
-                          >
-                            Lock
-                          </button>
-                        </Show>
-                        <Show
-                          when={
-                            backend()?.available &&
-                            (row.location === "keyring" ||
-                              row.location === "both")
-                          }
-                        >
-                          <button
-                            type="button"
-                            class="ghost mini"
-                            title="Move from system keyring back to plain config"
-                            onClick={() => void unlock(row.name)}
-                          >
-                            Unlock
-                          </button>
-                        </Show>
-                        <Show when={row.location !== "unset"}>
-                          <button
-                            type="button"
-                            class="ghost mini danger"
-                            onClick={() => void remove(row.name)}
-                          >
-                            Clear
-                          </button>
-                        </Show>
-                      </>
-                    }
-                  >
-                    <input
-                      type="password"
-                      class="settings-keys-input"
-                      placeholder="paste key…"
-                      value={draft()}
-                      autofocus
-                      onInput={(e) => setDraft(e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void save(row.name);
-                        } else if (e.key === "Escape") {
-                          setEditing(null);
-                          setDraft("");
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      class="ghost mini"
-                      onClick={() => void save(row.name)}
-                    >
-                      Save
-                    </button>
+                <td class="settings-keys-actions-cell">
+                  <div class="settings-keys-actions">
                     <button
                       type="button"
                       class="ghost mini"
                       onClick={() => {
-                        setEditing(null);
+                        setEditing(row);
                         setDraft("");
+                        setFeedback(null);
+                        setError(null);
                       }}
                     >
-                      Cancel
+                      {row.location === "unset" ? "Set" : "Replace"}
                     </button>
-                  </Show>
+                    <Show
+                      when={
+                        backend()?.available &&
+                        (row.location === "plain" || row.location === "both")
+                      }
+                    >
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        title="Move from plain config to system keyring"
+                        onClick={() => {
+                          setFeedback(null);
+                          setError(null);
+                          setPendingLock(row);
+                        }}
+                      >
+                        Lock
+                      </button>
+                    </Show>
+                    <Show
+                      when={
+                        backend()?.available &&
+                        (row.location === "keyring" ||
+                          row.location === "both")
+                      }
+                    >
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        title="Move from system keyring back to plain config"
+                        onClick={() => {
+                          setFeedback(null);
+                          setError(null);
+                          setPendingUnlock(row);
+                        }}
+                      >
+                        Unlock
+                      </button>
+                    </Show>
+                    <Show when={row.location !== "unset"}>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => {
+                          setFeedback(null);
+                          setError(null);
+                          setPendingClear(row);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </Show>
+                  </div>
                 </td>
               </tr>
             )}
           </For>
         </tbody>
       </table>
+      <Show when={editing()}>
+        {(row) => (
+          <KeyEditModal
+            row={row()}
+            draft={draft()}
+            onDraft={setDraft}
+            onCancel={() => {
+              setEditing(null);
+              setDraft("");
+            }}
+            onSubmit={() => void save(row().name)}
+          />
+        )}
+      </Show>
+      <Show when={pendingClear()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Clear API key"
+            detail={`${row().label || row().name} (${row().name})`}
+            note="The stored value will be removed from both the keyring and plain config. You can set a new key afterwards."
+            onCancel={() => setPendingClear(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingClear(null);
+              void remove(target.name);
+            }}
+          />
+        )}
+      </Show>
+      <Show when={pendingLock()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Lock API key"
+            detail={`${row().label || row().name} (${row().name})`}
+            note="The value will be moved from plain ~/.aictl/config into the system keyring."
+            confirmLabel="Lock"
+            confirmVariant="allow"
+            onCancel={() => setPendingLock(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingLock(null);
+              void lock(target.name);
+            }}
+          />
+        )}
+      </Show>
+      <Show when={pendingUnlock()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Unlock API key"
+            detail={`${row().label || row().name} (${row().name})`}
+            note="The value will be moved from the system keyring back into plain ~/.aictl/config."
+            confirmLabel="Unlock"
+            confirmVariant="deny"
+            onCancel={() => setPendingUnlock(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingUnlock(null);
+              void unlock(target.name);
+            }}
+          />
+        )}
+      </Show>
+      <Show when={pendingLockAll()}>
+        <ConfirmDelete
+          title="Lock all API keys"
+          detail={`${
+            (rows() ?? []).filter(
+              (r) => r.location === "plain" || r.location === "both",
+            ).length
+          } key(s) in plain config`}
+          note="Every plain-config key will be moved into the system keyring."
+          confirmLabel="Lock All"
+          confirmVariant="allow"
+          onCancel={() => setPendingLockAll(false)}
+          onConfirm={() => {
+            setPendingLockAll(false);
+            void lockAll();
+          }}
+        />
+      </Show>
+      <Show when={pendingUnlockAll()}>
+        <ConfirmDelete
+          title="Unlock all API keys"
+          detail={`${
+            (rows() ?? []).filter(
+              (r) => r.location === "keyring" || r.location === "both",
+            ).length
+          } key(s) in keyring`}
+          note="Every keyring-stored key will be moved back into plain ~/.aictl/config."
+          confirmLabel="Unlock All"
+          confirmVariant="deny"
+          onCancel={() => setPendingUnlockAll(false)}
+          onConfirm={() => {
+            setPendingUnlockAll(false);
+            void unlockAll();
+          }}
+        />
+      </Show>
+    </div>
+  );
+};
+
+interface KeyEditModalProps {
+  row: KeyRow;
+  draft: string;
+  onDraft: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}
+
+const KeyEditModal: Component<KeyEditModalProps> = (props) => {
+  let inputRef: HTMLInputElement | undefined;
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (props.draft.trim() !== "") props.onSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      props.onCancel();
+    }
+  };
+
+  onMount(() => {
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+    queueMicrotask(() => inputRef?.focus());
+  });
+
+  const title = () =>
+    props.row.location === "unset" ? "Set API key" : "Replace API key";
+
+  return (
+    <div class="tool-modal" role="dialog" aria-modal="true">
+      <div class="panel">
+        <h2>{title()}</h2>
+        <div class="create-prompt-target">
+          for <code>{props.row.label || props.row.name}</code>
+        </div>
+        <input
+          ref={inputRef}
+          type="password"
+          class="create-prompt-input"
+          placeholder="paste key…"
+          value={props.draft}
+          onInput={(e) => props.onDraft(e.currentTarget.value)}
+        />
+        <div class="actions">
+          <button type="button" data-variant="deny" onClick={props.onCancel}>
+            Cancel Esc
+          </button>
+          <button
+            type="button"
+            data-variant="allow"
+            disabled={props.draft.trim() === ""}
+            onClick={props.onSubmit}
+          >
+            Save ↩
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -4564,7 +4711,7 @@ const AppearanceTab: Component = () => {
 
   const theme = (): string => get("AICTL_DESKTOP_THEME") || "dark";
   const density = (): string => get("AICTL_DESKTOP_DENSITY") || "comfortable";
-  const layout = (): string => get("AICTL_DESKTOP_LAYOUT") || "panes";
+  const layout = (): string => get("AICTL_DESKTOP_LAYOUT") || "tabs";
   const notifications = (): boolean => {
     const v = get("AICTL_DESKTOP_NOTIFICATIONS");
     return v !== "false" && v !== "0";
@@ -4672,7 +4819,7 @@ interface AppearanceState {
 export function applyAppearance(s: AppearanceState) {
   const theme = (s.theme || "dark").toLowerCase();
   const density = (s.density || "comfortable").toLowerCase();
-  const layout = (s.layout || "panes").toLowerCase();
+  const layout = (s.layout || "tabs").toLowerCase();
   const root = document.documentElement;
   if (theme === "system") {
     root.removeAttribute("data-theme");
