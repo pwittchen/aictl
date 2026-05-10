@@ -4231,6 +4231,7 @@ const REDACTION_DETECTORS = [
   { slug: "iban", label: "IBAN" },
   { slug: "email", label: "Emails" },
   { slug: "phone", label: "Phone numbers" },
+  { slug: "url_secret", label: "URL query-parameter secrets" },
   { slug: "high_entropy", label: "High-entropy strings" },
   { slug: "person_name", label: "Person names (NER)" },
   { slug: "location", label: "Locations (NER)" },

@@ -82,7 +82,7 @@ fn local_providers_label(pol: &RedactionPolicy) -> (String, Color) {
 fn detectors_label(pol: &RedactionPolicy) -> (String, Color) {
     if pol.enabled_detectors.is_empty() {
         (
-            "all (api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy)"
+            "all (api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, url_secret, high_entropy)"
                 .to_string(),
             Color::Green,
         )

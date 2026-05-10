@@ -711,7 +711,7 @@ docker logs aictl-server</code>
         </p>
 
         <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
-          <code id="srv-cmd-config-redaction"><span class="tok-k">AICTL_SERVER_REDACTION_DETECTORS</span><span class="tok-p">=</span>                        <span class="tok-c"># empty = all; subset of api_key,aws,jwt,private_key,connection_string,credit_card,iban,email,phone,high_entropy</span>
+          <code id="srv-cmd-config-redaction"><span class="tok-k">AICTL_SERVER_REDACTION_DETECTORS</span><span class="tok-p">=</span>                        <span class="tok-c"># empty = all; subset of api_key,aws,jwt,private_key,connection_string,credit_card,iban,email,phone,url_secret,high_entropy</span>
 <span class="tok-k">AICTL_SERVER_REDACTION_EXTRA_PATTERNS</span><span class="tok-p">=</span>                   <span class="tok-c"># semicolon-separated NAME=REGEX pairs → [REDACTED:NAME]</span>
 <span class="tok-k">AICTL_SERVER_REDACTION_ALLOW</span><span class="tok-p">=</span>                            <span class="tok-c"># semicolon-separated allowlist regexes; matches survive Layer-A/B</span>
 <span class="tok-k">AICTL_SERVER_REDACTION_NER</span><span class="tok-p">=</span><span class="tok-n">false</span>                       <span class="tok-c"># enable Layer-C NER (requires `redaction-ner` feature + pulled model)</span>

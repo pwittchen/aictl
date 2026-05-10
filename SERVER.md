@@ -167,7 +167,7 @@ Tool-dispatch knobs (CWD jail, shell allow/block lists, blocked env vars, disabl
 | `AICTL_SERVER_SECURITY_AUDIT_LOG` | `AICTL_SECURITY_AUDIT_LOG` | `true` | Append `gateway:<provider>` entries to `~/.aictl/audit/<request-id>`. |
 | `AICTL_SERVER_SECURITY_REDACTION` | `AICTL_SECURITY_REDACTION` | `off` | `off` / `redact` / `block`. `redact` rewrites detected secrets in-place; `block` returns 400 `redaction_blocked`. |
 | `AICTL_SERVER_SECURITY_REDACTION_LOCAL` | `AICTL_SECURITY_REDACTION_LOCAL` | `false` | When `false`, local-provider dispatches (Ollama / GGUF / MLX from the server's host) skip the redaction pass. Set `true` to enforce redaction even on in-host traffic. |
-| `AICTL_SERVER_REDACTION_DETECTORS` | `AICTL_REDACTION_DETECTORS` | _(empty = all)_ | Comma-separated subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`. |
+| `AICTL_SERVER_REDACTION_DETECTORS` | `AICTL_REDACTION_DETECTORS` | _(empty = all)_ | Comma-separated subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, url_secret, high_entropy`. |
 | `AICTL_SERVER_REDACTION_EXTRA_PATTERNS` | `AICTL_REDACTION_EXTRA_PATTERNS` | _(empty)_ | Semicolon-separated `NAME=REGEX` pairs → rewritten as `[REDACTED:NAME]`. |
 | `AICTL_SERVER_REDACTION_ALLOW` | `AICTL_REDACTION_ALLOW` | _(empty)_ | Semicolon-separated allowlist regexes — matches survive Layer-A/B redaction. |
 | `AICTL_SERVER_REDACTION_NER` | `AICTL_REDACTION_NER` | `false` | Enable Layer-C NER. Requires the `redaction-ner` cargo feature plus a pulled model. |

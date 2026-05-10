@@ -1156,7 +1156,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
             <ul>
               <li><code>AICTL_SECURITY_REDACTION</code> — outbound redaction mode: <code>off</code> (default), <code>redact</code>, or <code>block</code></li>
               <li><code>AICTL_SECURITY_REDACTION_LOCAL</code> — also redact when sending to Ollama / GGUF / MLX (default <code>false</code> — local traffic never leaves the machine)</li>
-              <li><code>AICTL_REDACTION_DETECTORS</code> — comma-separated subset of built-ins (empty = all): <code>api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy</code></li>
+              <li><code>AICTL_REDACTION_DETECTORS</code> — comma-separated subset of built-ins (empty = all): <code>api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, url_secret, high_entropy</code></li>
               <li><code>AICTL_REDACTION_EXTRA_PATTERNS</code> — semicolon-separated <code>NAME=REGEX</code> pairs; each match becomes <code>[REDACTED:NAME]</code>. Example: <code>CUSTOMER_ID=CUST-\d{8};TICKET=JIRA-\d{4,}</code></li>
               <li><code>AICTL_REDACTION_ALLOW</code> — semicolon-separated regexes whose matches suppress any overlapping detection (e.g. documentation examples or known-good hashes)</li>
               <li><code>AICTL_REDACTION_NER</code> — enable optional Layer-C NER (person / location / organization). Requires the <code>redaction-ner</code> cargo feature and a pulled model (default <code>false</code>)</li>

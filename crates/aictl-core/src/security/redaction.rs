@@ -108,6 +108,10 @@ pub enum DetectorKind {
     Email,
     /// Phone number, gated on context keywords (`phone`, `tel`, `mobile`, `cell`).
     Phone,
+    /// Value of a credential-shaped URL query parameter — `?token=…`,
+    /// `&api_key=…`, `?password=…`, etc. The match range covers only
+    /// the value, so the parameter name stays visible after substitution.
+    UrlSecret,
     /// Layer B — opaque high-entropy token.
     HighEntropy,
     /// Layer C — person name detected by the optional NER backend.
@@ -144,6 +148,7 @@ impl DetectorKind {
             Self::Iban => "IBAN".to_string(),
             Self::Email => "EMAIL".to_string(),
             Self::Phone => "PHONE".to_string(),
+            Self::UrlSecret => "URL_SECRET".to_string(),
             Self::HighEntropy => "HIGH_ENTROPY".to_string(),
             Self::PersonName => "PERSON".to_string(),
             Self::Location => "LOCATION".to_string(),
@@ -166,6 +171,7 @@ impl DetectorKind {
             Self::Iban => "iban",
             Self::Email => "email",
             Self::Phone => "phone",
+            Self::UrlSecret => "url_secret",
             Self::HighEntropy => "high_entropy",
             Self::PersonName => "person_name",
             Self::Location => "location",
@@ -183,7 +189,7 @@ impl DetectorKind {
             Self::PrivateKey => 9,
             Self::Jwt | Self::ConnectionString => 8,
             Self::ApiKey | Self::AwsAccessKey => 7,
-            Self::Iban | Self::CreditCard => 6,
+            Self::Iban | Self::CreditCard | Self::UrlSecret => 6,
             Self::Email => 5,
             Self::Phone => 4,
             // NER hits sit above HighEntropy (model output is more
@@ -620,6 +626,7 @@ fn find_matches(text: &str, pol: &RedactionPolicy) -> Vec<Match> {
         &mut raw,
     );
     run_phone_detector(text, pol, &mut raw);
+    run_url_secret_detector(text, pol, &mut raw);
 
     // Layer B entropy scanner.
     if pol.is_detector_enabled(&DetectorKind::HighEntropy) {
@@ -820,6 +827,27 @@ fn run_phone_detector(text: &str, pol: &RedactionPolicy, out: &mut Vec<Match>) {
 }
 
 const PHONE_CONTEXT_WORDS: &[&str] = &["phone", "tel", "mobile", "cell", "fax"];
+
+/// URL query-parameter credential detector. Catches the value of any
+/// query parameter whose name reads as a credential — `?token=…`,
+/// `&api_key=…`, `?password=…`, `&client_secret=…`, etc. The match
+/// range covers capture group 1 (the value only), so the parameter
+/// name stays visible after substitution: `?token=[REDACTED:URL_SECRET]`.
+/// Without this layer, short opaque values like `abc123secret` slip past
+/// the API-key prefix list and the 32-char entropy floor.
+fn run_url_secret_detector(text: &str, pol: &RedactionPolicy, out: &mut Vec<Match>) {
+    if !pol.is_detector_enabled(&DetectorKind::UrlSecret) {
+        return;
+    }
+    for caps in url_secret_regex().captures_iter(text) {
+        let Some(value) = caps.get(1) else { continue };
+        out.push(Match {
+            kind: DetectorKind::UrlSecret,
+            range: value.start()..value.end(),
+            confidence: "high",
+        });
+    }
+}
 
 fn has_phone_context(lower_text: &str, span_start: usize) -> bool {
     let window_start = span_start.saturating_sub(30);
@@ -1056,6 +1084,20 @@ fn email_regex() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}\b")
             .expect("email regex compiles")
+    })
+}
+
+fn url_secret_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Anchored on the `?`/`&` query-string delimiter so a literal
+        // `password=` in prose doesn't trip; the parameter name list
+        // covers the common credential aliases. Capture group 1 holds
+        // the value (everything up to the next `&`, whitespace, `#`
+        // fragment marker, or surrounding quote/angle bracket so URLs
+        // embedded in source/JSON don't swallow the closing delimiter).
+        let pattern = r#"(?i)[?&](?:token|apikey|api[_-]key|api[_-]secret|access[_-]?token|refresh[_-]?token|id[_-]?token|bearer[_-]?token|auth[_-]?token|auth|password|passwd|pwd|client[_-]?secret|client[_-]?key|app[_-]?secret|app[_-]?key|secret|private[_-]?key|x[_-]api[_-]key|x[_-]auth[_-]token|signature|sig)=([^&\s#"'<>]+)"#;
+        Regex::new(pattern).expect("url_secret regex compiles")
     })
 }
 
@@ -1378,6 +1420,100 @@ mod tests {
             panic!("expected Redacted");
         };
         assert!(matches.iter().any(|m| m.kind == DetectorKind::Phone));
+    }
+
+    // --- URL query-parameter secrets ---
+
+    #[test]
+    fn detects_url_query_token() {
+        // The reported case: a short opaque value behind `?token=` is too
+        // short for the entropy floor and matches no vendor prefix, so it
+        // used to slip past redaction entirely.
+        let input = "GET https://api.example.com/v1/users?token=abc123secret here";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("token=[REDACTED:URL_SECRET]"));
+        assert!(!text.contains("abc123secret"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::UrlSecret));
+    }
+
+    #[test]
+    fn detects_url_query_api_key_dashed() {
+        let input = "https://example.com/?api-key=foo123";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("api-key=[REDACTED:URL_SECRET]"));
+        assert!(!text.contains("foo123"));
+    }
+
+    #[test]
+    fn detects_url_query_password() {
+        let input = "https://example.com/login?user=alice&password=hunter2&page=1";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("password=[REDACTED:URL_SECRET]"));
+        assert!(text.contains("user=alice"));
+        assert!(text.contains("page=1"));
+        assert!(!text.contains("hunter2"));
+    }
+
+    #[test]
+    fn detects_multiple_url_credentials() {
+        let input = "https://api.example.com/?token=abc123&client_secret=xyz789";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert_eq!(
+            matches
+                .iter()
+                .filter(|m| m.kind == DetectorKind::UrlSecret)
+                .count(),
+            2
+        );
+        assert!(!text.contains("abc123"));
+        assert!(!text.contains("xyz789"));
+    }
+
+    #[test]
+    fn url_innocuous_params_are_clean() {
+        let r = redact(
+            "https://example.com/?page=2&id=42&size=10&sort=desc",
+            &pol_redact(),
+        );
+        assert!(matches!(r, RedactionResult::Clean));
+    }
+
+    #[test]
+    fn url_query_value_with_known_apikey_prefers_apikey() {
+        // ApiKey priority (7) > UrlSecret (6) — when the value itself
+        // is a known vendor prefix the more specific kind wins.
+        let input = "https://example.com/?api_key=AIzaSyB1234567890abcdefghijklmnopqrstuvw";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { matches, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::ApiKey));
+        assert!(matches.iter().all(|m| m.kind != DetectorKind::UrlSecret));
+    }
+
+    #[test]
+    fn url_secret_value_in_quoted_url_stops_at_quote() {
+        // URL embedded in a JSON/source-code string should not eat the
+        // closing quote into the redacted span.
+        let input = r#"{"url":"https://api.example.com/?token=abc123"}"#;
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("token=[REDACTED:URL_SECRET]"));
+        assert!(text.ends_with(r#""}"#));
     }
 
     // --- Entropy ---
