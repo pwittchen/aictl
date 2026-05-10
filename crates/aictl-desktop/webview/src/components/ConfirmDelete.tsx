@@ -26,19 +26,26 @@ interface Props {
 /// tool-approval prompt and the create-file prompt — same dim backdrop,
 /// same bordered panel, same uppercase-mono header.
 const ConfirmDelete: Component<Props> = (props) => {
+  // Capture-phase + stopImmediatePropagation so outer dialogs that
+  // also listen for Esc on `window` (e.g. the Settings overlay's own
+  // Esc-to-close handler) don't fire when the user is dismissing this
+  // modal. Without this, hitting Esc on a nested ConfirmDelete would
+  // close both the modal and the parent overlay in one shot.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onConfirm();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onCancel();
     }
   };
 
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   return (

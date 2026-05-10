@@ -42,6 +42,9 @@ pub struct NerStatus {
     /// `true` when the configured model has both files on disk and is
     /// ready to drive redaction. Drives the enable-NER toggle gate.
     pub configured_model_present: bool,
+    /// On-disk size of the configured model in bytes. `0` when the
+    /// model isn't downloaded yet.
+    pub configured_model_size: u64,
     /// Every model directory under `dir` that contains a usable pair
     /// of files. Empty until the first pull completes.
     pub models: Vec<String>,
@@ -51,12 +54,18 @@ pub struct NerStatus {
 pub fn ner_status() -> NerStatus {
     let configured = ner::configured_model_name();
     let present = ner::model_files(&configured).is_some();
+    let size = if present {
+        ner::model_size(&configured)
+    } else {
+        0
+    };
     NerStatus {
         inference_available: ner::is_available(),
         dir: ner::models_dir().display().to_string(),
         configured_model: configured,
         default_spec: ner::DEFAULT_NER_MODEL.to_string(),
         configured_model_present: present,
+        configured_model_size: size,
         models: ner::list_models(),
     }
 }

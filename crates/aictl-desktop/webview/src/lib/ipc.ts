@@ -345,6 +345,9 @@ export interface NerStatus {
   default_spec: string;
   /// `true` when the configured model has both files on disk.
   configured_model_present: boolean;
+  /// On-disk size of the configured model in bytes. `0` until the
+  /// model is downloaded.
+  configured_model_size: number;
   /// Every model directory under `dir` that contains a usable pair
   /// of `tokenizer.json` + `onnx/model.onnx`.
   models: string[];

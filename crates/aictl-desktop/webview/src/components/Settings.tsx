@@ -4407,6 +4407,22 @@ const RedactionTab: Component = () => {
     total: number | null;
     message: string | null;
   } | null>(null);
+  // `window.confirm` is unreliable inside the Tauri webview, so both
+  // prompts go through the in-app ConfirmDelete modal. The checkbox
+  // path stashes its DOM input ref so cancel can snap `.checked` back
+  // to false — Solid's one-way `checked={...}` binding doesn't re-apply
+  // when the underlying signal hasn't changed.
+  const [pendingNerDownload, setPendingNerDownload] = createSignal<{
+    source: "button" | "checkbox";
+    checkbox: HTMLInputElement | null;
+  } | null>(null);
+  const [pendingNerRemove, setPendingNerRemove] = createSignal(false);
+  // Set to true when the user opted into NER via the checkbox edge
+  // (which triggered a download). Read on the final `progress_end`
+  // event so we flip `AICTL_REDACTION_NER=true` only once the model
+  // actually lands on disk — enabling earlier would mean the redaction
+  // policy logs a one-shot warning and silently skips Layer C.
+  const [enableNerAfterPull, setEnableNerAfterPull] = createSignal(false);
 
   // Listen for progress_* events so the NER pull renders an inline bar.
   // The pull happens on a background thread and its id is minted
@@ -4453,6 +4469,14 @@ const RedactionTab: Component = () => {
             }
             void refetchNer();
             setFeedback(`downloaded NER model`);
+            // If the user opted into NER via the checkbox edge, flip
+            // the config flag on now that the model is actually on
+            // disk. The deferred enable is the whole point of gating
+            // the checkbox in the first place.
+            if (enableNerAfterPull()) {
+              setEnableNerAfterPull(false);
+              void setConfig("AICTL_REDACTION_NER", "true");
+            }
             return null;
           });
         }
@@ -4468,6 +4492,30 @@ const RedactionTab: Component = () => {
   const get = (key: string): string => {
     const entry = (config() ?? []).find((e) => e.key === key);
     return entry?.value ?? "";
+  };
+
+  // Shared between the explicit Download button and the enable-NER
+  // checkbox so both paths kick off the same background pull and seed
+  // the progress bar with a placeholder until the first
+  // `progress_begin` event arrives.
+  const startNerPull = (spec: string) => {
+    setError(null);
+    setFeedback(null);
+    setNerDownload({
+      id: null,
+      label: spec,
+      current: 0,
+      total: null,
+      message: null,
+    });
+    void ipc.nerPull(spec).catch((err) => {
+      setNerDownload(null);
+      // The deferred enable only makes sense if the download actually
+      // happens — clear it on IPC failure so a later, unrelated pull
+      // doesn't inherit the stale intent.
+      setEnableNerAfterPull(false);
+      setError(`${err}`);
+    });
   };
 
   const setConfig = async (key: string, value: string) => {
@@ -4643,18 +4691,16 @@ const RedactionTab: Component = () => {
             <div class="settings-row settings-row-stack">
               <label>Model</label>
               <div class="settings-control-line">
-                <code>{s().configured_model}</code>{" "}
+                <code>{s().configured_model}</code>
+              </div>
+              <p class="settings-meta">
                 <Show
                   when={s().configured_model_present}
-                  fallback={
-                    <span class="settings-meta">
-                      · <strong>not downloaded</strong>
-                    </span>
-                  }
+                  fallback={<strong>Not downloaded</strong>}
                 >
-                  <span class="settings-meta">· downloaded</span>
+                  Downloaded · {fmtBytes(s().configured_model_size)}
                 </Show>
-              </div>
+              </p>
               <p class="settings-hint">
                 Default model: <code>{s().default_spec}</code>. Override
                 via <code>AICTL_REDACTION_NER_MODEL</code> in the General
@@ -4692,102 +4738,149 @@ const RedactionTab: Component = () => {
               class="settings-keys-bulk"
               style={{ "margin-bottom": "var(--space-3)" }}
             >
-              <button
-                type="button"
-                disabled={nerDownload() !== null}
-                onClick={async () => {
-                  setError(null);
-                  setFeedback(null);
-                  try {
-                    setNerDownload({
-                      id: null,
-                      label: s().default_spec,
-                      current: 0,
-                      total: null,
-                      message: null,
-                    });
-                    await ipc.nerPull(s().default_spec);
-                  } catch (err) {
-                    setNerDownload(null);
-                    setError(`${err}`);
+              <Show when={!s().configured_model_present}>
+                <button
+                  type="button"
+                  disabled={nerDownload() !== null}
+                  onClick={() =>
+                    setPendingNerDownload({
+                      source: "button",
+                      checkbox: null,
+                    })
                   }
-                }}
-              >
-                <Show
-                  when={s().configured_model_present}
-                  fallback={<>Download NER model</>}
                 >
-                  Re-download NER model
-                </Show>
-              </button>
+                  Download NER model
+                </button>
+              </Show>
               <Show when={s().configured_model_present}>
                 <button
                   type="button"
-                  class="ghost"
-                  onClick={async () => {
-                    if (
-                      !window.confirm(
-                        `Remove NER model "${s().configured_model}"?`,
-                      )
-                    )
-                      return;
-                    setError(null);
-                    setFeedback(null);
-                    try {
-                      await ipc.nerRemove(s().configured_model);
-                      // If NER was on, turn it off — the redaction
-                      // policy will warn at the next turn otherwise.
-                      if (isOn("AICTL_REDACTION_NER")) {
-                        await setConfig("AICTL_REDACTION_NER", "");
-                      }
-                      await refetchNer();
-                      setFeedback(`removed ${s().configured_model}`);
-                    } catch (err) {
-                      setError(`${err}`);
-                    }
-                  }}
+                  class="danger"
+                  onClick={() => setPendingNerRemove(true)}
                 >
                   Remove model
                 </button>
               </Show>
             </div>
 
-            <BoolRow
-              label="Enable NER (people, locations, organizations)"
-              help={
-                s().configured_model_present
-                  ? "Layer C of redaction. Adds ~1 s of latency on the first turn while the model loads."
-                  : "Download the NER model first — enabling without it logs a one-shot warning and skips Layer C."
-              }
-              on={isOn("AICTL_REDACTION_NER")}
-              onChange={(v) => {
-                if (v && !s().configured_model_present) {
-                  const ok = window.confirm(
-                    "The NER model is not on disk yet. Download it now?",
-                  );
-                  if (ok) {
-                    setNerDownload({
-                      id: null,
-                      label: s().default_spec,
-                      current: 0,
-                      total: null,
-                      message: null,
-                    });
-                    void ipc.nerPull(s().default_spec).catch((err) => {
-                      setNerDownload(null);
-                      setError(`${err}`);
-                    });
+            {/* Inline checkbox rather than BoolRow so the cancel path
+                can reset the DOM `.checked` property directly. Solid's
+                one-way `checked={...}` binding only re-applies when the
+                underlying signal changes, so declining the download
+                without this would leave the box visually checked even
+                though the config flag was never written. */}
+            <div class="settings-row settings-row-stack">
+              <div class="settings-bool-line">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={isOn("AICTL_REDACTION_NER")}
+                    onChange={(e) => {
+                      const target = e.currentTarget;
+                      const v = target.checked;
+                      // Only gate the on→true edge when the model isn't
+                      // present yet; turning NER off, or flipping it on
+                      // when the model is already downloaded, falls
+                      // straight through to the config write.
+                      if (v && !s().configured_model_present) {
+                        setPendingNerDownload({
+                          source: "checkbox",
+                          checkbox: target,
+                        });
+                        return;
+                      }
+                      void setConfig("AICTL_REDACTION_NER", v ? "true" : "");
+                    }}
+                  />
+                  <span>Enable NER (people, locations, organizations)</span>
+                </label>
+              </div>
+              <p class="settings-hint">
+                <Show
+                  when={s().configured_model_present}
+                  fallback={
+                    <>
+                      Download the NER model first — enabling without it
+                      has no effect at runtime.
+                    </>
                   }
-                  // Don't flip the flag until the model is present —
-                  // the policy load would otherwise warn at the next
-                  // turn and silently skip Layer C.
-                  return;
-                }
-                void setConfig("AICTL_REDACTION_NER", v ? "true" : "");
-              }}
-            />
+                >
+                  Layer C of redaction. Adds ~1 s of latency on the first
+                  turn while the model loads.
+                </Show>
+              </p>
+            </div>
           </>
         )}
+      </Show>
+
+      {/* Both prompts route through the in-app ConfirmDelete modal —
+          window.confirm() is unreliable inside the Tauri webview. The
+          download prompt covers both entry points (button click and
+          enable-NER checkbox edge); the checkbox source stashes its
+          DOM ref so cancel can snap `.checked` back to false. */}
+      <Show when={pendingNerDownload() && ner()}>
+        <ConfirmDelete
+          title="Download NER model"
+          detail={ner()!.default_spec}
+          note="Pulls tokenizer.json and the ONNX weights from Hugging Face (~200 MB on disk for the default model). Required before the redaction NER pass can run."
+          confirmLabel="Download"
+          confirmVariant="allow"
+          onCancel={() => {
+            const p = pendingNerDownload();
+            // Reset the checkbox DOM when the user backs out of the
+            // checkbox-triggered prompt — otherwise the click leaves
+            // it visually checked even though no config was written.
+            if (p?.source === "checkbox" && p.checkbox) {
+              p.checkbox.checked = false;
+            }
+            setEnableNerAfterPull(false);
+            setPendingNerDownload(null);
+          }}
+          onConfirm={() => {
+            const p = pendingNerDownload();
+            setPendingNerDownload(null);
+            // The flag stays off until the model actually lands on
+            // disk. Snap the checkbox DOM back to false so the visual
+            // state matches the un-written config; the final
+            // progress_end handler will flip the flag on (and the
+            // resource refetch re-checks the box) once the pull
+            // completes.
+            if (p?.source === "checkbox" && p.checkbox) {
+              p.checkbox.checked = false;
+            }
+            // Remember the user's intent only for the checkbox path;
+            // the bare Download button must not silently turn NER on.
+            setEnableNerAfterPull(p?.source === "checkbox");
+            startNerPull(ner()!.default_spec);
+          }}
+        />
+      </Show>
+      <Show when={pendingNerRemove() && ner()}>
+        <ConfirmDelete
+          title="Remove NER model"
+          detail={ner()!.configured_model}
+          note="The model directory will be deleted from disk. Enabling NER again will require re-downloading the model."
+          onCancel={() => setPendingNerRemove(false)}
+          onConfirm={() => {
+            setPendingNerRemove(false);
+            setError(null);
+            setFeedback(null);
+            const name = ner()!.configured_model;
+            void (async () => {
+              try {
+                await ipc.nerRemove(name);
+                if (isOn("AICTL_REDACTION_NER")) {
+                  await setConfig("AICTL_REDACTION_NER", "");
+                }
+                await refetchNer();
+                setFeedback(`removed ${name}`);
+              } catch (err) {
+                setError(`${err}`);
+              }
+            })();
+          }}
+        />
       </Show>
     </div>
   );

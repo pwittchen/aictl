@@ -89,6 +89,36 @@ pub fn model_dir(name: &str) -> Option<PathBuf> {
     if dir.is_dir() { Some(dir) } else { None }
 }
 
+/// Total on-disk size (in bytes) of a pulled NER model. Sums every
+/// file under `~/.aictl/models/ner/<name>/` recursively. Returns 0 when
+/// the directory is missing or unreadable. Mirrors `gguf::model_size`
+/// so frontends can render a per-model size next to the name.
+#[must_use]
+pub fn model_size(name: &str) -> u64 {
+    let Some(dir) = model_dir(name) else {
+        return 0;
+    };
+    walk_size(&dir)
+}
+
+fn walk_size(dir: &std::path::Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut total = 0u64;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if let Ok(meta) = entry.metadata() {
+            if meta.is_file() {
+                total = total.saturating_add(meta.len());
+            } else if meta.is_dir() {
+                total = total.saturating_add(walk_size(&p));
+            }
+        }
+    }
+    total
+}
+
 /// Paths to the two files gline-rs expects, or `None` if either is
 /// missing on disk. Used by `run_ner_detector` to fail closed.
 #[must_use]

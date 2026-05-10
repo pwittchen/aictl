@@ -2754,6 +2754,16 @@
   opacity: 0.6;
 }
 
+.settings-keys-bulk button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.settings-keys-bulk button.danger:hover:not([disabled]) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
 .settings-keys-table th,
 .settings-keys-table td {
   padding: var(--space-2) var(--space-3);
