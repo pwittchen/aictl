@@ -25,6 +25,7 @@ mod csv_query;
 mod datetime;
 mod diff;
 mod document;
+mod draw_chart;
 mod filesystem;
 mod geo;
 mod git;
@@ -137,7 +138,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 34;
+pub const TOOL_COUNT: usize = 35;
 
 /// `(name, one-line description)` for every built-in tool. Both the CLI's
 /// `/tools` printer and the desktop Settings panel render from this single
@@ -178,6 +179,10 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     (
         "view_map",
         "display a map (OpenStreetMap) — desktop app only",
+    ),
+    (
+        "draw_chart",
+        "render a chart (Chart.js) — desktop app only",
     ),
     ("read_image", "read an image from file or URL for analysis"),
     (
@@ -410,6 +415,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "notify" => notify::tool_notify(input).await,
         "save_memory" => memory::tool_save_memory(input),
         "view_map" => view_map::tool_view_map(input).await,
+        "draw_chart" => draw_chart::tool_draw_chart(input),
         other if other.starts_with("mcp__") => crate::mcp::call_tool(other, input).await,
         other => {
             if let Some(plugin) = crate::plugins::find(other) {

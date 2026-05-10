@@ -12,6 +12,19 @@ import {
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import {
+  Chart,
+  registerables,
+  type ChartConfiguration,
+  type ChartType,
+} from "chart.js";
+
+// Register every controller / scale / element / plugin once at module
+// load. Chart.js ships these separately to keep tree-shaking honest,
+// but we use all five supported chart types (line, bar, pie, doughnut,
+// scatter) plus the standard plugins (tooltip, legend, title), so
+// pulling `registerables` in one go is simpler than enumerating each.
+Chart.register(...registerables);
 
 import type { Message } from "../App";
 import { ipc } from "../lib/ipc";
@@ -146,6 +159,143 @@ function renderPopup(pin: ViewMapPin): string {
     ? `<div class="aictl-map-popup-desc">${escapeHtml(pin.description)}</div>`
     : "";
   return `${head}${body}${coords}`;
+}
+
+// `draw_chart` (see `crates/aictl-core/src/tools/draw_chart.rs`) emits
+// a `[draw_chart] {json}` marker that this component parses to render
+// a Chart.js canvas. Same dispatch convention as `view_map`: the Rust
+// side only emits the marker when running under `Role::Desktop` so
+// transcripts captured in non-desktop frontends never accidentally
+// trigger the renderer here.
+const DRAW_CHART_RE = /^\[draw_chart\]\s+(\{[\s\S]*?\})\s*$/m;
+
+type ChartKind = "line" | "bar" | "pie" | "doughnut" | "scatter";
+
+interface ChartSeries {
+  name: string;
+  /// For category charts (line/bar/pie/doughnut) this is `number[]`.
+  /// For scatter it is `{x, y}[]`. The Rust side normalises both
+  /// shapes so the renderer can hand them straight to Chart.js.
+  data: number[] | { x: number; y: number }[];
+}
+
+interface DrawChartData {
+  type: ChartKind;
+  title: string | null;
+  x_label: string | null;
+  y_label: string | null;
+  labels: string[];
+  series: ChartSeries[];
+}
+
+// Series colour palette chosen to be legible on both the dark and
+// light app themes (the chat wrapper background swaps via the
+// `[data-theme]` attribute, but the chart canvas does not). Order
+// matches a "primary -> warm -> cool" rotation so two-series charts
+// (the common case) get the highest-contrast pair first.
+const CHART_PALETTE = [
+  "#5ed3f3", // cyan (matches dark-theme --accent)
+  "#ef4444", // red
+  "#f4c145", // yellow
+  "#10b981", // green
+  "#a855f7", // purple
+  "#ec4899", // pink
+  "#fb923c", // orange
+  "#06b6d4", // teal
+];
+
+function isChartKind(s: unknown): s is ChartKind {
+  return (
+    s === "line" ||
+    s === "bar" ||
+    s === "pie" ||
+    s === "doughnut" ||
+    s === "scatter"
+  );
+}
+
+function extractDrawChart(result: string | undefined): DrawChartData | null {
+  if (!result) return null;
+  const match = result.match(DRAW_CHART_RE);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]) as Record<string, unknown>;
+    if (!isChartKind(parsed.type)) return null;
+    const series = Array.isArray(parsed.series) ? parsed.series : [];
+    if (series.length === 0) return null;
+
+    // The Rust side enforces shape invariants (data length matches
+    // labels for category charts, [x,y] pairs for scatter); we still
+    // re-validate the wire payload here because (a) the regex match
+    // could trip on a hand-crafted message, and (b) Chart.js
+    // exceptions in the canvas thread are hard to surface back to
+    // the chat UI.
+    const normalisedSeries: ChartSeries[] = [];
+    for (const s of series) {
+      if (!s || typeof s !== "object") return null;
+      const so = s as Record<string, unknown>;
+      const name = typeof so.name === "string" ? so.name : "";
+      if (!Array.isArray(so.data)) return null;
+      if (parsed.type === "scatter") {
+        const pts: { x: number; y: number }[] = [];
+        for (const p of so.data) {
+          if (
+            !p ||
+            typeof p !== "object" ||
+            typeof (p as Record<string, unknown>).x !== "number" ||
+            typeof (p as Record<string, unknown>).y !== "number"
+          ) {
+            return null;
+          }
+          const po = p as { x: number; y: number };
+          pts.push({ x: po.x, y: po.y });
+        }
+        normalisedSeries.push({ name, data: pts });
+      } else {
+        const nums: number[] = [];
+        for (const n of so.data) {
+          if (typeof n !== "number") return null;
+          nums.push(n);
+        }
+        normalisedSeries.push({ name, data: nums });
+      }
+    }
+
+    const labels = Array.isArray(parsed.labels)
+      ? (parsed.labels as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : [];
+
+    return {
+      type: parsed.type,
+      title: typeof parsed.title === "string" ? parsed.title : null,
+      x_label: typeof parsed.x_label === "string" ? parsed.x_label : null,
+      y_label: typeof parsed.y_label === "string" ? parsed.y_label : null,
+      labels,
+      series: normalisedSeries,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/// Read the current chart-text / chart-grid colour pair from the
+/// document's CSS variables. `--fg` and `--border` already flip with
+/// `[data-theme]` (see tokens.css and the light override in
+/// components.css), so re-resolving them on every theme change keeps
+/// the chart in sync with whatever the surrounding chat is using.
+/// Falls back to dark-mode literals if the CSS read returns empty
+/// (e.g. during a hot-reload race before stylesheets settle).
+function readChartTheme(): { text: string; grid: string; tooltipBg: string } {
+  const cs =
+    typeof window === "undefined"
+      ? null
+      : window.getComputedStyle(document.documentElement);
+  const fg = cs?.getPropertyValue("--fg").trim() || "#e6e6e6";
+  const border = cs?.getPropertyValue("--border").trim() || "rgba(255,255,255,0.1)";
+  const bg = cs?.getPropertyValue("--bg").trim() || "#0a0a0a";
+  return { text: fg, grid: border, tooltipBg: bg };
 }
 
 function extractViewMap(result: string | undefined): ViewMapData | null {
@@ -343,6 +493,9 @@ const MessageView: Component<{ msg: Message }> = (props) => {
           </Show>
           <Show when={extractViewMap(result())}>
             {(d) => <ToolMapView data={d()} />}
+          </Show>
+          <Show when={extractDrawChart(result())}>
+            {(d) => <ToolChartView data={d()} />}
           </Show>
         </div>
       );
@@ -794,6 +947,258 @@ const ToolMapView: Component<{ data: ViewMapData }> = (props) => {
     </div>
   );
 };
+
+const ToolChartView: Component<{ data: DrawChartData }> = (props) => {
+  let canvasEl: HTMLCanvasElement | undefined;
+  let chartInstance: Chart | undefined;
+
+  const footerText = () => {
+    const d = props.data;
+    const series = d.series.length;
+    if (d.type === "scatter") {
+      const points = d.series.reduce((sum, s) => sum + s.data.length, 0);
+      return `scatter · ${series} series · ${points} points`;
+    }
+    if (d.type === "pie" || d.type === "doughnut") {
+      return `${d.type} · ${d.labels.length} slices`;
+    }
+    const points = d.labels.length;
+    return `${d.type} · ${series} series · ${points} points`;
+  };
+
+  // Build the Chart.js config from the parsed tool payload. Pulled
+  // into its own helper so the mount path and the theme-change path
+  // can share the same configuration shape — theme just patches
+  // colours on top of whatever this returns.
+  const buildConfig = (theme: ReturnType<typeof readChartTheme>): ChartConfiguration => {
+    const d = props.data;
+    const isCategory =
+      d.type === "line" || d.type === "bar" || d.type === "pie" || d.type === "doughnut";
+    const isPie = d.type === "pie" || d.type === "doughnut";
+
+    const datasets = d.series.map((s, idx) => {
+      const colour = CHART_PALETTE[idx % CHART_PALETTE.length];
+      // Pie / doughnut want one colour per *slice*, not per series —
+      // the single series gets a rotating palette of point colours
+      // so each segment is distinguishable.
+      if (isPie) {
+        const sliceColours = (s.data as number[]).map(
+          (_, i) => CHART_PALETTE[i % CHART_PALETTE.length],
+        );
+        return {
+          label: s.name,
+          data: s.data as number[],
+          backgroundColor: sliceColours,
+          borderColor: theme.tooltipBg,
+          borderWidth: 1,
+        };
+      }
+      if (d.type === "line") {
+        return {
+          label: s.name,
+          data: s.data as number[],
+          borderColor: colour,
+          backgroundColor: hexWithAlpha(colour, 0.15),
+          pointBackgroundColor: colour,
+          pointBorderColor: colour,
+          tension: 0.25,
+          fill: false,
+        };
+      }
+      if (d.type === "bar") {
+        return {
+          label: s.name,
+          data: s.data as number[],
+          backgroundColor: hexWithAlpha(colour, 0.65),
+          borderColor: colour,
+          borderWidth: 1,
+        };
+      }
+      // scatter
+      return {
+        label: s.name,
+        data: s.data as { x: number; y: number }[],
+        backgroundColor: colour,
+        borderColor: colour,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        showLine: false,
+      };
+    });
+
+    const chartType: ChartType =
+      d.type === "doughnut" ? "doughnut" : (d.type as ChartType);
+
+    return {
+      type: chartType,
+      data: {
+        labels: isCategory ? d.labels : undefined,
+        datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: !!d.title,
+            text: d.title ?? "",
+            color: theme.text,
+            font: { size: 13, weight: 500 },
+            padding: { top: 4, bottom: 8 },
+          },
+          legend: {
+            // Pie/doughnut keeps the legend (one colour per slice);
+            // single-series line/bar/scatter hides it since the name
+            // is already in the title or surrounding context.
+            display: isPie || d.series.length > 1,
+            position: "bottom",
+            labels: { color: theme.text, boxWidth: 12, font: { size: 11 } },
+          },
+          tooltip: {
+            backgroundColor: theme.tooltipBg,
+            titleColor: theme.text,
+            bodyColor: theme.text,
+            borderColor: theme.grid,
+            borderWidth: 1,
+          },
+        },
+        scales: isPie
+          ? undefined
+          : {
+              x: {
+                type: d.type === "scatter" ? "linear" : "category",
+                title: {
+                  display: !!d.x_label,
+                  text: d.x_label ?? "",
+                  color: theme.text,
+                },
+                ticks: { color: theme.text, font: { size: 11 } },
+                grid: { color: theme.grid },
+                border: { color: theme.grid },
+              },
+              y: {
+                title: {
+                  display: !!d.y_label,
+                  text: d.y_label ?? "",
+                  color: theme.text,
+                },
+                ticks: { color: theme.text, font: { size: 11 } },
+                grid: { color: theme.grid },
+                border: { color: theme.grid },
+              },
+            },
+      },
+    };
+  };
+
+  // Patch the live chart's options in place when the theme changes,
+  // then call `update("none")` for an instant redraw without the
+  // animation jitter that a destroy+rebuild would cause.
+  const applyTheme = (theme: ReturnType<typeof readChartTheme>) => {
+    if (!chartInstance) return;
+    const fresh = buildConfig(theme);
+    chartInstance.options = fresh.options ?? {};
+    // Dataset colours get rewritten too — pie slice borders and bar
+    // borders use the app background colour so they "punch out" of
+    // the surrounding card, and that flips with the theme.
+    fresh.data.datasets.forEach((ds, i) => {
+      const live = chartInstance!.data.datasets[i];
+      if (!live) return;
+      Object.assign(live, ds);
+    });
+    chartInstance.update("none");
+  };
+
+  onMount(() => {
+    if (!canvasEl) return;
+    const theme = readChartTheme();
+    chartInstance = new Chart(canvasEl, buildConfig(theme));
+
+    // Re-theme whenever the user flips the app theme (Settings →
+    // Appearance writes `data-theme` on <html>) or — under
+    // `system` mode — when the OS preference changes. Both events
+    // can fire while the chart is on screen; we re-read the CSS
+    // tokens each time so a token-table edit in tokens.css also
+    // takes effect without a rebuild.
+    const mo = new MutationObserver(() => applyTheme(readChartTheme()));
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    const mq =
+      typeof window !== "undefined" && window.matchMedia
+        ? window.matchMedia("(prefers-color-scheme: dark)")
+        : null;
+    const onMqChange = () => applyTheme(readChartTheme());
+    mq?.addEventListener?.("change", onMqChange);
+
+    onCleanup(() => {
+      mo.disconnect();
+      mq?.removeEventListener?.("change", onMqChange);
+    });
+  });
+
+  onCleanup(() => {
+    chartInstance?.destroy();
+    chartInstance = undefined;
+  });
+
+  return (
+    <div
+      class="aictl-chart-wrap"
+      style={{
+        "margin-top": "8px",
+        "border-radius": "4px",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        background: "var(--bg)",
+      }}
+    >
+      <div style={{ padding: "10px 12px", height: "320px" }}>
+        <canvas ref={canvasEl} />
+      </div>
+      <div
+        style={{
+          padding: "6px 10px",
+          "font-size": "11px",
+          color: "var(--fg-soft)",
+          display: "flex",
+          "justify-content": "space-between",
+          "align-items": "center",
+          gap: "8px",
+          "border-top": "1px solid var(--border)",
+        }}
+      >
+        <span
+          style={{
+            "white-space": "nowrap",
+            overflow: "hidden",
+            "text-overflow": "ellipsis",
+            "min-width": "0",
+            flex: "1 1 auto",
+          }}
+        >
+          {footerText()}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+/// Append an opacity to a `#rrggbb` hex string. Used to tint a series
+/// colour for line-chart fills and bar fills while keeping the
+/// stroke / border at full opacity. Falls back to the input verbatim
+/// for non-hex colours so a future palette change to rgba() values
+/// still renders something.
+function hexWithAlpha(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 const LoadingDots: Component = () => (
   <span class="loading-dots" role="status" aria-label="loading">
