@@ -18,9 +18,14 @@ if (import.meta.env.PROD) {
 void Promise.all([
   ipc.configValue("AICTL_DESKTOP_THEME"),
   ipc.configValue("AICTL_DESKTOP_DENSITY"),
+  ipc.configValue("AICTL_DESKTOP_LAYOUT"),
 ])
-  .then(([theme, density]) =>
-    applyAppearance({ theme: theme ?? "", density: density ?? "" }),
+  .then(([theme, density, layout]) =>
+    applyAppearance({
+      theme: theme ?? "",
+      density: density ?? "",
+      layout: layout ?? "",
+    }),
   )
   .catch(() => {
     // Boot failures fall back to the CSS defaults — better than blocking

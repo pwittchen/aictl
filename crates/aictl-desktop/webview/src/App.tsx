@@ -128,7 +128,11 @@ const App: Component = () => {
       );
       if (next && workspace().path) {
         void growWindowTo(
-          requiredLayoutWidth(true, openFilePath() !== null, filesVisible()),
+          requiredLayoutWidth(
+            true,
+            openFilePath() !== null && layout() === "panes",
+            filesVisible(),
+          ),
         );
       }
       return next;
@@ -148,7 +152,7 @@ const App: Component = () => {
         void growWindowTo(
           requiredLayoutWidth(
             sidebarVisible(),
-            openFilePath() !== null,
+            openFilePath() !== null && layout() === "panes",
             true,
           ),
         );
@@ -174,7 +178,7 @@ const App: Component = () => {
       void ipc.configClear("AICTL_DESKTOP_OPEN_FILE").catch(() => {});
     } else {
       void ipc.configWrite("AICTL_DESKTOP_OPEN_FILE", path).catch(() => {});
-      if (!wasOpen && workspace().path) {
+      if (!wasOpen && workspace().path && layout() === "panes") {
         void growWindowTo(
           requiredLayoutWidth(sidebarVisible(), true, filesVisible()),
         );
@@ -265,7 +269,7 @@ const App: Component = () => {
     if (!workspace().path) return;
     const avail = window.innerWidth;
     let s = sidebarVisible();
-    let e = openFilePath() !== null;
+    let e = openFilePath() !== null && layout() === "panes";
     let f = filesVisible();
     if (requiredLayoutWidth(s, e, f) <= avail) return;
     if (f) {
@@ -295,6 +299,17 @@ const App: Component = () => {
   // moved" pulse anyway).
   const [fsTick, setFsTick] = createSignal(0);
   const [autoAccept, setAutoAccept] = createSignal(false);
+  // Editor placement: "panes" (default — editor lives in its own grid
+  // column next to the chat) or "tabs" (chat and editor share the main
+  // column, switched via a tab strip). Hydrated on mount and updated
+  // live whenever Settings → Appearance dispatches the change event.
+  const [layout, setLayout] = createSignal<"panes" | "tabs">("panes");
+  // Which tab is currently active when `layout === "tabs"`. Driven by
+  // file-open / file-close transitions and by manual tab clicks. Has
+  // no effect in panes mode.
+  const [activeMainTab, setActiveMainTab] = createSignal<"chat" | "file">(
+    "chat",
+  );
   const [activeSession, setActiveSession] = createSignal<ActiveSession>({
     id: null,
     name: null,
@@ -1048,6 +1063,25 @@ const App: Component = () => {
       // Default-false if the read fails.
     }
 
+    try {
+      const raw = await ipc.configValue("AICTL_DESKTOP_LAYOUT");
+      if (raw === "tabs") setLayout("tabs");
+    } catch {
+      // Default to "panes" if the read fails.
+    }
+
+    // Settings → Appearance dispatches this when the user flips the
+    // layout select; mirror it into the local signal so the main view
+    // re-renders without waiting for the panel to close.
+    const onLayoutChange = (e: Event) => {
+      const value = (e as CustomEvent<string>).detail;
+      setLayout(value === "tabs" ? "tabs" : "panes");
+    };
+    window.addEventListener("aictl:layout-changed", onLayoutChange);
+    onCleanup(() =>
+      window.removeEventListener("aictl:layout-changed", onLayoutChange),
+    );
+
     // Hydrate persisted pane widths. Bad/out-of-range values are
     // ignored so a hand-edited config can't strand the user with a
     // 5px-wide chat.
@@ -1492,9 +1526,36 @@ const App: Component = () => {
   const filesPaneHidden = createMemo(
     () => !workspace().path || !filesVisible(),
   );
+  // True when the editor isn't sitting in its own grid column —
+  // either there's no file open, no workspace, or the user chose
+  // tabs layout (in which case the editor lives inside `<main>`).
   const editorPaneHidden = createMemo(
-    () => !workspace().path || openFilePath() === null,
+    () =>
+      !workspace().path ||
+      openFilePath() === null ||
+      layout() === "tabs",
   );
+  // Whether the in-`<main>` tab strip should be visible. Only when
+  // the user picked tabs layout *and* a file is open — otherwise the
+  // chat is the only thing in main, and a one-tab strip would be noise.
+  const showMainTabs = createMemo(
+    () =>
+      layout() === "tabs" &&
+      workspace().path !== null &&
+      openFilePath() !== null,
+  );
+
+  // Whenever the open-file state flips, snap the active main tab to
+  // a sensible default. Opening a file jumps the user to it; closing
+  // a file (or workspace switch) falls back to chat. Only matters in
+  // tabs mode but harmless in panes mode.
+  createEffect(() => {
+    if (openFilePath() !== null) {
+      if (layout() === "tabs") setActiveMainTab("file");
+    } else {
+      setActiveMainTab("chat");
+    }
+  });
 
   /// Computed CSS grid columns. Hidden panes collapse to `0` so the
   /// drag handles for them disappear; the chat column (1fr) takes
@@ -1648,6 +1709,80 @@ const App: Component = () => {
             />
           }
         >
+          <Show when={showMainTabs()}>
+            <div class="main-tabs" role="tablist" aria-label="Main view">
+              <button
+                type="button"
+                role="tab"
+                class="main-tab"
+                data-active={String(activeMainTab() === "chat")}
+                aria-selected={activeMainTab() === "chat"}
+                onClick={() => setActiveMainTab("chat")}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="main-tab"
+                data-active={String(activeMainTab() === "file")}
+                aria-selected={activeMainTab() === "file"}
+                onClick={() => setActiveMainTab("file")}
+                title={openFilePath() ?? ""}
+              >
+                <span class="main-tab-label">
+                  {(() => {
+                    const p = openFilePath();
+                    if (!p) return "";
+                    const idx = p.lastIndexOf("/");
+                    return idx >= 0 ? p.slice(idx + 1) : p;
+                  })()}
+                </span>
+                <span
+                  class="main-tab-close"
+                  role="button"
+                  aria-label="Close file"
+                  title="Close file"
+                  tabindex="0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenFile(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setOpenFile(null);
+                    }
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            </div>
+          </Show>
+          <Show
+            when={
+              showMainTabs() &&
+              activeMainTab() === "file" &&
+              openFilePath() !== null
+            }
+          >
+            <EditorPane
+              path={openFilePath()!}
+              fsTick={fsTick()}
+              onClose={() => setOpenFile(null)}
+            />
+          </Show>
+          <Show
+            when={
+              !(
+                showMainTabs() &&
+                activeMainTab() === "file" &&
+                openFilePath() !== null
+              )
+            }
+          >
           <div class="chat">
             <Toolbar
               activeSession={activeSession()}
@@ -1701,9 +1836,16 @@ const App: Component = () => {
               }}
             />
           </div>
+          </Show>
         </Show>
       </main>
-      <Show when={workspace().path && openFilePath() !== null}>
+      <Show
+        when={
+          workspace().path &&
+          openFilePath() !== null &&
+          layout() === "panes"
+        }
+      >
         <EditorPane
           path={openFilePath()!}
           fsTick={fsTick()}
