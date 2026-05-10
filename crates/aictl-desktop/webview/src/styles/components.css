@@ -1419,9 +1419,11 @@
   cursor: not-allowed;
 }
 
-/* Master tools toggle: wrench icon. Flips `AICTL_TOOLS_ENABLED` and
-   cascades to the web + image subset toggles so the three composer
-   icons share a single on/off state. */
+/* Master tools toggle: wrench icon. Tri-state via `data-state`,
+   identical convention to the web globe and the image picture icons:
+       "all"     → cyan   (master on, every built-in tool enabled)
+       "partial" → yellow (master on, some — but not all — disabled)
+       "none"    → gray   (master off, or every tool disabled) */
 .composer .tools-icon {
   margin-left: var(--space-1, 4px);
   background: transparent;
@@ -1444,19 +1446,21 @@
   display: block;
 }
 
-.composer .tools-icon:hover,
-.composer .tools-icon:hover:not([disabled]) {
+.composer .tools-icon[data-state="all"],
+.composer .tools-icon[data-state="all"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .tools-icon[data-state="partial"],
+.composer .tools-icon[data-state="partial"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--warning);
+}
+
+.composer .tools-icon[data-state="none"]:hover:not([disabled]) {
   background: transparent;
   color: var(--fg-soft);
-}
-
-.composer .tools-icon[data-active="true"] {
-  color: var(--accent);
-}
-
-.composer .tools-icon[data-active="true"]:hover:not([disabled]) {
-  background: transparent;
-  color: var(--accent);
 }
 
 .composer .tools-icon[disabled] {
@@ -1563,8 +1567,12 @@
 }
 
 /* Image tools toggle: picture icon. Drives `read_image` and
-   `generate_image` in `AICTL_SECURITY_DISABLED_TOOLS` as a single
-   unit. Mirrors the web-icon styling. */
+   `generate_image` in `AICTL_SECURITY_DISABLED_TOOLS`. Tri-state via
+   `data-state`, identical convention to the web globe and the master
+   tools icon:
+       "all"     → cyan   (both image tools enabled)
+       "partial" → yellow (exactly one disabled)
+       "none"    → gray   (both disabled) */
 .composer .image-icon {
   margin-left: var(--space-1, 4px);
   background: transparent;
@@ -1587,19 +1595,21 @@
   display: block;
 }
 
-.composer .image-icon:hover,
-.composer .image-icon:hover:not([disabled]) {
+.composer .image-icon[data-state="all"],
+.composer .image-icon[data-state="all"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .image-icon[data-state="partial"],
+.composer .image-icon[data-state="partial"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--warning);
+}
+
+.composer .image-icon[data-state="none"]:hover:not([disabled]) {
   background: transparent;
   color: var(--fg-soft);
-}
-
-.composer .image-icon[data-active="true"] {
-  color: var(--accent);
-}
-
-.composer .image-icon[data-active="true"]:hover:not([disabled]) {
-  background: transparent;
-  color: var(--accent);
 }
 
 .composer .image-icon[disabled] {

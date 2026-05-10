@@ -325,6 +325,17 @@ const App: Component = () => {
   const [providerSetupDismissed, setProviderSetupDismissed] =
     createSignal(false);
   const [toolsEnabled, setToolsEnabled] = createSignal(true);
+  // Effective state of the tools master icon. Combines the master
+  // switch with the per-tool disabled list so the icon can render
+  // tri-color: cyan when master is on and every built-in tool is
+  // enabled, yellow when master is on but at least one (and not all)
+  // built-in tool is disabled, gray when master is off OR every
+  // built-in tool is disabled. The boolean `toolsEnabled` above still
+  // tracks the master switch alone so it can keep gating the other
+  // composer icons.
+  const [toolsState, setToolsState] = createSignal<"all" | "partial" | "none">(
+    "all",
+  );
   // Plugins master switch — mirror of `AICTL_PLUGINS_ENABLED`. The CLI
   // defaults to disabled (third-party code must be opted in), but the
   // desktop opts in on first launch so the cube icon's default-on state
@@ -351,9 +362,13 @@ const App: Component = () => {
     "all",
   );
   // Sibling toggle for the two image tools (`read_image`,
-  // `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS` plumbing as
-  // the web toggle so the Settings → Tools panel stays in sync.
-  const [imageEnabled, setImageEnabled] = createSignal(true);
+  // `generate_image`). Same tri-state shape as `webState` — cyan when
+  // both enabled, yellow when exactly one is disabled, gray when both
+  // are disabled. Same `AICTL_SECURITY_DISABLED_TOOLS` plumbing as the
+  // web toggle so the Settings → Tools panel stays in sync.
+  const [imageState, setImageState] = createSignal<"all" | "partial" | "none">(
+    "all",
+  );
   // Memory icon — mirrors `AICTL_MEMORY_ENABLED` (default on). Round-
   // trips through the same `memory_set_enabled` Tauri command the
   // Settings → Memory panel calls so the two surfaces stay in sync.
@@ -404,13 +419,41 @@ const App: Component = () => {
   // Tools master switch (`AICTL_TOOLS_ENABLED`) — read on mount and
   // refreshed every time the Settings overlay closes so the composer's
   // tool-approval picker can hide itself when the engine is in
-  // chat-only mode.
+  // chat-only mode. Also computes `toolsState` (tri-state for the
+  // icon color) by cross-checking the per-tool disabled list against
+  // the live tool catalogue: cyan when master is on and zero tools are
+  // disabled; yellow when master is on with some (but not all) tools
+  // disabled; gray when master is off or every tool is disabled.
   const refreshToolsEnabled = async () => {
+    let masterOn = true;
     try {
       const raw = await ipc.configValue("AICTL_TOOLS_ENABLED");
-      setToolsEnabled(raw !== "false" && raw !== "0");
+      masterOn = raw !== "false" && raw !== "0";
     } catch {
-      setToolsEnabled(true);
+      masterOn = true;
+    }
+    setToolsEnabled(masterOn);
+
+    if (!masterOn) {
+      setToolsState("none");
+      return;
+    }
+    try {
+      const tools = await ipc.toolsList();
+      if (tools.length === 0) {
+        setToolsState("all");
+        return;
+      }
+      const offCount = tools.filter((t) => t.disabled).length;
+      setToolsState(
+        offCount === 0
+          ? "all"
+          : offCount === tools.length
+            ? "none"
+            : "partial",
+      );
+    } catch {
+      setToolsState("all");
     }
   };
 
@@ -448,16 +491,23 @@ const App: Component = () => {
   /// panel reads from the same config key, so a refetch on the next
   /// open reflects the change. Failures bubble back through the
   /// composer's flash so the user knows the toggle didn't stick.
+  /// Also re-derives `toolsState` because the master tools icon's
+  /// color depends on the per-tool disabled count: clicking the globe
+  /// to disable all four web tools should flip the wrench from cyan
+  /// to yellow, not leave it stale.
   const setWebTools = async (next: boolean) => {
     const disable = !next;
     for (const name of WEB_TOOLS) {
       await ipc.toolSetDisabled(name, disable);
     }
     setWebState(next ? "all" : "none");
+    void refreshToolsEnabled();
   };
 
-  // Image tools toggle — mirror of the web flow for `read_image` and
-  // `generate_image`. Same `AICTL_SECURITY_DISABLED_TOOLS` gate.
+  // Image tools state — mirror of the web flow for `read_image` and
+  // `generate_image`. Same `AICTL_SECURITY_DISABLED_TOOLS` gate, same
+  // tri-state shape (`partial` lights up the yellow color the moment
+  // exactly one of the two image tools is disabled).
   const IMAGE_TOOLS = ["read_image", "generate_image"];
   const refreshImageEnabled = async () => {
     try {
@@ -467,18 +517,30 @@ const App: Component = () => {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-      setImageEnabled(!IMAGE_TOOLS.some((t) => disabled.includes(t)));
+      const offCount = IMAGE_TOOLS.filter((t) => disabled.includes(t)).length;
+      setImageState(
+        offCount === 0
+          ? "all"
+          : offCount === IMAGE_TOOLS.length
+            ? "none"
+            : "partial",
+      );
     } catch {
-      setImageEnabled(true);
+      setImageState("all");
     }
   };
 
+  /// Same shape as `setWebTools` over the two image tools — and like
+  /// `setWebTools`, also re-derives `toolsState` so the wrench icon
+  /// reflects the new per-tool count without waiting for the next
+  /// Settings close.
   const setImageTools = async (next: boolean) => {
     const disable = !next;
     for (const name of IMAGE_TOOLS) {
       await ipc.toolSetDisabled(name, disable);
     }
-    setImageEnabled(next);
+    setImageState(next ? "all" : "none");
+    void refreshToolsEnabled();
   };
 
   // Memory master switch — reads the engine's MemoryStatus rather than
@@ -559,22 +621,29 @@ const App: Component = () => {
     setMcpEnabled(next);
   };
 
-  /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades to
-  /// the web + image subset toggles so the composer's three icons share
-  /// a single semantic. Turning master OFF disables every tool the
-  /// agent can call (the engine reads `AICTL_TOOLS_ENABLED` to gate
-  /// dispatch entirely) AND clears the web/image active state so their
-  /// icons reflect the disabled status. Turning master ON re-enables
-  /// the subset toggles in lockstep.
+  /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades
+  /// across the per-tool disabled list so the icon's tri-state stays
+  /// truthful:
+  ///   * `next = true`  → master ON, clear `AICTL_SECURITY_DISABLED_TOOLS`
+  ///                       entirely so every built-in tool comes back.
+  ///                       Matches the globe-icon convention where
+  ///                       clicking yellow / gray means "enable all".
+  ///   * `next = false` → master OFF. Leave the per-tool list alone —
+  ///                       master-off already disables every dispatch,
+  ///                       and we don't want to lose the user's
+  ///                       per-tool preferences when they're cycling
+  ///                       the master switch.
   const setToolsMasterEnabled = async (next: boolean) => {
     if (next) {
       await ipc.configClear("AICTL_TOOLS_ENABLED");
+      await ipc.configClear("AICTL_SECURITY_DISABLED_TOOLS");
     } else {
       await ipc.configWrite("AICTL_TOOLS_ENABLED", "false");
     }
     setToolsEnabled(next);
-    await setWebTools(next);
-    await setImageTools(next);
+    setToolsState(next ? "all" : "none");
+    setWebState(next ? "all" : "none");
+    setImageState(next ? "all" : "none");
   };
 
   // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
@@ -1547,6 +1616,7 @@ const App: Component = () => {
               autoAccept={autoAccept()}
               onAutoAcceptChange={setAutoAccept}
               toolsEnabled={toolsEnabled()}
+              toolsState={toolsState()}
               onToolsEnabledChange={setToolsMasterEnabled}
               pluginsEnabled={pluginsEnabled()}
               onPluginsEnabledChange={setPluginsEnabledMaster}
@@ -1563,7 +1633,7 @@ const App: Component = () => {
               onLoadedAgentChange={setLoadedAgent}
               webState={webState()}
               onWebEnabledChange={setWebTools}
-              imageEnabled={imageEnabled()}
+              imageState={imageState()}
               onImageEnabledChange={setImageTools}
               memoryEnabled={memoryEnabled()}
               onMemoryEnabledChange={setMemoryEnabledMaster}
@@ -1675,11 +1745,12 @@ const App: Component = () => {
           }}
           onToolToggled={() => {
             // Per-tool flip inside the Settings → Tools list. Refresh
-            // the composer's web/image icon state immediately so the
-            // globe flips between cyan and yellow without waiting for
-            // the panel to close.
+            // the composer's web/image/tools icon states immediately
+            // so they all flip between cyan / yellow / gray without
+            // waiting for the panel to close.
             void refreshWebEnabled();
             void refreshImageEnabled();
+            void refreshToolsEnabled();
           }}
           models={models()}
           activeModel={activeModel()}

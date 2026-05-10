@@ -30,11 +30,18 @@ interface Props {
   onAutoAcceptChange: (next: boolean) => void;
   /// Mirror of `AICTL_TOOLS_ENABLED`. When `false` the composer hides
   /// the auto-accept dropdown — the agent runs chat-only so there are
-  /// no tool calls to approve.
+  /// no tool calls to approve. Used as the gate for every per-subset
+  /// composer icon (web, image, etc.).
   toolsEnabled: boolean;
-  /// Master tools toggle — flips `AICTL_TOOLS_ENABLED` and cascades
-  /// to the web and image subset toggles so the icons reflect a
-  /// single global on/off state.
+  /// Tri-state used purely for the master tools icon's color:
+  /// `"all"` = master on AND every built-in tool enabled (cyan),
+  /// `"partial"` = master on AND some (but not all) tools disabled
+  /// (yellow), `"none"` = master off OR every tool disabled (gray).
+  toolsState: "all" | "partial" | "none";
+  /// Master tools toggle. From the icon's perspective, "enabling"
+  /// means turning the master switch on AND clearing the per-tool
+  /// disabled list (the parent does that work). Disabling just flips
+  /// the master switch off.
   onToolsEnabledChange: (next: boolean) => Promise<void>;
   /// Plugins master switch (cube icon) — mirrors
   /// `AICTL_PLUGINS_ENABLED`. Flipping it reloads the engine's plugin
@@ -80,9 +87,11 @@ interface Props {
   webState: "all" | "partial" | "none";
   onWebEnabledChange: (next: boolean) => Promise<void>;
   /// Picture icon — sibling toggle for the two image tools
-  /// (`read_image`, `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS`
+  /// (`read_image`, `generate_image`). Same tri-state shape as
+  /// `webState` (cyan = both enabled, yellow = exactly one disabled,
+  /// gray = both disabled). Same `AICTL_SECURITY_DISABLED_TOOLS`
   /// plumbing as the web toggle.
-  imageEnabled: boolean;
+  imageState: "all" | "partial" | "none";
   onImageEnabledChange: (next: boolean) => Promise<void>;
   /// Memory icon — flips `AICTL_MEMORY_ENABLED`. When off the engine
   /// stops loading saved facts into the system prompt and the
@@ -510,14 +519,18 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
-  // Master tools toggle — flips AICTL_TOOLS_ENABLED via the parent and
-  // cascades to web + image subset toggles so the three icons share a
-  // single on/off semantic. Same flash pattern as the siblings.
+  // Master tools toggle — three states identical to the globe icon:
+  //   * "all"     → cyan,   click disables master            → "none"
+  //   * "partial" → yellow, click enables every tool         → "all"
+  //   * "none"    → gray,   click enables every tool         → "all"
+  // The parent's `onToolsEnabledChange(true)` handler clears the
+  // per-tool disabled list when invoked, so yellow / gray click means
+  // "everything back on" — same convention as the web globe.
   const [toolsFlash, setToolsFlash] = createSignal<string | null>(null);
   let toolsFlashTimer: number | undefined;
   const toggleTools = async () => {
     if (props.disabled) return;
-    const next = !props.toolsEnabled;
+    const next = props.toolsState !== "all";
     try {
       await props.onToolsEnabledChange(next);
       if (toolsFlashTimer !== undefined) {
@@ -585,12 +598,15 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
-  // Picture toggle — same shape as the globe; flips both image tools.
+  // Picture toggle — same tri-state shape as the globe (cyan / yellow /
+  // gray) over `read_image` and `generate_image`. Click semantic: when
+  // both enabled (cyan), click disables both → gray; otherwise click
+  // enables both → cyan.
   const [imageFlash, setImageFlash] = createSignal<string | null>(null);
   let imageFlashTimer: number | undefined;
   const toggleImage = async () => {
     if (props.disabled || !props.toolsEnabled) return;
-    const next = !props.imageEnabled;
+    const next = props.imageState !== "all";
     try {
       await props.onImageEnabledChange(next);
       if (imageFlashTimer !== undefined) {
@@ -1060,18 +1076,22 @@ const Composer: Component<Props> = (props) => {
         <button
           type="button"
           class="tools-icon"
-          data-active={String(props.toolsEnabled)}
+          data-state={props.toolsState}
           disabled={props.disabled}
-          aria-pressed={props.toolsEnabled ? "true" : "false"}
+          aria-pressed={props.toolsState === "all" ? "true" : "false"}
           aria-label={
-            props.toolsEnabled
+            props.toolsState === "all"
               ? "All tools enabled (click to disable every tool)"
-              : "All tools disabled (click to re-enable)"
+              : props.toolsState === "none"
+                ? "All tools disabled (click to enable every tool)"
+                : "Some tools disabled (click to enable every tool)"
           }
           title={
-            props.toolsEnabled
+            props.toolsState === "all"
               ? "all tools enabled — click to disable"
-              : "all tools disabled — click to enable"
+              : props.toolsState === "none"
+                ? "all tools disabled — click to enable"
+                : "some tools disabled — click to enable all"
           }
           onClick={() => void toggleTools()}
         >
@@ -1101,20 +1121,24 @@ const Composer: Component<Props> = (props) => {
         <button
           type="button"
           class="image-icon"
-          data-active={String(props.imageEnabled)}
+          data-state={props.imageState}
           disabled={props.disabled || !props.toolsEnabled}
-          aria-pressed={props.imageEnabled ? "true" : "false"}
+          aria-pressed={props.imageState === "all" ? "true" : "false"}
           aria-label={
-            props.imageEnabled
+            props.imageState === "all"
               ? "Image tools enabled (click to disable read_image, generate_image)"
-              : "Image tools disabled (click to enable read_image, generate_image)"
+              : props.imageState === "none"
+                ? "Image tools disabled (click to enable read_image, generate_image)"
+                : "Some image tools disabled (click to enable read_image, generate_image)"
           }
           title={
             !props.toolsEnabled
               ? "tools master switch is off — enable it to use image tools"
-              : props.imageEnabled
-                ? "image tools enabled — click to disable"
-                : "image tools disabled — click to enable"
+              : props.imageState === "all"
+                ? "all image tools enabled — click to disable"
+                : props.imageState === "none"
+                  ? "all image tools disabled — click to enable"
+                  : "some image tools disabled — click to enable all"
           }
           onClick={() => void toggleImage()}
         >
