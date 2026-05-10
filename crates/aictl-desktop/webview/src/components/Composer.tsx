@@ -70,12 +70,14 @@ interface Props {
   /// highlight state.
   loadedAgent: string | null;
   onLoadedAgentChange: (next: string | null) => void;
-  /// Globe icon — single switch for the three web tools
-  /// (`search_web`, `fetch_url`, `extract_website`). Active state =
-  /// all three enabled. Toggling writes through to
+  /// Globe icon — tri-state switch for the four web tools
+  /// (`search_web_fc`, `search_web_ddg`, `fetch_url`, `extract_website`).
+  /// `"all"` = all four enabled (cyan), `"none"` = all four disabled
+  /// (gray), `"partial"` = at least one enabled and at least one
+  /// disabled (yellow). Toggling writes through to
   /// `AICTL_SECURITY_DISABLED_TOOLS` via the parent so the Settings
   /// → Tools panel reflects the change without a restart.
-  webEnabled: boolean;
+  webState: "all" | "partial" | "none";
   onWebEnabledChange: (next: boolean) => Promise<void>;
   /// Picture icon — sibling toggle for the two image tools
   /// (`read_image`, `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS`
@@ -532,13 +534,17 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
-  // Globe toggle — flips all three web tools as one unit. Same toast
-  // pattern as the auto-accept button so feedback feels consistent.
+  // Globe toggle — three states:
+  //   * "all"     → cyan,   click disables everything → "none"
+  //   * "partial" → yellow, click enables everything  → "all"
+  //   * "none"    → gray,   click enables everything  → "all"
+  // So the semantics is: when fully enabled, click disables; otherwise click enables.
+  // Same toast pattern as the auto-accept button so feedback feels consistent.
   const [webFlash, setWebFlash] = createSignal<string | null>(null);
   let webFlashTimer: number | undefined;
   const toggleWeb = async () => {
     if (props.disabled || !props.toolsEnabled) return;
-    const next = !props.webEnabled;
+    const next = props.webState !== "all";
     try {
       await props.onWebEnabledChange(next);
       if (webFlashTimer !== undefined) {
@@ -1137,20 +1143,24 @@ const Composer: Component<Props> = (props) => {
         <button
           type="button"
           class="web-icon"
-          data-active={String(props.webEnabled)}
+          data-state={props.webState}
           disabled={props.disabled || !props.toolsEnabled}
-          aria-pressed={props.webEnabled ? "true" : "false"}
+          aria-pressed={props.webState === "all" ? "true" : "false"}
           aria-label={
-            props.webEnabled
-              ? "Web tools enabled (click to disable search_web, fetch_url, extract_website)"
-              : "Web tools disabled (click to enable search_web, fetch_url, extract_website)"
+            props.webState === "all"
+              ? "All web tools enabled (click to disable search_web_fc, search_web_ddg, fetch_url, extract_website)"
+              : props.webState === "none"
+                ? "All web tools disabled (click to enable search_web_fc, search_web_ddg, fetch_url, extract_website)"
+                : "Some web tools disabled (click to enable all of search_web_fc, search_web_ddg, fetch_url, extract_website)"
           }
           title={
             !props.toolsEnabled
               ? "tools master switch is off — enable it to use web tools"
-              : props.webEnabled
-                ? "web tools enabled — click to disable"
-                : "web tools disabled — click to enable"
+              : props.webState === "all"
+                ? "all web tools enabled — click to disable"
+                : props.webState === "none"
+                  ? "all web tools disabled — click to enable"
+                  : "some web tools disabled — click to enable all"
           }
           onClick={() => void toggleWeb()}
         >

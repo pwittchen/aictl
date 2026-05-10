@@ -250,7 +250,8 @@ Both single-shot and REPL modes share the same loop:
  │  │ list_directory      │ tokio::fs::read_dir       │      │
  │  │ search_files        │ glob + string match       │      │
  │  │ find_files          │ glob::glob                │      │
- │  │ search_web          │ Firecrawl API (reqwest)   │      │
+ │  │ search_web_fc       │ Firecrawl API (reqwest)   │      │
+ │  │ search_web_ddg      │ DuckDuckGo IA  (reqwest)  │      │
  │  │ fetch_url           │ HTTP GET (reqwest)        │      │
  │  │ extract_website     │ HTTP GET + scraper (DOM)  │      │
  │  │ fetch_datetime      │ date command (subprocess) │      │
@@ -867,7 +868,7 @@ Plain text, one `key=value` per line. Comments start with `#`; blank lines are i
 
 Recognized keys include:
 - **Provider/model**: `AICTL_PROVIDER`, `AICTL_MODEL`
-- **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web`). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
+- **API keys**: `LLM_OPENAI_API_KEY`, `LLM_ANTHROPIC_API_KEY`, `LLM_GEMINI_API_KEY`, `LLM_GROK_API_KEY`, `LLM_MISTRAL_API_KEY`, `LLM_DEEPSEEK_API_KEY`, `LLM_KIMI_API_KEY`, `LLM_ZAI_API_KEY` (Ollama needs none), `FIRECRAWL_API_KEY` (for `search_web_fc`; `search_web_ddg` is keyless). These can also live in the system keyring instead — see [API key storage](#api-key-storage-srckeysrs) below.
 - **Behavior**: `AICTL_AUTO_COMPACT_THRESHOLD`, `AICTL_INCOGNITO` (`true`/`false`), `AICTL_PROMPT_FILE` (default `AICTL.md`), `AICTL_PROMPT_FALLBACK` (default `true`; when enabled, a missing primary prompt file falls back to `CLAUDE.md` then `AGENTS.md`), `AICTL_TOOLS_ENABLED` (default `true`), `AICTL_MEMORY_ENABLED` (default `true`; when off, saved memories are not injected into the system prompt and the `save_memory` tool / `/remember` refuse to write — incognito mode overrides both), `AICTL_LLM_TIMEOUT` (per-call LLM timeout in seconds; `0` disables; default `30`), `AICTL_SKILLS_DIR` (override the default `~/.aictl/skills/` location), `AICTL_WORKING_DIR_CLI` (persistent working directory / CWD jail root for the CLI; canonical key parallel to `AICTL_WORKING_DIR_DESKTOP`; `--cwd <PATH>` overrides per-run), `AICTL_WORKING_DIR` (legacy unsuffixed fallback for the same purpose; `AICTL_WORKING_DIR_CLI` wins when both are set)
 - **Security**: `AICTL_SECURITY_*` keys — blocked/allowed command lists, disabled tools, shell timeout, CWD jail toggles, prompt-injection guard (`AICTL_SECURITY_INJECTION_GUARD`, default `true`), audit log toggle (`AICTL_SECURITY_AUDIT_LOG`, default `true`), etc. (see `security.rs` and `audit.rs`)
 - **Redaction**: `AICTL_SECURITY_REDACTION` (`off` / `redact` / `block`, default `off`), `AICTL_SECURITY_REDACTION_LOCAL` (default `false` — local providers bypass), `AICTL_REDACTION_DETECTORS` (subset of `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, high_entropy`), `AICTL_REDACTION_EXTRA_PATTERNS` (semicolon-separated `NAME=REGEX` pairs → `[REDACTED:NAME]`), `AICTL_REDACTION_ALLOW` (semicolon-separated allowlist regexes), `AICTL_REDACTION_NER` (enable Layer-C NER, requires the `redaction-ner` cargo feature + a pulled model), `AICTL_REDACTION_NER_MODEL` (default `onnx-community/gliner_small-v2.1`). See `security/redaction.rs` and `security/redaction/ner.rs`.

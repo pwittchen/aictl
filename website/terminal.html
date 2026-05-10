@@ -356,7 +356,7 @@
               <li><code>LLM_KIMI_API_KEY</code> — Kimi (Moonshot)</li>
               <li><code>LLM_ZAI_API_KEY</code> — Z.ai</li>
               <li><code>LLM_OLLAMA_HOST</code> — Ollama URL (default <code>http://localhost:11434</code>)</li>
-              <li><code>FIRECRAWL_API_KEY</code> — optional, enables <code>search_web</code></li>
+              <li><code>FIRECRAWL_API_KEY</code> — optional, enables <code>search_web_fc</code> (Firecrawl). Without it, <code>search_web_ddg</code> (DuckDuckGo) is the keyless fallback</li>
             </ul>
           </div>
           <div class="tools">
@@ -1038,7 +1038,8 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
             <h3>Web &amp; media</h3>
             <ul>
               <li><code>fetch_url</code> · <code>extract_website</code></li>
-              <li><code>search_web</code> — Firecrawl-backed</li>
+              <li><code>search_web_fc</code> — Firecrawl-backed (primary)</li>
+              <li><code>search_web_ddg</code> — DuckDuckGo Instant Answer fallback (no key)</li>
               <li><code>fetch_datetime</code> · <code>fetch_geolocation</code></li>
               <li><code>read_image</code> — vision on supported providers</li>
               <li><code>generate_image</code> — DALL-E, Imagen, Grok</li>
@@ -1141,7 +1142,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
               <li><code>AICTL_SECURITY_ALLOWED_PATHS</code> — comma-separated list of paths allowed outside the working directory; e.g. <code>/tmp,~/Downloads,/var/log</code></li>
               <li><code>AICTL_SECURITY_SHELL_TIMEOUT</code> — shell command timeout in seconds (default <code>30</code>)</li>
               <li><code>AICTL_SECURITY_MAX_WRITE</code> — max file write size in bytes (default <code>1048576</code> = 1 MB)</li>
-              <li><code>AICTL_SECURITY_DISABLED_TOOLS</code> — comma-separated list of tool names to disable; e.g. <code>exec_shell,search_web</code></li>
+              <li><code>AICTL_SECURITY_DISABLED_TOOLS</code> — comma-separated list of tool names to disable; e.g. <code>exec_shell,search_web_fc</code></li>
               <li><code>AICTL_SECURITY_BLOCKED_ENV</code> — comma-separated list of extra env vars to scrub from shell subprocesses; e.g. <code>GITHUB_TOKEN,AWS_SESSION_TOKEN</code></li>
               <li><code>AICTL_SECURITY_AUDIT_LOG</code> — log tool calls and redaction events to <code>~/.aictl/audit/</code> (default <code>true</code>)</li>
             </ul>

@@ -458,7 +458,7 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
         "archive" => check_archive(input),
         "checksum" => check_checksum(input),
         name if name.starts_with("mcp__") => check_mcp_tool(name, input, &pol),
-        _ => Ok(()), // fetch_url, search_web, fetch_datetime, fetch_geolocation — no restriction
+        _ => Ok(()), // fetch_url, search_web_fc, search_web_ddg, fetch_datetime, fetch_geolocation — no restriction
     }
 }
 

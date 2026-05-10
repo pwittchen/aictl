@@ -1464,23 +1464,29 @@
   cursor: not-allowed;
 }
 
-/* Web tools toggle: globe icon. Drives `search_web`, `fetch_url`, and
-   `extract_website` in `AICTL_SECURITY_DISABLED_TOOLS` as a single
-   unit. Same accent treatment as the other composer icons. */
+/* Web tools toggle: globe icon. Drives `search_web_fc`,
+   `search_web_ddg`, `fetch_url`, and `extract_website` in
+   `AICTL_SECURITY_DISABLED_TOOLS` as a single unit. Same accent
+   treatment as the other composer icons. */
 .composer .web-icon {
   margin-left: var(--space-1, 4px);
   background: transparent;
   border: 0;
   padding: 4px;
-  cursor: pointer;
-  color: var(--fg-faint);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
   transition: color 120ms ease;
   text-transform: none;
   letter-spacing: 0;
   flex-shrink: 0;
+  /* Tri-state via `data-state`:
+       "all"     → cyan   (everything enabled)
+       "partial" → yellow (some disabled, some enabled)
+       "none"    → gray   (everything disabled)
+     Default arm covers any unexpected value as a safe gray. */
+  color: var(--fg-faint);
 }
 
 .composer .web-icon svg {
@@ -1489,19 +1495,21 @@
   display: block;
 }
 
-.composer .web-icon:hover,
-.composer .web-icon:hover:not([disabled]) {
+.composer .web-icon[data-state="all"],
+.composer .web-icon[data-state="all"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .web-icon[data-state="partial"],
+.composer .web-icon[data-state="partial"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--warning);
+}
+
+.composer .web-icon[data-state="none"]:hover:not([disabled]) {
   background: transparent;
   color: var(--fg-soft);
-}
-
-.composer .web-icon[data-active="true"] {
-  color: var(--accent);
-}
-
-.composer .web-icon[data-active="true"]:hover:not([disabled]) {
-  background: transparent;
-  color: var(--accent);
 }
 
 .composer .web-icon[disabled] {

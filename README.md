@@ -703,7 +703,7 @@ You need to configure API key for the provider and model you want to use. `AICTL
 
 #### API keys
 
-`FIRECRAWL_API_KEY` is optional and is needed only if you want to use `search_web` tool.
+`FIRECRAWL_API_KEY` is optional and is needed only if you want to use the `search_web_fc` tool. Without it, web search falls back to `search_web_ddg`, which uses the public DuckDuckGo Instant Answer API and requires no key.
 
 Not all API keys are required. You need to provide only those, for which you set `AICTL_PROVIDER` and `AICTL_MODEL`.
 
@@ -720,7 +720,7 @@ If you want to use multiple LLM providers, then you need to provide appropriate 
 | `LLM_KIMI_API_KEY` | API key for Kimi (Moonshot AI) |
 | `LLM_ZAI_API_KEY` | API key for Z.ai |
 | `LLM_OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
-| `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web` tool) |
+| `FIRECRAWL_API_KEY` | API key for Firecrawl (`search_web_fc` tool) |
 
 ##### Where to get API keys
 
@@ -770,7 +770,7 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_SECURITY_ALLOWED_PATHS` | Paths allowed outside the working directory |
 | `AICTL_SECURITY_SHELL_TIMEOUT` | Shell command timeout in seconds (default: `30`) |
 | `AICTL_SECURITY_MAX_WRITE` | Max file write size in bytes (default: `1048576` = 1 MB) |
-| `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web`) |
+| `AICTL_SECURITY_DISABLED_TOOLS` | Comma-separated tool names to disable (e.g. `exec_shell,search_web_fc`) |
 | `AICTL_SECURITY_BLOCKED_ENV` | Additional env vars to scrub from shell subprocesses |
 | `AICTL_SECURITY_AUDIT_LOG` | Append one JSON line per tool invocation to `~/.aictl/audit/<session-id>` (default: `true`) |
 | `AICTL_SECURITY_REDACTION` | Outbound-message redaction mode: `off` (default), `redact`, or `block`. In `redact` mode each credential/PII match is swapped for `[REDACTED:<KIND>]` on the wire; in `block` mode the turn aborts with a scrubbed error. |
@@ -1111,7 +1111,8 @@ Available tools:
 | `search_files` | Search file contents by pattern (grep regex) with optional directory scope |
 | `edit_file` | Apply a targeted find-and-replace edit to a file (exact unique match required) |
 | `diff_files` | Compare two text files and return a unified diff with 3 lines of context. First line is the "before" path, second line is the "after" path. Works in-process via an LCS DP table — no external `diff` binary, no platform drift. Refuses to diff files longer than 2000 lines each |
-| `search_web` | Search the web via Firecrawl API (requires `FIRECRAWL_API_KEY`) |
+| `search_web_fc` | Primary web search via Firecrawl API (requires `FIRECRAWL_API_KEY`). Returns titles, URLs, and descriptions of matching results |
+| `search_web_ddg` | Fallback web search via DuckDuckGo Instant Answer API (no API key). Same `[N] title / URL / description` output shape as `search_web_fc`. The agent picks this automatically when `search_web_fc` is disabled or errors out, and can be selected explicitly by saying "use duckduckgo" / "use duck duck go" in the prompt |
 | `find_files` | Find files matching a glob pattern (e.g. `**/*.rs`) with optional base directory |
 | `fetch_url` | Fetch a URL and return readable text content (HTML tags stripped) |
 | `extract_website` | Fetch a URL and extract only the main readable content (strips scripts, styles, nav, boilerplate) |

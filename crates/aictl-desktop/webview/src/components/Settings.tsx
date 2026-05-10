@@ -76,6 +76,13 @@ interface Props {
   /// Clear-All — guarantees the sidebar refreshes and the active chat
   /// resets when the current session lands in the wipe.
   onClearAllSessions: () => Promise<void>;
+  /// Called every time a per-tool enable/disable flips inside the
+  /// Tools list, so App can re-derive the composer's globe / picture
+  /// icon state in real time instead of waiting for the panel to
+  /// close. App passes a function that re-runs `refreshWebEnabled` and
+  /// `refreshImageEnabled`; ToolsList fires it after each successful
+  /// `toolSetDisabled` round-trip.
+  onToolToggled?: () => void;
 }
 
 export type Tab =
@@ -195,6 +202,7 @@ const Settings: Component<Props> = (props) => {
               <GeneralTab
                 workspace={props.workspace}
                 onPickWorkspace={props.onPickWorkspace}
+                onToolToggled={props.onToolToggled}
               />
             </Show>
             <Show when={tab() === "security"}>
@@ -728,6 +736,11 @@ const NUM_KEYS: {
 const GeneralTab: Component<{
   workspace: WorkspaceState;
   onPickWorkspace: () => void | Promise<void>;
+  /// Forwarded to `ToolsList` so per-tool flips inside Settings push
+  /// the new policy back up to App, which re-derives the composer's
+  /// globe / picture icon state without waiting for the panel to
+  /// close.
+  onToolToggled?: () => void;
 }> = (props) => {
   const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
     ipc.configDump(),
@@ -900,7 +913,10 @@ const GeneralTab: Component<{
         on={toolsOn()}
         onChange={(v) => void setBool("AICTL_TOOLS_ENABLED", v)}
       />
-      <ToolsList disabled={!toolsOn()} />
+      <ToolsList
+        disabled={!toolsOn()}
+        onToggle={() => props.onToolToggled?.()}
+      />
 
       <h4 class="settings-subhead">Misc</h4>
       <For each={MISC_BOOL_KEYS}>
@@ -1052,7 +1068,14 @@ const BehaviorEditor: Component<{ onSaved: () => void | Promise<unknown> }> = (
   );
 };
 
-const ToolsList: Component<{ disabled: boolean }> = (props) => {
+const ToolsList: Component<{
+  disabled: boolean;
+  /// Fired after every successful per-tool flip so App can re-derive
+  /// composer-icon state (globe = web tools, picture = image tools)
+  /// in real time. Optional — callers that don't have a composer to
+  /// keep in sync can ignore it.
+  onToggle?: () => void;
+}> = (props) => {
   const [tools, { refetch }] = createResource<ToolRow[]>(() => ipc.toolsList());
   const [error, setError] = createSignal<string | null>(null);
 
@@ -1061,6 +1084,7 @@ const ToolsList: Component<{ disabled: boolean }> = (props) => {
     try {
       await ipc.toolSetDisabled(name, disable);
       await refetch();
+      props.onToggle?.();
     } catch (err) {
       setError(`${err}`);
     }

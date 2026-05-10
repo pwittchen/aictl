@@ -136,7 +136,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 32;
+pub const TOOL_COUNT: usize = 33;
 
 /// `(name, one-line description)` for every built-in tool. Both the CLI's
 /// `/tools` printer and the desktop Settings panel render from this single
@@ -159,7 +159,14 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ("list_directory", "list files and directories at a path"),
     ("search_files", "search file contents by pattern"),
     ("find_files", "find files matching a glob pattern"),
-    ("search_web", "search the web via Firecrawl API"),
+    (
+        "search_web_fc",
+        "search the web via Firecrawl API (primary)",
+    ),
+    (
+        "search_web_ddg",
+        "search the web via DuckDuckGo Instant Answer API (fallback, no key)",
+    ),
     ("fetch_url", "fetch a URL and return text content"),
     ("extract_website", "extract readable content from a URL"),
     ("fetch_datetime", "get current date, time, and timezone"),
@@ -278,22 +285,39 @@ pub fn tools_enabled() -> bool {
     crate::config::config_get("AICTL_TOOLS_ENABLED").is_none_or(|v| v != "false" && v != "0")
 }
 
-/// Names of the three web-facing tools driven by the desktop's globe
-/// icon. Co-located here so the security-denial branch can issue a
-/// targeted "web tools are off" message instead of the generic
-/// "Security policy denied" string.
-const WEB_TOOLS: &[&str] = &["search_web", "fetch_url", "extract_website"];
+/// Names of the web-facing tools driven by the desktop's globe icon.
+/// Co-located here so the security-denial branch can issue a targeted
+/// "web tools are off" message instead of the generic "Security policy
+/// denied" string.
+const WEB_TOOLS: &[&str] = &[
+    "search_web_fc",
+    "search_web_ddg",
+    "fetch_url",
+    "extract_website",
+];
 
 /// Render the tool-result body produced when the security gate refuses
-/// a call. The web-tool trio gets a hand-crafted message that names the
-/// affordance (the globe icon in the desktop, the
-/// `AICTL_SECURITY_DISABLED_TOOLS` config key in CLI / server contexts)
-/// so the model can relay something actionable to the user instead of
-/// surfacing a generic "tool 'X' is disabled by security policy" line.
+/// a call. Web-tool denials get hand-crafted messages so the model can
+/// relay something actionable: when one search backend is off but its
+/// counterpart is still enabled we steer the model to the sibling tool
+/// instead of telling it to give up.
 fn denial_message(tool_name: &str, reason: &str) -> String {
     if WEB_TOOLS.contains(&tool_name) && reason.contains("disabled") {
+        let pol = crate::security::policy();
+        let is_disabled = |name: &str| pol.disabled_tools.iter().any(|t| t == name);
+        if tool_name == "search_web_fc" && !is_disabled("search_web_ddg") {
+            return "`search_web_fc` is currently disabled by security policy. \
+                Call `search_web_ddg` with the same query right now — it is the configured fallback and is still enabled. \
+                Do not retry `search_web_fc` in this turn."
+                .to_string();
+        }
+        if tool_name == "search_web_ddg" && !is_disabled("search_web_fc") {
+            return "`search_web_ddg` is currently disabled by security policy. \
+                Call `search_web_fc` with the same query instead — it is still enabled."
+                .to_string();
+        }
         return format!(
-            "Web tools (`search_web`, `fetch_url`, `extract_website`) are currently disabled, so `{tool_name}` cannot run. \
+            "Web tools (`search_web_fc`, `search_web_ddg`, `fetch_url`, `extract_website`) are currently disabled, so `{tool_name}` cannot run. \
              Tell the user that you cannot fetch information from the web right now. \
              They can re-enable web tools by clicking the globe icon next to the Send button in the desktop app, \
              or by removing the entry from `AICTL_SECURITY_DISABLED_TOOLS` in `~/.aictl/config`. \
@@ -369,7 +393,8 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "search_files" => filesystem::tool_search_files(input).await,
         "edit_file" => filesystem::tool_edit_file(input).await,
         "diff_files" => diff::tool_diff_files(input).await,
-        "search_web" => web::tool_search_web(input).await,
+        "search_web_fc" => web::tool_search_web_fc(input).await,
+        "search_web_ddg" => web::tool_search_web_ddg(input).await,
         "find_files" => filesystem::tool_find_files(input),
         "fetch_url" => web::tool_fetch_url(input).await,
         "extract_website" => web::tool_extract_website(input).await,

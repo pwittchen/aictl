@@ -338,12 +338,18 @@ const App: Component = () => {
   // honest. Toggling reloads the engine's MCP catalogue immediately.
   const [mcpEnabled, setMcpEnabled] = createSignal(true);
   // Composer's globe icon mirrors the per-tool disabled list in
-  // `AICTL_SECURITY_DISABLED_TOOLS` for the three web-facing tools
-  // (`search_web`, `fetch_url`, `extract_website`). Active when none of
-  // them are disabled — flipping the icon writes through to the same
-  // config key the Settings → Tools panel manages, so the two surfaces
-  // round-trip without an app restart.
-  const [webEnabled, setWebEnabled] = createSignal(true);
+  // `AICTL_SECURITY_DISABLED_TOOLS` for the four web-facing tools
+  // (`search_web_fc`, `search_web_ddg`, `fetch_url`, `extract_website`).
+  // Tri-state because the icon needs three colors:
+  //   "all"     → all four enabled                  → cyan
+  //   "partial" → at least one disabled, not all    → yellow (partial)
+  //   "none"    → all four disabled                 → gray
+  // Flipping the icon writes through to the same config key the
+  // Settings → Tools panel manages, so the two surfaces round-trip
+  // without an app restart.
+  const [webState, setWebState] = createSignal<"all" | "partial" | "none">(
+    "all",
+  );
   // Sibling toggle for the two image tools (`read_image`,
   // `generate_image`). Same `AICTL_SECURITY_DISABLED_TOOLS` plumbing as
   // the web toggle so the Settings → Tools panel stays in sync.
@@ -408,11 +414,15 @@ const App: Component = () => {
     }
   };
 
-  // Web tools toggle — derived from `AICTL_SECURITY_DISABLED_TOOLS`.
-  // Active iff none of the three web tools sit in the disabled list.
-  // Re-read whenever Settings closes so a per-tool flip from the
-  // Tools panel reflects on the composer icon.
-  const WEB_TOOLS = ["search_web", "fetch_url", "extract_website"];
+  // Web tools state — derived from `AICTL_SECURITY_DISABLED_TOOLS`.
+  // Re-read whenever Settings closes (and on every per-tool flip in
+  // the Tools list) so the composer icon always matches the policy.
+  const WEB_TOOLS = [
+    "search_web_fc",
+    "search_web_ddg",
+    "fetch_url",
+    "extract_website",
+  ];
   const refreshWebEnabled = async () => {
     try {
       const raw =
@@ -421,9 +431,16 @@ const App: Component = () => {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-      setWebEnabled(!WEB_TOOLS.some((t) => disabled.includes(t)));
+      const offCount = WEB_TOOLS.filter((t) => disabled.includes(t)).length;
+      setWebState(
+        offCount === 0
+          ? "all"
+          : offCount === WEB_TOOLS.length
+            ? "none"
+            : "partial",
+      );
     } catch {
-      setWebEnabled(true);
+      setWebState("all");
     }
   };
 
@@ -436,7 +453,7 @@ const App: Component = () => {
     for (const name of WEB_TOOLS) {
       await ipc.toolSetDisabled(name, disable);
     }
-    setWebEnabled(next);
+    setWebState(next ? "all" : "none");
   };
 
   // Image tools toggle — mirror of the web flow for `read_image` and
@@ -1544,7 +1561,7 @@ const App: Component = () => {
               onLoadedSkillChange={setLoadedSkill}
               loadedAgent={loadedAgent()}
               onLoadedAgentChange={setLoadedAgent}
-              webEnabled={webEnabled()}
+              webState={webState()}
               onWebEnabledChange={setWebTools}
               imageEnabled={imageEnabled()}
               onImageEnabledChange={setImageTools}
@@ -1655,6 +1672,14 @@ const App: Component = () => {
             void refreshNotifications();
             void refreshSecurityStatus();
             void refreshProviderSetup();
+          }}
+          onToolToggled={() => {
+            // Per-tool flip inside the Settings → Tools list. Refresh
+            // the composer's web/image icon state immediately so the
+            // globe flips between cyan and yellow without waiting for
+            // the panel to close.
+            void refreshWebEnabled();
+            void refreshImageEnabled();
           }}
           models={models()}
           activeModel={activeModel()}

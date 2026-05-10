@@ -232,7 +232,15 @@ Available tools:
 - create_directory: Create a directory (and any missing parent directories). Pass the directory path as input.
 - list_directory: List files and directories at a path. Pass the directory path as input. Returns entries with [FILE] or [DIR] prefixes.
 - search_files: Search file contents with a pattern. First line is the search pattern (grep basic regex), second line (optional) is the directory to search in (defaults to `.`). Returns matching lines with file paths and line numbers.
-- search_web: Search the web for information. Pass a search query as input. Returns titles, URLs, and descriptions of matching results.
+- search_web_fc: Search the web via the Firecrawl API (requires `FIRECRAWL_API_KEY`). Pass a search query as input. Returns titles, URLs, and descriptions of matching results. **This is the primary web search tool — prefer it by default.**
+- search_web_ddg: Search the web via the DuckDuckGo Instant Answer API (no API key required). Pass a search query as input. Returns the same `[N] title / URL / description` shape as `search_web_fc`. **Use this as a fallback** when `search_web_fc` is disabled, returns an error (e.g. missing `FIRECRAWL_API_KEY`, non-2xx status), or returns no results — call `search_web_ddg` with the same query before giving up.
+
+Web search routing rules (read carefully — the fallback is mandatory, not optional):
+- Default: try `search_web_fc` first.
+- Whenever `search_web_fc` produces ANY of the following — `search_web_fc` is in `AICTL_SECURITY_DISABLED_TOOLS`, the tool result starts with `Error:` (e.g. missing `FIRECRAWL_API_KEY`, non-2xx status), the tool result mentions that `search_web_fc` is disabled, or the tool returns "No results found." — your VERY NEXT tool call MUST be `search_web_ddg` with the same query. Do not give up, do not retry `search_web_fc`, do not answer from training data without searching.
+- If a tool result tells you that `search_web_fc` is disabled and `search_web_ddg` is still available, switch to `search_web_ddg` immediately on the next turn — do not surface the "tool disabled" error to the user.
+- If the user explicitly says "use firecrawl" (in any casing), use `search_web_fc` only — do not fall back to `search_web_ddg`.
+- If the user explicitly says "use duckduckgo" or "use duck duck go" (in any casing), use `search_web_ddg` only — do not call `search_web_fc` at all.
 - edit_file: Apply a targeted find-and-replace edit to a file. Format:
   path/to/file
   <<<
@@ -242,7 +250,7 @@ Available tools:
   >>>
 - diff_files: Compare two text files and return a unified diff with 3 lines of context. First line is the path to the "before" file, second line is the path to the "after" file. Output is standard unified-diff format (`--- <a>`, `+++ <b>`, `@@ -start,count +start,count @@`, ` unchanged` / `-removed` / `+added`). Returns `(files are identical)` when there are no differences. Refuses to diff files longer than 2000 lines each. Prefer this over `exec_shell` `diff` whenever you need to understand or preview what changed between two files — works the same on every platform without shelling out.
 - find_files: Find files matching a glob pattern. First line is the pattern (e.g. `**/*.rs`, `src/**/*.ts`). Second line (optional) is the base directory (defaults to `.`). Returns matching file paths, one per line.
-- fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via search_web.
+- fetch_url: Fetch and read the content of a URL. Pass the URL as input. Returns the page text content with HTML tags stripped. Useful for reading pages found via `search_web_fc` / `search_web_ddg`.
 - extract_website: Fetch a URL and extract only the main readable content. Pass the URL as input. Strips scripts, styles, navigation, headers, footers, and other boilerplate. Use this instead of fetch_url when you need clean article or page text.
 - fetch_datetime: Get the current date and time. No input required. Returns the current date, time, timezone, and day of week. Always call this tool first when the user's message involves relative time references like "today", "now", "tonight", "this week", "yesterday", "tomorrow", "currently", etc. so your answer is grounded in the actual current date and time.
 - fetch_geolocation: Get geolocation data for an IP address. Pass an IP address as input (or empty for your own IP). Returns city, country, timezone, coordinates, ISP info. Always call this tool first (with empty input) when the user's message involves location references like "here", "near me", "nearby", "in this area", "in my city", "local", "around me", etc. so your answer is grounded in the user's actual location.
