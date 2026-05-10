@@ -4223,7 +4223,8 @@ const BucketCard: Component<{ label: string; bucket: StatsBucket }> = (
 
 const REDACTION_DETECTORS = [
   { slug: "api_key", label: "API keys" },
-  { slug: "aws", label: "AWS keys" },
+  { slug: "aws", label: "AWS access keys" },
+  { slug: "aws_secret", label: "AWS secret keys" },
   { slug: "jwt", label: "JWTs" },
   { slug: "private_key", label: "Private keys (PEM)" },
   { slug: "connection_string", label: "Connection strings" },
@@ -4232,6 +4233,10 @@ const REDACTION_DETECTORS = [
   { slug: "email", label: "Emails" },
   { slug: "phone", label: "Phone numbers" },
   { slug: "url_secret", label: "URL query-parameter secrets" },
+  { slug: "ssn", label: "US SSNs" },
+  { slug: "pesel", label: "Polish PESEL" },
+  { slug: "ip_address", label: "IP addresses" },
+  { slug: "mac_address", label: "MAC addresses" },
   { slug: "high_entropy", label: "High-entropy strings" },
   { slug: "person_name", label: "Person names (NER)" },
   { slug: "location", label: "Locations (NER)" },
