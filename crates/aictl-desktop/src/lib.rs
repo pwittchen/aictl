@@ -20,6 +20,7 @@
 pub mod chat;
 pub mod commands;
 pub mod fs_watcher;
+pub mod mac_window;
 pub mod state;
 pub mod ui;
 #[cfg(feature = "voice")]
@@ -111,6 +112,37 @@ pub fn run() {
                 // external editors, git checkouts, all of it.
                 if let Ok(Some(ws)) = workspace::resolve() {
                     fs_watcher::install(app.handle(), &state, &ws);
+                }
+                if let Some(main) = app.get_webview_window("main") {
+                    // Best-effort first pass — the button view chain may not
+                    // be built yet at setup time in a release bundle.
+                    mac_window::apply(&main);
+                    // Deferred passes catch the case where the standard
+                    // window buttons or their superview chain weren't ready
+                    // when setup ran. The ladder (50ms / 250ms / 750ms)
+                    // covers cold-start variance without hammering.
+                    for delay in [50_u64, 250, 750] {
+                        let win = main.clone();
+                        let app_handle = app.handle().clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                            let _ = app_handle.run_on_main_thread(move || {
+                                mac_window::apply(&win);
+                            });
+                        });
+                    }
+                    let event_target = main.clone();
+                    main.on_window_event(move |event| {
+                        if matches!(
+                            event,
+                            tauri::WindowEvent::Resized(_)
+                                | tauri::WindowEvent::Focused(_)
+                                | tauri::WindowEvent::Moved(_)
+                                | tauri::WindowEvent::ScaleFactorChanged { .. }
+                        ) {
+                            mac_window::apply(&event_target);
+                        }
+                    });
                 }
                 Ok(())
             }
