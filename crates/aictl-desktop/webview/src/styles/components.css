@@ -4726,9 +4726,11 @@ button.primary:hover:not([disabled]) {
 }
 
 /* Minimal hljs theme scoped to the editor only — keeps the markdown
-   code-fence styling in the chat surface untouched. Palette mirrors
-   the project's accent/danger/warning tokens so the editor stays
-   visually consistent with the rest of the desktop chrome. */
+   code-fence styling in the chat surface untouched. Two palettes: the
+   default block targets the dark theme (One Dark-ish), and the
+   `[data-theme="light"]` / `prefers-color-scheme: light` blocks below
+   swap in darker, more saturated tones (One Light-ish) so identifiers
+   stay readable on the light theme's #fafafa background. */
 .file-pane-editor-highlight .hljs-keyword,
 .file-pane-editor-highlight .hljs-selector-tag,
 .file-pane-editor-highlight .hljs-built_in,
@@ -4785,6 +4787,87 @@ button.primary:hover:not([disabled]) {
 
 .file-pane-editor-highlight .hljs-emphasis {
   font-style: italic;
+}
+
+/* Light-theme palette — applied when the user explicitly picks the
+   light theme, or when no theme is set and the OS prefers light. The
+   selector list mirrors the dark block above one-to-one. */
+[data-theme="light"] .file-pane-editor-highlight .hljs-keyword,
+[data-theme="light"] .file-pane-editor-highlight .hljs-selector-tag,
+[data-theme="light"] .file-pane-editor-highlight .hljs-built_in,
+[data-theme="light"] .file-pane-editor-highlight .hljs-type,
+[data-theme="light"] .file-pane-editor-highlight .hljs-literal {
+  color: #a626a4;
+}
+
+[data-theme="light"] .file-pane-editor-highlight .hljs-string,
+[data-theme="light"] .file-pane-editor-highlight .hljs-attr,
+[data-theme="light"] .file-pane-editor-highlight .hljs-template-tag,
+[data-theme="light"] .file-pane-editor-highlight .hljs-template-variable,
+[data-theme="light"] .file-pane-editor-highlight .hljs-addition {
+  color: #50a14f;
+}
+
+[data-theme="light"] .file-pane-editor-highlight .hljs-number,
+[data-theme="light"] .file-pane-editor-highlight .hljs-symbol,
+[data-theme="light"] .file-pane-editor-highlight .hljs-bullet {
+  color: #986801;
+}
+
+[data-theme="light"] .file-pane-editor-highlight .hljs-title,
+[data-theme="light"] .file-pane-editor-highlight .hljs-title.function_,
+[data-theme="light"] .file-pane-editor-highlight .hljs-section,
+[data-theme="light"] .file-pane-editor-highlight .hljs-attribute,
+[data-theme="light"] .file-pane-editor-highlight .hljs-link {
+  color: #4078f2;
+}
+
+[data-theme="light"] .file-pane-editor-highlight .hljs-tag,
+[data-theme="light"] .file-pane-editor-highlight .hljs-name,
+[data-theme="light"] .file-pane-editor-highlight .hljs-deletion,
+[data-theme="light"] .file-pane-editor-highlight .hljs-variable,
+[data-theme="light"] .file-pane-editor-highlight .hljs-regexp {
+  color: #e45649;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-keyword,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-selector-tag,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-built_in,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-type,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-literal {
+    color: #a626a4;
+  }
+
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-string,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-attr,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-template-tag,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-template-variable,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-addition {
+    color: #50a14f;
+  }
+
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-number,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-symbol,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-bullet {
+    color: #986801;
+  }
+
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-title,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-title.function_,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-section,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-attribute,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-link {
+    color: #4078f2;
+  }
+
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-tag,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-name,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-deletion,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-variable,
+  :root:not([data-theme]) .file-pane-editor-highlight .hljs-regexp {
+    color: #e45649;
+  }
 }
 
 /* Editor header icon buttons (Revert / Save). currentColor inherits
