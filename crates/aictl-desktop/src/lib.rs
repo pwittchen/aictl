@@ -75,7 +75,7 @@ pub fn run() {
     // tab. Gated behind `AICTL_PLUGINS_ENABLED` inside `init`.
     aictl_core::plugins::init();
 
-    // Reap any `~/.aictl/whisper/*.part` files left behind by a download
+    // Reap any `~/.aictl/models/whisper/*.part` files left behind by a download
     // that was killed mid-stream (app force-quit, OS reboot, etc.). The
     // download path overwrites with `O_TRUNC` so leftovers are not
     // strictly harmful, but a 140 MB partial sitting forever after a

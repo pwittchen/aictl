@@ -2,7 +2,7 @@
 //!
 //! Wraps `whisper-rs` (whisper.cpp) so the webview can capture mic audio,
 //! ship the raw 16 kHz mono PCM samples across IPC, and get back a
-//! transcribed string. The model lives at `~/.aictl/whisper/ggml-base.bin`
+//! transcribed string. The model lives at `~/.aictl/models/whisper/ggml-base.bin`
 //! (multilingual base, ~140 MB) and is downloaded from the upstream
 //! `ggerganov/whisper.cpp` `HuggingFace` repo on first use.
 //!
@@ -43,11 +43,15 @@ pub const DEFAULT_MODEL_FILENAME: &str = "ggml-base.bin";
 pub const DEFAULT_MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true";
 
-/// `~/.aictl/whisper/`. Created on demand by `ensure_dir`; callers should
-/// not assume it exists before calling `download_model` or `transcribe`.
+/// `~/.aictl/models/whisper/`. Created on demand by `ensure_dir`; callers
+/// should not assume it exists before calling `download_model` or
+/// `transcribe`.
 fn voice_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".aictl").join("whisper")
+    PathBuf::from(home)
+        .join(".aictl")
+        .join("models")
+        .join("whisper")
 }
 
 /// Absolute path to the bundled default model on disk.
