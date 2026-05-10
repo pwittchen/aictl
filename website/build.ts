@@ -62,8 +62,11 @@ async function main() {
   // Copy llms.txt for LLM-friendly site metadata (https://llmstxt.org/).
   await copyFile(join(root, "llms.txt"), join(dist, "llms.txt"));
 
+  // Copy author avatar used by the contact section.
+  await copyFile(join(root, "avatar.png"), join(dist, "avatar.png"));
+
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt"]) {
+  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "avatar.png"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
