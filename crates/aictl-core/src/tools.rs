@@ -175,6 +175,10 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
         "fetch_geolocation",
         "get geolocation data for an IP address",
     ),
+    (
+        "view_map",
+        "display a map (OpenStreetMap) for a place name, address, or coordinates — desktop app only",
+    ),
     ("read_image", "read an image from file or URL for analysis"),
     (
         "generate_image",
@@ -239,10 +243,6 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     (
         "save_memory",
         "persist a fact about the user to long-term memory (~/.aictl/memory.json)",
-    ),
-    (
-        "view_map",
-        "display a map (OpenStreetMap) for a place name, address, or coordinates — desktop app only",
     ),
 ];
 

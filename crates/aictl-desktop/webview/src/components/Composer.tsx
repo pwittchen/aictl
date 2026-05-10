@@ -93,6 +93,12 @@ interface Props {
   /// plumbing as the web toggle.
   imageState: "all" | "partial" | "none";
   onImageEnabledChange: (next: boolean) => Promise<void>;
+  /// Pin icon — sibling toggle for the two location tools
+  /// (`fetch_geolocation`, `view_map`). Same tri-state shape and
+  /// `AICTL_SECURITY_DISABLED_TOOLS` plumbing as web/image. Sits to
+  /// the left of the globe in the toolbar.
+  locationState: "all" | "partial" | "none";
+  onLocationEnabledChange: (next: boolean) => Promise<void>;
   /// Memory icon — flips `AICTL_MEMORY_ENABLED`. When off the engine
   /// stops loading saved facts into the system prompt and the
   /// `save_memory` tool refuses to write. Settings → Memory exposes
@@ -620,6 +626,38 @@ const Composer: Component<Props> = (props) => {
       }
       setImageFlash(`failed to toggle image tools: ${err}`);
       imageFlashTimer = window.setTimeout(() => setImageFlash(null), 1800);
+    }
+  };
+
+  // Location toggle — same tri-state shape as the globe over
+  // `fetch_geolocation` and `view_map`. Click "all" disables both;
+  // click "partial"/"none" re-enables both.
+  const [locationFlash, setLocationFlash] = createSignal<string | null>(null);
+  let locationFlashTimer: number | undefined;
+  const toggleLocation = async () => {
+    if (props.disabled || !props.toolsEnabled) return;
+    const next = props.locationState !== "all";
+    try {
+      await props.onLocationEnabledChange(next);
+      if (locationFlashTimer !== undefined) {
+        window.clearTimeout(locationFlashTimer);
+      }
+      setLocationFlash(
+        next ? "location tools enabled" : "location tools disabled",
+      );
+      locationFlashTimer = window.setTimeout(
+        () => setLocationFlash(null),
+        1800,
+      );
+    } catch (err) {
+      if (locationFlashTimer !== undefined) {
+        window.clearTimeout(locationFlashTimer);
+      }
+      setLocationFlash(`failed to toggle location tools: ${err}`);
+      locationFlashTimer = window.setTimeout(
+        () => setLocationFlash(null),
+        1800,
+      );
     }
   };
 
@@ -1156,6 +1194,52 @@ const Composer: Component<Props> = (props) => {
           </svg>
         </button>
         <Show when={imageFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="location-icon"
+          data-state={props.locationState}
+          disabled={props.disabled || !props.toolsEnabled}
+          aria-pressed={props.locationState === "all" ? "true" : "false"}
+          aria-label={
+            props.locationState === "all"
+              ? "All location tools enabled (click to disable fetch_geolocation, view_map)"
+              : props.locationState === "none"
+                ? "All location tools disabled (click to enable fetch_geolocation, view_map)"
+                : "Some location tools disabled (click to enable all of fetch_geolocation, view_map)"
+          }
+          title={
+            !props.toolsEnabled
+              ? "tools master switch is off — enable it to use location tools"
+              : props.locationState === "all"
+                ? "all location tools enabled — click to disable"
+                : props.locationState === "none"
+                  ? "all location tools disabled — click to enable"
+                  : "some location tools disabled — click to enable all"
+          }
+          onClick={() => void toggleLocation()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="m7.539 14.841.003.003.002.002a.755.755 0 0 0 .912 0l.002-.002.003-.003.012-.009a5.57 5.57 0 0 0 .19-.153 15.588 15.588 0 0 0 2.046-2.082c1.101-1.362 2.291-3.342 2.291-5.597A5 5 0 0 0 3 7c0 2.255 1.19 4.235 2.292 5.597a15.591 15.591 0 0 0 2.046 2.082 8.916 8.916 0 0 0 .189.153l.012.01ZM8 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <Show when={locationFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">

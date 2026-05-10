@@ -369,6 +369,12 @@ const App: Component = () => {
   const [imageState, setImageState] = createSignal<"all" | "partial" | "none">(
     "all",
   );
+  // Sibling toggle for the two location tools (`fetch_geolocation`,
+  // `view_map`). Same tri-state shape and `AICTL_SECURITY_DISABLED_TOOLS`
+  // plumbing as the web/image toggles.
+  const [locationState, setLocationState] = createSignal<
+    "all" | "partial" | "none"
+  >("all");
   // Memory icon — mirrors `AICTL_MEMORY_ENABLED` (default on). Round-
   // trips through the same `memory_set_enabled` Tauri command the
   // Settings → Memory panel calls so the two surfaces stay in sync.
@@ -543,6 +549,48 @@ const App: Component = () => {
     void refreshToolsEnabled();
   };
 
+  // Location tools state — mirrors the web/image flow for the two
+  // location-bound tools (`fetch_geolocation`, `view_map`). Same
+  // `AICTL_SECURITY_DISABLED_TOOLS` gate, same tri-state shape: cyan
+  // when both enabled, yellow when exactly one is disabled, gray when
+  // both are disabled.
+  const LOCATION_TOOLS = ["fetch_geolocation", "view_map"];
+  const refreshLocationEnabled = async () => {
+    try {
+      const raw =
+        (await ipc.configValue("AICTL_SECURITY_DISABLED_TOOLS")) ?? "";
+      const disabled = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      const offCount = LOCATION_TOOLS.filter((t) =>
+        disabled.includes(t),
+      ).length;
+      setLocationState(
+        offCount === 0
+          ? "all"
+          : offCount === LOCATION_TOOLS.length
+            ? "none"
+            : "partial",
+      );
+    } catch {
+      setLocationState("all");
+    }
+  };
+
+  /// Flip every location tool to `next` in one shot. Mirrors
+  /// `setWebTools` / `setImageTools` — also re-derives `toolsState`
+  /// so the wrench icon's tri-state reflects the new per-tool count
+  /// without waiting for Settings to close.
+  const setLocationTools = async (next: boolean) => {
+    const disable = !next;
+    for (const name of LOCATION_TOOLS) {
+      await ipc.toolSetDisabled(name, disable);
+    }
+    setLocationState(next ? "all" : "none");
+    void refreshToolsEnabled();
+  };
+
   // Memory master switch — reads the engine's MemoryStatus rather than
   // the raw config key so the icon follows the same source of truth as
   // the Settings panel.
@@ -644,6 +692,7 @@ const App: Component = () => {
     setToolsState(next ? "all" : "none");
     setWebState(next ? "all" : "none");
     setImageState(next ? "all" : "none");
+    setLocationState(next ? "all" : "none");
   };
 
   // Tool-approval default (`AICTL_TOOL_APPROVAL`) — picked up on mount
@@ -1069,6 +1118,7 @@ const App: Component = () => {
     void refreshApprovalDefault();
     void refreshWebEnabled();
     void refreshImageEnabled();
+    void refreshLocationEnabled();
     void refreshMemoryEnabled();
     void refreshPluginsEnabled();
     void refreshMcpEnabled();
@@ -1635,6 +1685,8 @@ const App: Component = () => {
               onWebEnabledChange={setWebTools}
               imageState={imageState()}
               onImageEnabledChange={setImageTools}
+              locationState={locationState()}
+              onLocationEnabledChange={setLocationTools}
               memoryEnabled={memoryEnabled()}
               onMemoryEnabledChange={setMemoryEnabledMaster}
               securityState={securityState()}
@@ -1737,6 +1789,7 @@ const App: Component = () => {
             void refreshApprovalDefault();
             void refreshWebEnabled();
             void refreshImageEnabled();
+            void refreshLocationEnabled();
             void refreshMemoryEnabled();
             void refreshPluginsEnabled();
             void refreshNotifications();
@@ -1745,11 +1798,12 @@ const App: Component = () => {
           }}
           onToolToggled={() => {
             // Per-tool flip inside the Settings → Tools list. Refresh
-            // the composer's web/image/tools icon states immediately
-            // so they all flip between cyan / yellow / gray without
-            // waiting for the panel to close.
+            // the composer's web/image/location/tools icon states
+            // immediately so they all flip between cyan / yellow /
+            // gray without waiting for the panel to close.
             void refreshWebEnabled();
             void refreshImageEnabled();
+            void refreshLocationEnabled();
             void refreshToolsEnabled();
           }}
           models={models()}

@@ -1516,9 +1516,15 @@
   color: var(--fg-soft);
 }
 
-.composer .web-icon[disabled] {
+.composer .web-icon[disabled],
+.composer .web-icon[disabled]:hover {
   opacity: 0.4;
   cursor: not-allowed;
+  /* Suppress the generic `.composer button:hover` faint-fill so a
+     disabled icon doesn't flash a hover background — the icon-specific
+     active-state rules already use `:not([disabled])`, which leaves the
+     fallback rule winning when `[disabled]` is set. */
+  background: transparent;
 }
 
 /* Memory toggle: card-stack icon. Drives `AICTL_MEMORY_ENABLED`. Same
@@ -1612,9 +1618,62 @@
   color: var(--fg-soft);
 }
 
-.composer .image-icon[disabled] {
+.composer .image-icon[disabled],
+.composer .image-icon[disabled]:hover {
   opacity: 0.4;
   cursor: not-allowed;
+  background: transparent;
+}
+
+/* Location tools toggle: pin icon. Drives `fetch_geolocation` and
+   `view_map` in `AICTL_SECURITY_DISABLED_TOOLS` as a unit. Tri-state
+   via `data-state`, identical convention to the web globe and the
+   image picture toggles. Sits to the left of the globe in the
+   composer toolbar. */
+.composer .location-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .location-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .location-icon[data-state="all"],
+.composer .location-icon[data-state="all"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .location-icon[data-state="partial"],
+.composer .location-icon[data-state="partial"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--warning);
+}
+
+.composer .location-icon[data-state="none"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .location-icon[disabled],
+.composer .location-icon[disabled]:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
 }
 
 /* Floating confirmation toast. Mirrors the brutalist panel used by
