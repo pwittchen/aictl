@@ -32,7 +32,7 @@ crates/aictl-core/src/
  ├── memory.rs          Long-term memory store (~/.aictl/memory.json) loaded into the system prompt at every turn. Two write seams: the save_memory tool the agent invokes, and the CLI /remember slash command. Hard caps (200 entries, 1000 chars each, oldest-first eviction). Master switch AICTL_MEMORY_ENABLED (default true); session::is_incognito() is a stronger kill-switch that overrides both the flag and writes.
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── skills.rs          Skill storage (~/.aictl/skills/<name>/SKILL.md), frontmatter (name/description) parsing, CRUD, reserved-name guard, AICTL_SKILLS_DIR override. Skills are single-turn markdown playbooks merged into the base system prompt for one run_agent_turn call and never persisted into session history
- ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (32)
+ ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (34)
  ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, memory, notify, run_code, shell, system_info, util, web)
  ├── ui.rs              AgentUI trait, ToolApproval, ProgressHandle + ProgressBackend (so the core doesn't link indicatif), the WarningSink / set_warning_sink / warn_global global-warn surface. No terminal-library types in scope; concrete impls live in crates/aictl-cli/src/ui.rs.
  ├── stats.rs           Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
@@ -272,6 +272,8 @@ Both single-shot and REPL modes share the same loop:
  │  │ checksum            │ sha2/md-5 streaming digest│      │
  │  │ clipboard           │ pbcopy/wl-copy/xclip read │      │
  │  │ notify              │ osascript / notify-send   │      │
+ │  │ view_map            │ desktop-only [view_map]   │      │
+ │  │ save_memory         │ memory::add JSON store    │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
  │                                                           │
@@ -339,6 +341,20 @@ Both single-shot and REPL modes share the same loop:
  │  - notify shells out to `osascript` on macOS or           │
  │    `notify-send` on Linux. Title required (≤256 B), body  │
  │    optional (≤4096 B). Useful for --auto completion pings │
+ │  - view_map renders an OpenStreetMap base or Esri         │
+ │    satellite map with one or more pins (lat/lon, lat/     │
+ │    lon/zoom, or place name geocoded via Nominatim);       │
+ │    optional `<label>` and `<description>` per pin.        │
+ │    The terminal frontend cannot render maps, so the CLI   │
+ │    returns an error; the desktop app intercepts the       │
+ │    `[view_map] {json}` marker and shows the map. Max 25   │
+ │    pins per call                                          │
+ │  - save_memory persists one fact about the user to        │
+ │    `~/.aictl/memory.json` via `memory::add`. The fact     │
+ │    is auto-loaded into the system prompt of every future  │
+ │    conversation under a `# Memory` block. Skipped         │
+ │    silently in incognito mode or when                     │
+ │    `AICTL_MEMORY_ENABLED=false`                           │
  │  - tool names starting with `mcp__` route to             │
  │    mcp::call_tool: locate the (server, tool) pair in the  │
  │    cached catalogue, parse the JSON body, send tools/call │

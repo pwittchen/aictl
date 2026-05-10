@@ -151,7 +151,7 @@
               <h3 class="surface__title">Command-line interface</h3>
               <p class="surface__desc">
                 Single binary for macOS and Linux. Interactive REPL or
-                one-shot. 32 built-in tools, security policy on by default.
+                one-shot. 34 built-in tools, security policy on by default.
               </p>
               <a class="surface__cta" href="terminal.html">
                 Read more <span aria-hidden="true">→</span>
@@ -468,7 +468,7 @@
               <div class="cli-demo__body">
 <pre class="cli-demo__banner" aria-hidden="true"><span class="tt-face">[-_-]</span> <strong class="tt-brand">aictl</strong> <span class="tt-dim" data-cli-version>0.39.3</span> <span class="tt-ok">(latest)</span> <span class="tt-dim">— AI agent in your terminal</span>
 <span class="tt-face"> |_|</span>  <span class="tt-prov">anthropic</span> <span class="tt-dim">·</span> <span class="tt-model">claude-sonnet-4-6</span>
-      <span class="tt-dim">32 tools · dir: aictl/</span>
+      <span class="tt-dim">34 tools · dir: aictl/</span>
       <span class="tt-info">cwd jail: on</span><span class="tt-dim"> · subshell blocked · timeout: 30s · disabled tools: 0</span>
       <span class="tt-info">keychain</span> <span class="tt-dim">(0 locked · 9 plain · 0 both)</span>
       <span class="tt-dim">session: 9ee82912-c760-4444-bfe8-0bc000c173c0</span>
@@ -629,7 +629,7 @@
           </article>
           <article class="card">
             <h3>Tools</h3>
-            <p>32 built-in tools spanning shell, files, archives, checksums, clipboard, notifications, web, documents, images, code execution, math, JSON / CSV queries, host probing, and long-term memory. Every call is gated by the security policy. Review with <code>/tools</code>.</p>
+            <p>34 built-in tools spanning shell, files, archives, checksums, clipboard, notifications, web, documents, images, maps, code execution, math, JSON / CSV queries, host probing, and long-term memory. Every call is gated by the security policy. Review with <code>/tools</code>.</p>
           </article>
           <article class="card">
             <h3>Context</h3>
@@ -741,6 +741,7 @@
               <li><code>read_image</code> — vision across providers</li>
               <li><code>generate_image</code> — DALL·E, Imagen, Grok</li>
               <li><code>read_document</code> — PDF, DOCX, spreadsheets</li>
+              <li><code>view_map</code> — OpenStreetMap / satellite pins (desktop)</li>
             </ul>
           </div>
           <div class="tools">
@@ -761,6 +762,7 @@
               <li><code>system_info</code> — OS, CPU, memory, disk</li>
               <li><code>clipboard</code> — read / write the system clipboard</li>
               <li><code>notify</code> — desktop notifications (macOS, Linux)</li>
+              <li><code>save_memory</code> — persist a fact to long-term memory</li>
             </ul>
           </div>
         </div>
