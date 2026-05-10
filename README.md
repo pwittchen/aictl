@@ -1252,6 +1252,18 @@ This project includes [Claude Code](https://claude.ai/code) skills for common wo
 
 Evaluation reports are saved to `.claude/reports/` with timestamped filenames.
 
+## Support & consulting
+
+**aictl** is free to use for non-commercial purposes (see [License](#license)). The CLI, desktop app, and HTTP server are open source and developed in the open — no paid tiers, no feature gating, no telemetry.
+
+If you or your team need help with any of the following, get in touch at [piotr@wittchen.io](mailto:piotr@wittchen.io):
+
+- **Hosted `aictl-server`** — managed multi-user proxy with shared keys, audit logs, and per-user budgets, deployed on your infra or mine.
+- **On-prem deployment & setup** — installing, configuring, and integrating aictl into your stack (corporate proxies, SSO, internal MCP servers, custom redaction rules).
+- **Custom features & integrations** — provider adapters, MCP servers, plugins, redaction detectors, or domain-specific agents and skills tailored to your workflow.
+- **Commercial licensing** — a license for use inside a for-profit organization (the default [PolyForm Noncommercial License](LICENSE) does not cover this).
+- **Support contracts** — SLA-backed support, security reviews, and prioritized bug fixes.
+
 ## License
 
 This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). It is free to use for non-commercial purposes, including personal use, research, education, and use by non-profit organizations. For commercial use, please contact [piotr@wittchen.io](mailto:piotr@wittchen.io).
