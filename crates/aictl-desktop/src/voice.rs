@@ -182,8 +182,7 @@ pub async fn download_model(ui: &dyn AgentUI) -> Result<(), String> {
 /// Hoisted to module scope (rather than a `static` inside `context()`)
 /// so `shutdown` can `OnceLock::get` it on exit without forcing
 /// initialisation in builds that never transcribed.
-static WHISPER_CTX: std::sync::OnceLock<Mutex<Option<WhisperContext>>> =
-    std::sync::OnceLock::new();
+static WHISPER_CTX: std::sync::OnceLock<Mutex<Option<WhisperContext>>> = std::sync::OnceLock::new();
 
 fn context() -> &'static Mutex<Option<WhisperContext>> {
     WHISPER_CTX.get_or_init(|| Mutex::new(None))
