@@ -50,16 +50,6 @@ notify = "8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
 futures-util = "0.3"
 
-# Direct objc2 bindings for the macOS traffic-light reposition fix in
-# `mac_window.rs`. Tauri 2.11 doesn't expose `set_traffic_light_position`
-# on the high-level `WebviewWindow`, and the `trafficLightPosition` field
-# in `tauri.conf.json` renders at a different vertical offset in release
-# bundles than it does under `cargo tauri dev`. We mirror tao/wry's
-# internal `inset_traffic_lights` ourselves so the buttons land in the
-# same spot in both builds.
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSView", "NSButton", "NSResponder"] }
-objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 
 # whisper.cpp bindings for the desktop's voice-to-text composer button.
 # Metal lights up the Apple-Silicon GPU path; CoreML is intentionally
