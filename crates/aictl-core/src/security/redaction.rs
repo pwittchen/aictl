@@ -112,6 +112,19 @@ pub enum DetectorKind {
     /// `&api_key=…`, `?password=…`, etc. The match range covers only
     /// the value, so the parameter name stays visible after substitution.
     UrlSecret,
+    /// US Social Security Number in the canonical `123-45-6789` shape.
+    Ssn,
+    /// Polish national identification number (PESEL) — 11 digits with
+    /// the standard weighted checksum (weights 1,3,7,9,1,3,7,9,1,3).
+    Pesel,
+    /// IPv4 (octet-validated) or IPv6 address.
+    IpAddress,
+    /// MAC address — six hex pairs separated by `:` or `-`.
+    MacAddress,
+    /// AWS secret access key — 40-char base64 alphabet (`[A-Za-z0-9/+]`)
+    /// gated on AWS / secret context within ~50 chars to avoid flagging
+    /// arbitrary 40-char base64 blobs.
+    AwsSecretKey,
     /// Layer B — opaque high-entropy token.
     HighEntropy,
     /// Layer C — person name detected by the optional NER backend.
@@ -149,6 +162,11 @@ impl DetectorKind {
             Self::Email => "EMAIL".to_string(),
             Self::Phone => "PHONE".to_string(),
             Self::UrlSecret => "URL_SECRET".to_string(),
+            Self::Ssn => "SSN".to_string(),
+            Self::Pesel => "PESEL".to_string(),
+            Self::IpAddress => "IP_ADDRESS".to_string(),
+            Self::MacAddress => "MAC_ADDRESS".to_string(),
+            Self::AwsSecretKey => "AWS_SECRET_KEY".to_string(),
             Self::HighEntropy => "HIGH_ENTROPY".to_string(),
             Self::PersonName => "PERSON".to_string(),
             Self::Location => "LOCATION".to_string(),
@@ -172,6 +190,11 @@ impl DetectorKind {
             Self::Email => "email",
             Self::Phone => "phone",
             Self::UrlSecret => "url_secret",
+            Self::Ssn => "ssn",
+            Self::Pesel => "pesel",
+            Self::IpAddress => "ip_address",
+            Self::MacAddress => "mac_address",
+            Self::AwsSecretKey => "aws_secret",
             Self::HighEntropy => "high_entropy",
             Self::PersonName => "person_name",
             Self::Location => "location",
@@ -187,11 +210,11 @@ impl DetectorKind {
         match self {
             Self::Custom(_) => 10,
             Self::PrivateKey => 9,
-            Self::Jwt | Self::ConnectionString => 8,
-            Self::ApiKey | Self::AwsAccessKey => 7,
+            Self::Jwt | Self::ConnectionString | Self::AwsSecretKey => 8,
+            Self::ApiKey | Self::AwsAccessKey | Self::Ssn | Self::Pesel => 7,
             Self::Iban | Self::CreditCard | Self::UrlSecret => 6,
             Self::Email => 5,
-            Self::Phone => 4,
+            Self::Phone | Self::IpAddress | Self::MacAddress => 4,
             // NER hits sit above HighEntropy (model output is more
             // informative than "looks random") but below structured
             // detectors so a regex-confirmed credential wins over a
@@ -627,6 +650,18 @@ fn find_matches(text: &str, pol: &RedactionPolicy) -> Vec<Match> {
     );
     run_phone_detector(text, pol, &mut raw);
     run_url_secret_detector(text, pol, &mut raw);
+    run_regex_detector(text, ssn_regex(), &DetectorKind::Ssn, "high", pol, &mut raw);
+    run_pesel_detector(text, pol, &mut raw);
+    run_ip_detector(text, pol, &mut raw);
+    run_regex_detector(
+        text,
+        mac_regex(),
+        &DetectorKind::MacAddress,
+        "high",
+        pol,
+        &mut raw,
+    );
+    run_aws_secret_detector(text, pol, &mut raw);
 
     // Layer B entropy scanner.
     if pol.is_detector_enabled(&DetectorKind::HighEntropy) {
@@ -793,6 +828,41 @@ fn iban_check(iban: &str) -> bool {
     rem == 1
 }
 
+/// PESEL detector. The shape — 11 contiguous digits — is too generic
+/// to flag on its own (timestamps, order numbers, IDs), so each match
+/// is gated on the official weighted-checksum validator. False
+/// positives at this length are rare once the checksum holds.
+fn run_pesel_detector(text: &str, pol: &RedactionPolicy, out: &mut Vec<Match>) {
+    if !pol.is_detector_enabled(&DetectorKind::Pesel) {
+        return;
+    }
+    for m in pesel_regex().find_iter(text) {
+        if pesel_check(m.as_str()) {
+            out.push(Match {
+                kind: DetectorKind::Pesel,
+                range: m.start()..m.end(),
+                confidence: "high",
+            });
+        }
+    }
+}
+
+/// Standard PESEL checksum: digits weighted by 1,3,7,9,1,3,7,9,1,3,
+/// summed mod 10, then `(10 - sum) mod 10` must equal the last digit.
+fn pesel_check(digits: &str) -> bool {
+    const WEIGHTS: [u32; 10] = [1, 3, 7, 9, 1, 3, 7, 9, 1, 3];
+    if digits.len() != 11 || !digits.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    let bytes = digits.as_bytes();
+    let mut sum = 0u32;
+    for (i, &w) in WEIGHTS.iter().enumerate() {
+        sum += u32::from(bytes[i] - b'0') * w;
+    }
+    let expected = (10 - (sum % 10)) % 10;
+    expected == u32::from(bytes[10] - b'0')
+}
+
 /// Phone numbers are noisy by shape — an arbitrary 10-digit run could be
 /// an order number or postal code. Gate the match on a context keyword
 /// (`phone`, `tel`, `mobile`, `cell`, `fax`) within ~30 chars to the
@@ -856,16 +926,119 @@ fn has_phone_context(lower_text: &str, span_start: usize) -> bool {
     PHONE_CONTEXT_WORDS.iter().any(|w| window.contains(w))
 }
 
+/// IPv4 + IPv6 detector. The IPv4 regex already validates each octet is
+/// `0-255`; the IPv6 regex covers the full 8-group form and the common
+/// `::` zero-compression variants. The `IpAddress` kind is shared so
+/// users only see a single placeholder.
+fn run_ip_detector(text: &str, pol: &RedactionPolicy, out: &mut Vec<Match>) {
+    if !pol.is_detector_enabled(&DetectorKind::IpAddress) {
+        return;
+    }
+    for m in ipv4_regex().find_iter(text) {
+        out.push(Match {
+            kind: DetectorKind::IpAddress,
+            range: m.start()..m.end(),
+            confidence: "high",
+        });
+    }
+    for m in ipv6_regex().find_iter(text) {
+        // The IPv6 alternation is permissive enough to swallow short
+        // strings like `::1` (loopback) which is exactly what we want
+        // — those are still IP addresses worth scrubbing.
+        out.push(Match {
+            kind: DetectorKind::IpAddress,
+            range: m.start()..m.end(),
+            confidence: "high",
+        });
+    }
+}
+
+/// AWS secret access keys are 40-char strings over the base64 alphabet
+/// without padding (`[A-Za-z0-9/+]`). The shape is too generic to flag
+/// on its own — many other 40-char base64 blobs (hashes, signatures,
+/// opaque IDs) would false-positive — so we gate on AWS / secret /
+/// credential context within ~50 chars to the left of the span. Capture
+/// group 1 is the actual key so the boundary chars stay outside the
+/// redacted span.
+fn run_aws_secret_detector(text: &str, pol: &RedactionPolicy, out: &mut Vec<Match>) {
+    if !pol.is_detector_enabled(&DetectorKind::AwsSecretKey) {
+        return;
+    }
+    let lower = text.to_ascii_lowercase();
+    for caps in aws_secret_regex().captures_iter(text) {
+        let Some(value) = caps.get(1) else { continue };
+        if !has_aws_secret_context(&lower, value.start()) {
+            continue;
+        }
+        out.push(Match {
+            kind: DetectorKind::AwsSecretKey,
+            range: value.start()..value.end(),
+            confidence: "high",
+        });
+    }
+}
+
+const AWS_SECRET_CONTEXT_WORDS: &[&str] = &["aws", "secret", "access"];
+
+fn has_aws_secret_context(lower_text: &str, span_start: usize) -> bool {
+    let window_start = span_start.saturating_sub(50);
+    let window_start = safe_boundary(lower_text, window_start, false);
+    let window = &lower_text[window_start..span_start];
+    AWS_SECRET_CONTEXT_WORDS.iter().any(|w| window.contains(w))
+}
+
+const CREDENTIAL_CONTEXT_WORDS: &[&str] = &[
+    "key",
+    "secret",
+    "token",
+    "password",
+    "passwd",
+    "pwd",
+    "auth",
+    "bearer",
+    "credential",
+    "api",
+    "jwt",
+    "signature",
+    "hash",
+];
+
+/// Returns true when one of [`CREDENTIAL_CONTEXT_WORDS`] appears within
+/// the 50 chars to the left of `span_start`. Used by the entropy
+/// scanner to decide whether an opaque high-entropy run should clear
+/// the post-detection low-confidence filter.
+fn has_credential_context(lower_text: &str, span_start: usize) -> bool {
+    let window_start = span_start.saturating_sub(50);
+    let window_start = safe_boundary(lower_text, window_start, false);
+    let window = &lower_text[window_start..span_start];
+    CREDENTIAL_CONTEXT_WORDS.iter().any(|w| window.contains(w))
+}
+
 // --- Layer B entropy scanner ---
 
 const ENTROPY_MIN_RUN: usize = 32;
 const ENTROPY_THRESHOLD: f64 = 4.5;
+/// Length floor at which a high-entropy run is treated as a credential
+/// even without nearby context. Long opaque tokens are rarely anything
+/// else, so the false-positive cost is acceptable for the recall gain.
+const ENTROPY_LONG_RUN: usize = 40;
+/// Length floor for hex-only runs (commit SHAs, hash digests, hex-
+/// encoded keys). Hex maxes out at 4.0 bits of Shannon entropy so the
+/// general entropy threshold misses it; we treat the all-hex shape as
+/// the signal instead.
+const ENTROPY_HEX_MIN_RUN: usize = 32;
+/// Minimum Shannon entropy for an all-hex run to be elevated. Uniform
+/// hex digits cap at 4.0 bits, but real hashes / keys usually clear
+/// 3.0 — this filters out runs of repeating characters (`aaaa…`,
+/// `f0f0f0…`) that happen to fit the hex alphabet.
+const ENTROPY_HEX_MIN_ENTROPY: f64 = 3.0;
 
 fn run_entropy_scanner(text: &str, out: &mut Vec<Match>) {
     // Walk the byte stream and find maximal runs of [A-Za-z0-9/+=_-].
     // We report ranges on byte offsets — all characters in the allowed
     // set are ASCII, so byte and char offsets coincide in-run.
     let bytes = text.as_bytes();
+    let lower = text.to_ascii_lowercase();
     let mut i = 0;
     while i < bytes.len() {
         if !is_token_byte(bytes[i]) {
@@ -877,16 +1050,36 @@ fn run_entropy_scanner(text: &str, out: &mut Vec<Match>) {
             i += 1;
         }
         let end = i;
-        if end - start >= ENTROPY_MIN_RUN {
-            let run = &text[start..end];
-            if shannon_entropy(run.as_bytes()) >= ENTROPY_THRESHOLD {
-                out.push(Match {
-                    kind: DetectorKind::HighEntropy,
-                    range: start..end,
-                    confidence: "low",
-                });
-            }
+        let len = end - start;
+        if len < ENTROPY_MIN_RUN {
+            continue;
         }
+        let run = &text[start..end];
+        let entropy = shannon_entropy(run.as_bytes());
+        let is_all_hex = run.bytes().all(|b| b.is_ascii_hexdigit());
+        let credential_ctx = has_credential_context(&lower, start);
+
+        // Three elevation paths to "medium" (the post-detection filter
+        // drops "low"): a long opaque run, a long hex string, or a
+        // shorter run that sits next to a credential keyword. Anything
+        // else stays "low" and is dropped — the generic entropy
+        // scanner is too noisy in source code / docs to surface alone.
+        let confidence = if (len >= ENTROPY_LONG_RUN && entropy >= ENTROPY_THRESHOLD)
+            || (is_all_hex && len >= ENTROPY_HEX_MIN_RUN && entropy >= ENTROPY_HEX_MIN_ENTROPY)
+            || (entropy >= ENTROPY_THRESHOLD && credential_ctx)
+        {
+            "medium"
+        } else if entropy >= ENTROPY_THRESHOLD {
+            "low"
+        } else {
+            continue;
+        };
+
+        out.push(Match {
+            kind: DetectorKind::HighEntropy,
+            range: start..end,
+            confidence,
+        });
     }
 }
 
@@ -1076,7 +1269,14 @@ fn credit_card_regex() -> &'static Regex {
 
 fn iban_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b").expect("iban regex compiles"))
+    RE.get_or_init(|| {
+        // Country code + 2-digit checksum + 11–30 BBAN chars, with
+        // optional internal whitespace (the canonical pretty-printed
+        // form groups the BBAN in fours, e.g. `DE89 3704 0044 0532
+        // 0130 00`). `iban_check` strips whitespace before validating
+        // mod-97, so a permissive regex here is safe.
+        Regex::new(r"\b[A-Z]{2}\d{2}(?:[ \t]?[A-Z0-9]){11,30}\b").expect("iban regex compiles")
+    })
 }
 
 fn email_regex() -> &'static Regex {
@@ -1116,6 +1316,86 @@ fn phone_regex() -> &'static Regex {
             )",
         )
         .expect("phone regex compiles")
+    })
+}
+
+fn ssn_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // US SSN canonical form `AAA-GG-SSSS`. Excluding bare 9-digit
+        // runs keeps the false-positive rate low — those collide with
+        // order numbers, postal codes, and timestamps.
+        Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").expect("ssn regex compiles")
+    })
+}
+
+fn pesel_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // 11 contiguous digits. The checksum gate in run_pesel_detector
+        // is what makes this usable — bare 11-digit runs are otherwise
+        // common (timestamps, ISBN-like IDs, internal sequences).
+        Regex::new(r"\b\d{11}\b").expect("pesel regex compiles")
+    })
+}
+
+fn ipv4_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Each octet validated to 0–255 inline so version strings like
+        // `1.2.3.4-rc1` and dotted build numbers don't false-positive.
+        let octet = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)";
+        let pattern = format!(r"\b(?:{octet}\.){{3}}{octet}\b");
+        Regex::new(&pattern).expect("ipv4 regex compiles")
+    })
+}
+
+fn ipv6_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Three forms: full 8-group, leading `::`, and `::` somewhere
+        // in the middle / trailing. Word boundaries don't fire after
+        // `:` (non-word), so each alternative anchors itself with a
+        // hex-digit `\b` at one end and lets the colon structure
+        // bound the other.
+        Regex::new(
+            r"(?x)
+            (?:
+                \b[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){7}\b
+              | \b(?:[0-9a-fA-F]{1,4}:){1,7}:(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,5})?
+              | ::[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6}\b
+              | ::1\b
+            )",
+        )
+        .expect("ipv6 regex compiles")
+    })
+}
+
+fn mac_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // Six hex pairs separated by `:` or `-`. The whole match must
+        // use the same separator — mixing `:` and `-` is non-standard
+        // and almost always coincidental noise.
+        Regex::new(
+            r"\b(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}\b|\b(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}\b",
+        )
+        .expect("mac regex compiles")
+    })
+}
+
+fn aws_secret_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        // 40-char base64 alphabet without padding. Capture group 1 is
+        // the key itself; the surrounding `[^…]` boundaries make sure
+        // the regex doesn't grab a 40-char prefix of a longer base64
+        // blob (which would tokenize as part of the same run). The
+        // context gate in `run_aws_secret_detector` rejects anything
+        // not preceded by aws/secret/access — that's what makes this
+        // detector usable despite the generic shape.
+        let pattern = r"(?:^|[^A-Za-z0-9/+])([A-Za-z0-9/+]{40})(?:$|[^A-Za-z0-9/+])";
+        Regex::new(pattern).expect("aws_secret regex compiles")
     })
 }
 
@@ -1782,6 +2062,180 @@ mod tests {
         assert_eq!(got[0].0, "GOOD");
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("BAD"));
+    }
+
+    // --- New detectors: SSN, IP, MAC, AWS secret ---
+
+    #[test]
+    fn detects_ssn_canonical_form() {
+        let r = redact("SSN: 123-45-6789", &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:SSN]"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::Ssn));
+    }
+
+    #[test]
+    fn detects_valid_pesel() {
+        // 54092524272 — checksum: weights·digits sum % 10 = 8,
+        // (10 - 8) % 10 = 2 = last digit ✓
+        let r = redact("PESEL: 54092524272", &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:PESEL]"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::Pesel));
+    }
+
+    #[test]
+    fn rejects_pesel_with_bad_checksum() {
+        // Valid shape (11 digits) but the checksum digit is wrong.
+        let r = redact("looks like 54092524273 maybe", &pol_redact());
+        match r {
+            RedactionResult::Clean => {}
+            RedactionResult::Redacted { matches, .. } => {
+                assert!(matches.iter().all(|m| m.kind != DetectorKind::Pesel));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pesel_check_direct() {
+        assert!(pesel_check("54092524272"));
+        assert!(!pesel_check("54092524273"));
+        assert!(!pesel_check("1234567890")); // 10 digits
+        assert!(!pesel_check("123456789012")); // 12 digits
+        assert!(!pesel_check("5409252427a")); // non-digit
+    }
+
+    #[test]
+    fn detects_ipv4_address() {
+        let r = redact("server at 192.168.13.37 listens", &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:IP_ADDRESS]"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::IpAddress));
+    }
+
+    #[test]
+    fn ipv4_rejects_invalid_octet() {
+        // `999` is not a valid octet — the inline 0–255 check rejects.
+        let r = redact("build 1.2.3.999 today", &pol_redact());
+        match r {
+            RedactionResult::Clean => {}
+            RedactionResult::Redacted { matches, .. } => {
+                assert!(matches.iter().all(|m| m.kind != DetectorKind::IpAddress));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn detects_ipv6_full_form() {
+        let r = redact(
+            "host 2001:0db8:85a3:0000:0000:8a2e:0370:7334 reachable",
+            &pol_redact(),
+        );
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:IP_ADDRESS]"));
+        assert!(!text.contains("8a2e:0370"));
+    }
+
+    #[test]
+    fn detects_mac_address_colon() {
+        let r = redact("nic at 00:1A:2B:3C:4D:5E reports up", &pol_redact());
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:MAC_ADDRESS]"));
+    }
+
+    #[test]
+    fn detects_mac_address_dash() {
+        let r = redact("MAC=00-1A-2B-3C-4D-5E here", &pol_redact());
+        let RedactionResult::Redacted { text, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:MAC_ADDRESS]"));
+    }
+
+    #[test]
+    fn detects_aws_secret_with_context() {
+        let input = "AWS secret key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY done";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:AWS_SECRET_KEY]"));
+        assert!(!text.contains("wJalrXUtnFEMI/K7MDENG"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::AwsSecretKey));
+    }
+
+    #[test]
+    fn aws_secret_without_context_is_not_flagged_as_aws() {
+        // 40-char base64 blob without aws/secret context should not
+        // be tagged as AwsSecretKey (the entropy scanner may still
+        // surface it as HighEntropy, which is fine — the user can
+        // disable that detector if needed).
+        let input = "blob: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY end";
+        let r = redact(input, &pol_redact());
+        match r {
+            RedactionResult::Clean => {}
+            RedactionResult::Redacted { matches, .. } => {
+                assert!(matches.iter().all(|m| m.kind != DetectorKind::AwsSecretKey));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    // --- IBAN with whitespace groups ---
+
+    #[test]
+    fn detects_iban_with_pretty_print_spaces() {
+        // The canonical IBAN pretty-print groups characters in fours,
+        // which trips word-boundary anchors. The regex now allows
+        // optional internal whitespace; the mod-97 validator strips
+        // it before the check.
+        let r = redact("IBAN: DE89 3704 0044 0532 0130 00 today", &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:IBAN]"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::Iban));
+    }
+
+    // --- Entropy elevation ---
+
+    #[test]
+    fn entropy_long_hex_run_is_redacted() {
+        // 48 hex chars: max entropy of 4.0 bits sits below the 4.5
+        // general threshold, so the all-hex elevation path is what
+        // catches it.
+        let input = "Generic high-entropy: 9f8e7d6c5b4a39281706f5e4d3c2b1a0ffeeddccbbaa9988 end";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(text.contains("[REDACTED:HIGH_ENTROPY]"));
+        assert!(!text.contains("9f8e7d6c5b4a"));
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::HighEntropy));
+    }
+
+    #[test]
+    fn entropy_short_run_with_credential_context_is_redacted() {
+        // 32 chars exactly — would normally stay "low" and be dropped,
+        // but the `secret:` prefix elevates to medium.
+        let input = "secret: q8X2Lk9wR4vN1cM7pT3eJ6hZ5fY0oAbD end";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { matches, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::HighEntropy));
     }
 
     #[test]

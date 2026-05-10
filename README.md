@@ -775,7 +775,7 @@ When the keyring backend is unavailable (e.g. headless Linux without a Secret Se
 | `AICTL_SECURITY_AUDIT_LOG` | Append one JSON line per tool invocation to `~/.aictl/audit/<session-id>` (default: `true`) |
 | `AICTL_SECURITY_REDACTION` | Outbound-message redaction mode: `off` (default), `redact`, or `block`. In `redact` mode each credential/PII match is swapped for `[REDACTED:<KIND>]` on the wire; in `block` mode the turn aborts with a scrubbed error. |
 | `AICTL_SECURITY_REDACTION_LOCAL` | Also redact when sending to local providers (Ollama / GGUF / MLX). Default `false` — data never leaves the machine for these, so there's no privacy gain. |
-| `AICTL_REDACTION_DETECTORS` | Comma-separated subset of built-in detectors (empty = all): `api_key, aws, jwt, private_key, connection_string, credit_card, iban, email, phone, url_secret, high_entropy`. |
+| `AICTL_REDACTION_DETECTORS` | Comma-separated subset of built-in detectors (empty = all): `api_key, aws, aws_secret, jwt, private_key, connection_string, credit_card, iban, email, phone, url_secret, ssn, pesel, ip_address, mac_address, high_entropy`. |
 | `AICTL_REDACTION_EXTRA_PATTERNS` | Semicolon-separated `NAME=REGEX` pairs. Each match is replaced with `[REDACTED:NAME]` (e.g. `CUSTOMER_ID=CUST-\d{8};TICKET=JIRA-\d{4,}`). |
 | `AICTL_REDACTION_ALLOW` | Semicolon-separated regexes; any detection whose span is covered by an allowlist hit is dropped. Useful for documentation examples or internal IDs that trip the entropy scanner. |
 | `AICTL_REDACTION_NER` | Enable the optional Layer-C NER pass (person / location / organization). Requires the `redaction-ner` cargo feature and a pulled model. Default `false`. |
