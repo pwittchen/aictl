@@ -229,8 +229,14 @@ jobs:
           # producing a visible offset against `trafficLightPosition` in
           # tauri.conf.json. Building on macos-26 keeps the SDK in sync
           # with what most end users see today.
+          #
+          # Both targets run on the standard `macos-26` Apple Silicon
+          # runner — the x86_64 build cross-compiles from ARM (same as
+          # the CLI matrix's x86_64-apple-darwin line on macos-latest).
+          # `macos-*-large` is a paid larger runner with no free-tier
+          # allowance; we don't need it for the SDK fix.
           - target: x86_64-apple-darwin
-            os: macos-26-large
+            os: macos-26
             artifact: aictl-desktop-darwin-x86_64
             features: gguf redaction-ner
           - target: aarch64-apple-darwin
