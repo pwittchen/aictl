@@ -1604,6 +1604,10 @@ const App: Component = () => {
         filesVisible={filesVisible()}
         onToggleFiles={toggleFiles}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenStats={() => {
+          setSettingsInitialTab("stats");
+          setShowSettings(true);
+        }}
         updateAvailable={latestVersion()}
         onShowUpdate={() => openUpdate(updateInfo())}
         onDismissUpdate={() => {

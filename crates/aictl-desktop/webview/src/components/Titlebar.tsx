@@ -28,6 +28,7 @@ interface Props {
   filesVisible: boolean;
   onToggleFiles: () => void;
   onOpenSettings: () => void;
+  onOpenStats: () => void;
 }
 
 const Titlebar: Component<Props> = (props) => {
@@ -135,6 +136,24 @@ const Titlebar: Component<Props> = (props) => {
             onClick={props.onShowContextDetails}
           />
         </Show>
+        <button
+          type="button"
+          class="stats-toggle"
+          aria-label="Open stats"
+          title="Open stats"
+          onClick={props.onOpenStats}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            width="16"
+            height="16"
+            aria-hidden="true"
+          >
+            <path d="M12 2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1h-1ZM6.5 6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V6ZM2 9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9Z" />
+          </svg>
+        </button>
         <button
           type="button"
           class="settings-toggle"

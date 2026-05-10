@@ -174,7 +174,8 @@
   display: block;
 }
 
-.titlebar .settings-toggle {
+.titlebar .settings-toggle,
+.titlebar .stats-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -189,12 +190,14 @@
   transition: color 80ms ease, background 80ms ease;
 }
 
-.titlebar .settings-toggle:hover {
+.titlebar .settings-toggle:hover,
+.titlebar .stats-toggle:hover {
   color: var(--fg);
   background: var(--surface-strong);
 }
 
-.titlebar .settings-toggle svg {
+.titlebar .settings-toggle svg,
+.titlebar .stats-toggle svg {
   display: block;
 }
 
