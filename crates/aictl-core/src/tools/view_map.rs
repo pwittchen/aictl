@@ -289,7 +289,10 @@ fn parse_coords(input: &str) -> Option<Resolved> {
 /// case-insensitive) on each component, and falls back to
 /// whitespace-as-comma when the input has no comma at all.
 fn normalise_coord_string(input: &str) -> String {
-    let mut s = input.trim().trim_matches(|c| matches!(c, '(' | ')')).to_string();
+    let mut s = input
+        .trim()
+        .trim_matches(|c| matches!(c, '(' | ')'))
+        .to_string();
     if !s.contains(',') {
         // `48.8566 2.3522` → `48.8566,2.3522`. Only do this when no
         // comma is present so we don't mangle queries like

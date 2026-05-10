@@ -208,18 +208,12 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
         "csv_query",
         "filter CSV/TSV with SQL-like expressions (table output)",
     ),
-    (
-        "calculate",
-        "evaluate a math expression safely",
-    ),
+    ("calculate", "evaluate a math expression safely"),
     (
         "list_processes",
         "list running processes with structured filtering",
     ),
-    (
-        "check_port",
-        "test TCP reachability of a host:port",
-    ),
+    ("check_port", "test TCP reachability of a host:port"),
     (
         "system_info",
         "OS/CPU/memory/disk info as markdown (cross-platform)",
@@ -232,14 +226,8 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
         "checksum",
         "compute SHA-256 and/or MD5 of a file (streaming)",
     ),
-    (
-        "clipboard",
-        "read or write the system clipboard",
-    ),
-    (
-        "notify",
-        "send a desktop notification (macOS, Linux)",
-    ),
+    ("clipboard", "read or write the system clipboard"),
+    ("notify", "send a desktop notification (macOS, Linux)"),
     (
         "save_memory",
         "persist a fact about the user to long-term memory",
