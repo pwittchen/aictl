@@ -38,6 +38,7 @@ mod run_code;
 mod shell;
 mod system_info;
 mod util;
+mod view_map;
 mod web;
 
 /// Slot holding the most recent successfully dispatched tool invocation,
@@ -136,7 +137,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 33;
+pub const TOOL_COUNT: usize = 34;
 
 /// `(name, one-line description)` for every built-in tool. Both the CLI's
 /// `/tools` printer and the desktop Settings panel render from this single
@@ -238,6 +239,10 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     (
         "save_memory",
         "persist a fact about the user to long-term memory (~/.aictl/memory.json)",
+    ),
+    (
+        "view_map",
+        "display a map (OpenStreetMap) for a place name, address, or coordinates — desktop app only",
     ),
 ];
 
@@ -416,6 +421,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "clipboard" => clipboard::tool_clipboard(input).await,
         "notify" => notify::tool_notify(input).await,
         "save_memory" => memory::tool_save_memory(input),
+        "view_map" => view_map::tool_view_map(input).await,
         other if other.starts_with("mcp__") => crate::mcp::call_tool(other, input).await,
         other => {
             if let Some(plugin) = crate::plugins::find(other) {

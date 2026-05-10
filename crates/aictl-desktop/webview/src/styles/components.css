@@ -4998,3 +4998,263 @@ button.primary:hover:not([disabled]) {
 .security-modal-footer .security-modal-primary:hover {
   background: var(--accent-soft);
 }
+
+/* Leaflet map embed used by the view_map tool's `ToolMapView` (see
+   components/Chat.tsx). Leaflet defaults are tuned for light themes, so
+   we re-skin the layer-control / zoom buttons / attribution line to
+   match the rest of the dark UI. The tile-loading mask underneath the
+   tiles also needs to be the app surface colour, otherwise a flash of
+   white shows while tiles fetch over a slow connection. */
+.leaflet-container {
+  background: var(--bg);
+  font-family: inherit;
+  /* Leaflet sets z-index 1000 on its zoom/layer controls and 700 on
+     popups internally. Without an isolated parent stacking context
+     those values bubble up and float over project-level modals
+     (Settings, voice modal, tool-approval) which top out at
+     z-index 200. `isolation: isolate` confines all of Leaflet's
+     internal z-indexes inside the map element, so they no longer
+     compete with chrome rendered later in the DOM. */
+  isolation: isolate;
+}
+
+.leaflet-control-layers,
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  /* Use an opaque dark instead of `--surface` — that token is a
+     3% alpha highlight (rgba(255,255,255,0.03)) that sits
+     transparently over the underlying tiles and makes the
+     controls hard to read. */
+  background: #161616;
+  color: var(--fg, #e5e5e5);
+  border-color: var(--border-strong);
+}
+
+.leaflet-control-layers-expanded {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--fg, #e5e5e5);
+}
+
+.leaflet-control-layers-base label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  cursor: pointer;
+}
+
+.leaflet-control-layers-separator {
+  border-top-color: var(--border);
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 10, 10, 0.75);
+  color: var(--fg-soft, #a5a5a5);
+}
+
+.leaflet-control-attribution a {
+  color: var(--accent);
+}
+
+.aictl-pin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ef4444;
+  /* No outline ring — keep a soft red glow so the pin still
+     stands out on bright satellite imagery (snow, deserts, light
+     city tiles) without the hard dark border the user found
+     distracting. */
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+}
+
+/* Click-to-open popup attached to each marker rendered by ToolMapView.
+   Defaults target the *dark* map theme. The light-tile override below
+   flips these when the map's dark/light toggle is on light. Colours
+   are intentionally hard-coded (not driven off `--fg` / `--surface`)
+   because the popup must follow the *map* tile theme, not the
+   surrounding app theme — otherwise app-light + map-dark renders dark
+   text on a dark popup. */
+.aictl-map-popup .leaflet-popup-content-wrapper,
+.aictl-map-popup .leaflet-popup-tip {
+  background: #161616;
+  color: #e5e5e5;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.aictl-map-popup .leaflet-popup-content {
+  margin: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.aictl-map-popup .leaflet-popup-close-button {
+  color: rgba(229, 229, 229, 0.7);
+}
+
+.aictl-map-popup-desc {
+  margin-top: 4px;
+  color: #e5e5e5;
+}
+
+.aictl-map-popup-coords {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(229, 229, 229, 0.65);
+  font-family: var(--font-mono, monospace);
+}
+
+/* Light-tile map → light popup with dark text. Scoped to the map
+   container so it never leaks to other Leaflet popups elsewhere in
+   the app, and tied to the map's *tile* theme (the in-map sun/moon
+   toggle) rather than the app theme so the two can disagree without
+   breaking readability. */
+.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-content-wrapper,
+.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-tip {
+  background: #fafafa;
+  color: #181818;
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-close-button {
+  color: rgba(24, 24, 24, 0.55);
+}
+
+.aictl-map-light-tiles .aictl-map-popup-desc {
+  color: #181818;
+}
+
+.aictl-map-light-tiles .aictl-map-popup-coords {
+  color: rgba(24, 24, 24, 0.6);
+}
+
+/* In-map light/dark toggle button rendered by ToolMapView via a custom
+   Leaflet control. Sized to match Leaflet's stock zoom buttons
+   (`.leaflet-bar a`): 26×26 by default and 30×30 under `.leaflet-touch`
+   (Leaflet applies that class on touch-capable webviews — including
+   the macOS WKWebView this app ships in). `box-sizing: border-box`
+   keeps the 1 px border *inside* the declared width/height so the
+   rendered box matches the borderless zoom buttons exactly instead of
+   coming out 2 px wider. */
+.aictl-map-theme-toggle {
+  box-sizing: border-box;
+  width: 29px;
+  height: 29px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Match Leaflet's stock zoom buttons exactly — same white surface,
+     dark icon, light grey border, faint hover tint. The previous
+     dark surface was inconsistent with the surrounding controls. */
+  background: #fff;
+  color: #000;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-top: 6px;
+  padding: 0;
+  line-height: 0;
+}
+
+.leaflet-touch .aictl-map-theme-toggle {
+  width: 33px;
+  height: 33px;
+}
+
+.aictl-map-theme-toggle:hover {
+  background: #f4f4f4;
+}
+
+.aictl-map-theme-toggle svg {
+  display: block;
+}
+
+/* Bottom-left "switch map layer" control rendered by ToolMapView. The
+   button matches the stock zoom buttons (white surface, dark icon, light
+   grey border), and clicking it pops a small dropdown upward with the
+   layer choices. Same default / `.leaflet-touch` size pair used by the
+   theme toggle so all in-map controls scale together. */
+.aictl-map-layer-switcher {
+  position: relative;
+}
+
+.aictl-map-layer-button {
+  box-sizing: border-box;
+  width: 29px;
+  height: 29px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #000;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+}
+
+.leaflet-touch .aictl-map-layer-button {
+  width: 33px;
+  height: 33px;
+}
+
+.aictl-map-layer-button:hover {
+  background: #f4f4f4;
+}
+
+.aictl-map-layer-button svg {
+  display: block;
+}
+
+/* The popout panel anchors above the button (we're at the bottom of the
+   map, so opening downward would leave the chat row). `min-width` is
+   sized to the longer label ("Satellite") with a comfortable padding. */
+.aictl-map-layer-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 110px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.aictl-map-layer-panel[hidden] {
+  display: none;
+}
+
+.aictl-map-layer-option {
+  appearance: none;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid #eee;
+  color: #000;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.aictl-map-layer-option:last-child {
+  border-bottom: 0;
+}
+
+.aictl-map-layer-option:hover {
+  background: #f4f4f4;
+}
+
+.aictl-map-layer-option.is-active {
+  background: #e9f3fb;
+  color: #0a7ea4;
+  font-weight: 500;
+}
