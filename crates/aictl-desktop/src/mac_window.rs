@@ -17,13 +17,15 @@
 #![cfg(target_os = "macos")]
 
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+use objc2_foundation::NSPoint;
 
 const X: f64 = 20.0;
 /// Distance (logical px) from the top of the window to the top of the
 /// traffic-light buttons. Same value in dev and release — the
 /// rendering path is identical once `inset` actually runs against a
-/// valid view chain.
-const Y: f64 = 26.0;
+/// valid view chain. Tuned to leave visible breathing room below the
+/// buttons inside the webview's dark title bar.
+const Y: f64 = 17.0;
 
 /// Set to `true` to log `apply` outcomes to stderr. Useful when
 /// diagnosing why the buttons end up at the macOS default position
@@ -86,29 +88,42 @@ unsafe fn inset(window: &NSWindow, x: f64, y: f64) {
     };
 
     let close_rect = close.frame();
+    let window_height = window.frame().size.height;
     let title_bar_height = close_rect.size.height + y;
     let mut title_bar_rect = title_bar_container.frame();
     title_bar_rect.size.height = title_bar_height;
-    title_bar_rect.origin.y = window.frame().size.height - title_bar_height;
+    title_bar_rect.origin.y = window_height - title_bar_height;
     title_bar_container.setFrame(title_bar_rect);
 
     let space_between = miniaturize.frame().origin.x - close_rect.origin.x;
+
+    // Desired button-origin in window coords: top edge `y` below the
+    // window top, accounting for AppKit's flipped (bottom-left) origin.
+    // Convert into `buttons_super` coords once — `setFrameOrigin:`
+    // operates in the immediate superview's coordinate system, and
+    // AppKit can hand us a different baseline `origin.y` here in dev vs.
+    // a bundled release build (the bug this function exists to paper
+    // over). Computing from the window frame instead of trusting the
+    // existing button origin removes that variance.
+    let target_y_window = window_height - y - close_rect.size.height;
+    let target_y_local = buttons_super
+        .convertPoint_fromView(NSPoint::new(0.0, target_y_window), None)
+        .y;
 
     let mut row = vec![close, miniaturize];
     if let Some(z) = zoom {
         row.push(z);
     }
     for (i, button) in row.into_iter().enumerate() {
-        let mut origin = button.frame().origin;
         #[allow(clippy::cast_precision_loss)]
         let offset = (i as f64) * space_between;
-        origin.x = x + offset;
+        let origin = NSPoint::new(x + offset, target_y_local);
         // SAFETY: NSButton inherits NSView; `setFrameOrigin:` is safe
         // to call on the main thread, which we are on.
         let view: &NSView = &button;
         view.setFrameOrigin(origin);
     }
     if DEBUG_LOG {
-        eprintln!("[mac_window] applied y={y}");
+        eprintln!("[mac_window] applied y={y} → local_y={target_y_local}");
     }
 }
