@@ -274,6 +274,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ clipboard           │ pbcopy/wl-copy/xclip read │      │
  │  │ notify              │ osascript / notify-send   │      │
  │  │ view_map            │ desktop-only [view_map]   │      │
+ │  │ draw_chart          │ desktop-only [draw_chart] │      │
  │  │ save_memory         │ memory::add JSON store    │      │
  │  └─────────────────────┴───────────────────────────┘      │
  │                                                           │
@@ -350,6 +351,15 @@ Both single-shot and REPL modes share the same loop:
  │    returns an error; the desktop app intercepts the       │
  │    `[view_map] {json}` marker and shows the map. Max 25   │
  │    pins per call                                          │
+ │  - draw_chart accepts a JSON object describing a chart    │
+ │    (line / bar / pie / doughnut / scatter) with title,    │
+ │    axis labels, category labels, and one or more named    │
+ │    series. The terminal frontend cannot render charts,    │
+ │    so the CLI returns an error; the desktop app           │
+ │    intercepts the `[draw_chart] {json}` marker and        │
+ │    renders a Chart.js canvas that re-themes when the      │
+ │    user flips the app theme. Caps: 8 series, 500 points   │
+ │    per series, 500 labels                                 │
  │  - save_memory persists one fact about the user to        │
  │    `~/.aictl/memory.json` via `memory::add`. The fact     │
  │    is auto-loaded into the system prompt of every future  │
