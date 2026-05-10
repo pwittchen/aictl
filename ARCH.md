@@ -18,6 +18,7 @@ crates/aictl-core/src/
  ├── run.rs             run_agent_turn loop, tool-call dispatch, outbound redaction, Provider enum, Esc-cancel wiring (uses AgentUI::interruption), build_system_prompt, run_agent_single (takes &dyn AgentUI)
  ├── message.rs         Message/Role/ImageData types shared across providers
  ├── error.rs           Crate-wide AictlError (thiserror); CLI maps rustyline errors manually so the core doesn't depend on the REPL stack
+ ├── transcript.rs      retry_last_exchange / undo_turns helpers — shared between the CLI's `/retry` and `/undo` slash commands and the desktop chat toolbar so both surfaces apply identical message-roll-back semantics
  ├── agents.rs          Agent prompt management (~/.aictl/agents/), loaded-agent state, CRUD, name validation
  ├── audit.rs           Per-session tool-call audit log (~/.aictl/audit/<session-id>, JSONL), AICTL_SECURITY_AUDIT_LOG toggle; --audit-file <PATH> via set_file_override redirects to an explicit path and force-enables logging for single-shot runs; also log_redaction() for the redaction layer's events
  ├── hooks.rs           User-defined lifecycle hooks loaded from ~/.aictl/hooks.json (override via AICTL_HOOKS_FILE). Eight events (SessionStart/End, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, Notification). Glob matcher (*, ?, |) over tool name. JSON payload on stdin; stdout JSON shapes (decision: block|approve, additionalContext, rewrittenPrompt) influence the harness; exit 2 = block. Default 60s timeout, scrubbed env, security CWD. --unrestricted does NOT bypass.
@@ -33,7 +34,7 @@ crates/aictl-core/src/
  ├── session.rs         Session persistence (~/.aictl/sessions/), UUID v4 generation, JSON save/load, names file, incognito toggle
  ├── skills.rs          Skill storage (~/.aictl/skills/<name>/SKILL.md), frontmatter (name/description) parsing, CRUD, reserved-name guard, AICTL_SKILLS_DIR override. Skills are single-turn markdown playbooks merged into the base system prompt for one run_agent_turn call and never persisted into session history
  ├── tools.rs           XML tool-call parsing, tool execution dispatch (security gate + output sanitization), duplicate-call guard, TOOL_COUNT (34)
- ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, memory, notify, run_code, shell, system_info, util, web)
+ ├── tools/             One submodule per tool (archive, calculate, check_port, checksum, clipboard, csv_query, datetime, diff, document, filesystem, geo, git, image, json_query, lint, list_processes, memory, notify, run_code, shell, system_info, util, view_map, web)
  ├── ui.rs              AgentUI trait, ToolApproval, ProgressHandle + ProgressBackend (so the core doesn't link indicatif), the WarningSink / set_warning_sink / warn_global global-warn surface. No terminal-library types in scope; concrete impls live in crates/aictl-cli/src/ui.rs.
  ├── stats.rs           Per-day usage statistics (~/.aictl/stats). record()/today()/this_month()/overall()/day_count()/clear_all() back the view and clear entries of the /stats menu.
  ├── llm.rs             TokenUsage type, cost estimation (price_per_million), MODELS list, context_limit, cache_read_multiplier
