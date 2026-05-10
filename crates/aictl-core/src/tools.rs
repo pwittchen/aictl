@@ -166,7 +166,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "search_web_ddg",
-        "search the web via DuckDuckGo Instant Answer API (fallback, no key)",
+        "search the web via DuckDuckGo (fallback, no key)",
     ),
     ("fetch_url", "fetch a URL and return text content"),
     ("extract_website", "extract readable content from a URL"),
@@ -177,7 +177,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "view_map",
-        "display a map (OpenStreetMap) for a place name, address, or coordinates — desktop app only",
+        "display a map (OpenStreetMap) — desktop app only",
     ),
     ("read_image", "read an image from file or URL for analysis"),
     (
@@ -190,11 +190,11 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "git",
-        "run a restricted git subcommand (status, diff, log, blame, commit)",
+        "run a safe git subcommand (status/diff/log/blame/commit)",
     ),
     (
         "run_code",
-        "execute a code snippet (python, node, ruby, perl, lua, bash, sh)",
+        "execute a snippet (python/node/ruby/perl/lua/bash/sh)",
     ),
     (
         "lint_file",
@@ -210,7 +210,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "calculate",
-        "evaluate a math expression safely (no eval, no shell)",
+        "evaluate a math expression safely",
     ),
     (
         "list_processes",
@@ -218,7 +218,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "check_port",
-        "test TCP reachability of a host:port (no shell, no nc)",
+        "test TCP reachability of a host:port",
     ),
     (
         "system_info",
@@ -234,15 +234,15 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
     (
         "clipboard",
-        "read from or write to the system clipboard (pbcopy/wl-copy/xclip)",
+        "read or write the system clipboard",
     ),
     (
         "notify",
-        "send a desktop notification (osascript on macOS, notify-send on Linux)",
+        "send a desktop notification (macOS, Linux)",
     ),
     (
         "save_memory",
-        "persist a fact about the user to long-term memory (~/.aictl/memory.json)",
+        "persist a fact about the user to long-term memory",
     ),
 ];
 
