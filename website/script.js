@@ -70,6 +70,174 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => {
   });
 });
 
+// Animated CLI demo. Replays a real interaction — user types a query,
+// assistant streams reasoning, runs a tool, prints results, streams the
+// answer, then waits at a fresh prompt. Loops. Falls back to the static
+// HTML on prefers-reduced-motion or if the markup is missing.
+(() => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const demos = document.querySelectorAll(".cli-demo[data-cli-animate]");
+  if (!demos.length) return;
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const inView = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.top < window.innerHeight && r.bottom > 0;
+  };
+  const mk = (tag, cls) => {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    return el;
+  };
+
+  demos.forEach((demo) => {
+    if (inView(demo)) start(demo);
+    else if (typeof IntersectionObserver === "function") {
+      const io = new IntersectionObserver((entries, o) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            o.disconnect();
+            start(demo);
+          }
+        });
+      }, { threshold: 0.1 });
+      io.observe(demo);
+    } else {
+      start(demo);
+    }
+  });
+
+  function start(demo) {
+    const body = demo.querySelector(".cli-demo__body");
+    if (!body) return;
+    const banner = demo.querySelector(".cli-demo__banner");
+
+    // Lock body height to its current static-rendered size so loop resets
+    // don't collapse surrounding layout.
+    body.style.minHeight = body.offsetHeight + "px";
+
+    Array.from(body.children).forEach((c) => {
+      if (c !== banner) c.remove();
+    });
+
+    const userInput = mk("div", "cli-demo__input cli-demo__input--user");
+    userInput.setAttribute("aria-hidden", "true");
+    const userChev = mk("span", "cli-demo__chevron");
+    userChev.textContent = "❯";
+    const userText = mk("span");
+    const userCursor = mk("span", "cli-demo__cursor");
+    userInput.append(userChev, userText, userCursor);
+
+    const convo = mk("pre", "cli-demo__convo");
+    convo.setAttribute("aria-hidden", "true");
+
+    const nextInput = mk("div", "cli-demo__input cli-demo__input--next");
+    nextInput.setAttribute("aria-hidden", "true");
+    const nextChev = mk("span", "cli-demo__chevron");
+    nextChev.textContent = "❯";
+    const nextCursor = mk("span", "cli-demo__cursor");
+    nextInput.append(nextChev, nextCursor);
+    nextInput.style.visibility = "hidden";
+
+    body.append(userInput, convo, nextInput);
+
+    play({ userText, userCursor, convo, nextInput, demo });
+  }
+
+  async function typeText(target, text, perChar, jitter) {
+    for (const ch of text) {
+      target.append(document.createTextNode(ch));
+      await sleep(perChar + Math.random() * jitter);
+    }
+  }
+
+  function appendHTML(target, html) {
+    target.insertAdjacentHTML("beforeend", html);
+  }
+
+  async function waitVisible(demo) {
+    while (!inView(demo) || document.hidden) await sleep(500);
+  }
+
+  async function play(parts) {
+    const { userText, userCursor, convo, nextInput, demo } = parts;
+
+    await waitVisible(demo);
+    await sleep(700);
+
+    // 1. User types the query.
+    await typeText(userText, "describe in one sentence contents of this dir", 55, 35);
+    await sleep(450);
+
+    // 2. Submit — drop the inline cursor, the line stays as history.
+    userCursor.style.display = "none";
+    await sleep(320);
+
+    // 3. Assistant reasoning streams in.
+    appendHTML(convo, "  ");
+    await typeText(convo, "Let me look at the directory contents.", 22, 18);
+    appendHTML(convo, "\n\n");
+    await sleep(260);
+
+    // 4. Tool call header.
+    appendHTML(convo, '  <span class="tt-tool">list_directory</span> <span class="tt-rule">──</span>\n\n');
+    await sleep(280);
+
+    // 5. Tool output, line by line (feels like a real listing scrolling).
+    const entries = [
+      ["[FILE]", "Cargo.toml"],
+      ["[FILE]", ".DS_Store"],
+      ["[FILE]", "LICENSE"],
+      ["[DIR] ", ".aictl"],
+      ["[FILE]", "AICTL.md"],
+      ["[DIR] ", "target"],
+      ["[FILE]", "install.sh"],
+      ["[DIR] ", "tests"],
+      ["[DIR] ", "website"],
+      ["[DIR] ", ".claude"],
+    ];
+    for (const [tag, name] of entries) {
+      appendHTML(convo, `  <span class="tt-tag">${tag}</span> ${name}\n`);
+      await sleep(60);
+    }
+    appendHTML(convo, '  <span class="tt-dim">… 11 lines hidden …</span>\n');
+    await sleep(110);
+    appendHTML(convo, '  <span class="tt-tag">[FILE]</span> CLAUDE.md\n');
+    await sleep(60);
+    appendHTML(convo, '  <span class="tt-tag">[DIR] </span> src\n\n');
+    await sleep(280);
+
+    // 6. Per-turn cost meter.
+    appendHTML(convo, '  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>\n');
+    appendHTML(convo, '  <span class="tt-status">claude-sonnet-4 · 3↑ (4320⚡) · 69↓ · 1 tool(s) · $0.0024 · 3.2s · ctx 1%</span>\n\n');
+    await sleep(380);
+
+    // 7. Final answer streams.
+    appendHTML(convo, "  ");
+    await typeText(convo, "This is the ", 22, 14);
+    appendHTML(convo, '<span class="tt-bold">aictl</span>');
+    await typeText(
+      convo,
+      " Rust CLI project — an AI agent tool with source code,\n  documentation (README, ARCH, ROADMAP), pricing references, a website, examples,\n  tests, GitHub CI config, and an install script.\n\n",
+      18,
+      12
+    );
+    await sleep(280);
+
+    // 8. Final per-turn meter and session summary.
+    appendHTML(convo, '  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>\n');
+    appendHTML(convo, '  <span class="tt-status">claude-sonnet-4 · 221↑ (4320⚡) · 53↓ · 1 tool(s) · $0.0031 · 2.3s · ctx 2%</span>\n\n');
+    await sleep(220);
+    appendHTML(convo, '  <span class="tt-rule">───────────────────────────────────────────────────────────────────────────</span>\n');
+    appendHTML(convo, '  <span class="tt-summary">2 reqs · 1 tool(s) · 224↑ · 122↓ · $0.0054 · 6.3s · ctx 2%</span>');
+    await sleep(450);
+
+    // 9. New prompt — agent waiting for the next turn. Stays as the
+    //    final resting state; the animation does not loop.
+    nextInput.style.visibility = "";
+  }
+})();
+
 // Mobile drawer menu.
 (() => {
   const toggle = document.querySelector("[data-nav-toggle]");
