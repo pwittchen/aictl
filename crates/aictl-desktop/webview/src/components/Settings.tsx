@@ -23,6 +23,7 @@ import {
   type KeyRow,
   type LocalModelsStatus,
   type McpStatus,
+  type NerStatus,
   type MemoryRow,
   type MemoryStatus,
   type ModelEntry,
@@ -4394,8 +4395,75 @@ const RedactionTab: Component = () => {
   const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
     ipc.configDump(),
   );
+  const [ner, { refetch: refetchNer }] = createResource<NerStatus>(() =>
+    ipc.nerStatus(),
+  );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [nerDownload, setNerDownload] = createSignal<{
+    id: number | null;
+    label: string;
+    current: number;
+    total: number | null;
+    message: string | null;
+  } | null>(null);
+
+  // Listen for progress_* events so the NER pull renders an inline bar.
+  // The pull happens on a background thread and its id is minted
+  // server-side; we correlate by `label` (the per-file label the
+  // download_model helper passes to progress_begin) until the first
+  // event arrives.
+  onMount(() => {
+    let unlisten: (() => void) | null = null;
+    void ipc
+      .onAgentEvent((evt) => {
+        if (evt.kind === "progress_begin") {
+          // Adopt this id only if no download is active yet (we kicked
+          // off a pull and are waiting on the first event). Two files
+          // download in sequence; on the second begin we swap labels.
+          setNerDownload((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  id: evt.id,
+                  label: evt.label,
+                  current: 0,
+                  total: evt.total,
+                  message: null,
+                }
+              : prev,
+          );
+        } else if (evt.kind === "progress_update") {
+          setNerDownload((prev) =>
+            prev && (prev.id === null || prev.id === evt.id)
+              ? { ...prev, current: evt.current, message: evt.message }
+              : prev,
+          );
+        } else if (evt.kind === "progress_end") {
+          setNerDownload((prev) => {
+            if (!prev || (prev.id !== null && prev.id !== evt.id)) return prev;
+            // The NER pull fires two Begin/End cycles (tokenizer.json,
+            // then onnx/model.onnx). The second End is the real wrap-up
+            // — we detect it by checking the label prefix; the helper
+            // labels every file as "[idx/total] <name>".
+            const isFinal = prev.label.startsWith("[2/2]");
+            if (!isFinal) {
+              // Reset id so the next ProgressBegin gets adopted.
+              return { ...prev, id: null };
+            }
+            void refetchNer();
+            setFeedback(`downloaded NER model`);
+            return null;
+          });
+        }
+      })
+      .then((u) => {
+        unlisten = u;
+      });
+    onCleanup(() => {
+      if (unlisten) unlisten();
+    });
+  });
 
   const get = (key: string): string => {
     const entry = (config() ?? []).find((e) => e.key === key);
@@ -4551,14 +4619,176 @@ const RedactionTab: Component = () => {
       />
 
       <h4 class="settings-subhead">NER pass</h4>
-      <BoolRow
-        label="Enable NER (people, locations, organizations)"
-        help="Requires a build with the redaction-ner cargo feature and the gline-rs model on disk. Off by default."
-        on={isOn("AICTL_REDACTION_NER")}
-        onChange={(v) =>
-          void setConfig("AICTL_REDACTION_NER", v ? "true" : "")
-        }
-      />
+      <Show
+        when={ner()}
+        fallback={<p class="settings-hint">Loading NER status…</p>}
+      >
+        {(s) => (
+          <>
+            <p class="settings-meta">
+              <Show
+                when={s().inference_available}
+                fallback={
+                  <>
+                    This build was not compiled with{" "}
+                    <code>--features redaction-ner</code> — the model can
+                    still be downloaded, but inference will be skipped at
+                    runtime.
+                  </>
+                }
+              >
+                Inference enabled. Models live in <code>{s().dir}</code>.
+              </Show>
+            </p>
+            <div class="settings-row settings-row-stack">
+              <label>Model</label>
+              <div class="settings-control-line">
+                <code>{s().configured_model}</code>{" "}
+                <Show
+                  when={s().configured_model_present}
+                  fallback={
+                    <span class="settings-meta">
+                      · <strong>not downloaded</strong>
+                    </span>
+                  }
+                >
+                  <span class="settings-meta">· downloaded</span>
+                </Show>
+              </div>
+              <p class="settings-hint">
+                Default model: <code>{s().default_spec}</code>. Override
+                via <code>AICTL_REDACTION_NER_MODEL</code> in the General
+                tab to pull a different gline-rs–compatible model.
+              </p>
+            </div>
+
+            <Show when={nerDownload()}>
+              {(d) => (
+                <div class="settings-downloads">
+                  <div class="settings-download-row">
+                    <div class="settings-download-label">
+                      {d().label}
+                      <Show when={d().message}>
+                        {(m) => <span class="settings-meta"> · {m()}</span>}
+                      </Show>
+                    </div>
+                    <progress
+                      class="settings-download-bar"
+                      value={d().current}
+                      max={d().total ?? undefined}
+                    />
+                    <div class="settings-download-meta">
+                      {fmtBytes(d().current)}
+                      <Show when={d().total}>
+                        {(t) => <> / {fmtBytes(t())}</>}
+                      </Show>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Show>
+
+            <div
+              class="settings-keys-bulk"
+              style={{ "margin-bottom": "var(--space-3)" }}
+            >
+              <button
+                type="button"
+                disabled={nerDownload() !== null}
+                onClick={async () => {
+                  setError(null);
+                  setFeedback(null);
+                  try {
+                    setNerDownload({
+                      id: null,
+                      label: s().default_spec,
+                      current: 0,
+                      total: null,
+                      message: null,
+                    });
+                    await ipc.nerPull(s().default_spec);
+                  } catch (err) {
+                    setNerDownload(null);
+                    setError(`${err}`);
+                  }
+                }}
+              >
+                <Show
+                  when={s().configured_model_present}
+                  fallback={<>Download NER model</>}
+                >
+                  Re-download NER model
+                </Show>
+              </button>
+              <Show when={s().configured_model_present}>
+                <button
+                  type="button"
+                  class="ghost"
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        `Remove NER model "${s().configured_model}"?`,
+                      )
+                    )
+                      return;
+                    setError(null);
+                    setFeedback(null);
+                    try {
+                      await ipc.nerRemove(s().configured_model);
+                      // If NER was on, turn it off — the redaction
+                      // policy will warn at the next turn otherwise.
+                      if (isOn("AICTL_REDACTION_NER")) {
+                        await setConfig("AICTL_REDACTION_NER", "");
+                      }
+                      await refetchNer();
+                      setFeedback(`removed ${s().configured_model}`);
+                    } catch (err) {
+                      setError(`${err}`);
+                    }
+                  }}
+                >
+                  Remove model
+                </button>
+              </Show>
+            </div>
+
+            <BoolRow
+              label="Enable NER (people, locations, organizations)"
+              help={
+                s().configured_model_present
+                  ? "Layer C of redaction. Adds ~1 s of latency on the first turn while the model loads."
+                  : "Download the NER model first — enabling without it logs a one-shot warning and skips Layer C."
+              }
+              on={isOn("AICTL_REDACTION_NER")}
+              onChange={(v) => {
+                if (v && !s().configured_model_present) {
+                  const ok = window.confirm(
+                    "The NER model is not on disk yet. Download it now?",
+                  );
+                  if (ok) {
+                    setNerDownload({
+                      id: null,
+                      label: s().default_spec,
+                      current: 0,
+                      total: null,
+                      message: null,
+                    });
+                    void ipc.nerPull(s().default_spec).catch((err) => {
+                      setNerDownload(null);
+                      setError(`${err}`);
+                    });
+                  }
+                  // Don't flip the flag until the model is present —
+                  // the policy load would otherwise warn at the next
+                  // turn and silently skip Layer C.
+                  return;
+                }
+                void setConfig("AICTL_REDACTION_NER", v ? "true" : "");
+              }}
+            />
+          </>
+        )}
+      </Show>
     </div>
   );
 };

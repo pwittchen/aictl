@@ -334,6 +334,22 @@ export interface LocalModelsStatus {
   mlx: MlxStatus;
 }
 
+export interface NerStatus {
+  /// `true` when the binary was built with `--features redaction-ner`.
+  /// Management calls (pull/remove/list) work regardless.
+  inference_available: boolean;
+  dir: string;
+  /// Local name of the configured model (e.g. `gliner_small-v2.1`).
+  configured_model: string;
+  /// Hugging Face spec the desktop uses as the default pull target.
+  default_spec: string;
+  /// `true` when the configured model has both files on disk.
+  configured_model_present: boolean;
+  /// Every model directory under `dir` that contains a usable pair
+  /// of `tokenizer.json` + `onnx/model.onnx`.
+  models: string[];
+}
+
 export interface TreeEntry {
   name: string;
   /// Workspace-relative POSIX path (no leading slash). Empty for the
@@ -817,6 +833,19 @@ export const ipc = {
   },
   async localModelsClearMlx() {
     return invoke<number>("local_models_clear_mlx");
+  },
+
+  // -- ner (redaction layer C) ----
+  async nerStatus() {
+    return invoke<NerStatus>("ner_status");
+  },
+  async nerPull(spec: string, name?: string) {
+    return invoke<{ label: string }>("ner_pull", {
+      args: { spec, name: name ?? null },
+    });
+  },
+  async nerRemove(name: string) {
+    return invoke<void>("ner_remove", { args: { name } });
   },
 
   // -- voice ----
