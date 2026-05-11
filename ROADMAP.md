@@ -2,6 +2,12 @@
 
 ---
 
+## Desktop
+
+- in the stats, extend "overall" to full setting windows width
+- unify drop-downs across the app
+- add more agents and skills
+
 ## Website
 
 - prepare 'Use Cases' page
