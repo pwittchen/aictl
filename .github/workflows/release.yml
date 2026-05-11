@@ -242,11 +242,11 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-26
             artifact: aictl-desktop-darwin-x86_64
-            features: gguf redaction-ner
+            features: gguf redaction-ner voice
           - target: aarch64-apple-darwin
             os: macos-26
             artifact: aictl-desktop-darwin-aarch64
-            features: gguf mlx redaction-ner
+            features: gguf mlx redaction-ner voice
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
