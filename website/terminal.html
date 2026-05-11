@@ -423,6 +423,15 @@
           <code>keys: plain text</code> and aictl falls back
           transparently.
         </p>
+
+        <p class="section__note">
+          On macOS, each signed aictl binary has its own
+          Keychain ACL. When the CLI reads a key the desktop
+          app locked &mdash; or the other way around &mdash;
+          macOS prompts for your login password the first
+          time. Click <em>Always Allow</em> in the prompt to
+          skip future prompts for that key/binary pair.
+        </p>
       </div>
     </section>
 

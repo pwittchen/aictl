@@ -721,7 +721,7 @@
           </article>
           <article class="card">
             <h3>keys</h3>
-            <p>API keys go through the same keyring path. Lock from the CLI, unlock from the desktop &mdash; the keychain entry is the same.</p>
+            <p>API keys go through the same keyring path. Lock from the CLI, unlock from the desktop &mdash; the keychain entry is the same. On macOS, each signed binary has its own Keychain ACL, so the first cross-binary read of a key prompts for your login password &mdash; click <em>Always Allow</em> to skip future prompts for that key/binary pair.</p>
           </article>
           <article class="card">
             <h3>mcp · hooks · plugins</h3>

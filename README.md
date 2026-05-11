@@ -756,6 +756,8 @@ The same operations are available as one-shot CLI flags: `--lock-keys`, `--unloc
 
 When the keyring backend is unavailable (e.g. headless Linux without a Secret Service daemon), aictl falls back to plain-text storage automatically and the banner shows `keys: plain text` in yellow.
 
+On macOS, each signed aictl binary (CLI, server, desktop) has its own Keychain ACL. The first time a different binary reads a key that another locked, macOS prompts for your login password to authorize access — click *Always Allow* to suppress future prompts for that key/binary pair. The prompt is the system asking you to grant cross-binary access, not aictl itself.
+
 #### Security configuration (optional)
 
 | Key | Description |
