@@ -2,10 +2,6 @@
 
 ---
 
-## Desktop
-
-- do not redact anything other than tokens or api keys from the website urls
-
 ## Website
 
 - prepare 'Use Cases' page

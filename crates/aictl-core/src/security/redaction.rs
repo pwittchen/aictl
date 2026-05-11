@@ -203,6 +203,27 @@ impl DetectorKind {
         }
     }
 
+    /// Whether this detector should still fire on a match whose span
+    /// lies entirely inside a URL. Only secret-class kinds qualify —
+    /// names, locations, IPs, etc. inside URLs are typically meaningful
+    /// parts of the address (e.g. the `windguru` label of
+    /// `windguru.cz`) and redacting them mangles the URL without
+    /// removing anything sensitive.
+    fn is_secret_class(&self) -> bool {
+        matches!(
+            self,
+            Self::ApiKey
+                | Self::AwsAccessKey
+                | Self::AwsSecretKey
+                | Self::Jwt
+                | Self::PrivateKey
+                | Self::ConnectionString
+                | Self::UrlSecret
+                | Self::HighEntropy
+                | Self::Custom(_)
+        )
+    }
+
     /// Resolution priority when two matches overlap — higher wins.
     /// Keeps `Jwt` from being shadowed by the entropy scanner, and
     /// keeps a user-defined `Custom` pattern ahead of everything.
@@ -674,6 +695,25 @@ fn find_matches(text: &str, pol: &RedactionPolicy) -> Vec<Match> {
     // see `ner::run_ner_detector` for the gating.
     if pol.ner_requested {
         ner::run_ner_detector(text, pol, &mut raw);
+    }
+
+    // Drop non-secret-class matches whose span lies inside a URL.
+    // Domain labels, paths, and other URL parts routinely trip NER /
+    // PII detectors (`windguru` in `windguru.cz` reads as an
+    // Organization; an `/orders/john-smith/` path reads as a person)
+    // but the URL itself is the point of the message — redacting these
+    // mangles the address without hiding anything sensitive. Secrets
+    // embedded in the URL (api keys, tokens, JWTs, …) still fire.
+    let urls = find_url_spans(text);
+    if !urls.is_empty() {
+        raw.retain(|m| {
+            if m.kind.is_secret_class() {
+                return true;
+            }
+            !urls
+                .iter()
+                .any(|u| u.start <= m.range.start && u.end >= m.range.end)
+        });
     }
 
     // Filter out anything covered by the allowlist (run after Layers
@@ -1287,6 +1327,39 @@ fn email_regex() -> &'static Regex {
     })
 }
 
+/// URL-shape regex used to drop non-secret matches that fall inside
+/// addresses (see the filter in `detect`). Matches two flavours:
+///   * scheme-qualified — `https?://…`, `ftp://…`, `wss?://…`, `file://…`
+///   * bare host with at least two dot-separated labels and a 2–24 char
+///     alphabetic TLD (covers `windguru.cz`, `example.co.uk`, etc.) plus
+///     an optional `/path` or `?query` tail.
+///
+/// Imperfect-but-permissive on purpose: false-positive URL spans only
+/// reduce redaction inside that region, which is the goal.
+fn url_span_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        let pattern = r#"(?ix)
+            (?:
+                (?:https?|ftp|wss?|file)://[^\s)\]<>"'`]+
+                |
+                \b
+                (?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+
+                [a-z]{2,24}
+                (?:[/?][^\s)\]<>"'`]*)?
+            )
+        "#;
+        Regex::new(pattern).expect("url_span regex compiles")
+    })
+}
+
+fn find_url_spans(text: &str) -> Vec<Range<usize>> {
+    url_span_regex()
+        .find_iter(text)
+        .map(|m| m.start()..m.end())
+        .collect()
+}
+
 fn url_secret_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
@@ -1794,6 +1867,84 @@ mod tests {
         };
         assert!(text.contains("token=[REDACTED:URL_SECRET]"));
         assert!(text.ends_with(r#""}"#));
+    }
+
+    #[test]
+    fn url_bare_domain_label_is_not_redacted() {
+        // Regression: NER and other PII detectors used to fire on the
+        // host label (`windguru` reads as an Organization), mangling
+        // the address without removing anything sensitive. Detectors
+        // inside URL spans now only fire for secret-class kinds.
+        let input = "check the forecast at windguru.cz before going";
+        let r = redact(input, &pol_redact());
+        // No detector other than secret-class kinds should produce a
+        // match here. Clean is the expected outcome on the regex-only
+        // path; if NER were running it would no longer trip either.
+        assert!(matches!(r, RedactionResult::Clean));
+    }
+
+    #[test]
+    fn url_path_segments_are_not_redacted() {
+        // The path /orders/john-smith/ reads as a person; the host
+        // example.com reads as an Organization. Both should be skipped
+        // because they're inside a URL span. (The credit-card number
+        // would normally fire, but it sits in the path, not behind a
+        // recognized query-string credential parameter — so it stays
+        // too, which matches the "tokens/api-keys only in URLs" goal.)
+        let input = "see https://example.com/orders/john-smith/4111-1111-1111-1111";
+        let r = redact(input, &pol_redact());
+        // Either Clean (nothing left to redact) or Redacted with only
+        // secret-class kinds. PersonName/Organization/CreditCard must
+        // not appear.
+        match r {
+            RedactionResult::Clean => {}
+            RedactionResult::Redacted { matches, .. } => {
+                for m in &matches {
+                    assert!(
+                        !matches!(
+                            m.kind,
+                            DetectorKind::PersonName
+                                | DetectorKind::Location
+                                | DetectorKind::Organization
+                                | DetectorKind::CreditCard
+                                | DetectorKind::Iban
+                                | DetectorKind::Phone
+                                | DetectorKind::IpAddress
+                                | DetectorKind::MacAddress
+                                | DetectorKind::Email
+                        ),
+                        "unexpected match inside URL: {:?}",
+                        m.kind,
+                    );
+                }
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn url_query_secret_still_redacts_when_url_filter_active() {
+        // The URL filter must not weaken the url_secret detector — a
+        // ?token=… inside a URL is exactly what we want to redact.
+        let input = "https://api.example.com/v1/users?token=abc123secret";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { text, matches } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::UrlSecret));
+        assert!(text.contains("token=[REDACTED:URL_SECRET]"));
+    }
+
+    #[test]
+    fn email_outside_url_still_redacts() {
+        // The URL filter is scoped to spans matched by the URL regex.
+        // A bare email in prose must still fire.
+        let input = "reply to alice@example.com tomorrow";
+        let r = redact(input, &pol_redact());
+        let RedactionResult::Redacted { matches, .. } = r else {
+            panic!("expected Redacted");
+        };
+        assert!(matches.iter().any(|m| m.kind == DetectorKind::Email));
     }
 
     // --- Entropy ---

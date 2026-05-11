@@ -180,10 +180,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
         "view_map",
         "display a map (OpenStreetMap) — desktop app only",
     ),
-    (
-        "draw_chart",
-        "render a chart (Chart.js) — desktop app only",
-    ),
+    ("draw_chart", "render a chart (Chart.js) — desktop app only"),
     ("read_image", "read an image from file or URL for analysis"),
     (
         "generate_image",
