@@ -756,6 +756,8 @@ The same operations are available as one-shot CLI flags: `--lock-keys`, `--unloc
 
 When the keyring backend is unavailable (e.g. headless Linux without a Secret Service daemon), aictl falls back to plain-text storage automatically and the banner shows `keys: plain text` in yellow.
 
+**Shared Keychain on macOS (signed releases only).** On macOS, Keychain entries are ACL-bound to the binary that created them — by default, locking keys from the desktop app would force the CLI (and `aictl-server`) to prompt for the user's password the first time each one read another binary's entries, and vice versa. The signed GitHub release binaries are all signed with the same Developer ID and carry a shared `keychain-access-groups` entitlement, so they read and write the same Keychain partition without per-binary prompts. The welcome banner shows `keys: keychain (shared)` when that path is live. Binaries built from source (`cargo install`, `cargo run`, Homebrew-from-source) are ad-hoc-signed and lack the entitlement; they transparently fall back to the unscoped Keychain path and may prompt for password the first time each one reads an entry created by another binary. To get the seamless experience, install the signed binaries from the GitHub release page.
+
 #### Security configuration (optional)
 
 | Key | Description |

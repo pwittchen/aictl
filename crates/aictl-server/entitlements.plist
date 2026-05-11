@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+		`keychain-access-groups` lets this binary read/write Keychain
+		items tagged with `<TeamID>.com.piotrwittchen.aictl`. The CI
+		signing step substitutes `__TEAM_ID__` with the value of the
+		`APPLE_TEAM_ID` repo secret before passing this file to
+		`codesign --entitlements`. The same group is declared in the
+		matching files under `crates/aictl-cli/` and
+		`crates/aictl-desktop/` so all three signed binaries share one
+		password-prompt-free Keychain partition.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>__TEAM_ID__.com.piotrwittchen.aictl</string>
+	</array>
+</dict>
+</plist>

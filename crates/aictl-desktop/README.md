@@ -139,6 +139,51 @@ base64 -i ~/Desktop/devid.p12 | pbcopy   # paste into MACOS_CERTIFICATE
 If any secret is missing, the desktop build will fail loudly rather
 than silently producing an unsigned bundle.
 
+The same release workflow now also signs and notarizes the CLI
+(`aictl`) and `aictl-server` binaries when they're built on macOS
+targets — the `build` job reuses the scratch-keychain pattern, signs
+each binary with the per-crate `entitlements.plist`, and submits a zip
+to `notarytool`. Bare CLI binaries cannot be stapled, so Gatekeeper
+resolves the notarization ticket online on first launch.
+
+### Shared Keychain across CLI / server / desktop
+
+Without extra work, each signed binary would land in its own macOS
+Keychain ACL — the first time the CLI tried to read an entry the
+desktop had created (or vice versa), the user would be prompted for
+their login password, and again for every other entry. The fix is a
+`keychain-access-groups` entitlement shared by all three binaries,
+which puts every aictl item into one shared partition.
+
+The entitlement lives at
+`crates/aictl-{cli,server,desktop}/entitlements.plist` with a
+`__TEAM_ID__.com.piotrwittchen.aictl` placeholder. CI substitutes
+`__TEAM_ID__` with the `APPLE_TEAM_ID` repo secret just before
+`codesign`, so the team identifier stays out of source.
+
+At runtime, `aictl-core` reads `AICTL_APPLE_TEAM_ID` at compile time
+(via `option_env!`, tracked by `crates/aictl-core/build.rs`) and bakes
+it into the access-group string used by every Keychain call. Release
+CI exports `AICTL_APPLE_TEAM_ID` from the same `APPLE_TEAM_ID` secret
+before each `cargo build`, so the entitlement on the binary and the
+attribute on the Keychain item agree.
+
+**Source builds are unaffected.** Contributors running `cargo run` from
+a clone, or users who install via `cargo install` or a Homebrew
+formula that compiles from source, get an ad-hoc-signed binary
+without the entitlement and with no team ID baked in. The macOS
+backend transparently falls back to the unscoped `keyring::Entry`
+path, which itself falls back to plain `~/.aictl/config` — so building
+from source keeps working, just without the shared-Keychain
+experience. Per-binary Keychain prompts may still appear in that
+configuration; the cure is installing the signed binaries from the
+GitHub release page.
+
+The welcome banner shows `keys: keychain (shared)` when the shared
+path is live, `keys: keychain` when the binary fell back to the
+unscoped path, and `keys: plain text` when no keyring backend is
+available at all.
+
 ### Updater signing key
 
 The in-app update flow (download → install → restart) is driven by

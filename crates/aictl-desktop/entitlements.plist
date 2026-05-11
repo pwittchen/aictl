@@ -10,5 +10,19 @@
 	<true/>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<!--
+		`keychain-access-groups` puts the desktop, CLI and `aictl-server`
+		in the same Keychain partition so locking/unlocking keys in one
+		binary does not trigger per-binary password prompts in the
+		others. The CI signing step substitutes `__TEAM_ID__` with the
+		value of the `APPLE_TEAM_ID` repo secret before passing this
+		file to `codesign --entitlements`. The matching declarations
+		live in `crates/aictl-cli/entitlements.plist` and
+		`crates/aictl-server/entitlements.plist`.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>__TEAM_ID__.com.piotrwittchen.aictl</string>
+	</array>
 </dict>
 </plist>
