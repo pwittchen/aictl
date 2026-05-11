@@ -2,8 +2,6 @@
 
 ---
 
-## Desktop
-
 ## Website
 
 - prepare 'Use Cases' page
