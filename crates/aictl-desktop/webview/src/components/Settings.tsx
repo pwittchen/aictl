@@ -5276,17 +5276,7 @@ const AppearanceTab: Component = () => {
         theme: key === "AICTL_DESKTOP_THEME" ? value : get("AICTL_DESKTOP_THEME"),
         density:
           key === "AICTL_DESKTOP_DENSITY" ? value : get("AICTL_DESKTOP_DENSITY"),
-        layout:
-          key === "AICTL_DESKTOP_LAYOUT" ? value : get("AICTL_DESKTOP_LAYOUT"),
       });
-      if (key === "AICTL_DESKTOP_LAYOUT") {
-        // App.tsx listens for this and re-renders main view.
-        window.dispatchEvent(
-          new CustomEvent("aictl:layout-changed", {
-            detail: value || "panes",
-          }),
-        );
-      }
       setFeedback(`${key} updated`);
     } catch (err) {
       setError(`${err}`);
@@ -5295,7 +5285,6 @@ const AppearanceTab: Component = () => {
 
   const theme = (): string => get("AICTL_DESKTOP_THEME") || "dark";
   const density = (): string => get("AICTL_DESKTOP_DENSITY") || "comfortable";
-  const layout = (): string => get("AICTL_DESKTOP_LAYOUT") || "tabs";
   const notifications = (): boolean => {
     const v = get("AICTL_DESKTOP_NOTIFICATIONS");
     return v !== "false" && v !== "0";
@@ -5334,25 +5323,6 @@ const AppearanceTab: Component = () => {
         </p>
       </div>
 
-      <h4 class="settings-subhead">Layout</h4>
-      <div class="settings-row settings-row-stack">
-        <label>Editor placement</label>
-        <div class="settings-control-line">
-          <Dropdown
-            value={layout()}
-            onChange={(v) => void setConfig("AICTL_DESKTOP_LAYOUT", v)}
-            options={[
-              { value: "panes", label: "Split panes" },
-              { value: "tabs", label: "Tabs" },
-            ]}
-          />
-        </div>
-        <p class="settings-hint">
-          Split panes shows the editor in its own column next to the chat.
-          Tabs swaps the chat and editor in place — handy on narrow windows.
-        </p>
-      </div>
-
       <h4 class="settings-subhead">Density</h4>
       <div class="settings-row settings-row-stack">
         <label>Chat density</label>
@@ -5388,7 +5358,6 @@ const AppearanceTab: Component = () => {
 interface AppearanceState {
   theme: string;
   density: string;
-  layout?: string;
 }
 
 /// Apply theme + density tokens to the root element so the change
@@ -5397,7 +5366,6 @@ interface AppearanceState {
 export function applyAppearance(s: AppearanceState) {
   const theme = (s.theme || "dark").toLowerCase();
   const density = (s.density || "comfortable").toLowerCase();
-  const layout = (s.layout || "tabs").toLowerCase();
   const root = document.documentElement;
   if (theme === "system") {
     root.removeAttribute("data-theme");
@@ -5405,7 +5373,6 @@ export function applyAppearance(s: AppearanceState) {
     root.setAttribute("data-theme", theme);
   }
   root.setAttribute("data-density", density);
-  root.setAttribute("data-layout", layout);
 }
 
 interface AboutTabProps {

@@ -127,13 +127,7 @@ const App: Component = () => {
         next ? "true" : "false",
       );
       if (next && workspace().path) {
-        void growWindowTo(
-          requiredLayoutWidth(
-            true,
-            openFilePath() !== null && layout() === "panes",
-            filesVisible(),
-          ),
-        );
+        void growWindowTo(requiredLayoutWidth(true, filesVisible()));
       }
       return next;
     });
@@ -149,40 +143,27 @@ const App: Component = () => {
         next ? "true" : "false",
       );
       if (next && workspace().path) {
-        void growWindowTo(
-          requiredLayoutWidth(
-            sidebarVisible(),
-            openFilePath() !== null && layout() === "panes",
-            true,
-          ),
-        );
+        void growWindowTo(requiredLayoutWidth(sidebarVisible(), true));
       }
       return next;
     });
   };
-  // Path of the file currently shown in the editor pane. The pane
-  // itself sits between the chat and the tree; null means no editor
-  // is rendered. Hiding the tree does not close the editor — the user
-  // may want to keep editing the file with more screen real estate.
+  // Path of the file currently shown in the editor tab. Null means no
+  // editor is rendered. Hiding the tree does not close the editor — the
+  // user may want to keep editing the file with more screen real estate.
   const [openFilePath, setOpenFilePath] = createSignal<string | null>(null);
   // Persisted across launches via `AICTL_DESKTOP_OPEN_FILE` so reopening
-  // the app restores the same editor pane. The wrapper is used by every
+  // the app restores the same editor tab. The wrapper is used by every
   // call site that reflects a user-initiated change (open from tree,
   // close button, workspace switch); raw `setOpenFilePath` is reserved
   // for the hydration path so the read-then-set round-trip doesn't
   // immediately rewrite its own source value.
   const setOpenFile = (path: string | null) => {
-    const wasOpen = openFilePath() !== null;
     setOpenFilePath(path);
     if (path === null) {
       void ipc.configClear("AICTL_DESKTOP_OPEN_FILE").catch(() => {});
     } else {
       void ipc.configWrite("AICTL_DESKTOP_OPEN_FILE", path).catch(() => {});
-      if (!wasOpen && workspace().path && layout() === "panes") {
-        void growWindowTo(
-          requiredLayoutWidth(sidebarVisible(), true, filesVisible()),
-        );
-      }
     }
   };
   // Pane widths in pixels. Drag handles between adjacent visible panes
@@ -191,12 +172,9 @@ const App: Component = () => {
   // The chat (main) is always the 1fr column — it absorbs whatever the
   // user takes from or gives back to its neighbours.
   const SIDEBAR_DEFAULT = 240;
-  const EDITOR_DEFAULT = 480;
   const FILES_DEFAULT = 280;
   const SIDEBAR_MIN = 160;
   const SIDEBAR_MAX = 600;
-  const EDITOR_MIN = 280;
-  const EDITOR_MAX = 1000;
   const FILES_MIN = 200;
   const FILES_MAX = 700;
   // Floor for the chat column when computing whether the layout fits
@@ -212,20 +190,14 @@ const App: Component = () => {
   // on a chat-only layout that's still wide enough for the composer.
   const CHAT_MIN_WIDTH = 895;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
-  const [editorWidth, setEditorWidth] = createSignal(EDITOR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
   // Total CSS-pixel width the layout needs given which panes are
   // visible. Uses each pane's *current* width (not just its min) so
   // the auto-grow path lands on the user's persisted layout instead of
   // collapsing every pane to its minimum.
-  const requiredLayoutWidth = (
-    sidebarOn: boolean,
-    editorOn: boolean,
-    filesOn: boolean,
-  ) => {
+  const requiredLayoutWidth = (sidebarOn: boolean, filesOn: boolean) => {
     let total = CHAT_MIN_WIDTH;
     if (sidebarOn) total += sidebarWidth();
-    if (editorOn) total += editorWidth();
     if (filesOn) total += filesWidth();
     return total;
   };
@@ -260,30 +232,23 @@ const App: Component = () => {
     }
   };
   // Close the most-ancillary visible pane until the rest of the
-  // layout fits the current window width. Order: files → editor →
-  // sidebar (chat stays). Each close is persisted through the same
-  // config keys the toggles use so a relaunch reflects the
-  // auto-collapsed layout.
+  // layout fits the current window width. Order: files → sidebar
+  // (chat stays). Each close is persisted through the same config keys
+  // the toggles use so a relaunch reflects the auto-collapsed layout.
   const closeExcessPanes = () => {
     if (typeof window === "undefined") return;
     if (!workspace().path) return;
     const avail = window.innerWidth;
     let s = sidebarVisible();
-    let e = openFilePath() !== null && layout() === "panes";
     let f = filesVisible();
-    if (requiredLayoutWidth(s, e, f) <= avail) return;
+    if (requiredLayoutWidth(s, f) <= avail) return;
     if (f) {
       setFilesVisible(false);
       void ipc
         .configWrite("AICTL_DESKTOP_FILES_VISIBLE", "false")
         .catch(() => {});
       f = false;
-      if (requiredLayoutWidth(s, e, f) <= avail) return;
-    }
-    if (e) {
-      setOpenFile(null);
-      e = false;
-      if (requiredLayoutWidth(s, e, f) <= avail) return;
+      if (requiredLayoutWidth(s, f) <= avail) return;
     }
     if (s) {
       setSidebarVisible(false);
@@ -299,14 +264,8 @@ const App: Component = () => {
   // moved" pulse anyway).
   const [fsTick, setFsTick] = createSignal(0);
   const [autoAccept, setAutoAccept] = createSignal(false);
-  // Editor placement: "tabs" (default — chat and editor share the main
-  // column, switched via a tab strip) or "panes" (editor lives in its
-  // own grid column next to the chat). Hydrated on mount and updated
-  // live whenever Settings → Appearance dispatches the change event.
-  const [layout, setLayout] = createSignal<"panes" | "tabs">("tabs");
-  // Which tab is currently active when `layout === "tabs"`. Driven by
-  // file-open / file-close transitions and by manual tab clicks. Has
-  // no effect in panes mode.
+  // Which tab is currently active. Driven by file-open / file-close
+  // transitions and by manual tab clicks.
   const [activeMainTab, setActiveMainTab] = createSignal<"chat" | "file">(
     "chat",
   );
@@ -1063,25 +1022,6 @@ const App: Component = () => {
       // Default-false if the read fails.
     }
 
-    try {
-      const raw = await ipc.configValue("AICTL_DESKTOP_LAYOUT");
-      if (raw === "panes") setLayout("panes");
-    } catch {
-      // Default to "tabs" if the read fails.
-    }
-
-    // Settings → Appearance dispatches this when the user flips the
-    // layout select; mirror it into the local signal so the main view
-    // re-renders without waiting for the panel to close.
-    const onLayoutChange = (e: Event) => {
-      const value = (e as CustomEvent<string>).detail;
-      setLayout(value === "tabs" ? "tabs" : "panes");
-    };
-    window.addEventListener("aictl:layout-changed", onLayoutChange);
-    onCleanup(() =>
-      window.removeEventListener("aictl:layout-changed", onLayoutChange),
-    );
-
     // Hydrate persisted pane widths. Bad/out-of-range values are
     // ignored so a hand-edited config can't strand the user with a
     // 5px-wide chat.
@@ -1101,7 +1041,6 @@ const App: Component = () => {
         .catch(() => {});
     };
     hydrateWidth("AICTL_DESKTOP_SIDEBAR_WIDTH", SIDEBAR_MIN, SIDEBAR_MAX, setSidebarWidth);
-    hydrateWidth("AICTL_DESKTOP_EDITOR_WIDTH", EDITOR_MIN, EDITOR_MAX, setEditorWidth);
     hydrateWidth("AICTL_DESKTOP_FILES_WIDTH", FILES_MIN, FILES_MAX, setFilesWidth);
 
     try {
@@ -1526,32 +1465,19 @@ const App: Component = () => {
   const filesPaneHidden = createMemo(
     () => !workspace().path || !filesVisible(),
   );
-  // True when the editor isn't sitting in its own grid column —
-  // either there's no file open, no workspace, or the user chose
-  // tabs layout (in which case the editor lives inside `<main>`).
-  const editorPaneHidden = createMemo(
-    () =>
-      !workspace().path ||
-      openFilePath() === null ||
-      layout() === "tabs",
-  );
-  // Whether the in-`<main>` tab strip should be visible. Only when
-  // the user picked tabs layout *and* a file is open — otherwise the
-  // chat is the only thing in main, and a one-tab strip would be noise.
+  // Whether the in-`<main>` tab strip should be visible. Only when a
+  // file is open — otherwise the chat is the only thing in main, and a
+  // one-tab strip would be noise.
   const showMainTabs = createMemo(
-    () =>
-      layout() === "tabs" &&
-      workspace().path !== null &&
-      openFilePath() !== null,
+    () => workspace().path !== null && openFilePath() !== null,
   );
 
   // Whenever the open-file state flips, snap the active main tab to
   // a sensible default. Opening a file jumps the user to it; closing
-  // a file (or workspace switch) falls back to chat. Only matters in
-  // tabs mode but harmless in panes mode.
+  // a file (or workspace switch) falls back to chat.
   createEffect(() => {
     if (openFilePath() !== null) {
-      if (layout() === "tabs") setActiveMainTab("file");
+      setActiveMainTab("file");
     } else {
       setActiveMainTab("chat");
     }
@@ -1562,9 +1488,8 @@ const App: Component = () => {
   /// whatever's left.
   const gridColumns = createMemo(() => {
     const s = sidebarHidden() ? "0" : `${sidebarWidth()}px`;
-    const e = editorPaneHidden() ? "0" : `${editorWidth()}px`;
     const f = filesPaneHidden() ? "0" : `${filesWidth()}px`;
-    return `${s} 1fr ${e} ${f}`;
+    return `${s} 1fr ${f}`;
   });
 
   /// Generic pointer-driven resize. Captures the start position once,
@@ -1573,15 +1498,10 @@ const App: Component = () => {
   /// below something usable. Persistence happens once on pointerup so
   /// we don't spam `~/.aictl/config` for every pixel.
   const startResize =
-    (which: "sidebar" | "editor" | "files") => (e: PointerEvent) => {
+    (which: "sidebar" | "files") => (e: PointerEvent) => {
       e.preventDefault();
       const startX = e.clientX;
-      const initial =
-        which === "sidebar"
-          ? sidebarWidth()
-          : which === "editor"
-            ? editorWidth()
-            : filesWidth();
+      const initial = which === "sidebar" ? sidebarWidth() : filesWidth();
       let last = initial;
       // Dynamic upper bound: the chat column must keep at least
       // CHAT_MIN_WIDTH after this drag, so the active pane can't grow
@@ -1591,7 +1511,6 @@ const App: Component = () => {
       const otherVisibleWidth = () => {
         let other = 0;
         if (which !== "sidebar" && !sidebarHidden()) other += sidebarWidth();
-        if (which !== "editor" && !editorPaneHidden()) other += editorWidth();
         if (which !== "files" && !filesPaneHidden()) other += filesWidth();
         return other;
       };
@@ -1604,22 +1523,17 @@ const App: Component = () => {
           const max = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, budget));
           return Math.max(SIDEBAR_MIN, Math.min(max, raw));
         }
-        if (which === "editor") {
-          const max = Math.min(EDITOR_MAX, Math.max(EDITOR_MIN, budget));
-          return Math.max(EDITOR_MIN, Math.min(max, raw));
-        }
         const max = Math.min(FILES_MAX, Math.max(FILES_MIN, budget));
         return Math.max(FILES_MIN, Math.min(max, raw));
       };
       const onMove = (ev: PointerEvent) => {
         const dx = ev.clientX - startX;
-        // Sidebar grows right; editor + files grow left, so the delta
-        // is inverted for those two.
+        // Sidebar grows right; files grow left, so the delta is
+        // inverted for that one.
         const next = clampWidth(
           which === "sidebar" ? initial + dx : initial - dx,
         );
         if (which === "sidebar") setSidebarWidth(next);
-        else if (which === "editor") setEditorWidth(next);
         else setFilesWidth(next);
         last = next;
       };
@@ -1631,9 +1545,7 @@ const App: Component = () => {
         const key =
           which === "sidebar"
             ? "AICTL_DESKTOP_SIDEBAR_WIDTH"
-            : which === "editor"
-              ? "AICTL_DESKTOP_EDITOR_WIDTH"
-              : "AICTL_DESKTOP_FILES_WIDTH";
+            : "AICTL_DESKTOP_FILES_WIDTH";
         void ipc.configWrite(key, String(last));
       };
       // Lock cursor + suppress text selection app-wide so nothing on
@@ -1649,7 +1561,6 @@ const App: Component = () => {
       class="app"
       data-sidebar-hidden={String(sidebarHidden())}
       data-files-hidden={String(filesPaneHidden())}
-      data-editor-hidden={String(editorPaneHidden())}
       style={{ "grid-template-columns": gridColumns() }}
     >
       <Titlebar
@@ -1839,19 +1750,6 @@ const App: Component = () => {
           </Show>
         </Show>
       </main>
-      <Show
-        when={
-          workspace().path &&
-          openFilePath() !== null &&
-          layout() === "panes"
-        }
-      >
-        <EditorPane
-          path={openFilePath()!}
-          fsTick={fsTick()}
-          onClose={() => setOpenFile(null)}
-        />
-      </Show>
       <Show when={workspace().path && filesVisible()}>
         <FilePane
           workspaceKey={workspace().path ?? ""}
@@ -1866,16 +1764,6 @@ const App: Component = () => {
           aria-hidden="true"
           style={{ left: `${sidebarWidth()}px` }}
           onPointerDown={startResize("sidebar")}
-        />
-      </Show>
-      <Show when={!editorPaneHidden()}>
-        <div
-          class="resize-handle"
-          aria-hidden="true"
-          style={{
-            right: `${(filesPaneHidden() ? 0 : filesWidth()) + editorWidth()}px`,
-          }}
-          onPointerDown={startResize("editor")}
         />
       </Show>
       <Show when={!filesPaneHidden()}>
