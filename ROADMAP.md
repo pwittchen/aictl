@@ -2,10 +2,6 @@
 
 ---
 
-## Desktop/CLI
-
-- for the redaction configure important redaction details and less important in two sections, so sharing less important information (like name or location) won't have significant consequences, therefore protection shield can be green.
-
 ## Desktop
 
 - in the stats, extend "overall" to full setting windows width
@@ -13,6 +9,8 @@
 - move tools into the separate section in the settings
 - organize api keys - separate sections for all llm keys, aictl and other (firecrawl)
 - add more agents and skills
+- research if anything else can be redacted with NER than people, locations, organizations
+
 
 ## Website
 
