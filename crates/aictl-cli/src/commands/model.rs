@@ -113,7 +113,7 @@ fn build_menu_lines(
                 "ollama" => "Ollama:",
                 "gguf" => "Native GGUF:",
                 "mlx" => "Native MLX (Apple Silicon):",
-                "aictl-server" => "aictl-server:",
+                "aictl-server" => "AICTL (self-hosted):",
                 _ => entry.provider.as_str(),
             };
             lines.push(format!("  {}", label.with(Color::Cyan)));

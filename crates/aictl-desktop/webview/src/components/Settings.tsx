@@ -159,7 +159,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   ollama: "Ollama",
   gguf: "Native GGUF",
   mlx: "Native MLX",
-  "aictl-server": "aictl-server",
+  "aictl-server": "AICTL (self-hosted)",
 };
 
 const Settings: Component<Props> = (props) => {
@@ -1456,7 +1456,11 @@ const ServerTab: Component = () => {
         await ipc.configWrite("AICTL_CLIENT_ENABLED", "false");
       }
       await refetch();
-      setFeedback(next ? "aictl-server enabled" : "aictl-server disabled");
+      setFeedback(
+        next
+          ? "AICTL (self-hosted) enabled"
+          : "AICTL (self-hosted) disabled",
+      );
     } catch (err) {
       setError(`${err}`);
     }
@@ -1465,13 +1469,13 @@ const ServerTab: Component = () => {
   return (
     <div class="settings-tab-content">
       <h3>LLM Servers</h3>
-      <h4 class="settings-subhead">aictl-server</h4>
+      <h4 class="settings-subhead">AICTL (self-hosted)</h4>
       <p class="settings-hint">
         Route LLM calls through a self-hosted{" "}
-        <code>aictl-server</code> by selecting the{" "}
-        <code>aictl-server</code> provider in the Model tab. The host
-        URL and master key are also stored in{" "}
-        <code>~/.aictl/config</code> so the CLI sees the same values.
+        <code>aictl-server</code> by selecting AICTL (self-hosted) as
+        the provider in the Model tab. The host URL and master key are
+        also stored in <code>~/.aictl/config</code> so the CLI sees the
+        same values.
       </p>
       <Show when={error()}>
         <p class="settings-error">{error()}</p>
@@ -1481,7 +1485,7 @@ const ServerTab: Component = () => {
       </Show>
       <BoolRow
         label="Enabled"
-        help="When off, the aictl-server route is hidden from model pickers and dispatch is short-circuited even if the host and master key are set. Stored in AICTL_CLIENT_ENABLED."
+        help="When off, the AICTL (self-hosted) route is hidden from model pickers and dispatch is short-circuited even if the host and master key are set. Stored in AICTL_CLIENT_ENABLED."
         on={status()?.enabled ?? true}
         onChange={(next) => void setEnabled(next)}
       />

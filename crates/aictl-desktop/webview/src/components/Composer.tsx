@@ -128,7 +128,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   ollama: "Ollama",
   gguf: "Native GGUF",
   mlx: "Native MLX",
-  "aictl-server": "aictl-server",
+  "aictl-server": "AICTL (self-hosted)",
 };
 
 interface Group {
