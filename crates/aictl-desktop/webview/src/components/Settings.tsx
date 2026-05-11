@@ -522,6 +522,31 @@ const KeysTab: Component<KeysTabProps> = (props) => {
       (r) => r.location === "keyring" || r.location === "both",
     );
 
+  // Aggregate lock state across every key that has a value set. A key
+  // counts as locked only when it lives purely in the keyring; `both`
+  // (still has a plain copy) and `plain` count as not-locked, since the
+  // user still has cleanup to do via "Lock". `unset` rows are ignored
+  // so an empty profile reads as "none locked" rather than "all
+  // locked".
+  const lockState = createMemo<"all" | "partial" | "none">(() => {
+    const setRows = (rows() ?? []).filter((r) => r.location !== "unset");
+    if (setRows.length === 0) return "none";
+    if (setRows.every((r) => r.location === "keyring")) return "all";
+    if (setRows.every((r) => r.location === "plain")) return "none";
+    return "partial";
+  });
+
+  const lockStateTitle = () => {
+    switch (lockState()) {
+      case "all":
+        return "All keys locked in the system keyring";
+      case "partial":
+        return "Some keys are still in plain config";
+      case "none":
+        return "No keys are locked in the system keyring";
+    }
+  };
+
   // Bucket keys into three groups so the table is split by purpose.
   // LLM provider keys all share the LLM_ prefix on the Tauri side;
   // both AICTL_*_MASTER_KEY entries belong to the self-hosted route
@@ -545,9 +570,9 @@ const KeysTab: Component<KeysTabProps> = (props) => {
       }
     }
     return [
-      { title: "LLM API Keys", rows: llm },
-      { title: "AICTL (self-hosted)", rows: aictl },
-      { title: "Other", rows: other },
+      { title: "LLM API Keys", firstColumn: "Provider", rows: llm },
+      { title: "AICTL (self-hosted)", firstColumn: "Type", rows: aictl },
+      { title: "Other", firstColumn: "Provider", rows: other },
     ].filter((g) => g.rows.length > 0);
   });
 
@@ -600,6 +625,39 @@ const KeysTab: Component<KeysTabProps> = (props) => {
           >
             Unlock All
           </button>
+          <span
+            class="settings-keys-lock-status"
+            data-state={lockState()}
+            title={lockStateTitle()}
+            aria-label={lockStateTitle()}
+          >
+            <Show
+              when={lockState() === "none"}
+              fallback={
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7A1.5 1.5 0 0 0 3 8.5v5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 11.5 7V4.5A3.5 3.5 0 0 0 8 1Zm2 6V4.5a2 2 0 1 0-4 0V7h4Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              }
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M11.5 1A3.5 3.5 0 0 0 8 4.5V7H2.5A1.5 1.5 0 0 0 1 8.5v5A1.5 1.5 0 0 0 2.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 9.5 7V4.5a2 2 0 1 1 4 0v1.75a.75.75 0 0 0 1.5 0V4.5A3.5 3.5 0 0 0 11.5 1Z" />
+              </svg>
+            </Show>
+          </span>
         </div>
       </Show>
       <For each={groupedRows()}>
@@ -609,7 +667,7 @@ const KeysTab: Component<KeysTabProps> = (props) => {
             <table class="settings-keys-table">
               <thead>
                 <tr>
-                  <th>Provider</th>
+                  <th>{group.firstColumn}</th>
                   <th>Key name</th>
                   <th>Status</th>
                   <th />

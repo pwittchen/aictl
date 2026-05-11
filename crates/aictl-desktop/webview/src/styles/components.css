@@ -2790,13 +2790,70 @@
   width: 100%;
   border-collapse: collapse;
   margin-top: var(--space-3);
+  /* Fix column widths so the three tables (LLM API Keys, AICTL,
+     Other) render an identical grid even when their content lengths
+     differ — auto layout would size each table independently and the
+     columns would drift between sections. */
+  table-layout: fixed;
+}
+
+.settings-keys-table th:nth-child(1),
+.settings-keys-table td:nth-child(1) {
+  width: 18%;
+}
+
+.settings-keys-table th:nth-child(2),
+.settings-keys-table td:nth-child(2) {
+  width: 34%;
+}
+
+.settings-keys-table th:nth-child(3),
+.settings-keys-table td:nth-child(3) {
+  width: 12%;
+}
+
+.settings-keys-table th:nth-child(4),
+.settings-keys-table td:nth-child(4) {
+  width: 36%;
 }
 
 .settings-keys-bulk {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
   margin-bottom: var(--space-3);
+}
+
+/* Aggregate lock-state indicator next to the Lock All / Unlock All
+   buttons. Tri-state via `data-state`:
+       "all"     → closed padlock, green (every set key in keyring)
+       "partial" → closed padlock, yellow (some still in plain config)
+       "none"    → open padlock, white (nothing locked yet) */
+.settings-keys-lock-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.settings-keys-lock-status svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.settings-keys-lock-status[data-state="all"] {
+  color: #4ade80;
+}
+
+.settings-keys-lock-status[data-state="partial"] {
+  color: var(--warning);
+}
+
+.settings-keys-lock-status[data-state="none"] {
+  color: var(--fg);
 }
 
 .settings-keys-bulk button {
