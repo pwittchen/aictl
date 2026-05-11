@@ -10,7 +10,8 @@
 - organize api keys - separate sections for all llm keys, aictl and other (firecrawl)
 - add more agents and skills
 - research if anything else can be redacted with NER than people, locations, organizations
-
+- do not redact anything other than tokens or api keys from the website urls
+- when user enabled location tools their output should not be redacted
 
 ## Website
 
