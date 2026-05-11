@@ -4,7 +4,6 @@
 
 ## Desktop
 
-- move tools into the separate section in the settings
 - organize api keys - separate sections for all llm keys, aictl and other (firecrawl)
 - do not redact anything other than tokens or api keys from the website urls
 

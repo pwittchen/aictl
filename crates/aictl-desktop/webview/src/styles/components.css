@@ -2725,8 +2725,6 @@
   display: grid;
   gap: 2px;
   border: 1px solid var(--border);
-  max-height: 280px;
-  overflow-y: auto;
 }
 
 .settings-tools-list[data-dim="true"] {

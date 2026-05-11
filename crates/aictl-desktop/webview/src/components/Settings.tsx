@@ -122,6 +122,7 @@ export type Tab =
   | "stats"
   | "redaction"
   | "shell"
+  | "tools"
   | "appearance"
   | "about";
 
@@ -140,6 +141,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "hooks", label: "Hooks" },
   { id: "skills", label: "Skills" },
   { id: "agents", label: "Agents" },
+  { id: "tools", label: "Tools" },
   { id: "plugins", label: "Plugins" },
   { id: "sessions", label: "Sessions" },
   { id: "context", label: "Context" },
@@ -221,8 +223,10 @@ const Settings: Component<Props> = (props) => {
               <GeneralTab
                 workspace={props.workspace}
                 onPickWorkspace={props.onPickWorkspace}
-                onToolToggled={props.onToolToggled}
               />
+            </Show>
+            <Show when={tab() === "tools"}>
+              <ToolsTab onToolToggled={props.onToolToggled} />
             </Show>
             <Show when={tab() === "security"}>
               <SecurityTab />
@@ -907,11 +911,6 @@ const NUM_KEYS: {
 const GeneralTab: Component<{
   workspace: WorkspaceState;
   onPickWorkspace: () => void | Promise<void>;
-  /// Forwarded to `ToolsList` so per-tool flips inside Settings push
-  /// the new policy back up to App, which re-derives the composer's
-  /// globe / picture icon state without waiting for the panel to
-  /// close.
-  onToolToggled?: () => void;
 }> = (props) => {
   const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
     ipc.configDump(),
@@ -978,27 +977,6 @@ const GeneralTab: Component<{
     }
   };
 
-  const approvalMode = (): "ask" | "auto" =>
-    get("AICTL_TOOL_APPROVAL") === "auto" ? "auto" : "ask";
-
-  const setApproval = async (mode: "ask" | "auto") => {
-    setError(null);
-    setFeedback(null);
-    try {
-      if (mode === "ask") {
-        await ipc.configClear("AICTL_TOOL_APPROVAL");
-      } else {
-        await ipc.configWrite("AICTL_TOOL_APPROVAL", "auto");
-      }
-      await refetch();
-      setFeedback(`tool approval = ${mode}`);
-    } catch (err) {
-      setError(`${err}`);
-    }
-  };
-
-  const toolsOn = (): boolean => isOn("AICTL_TOOLS_ENABLED");
-
   return (
     <div class="settings-tab-content">
       <h3>General</h3>
@@ -1038,26 +1016,6 @@ const GeneralTab: Component<{
         </div>
       </div>
 
-      <h4 class="settings-subhead">Tool approval</h4>
-      <div class="settings-row settings-row-stack">
-        <label>Default approval mode</label>
-        <div class="settings-control-line">
-          <Dropdown
-            value={approvalMode()}
-            onChange={(v) => void setApproval(v as "ask" | "auto")}
-            options={[
-              { value: "ask", label: "Ask each tool call (recommended)" },
-              { value: "auto", label: "Auto-accept all tool calls" },
-            ]}
-          />
-        </div>
-        <p class="settings-hint">
-          The composer's per-conversation toggle still wins for the
-          current session — this picks the default when the desktop
-          launches.
-        </p>
-      </div>
-
       <h4 class="settings-subhead">Behavior</h4>
       <BehaviorEditor onSaved={() => void refetch()} />
 
@@ -1074,18 +1032,6 @@ const GeneralTab: Component<{
           />
         )}
       </For>
-
-      <h4 class="settings-subhead">Tools</h4>
-      <BoolRow
-        label="Tools enabled"
-        help="Master switch — turn off to run the agent in chat-only mode (no shell, no file edits, no MCP)."
-        on={toolsOn()}
-        onChange={(v) => void setBool("AICTL_TOOLS_ENABLED", v)}
-      />
-      <ToolsList
-        disabled={!toolsOn()}
-        onToggle={() => props.onToolToggled?.()}
-      />
 
       <h4 class="settings-subhead">Misc</h4>
       <For each={MISC_BOOL_KEYS}>
@@ -1292,6 +1238,117 @@ const ToolsList: Component<{
           )}
         </For>
       </ul>
+    </div>
+  );
+};
+
+const ToolsTab: Component<{
+  /// Forwarded to `ToolsList` so per-tool flips push the new policy
+  /// back up to App, which re-derives the composer's globe / picture
+  /// icon state in real time. Mirrors the wiring the General tab used
+  /// to carry before the Tools section moved out.
+  onToolToggled?: () => void;
+}> = (props) => {
+  const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
+    ipc.configDump(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+
+  const get = (key: string): string | null => {
+    const entry = (config() ?? []).find((e) => e.key === key);
+    return entry?.value ?? null;
+  };
+
+  const isOn = (key: string): boolean => {
+    const v = get(key);
+    if (v === null) return true;
+    return v !== "false" && v !== "0";
+  };
+
+  const setBool = async (key: string, on: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (on) {
+        await ipc.configClear(key);
+      } else {
+        await ipc.configWrite(key, "false");
+      }
+      await refetch();
+      setFeedback(`${key} = ${on ? "on" : "off"}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const approvalMode = (): "ask" | "auto" =>
+    get("AICTL_TOOL_APPROVAL") === "auto" ? "auto" : "ask";
+
+  const setApproval = async (mode: "ask" | "auto") => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (mode === "ask") {
+        await ipc.configClear("AICTL_TOOL_APPROVAL");
+      } else {
+        await ipc.configWrite("AICTL_TOOL_APPROVAL", "auto");
+      }
+      await refetch();
+      setFeedback(`tool approval = ${mode}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const toolsOn = (): boolean => isOn("AICTL_TOOLS_ENABLED");
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Tools</h3>
+      <p class="settings-hint">
+        Per-tool enable / disable and the default approval mode the
+        agent uses when it calls a tool. Stored in{" "}
+        <code>~/.aictl/config</code>.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={feedback()}>
+        <p class="settings-success">{feedback()}</p>
+      </Show>
+
+      <h4 class="settings-subhead">Tool approval</h4>
+      <div class="settings-row settings-row-stack">
+        <label>Default approval mode</label>
+        <div class="settings-control-line">
+          <Dropdown
+            value={approvalMode()}
+            onChange={(v) => void setApproval(v as "ask" | "auto")}
+            options={[
+              { value: "ask", label: "Ask each tool call (recommended)" },
+              { value: "auto", label: "Auto-accept all tool calls" },
+            ]}
+          />
+        </div>
+        <p class="settings-hint">
+          The composer's per-conversation toggle still wins for the
+          current session — this picks the default when the desktop
+          launches.
+        </p>
+      </div>
+
+      <h4 class="settings-subhead">Tools</h4>
+      <BoolRow
+        label="Tools enabled"
+        help="Master switch — turn off to run the agent in chat-only mode (no shell, no file edits, no MCP)."
+        on={toolsOn()}
+        onChange={(v) => void setBool("AICTL_TOOLS_ENABLED", v)}
+      />
+      <ToolsList
+        disabled={!toolsOn()}
+        onToggle={() => props.onToolToggled?.()}
+      />
     </div>
   );
 };
