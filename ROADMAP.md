@@ -2,6 +2,10 @@
 
 ---
 
+## Desktop/CLI
+
+- for the redaction configure important redaction details and less important in two sections, so sharing less important information (like name or location) won't have significant consequences, therefore protection shield can be green.
+
 ## Desktop
 
 - in the stats, extend "overall" to full setting windows width
