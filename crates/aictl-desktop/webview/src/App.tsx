@@ -32,7 +32,10 @@ import Sidebar from "./components/Sidebar";
 import Toolbar from "./components/Toolbar";
 import FilePane from "./components/FilePane";
 import EditorPane from "./components/EditorPane";
-import Settings, { type Tab as SettingsTab } from "./components/Settings";
+import Settings, {
+  type Tab as SettingsTab,
+  REDACTION_DETECTORS,
+} from "./components/Settings";
 import ContextDetails from "./components/ContextDetails";
 import UpdateModal from "./components/UpdateModal";
 import { checkUpdate, type UpdateInfo } from "./lib/updater";
@@ -390,7 +393,11 @@ const App: Component = () => {
     "ok" | "warn" | "error"
   >("ok");
   const [securityChecks, setSecurityChecks] = createSignal<
-    { label: string; ok: boolean; hint?: string }[]
+    {
+      label: string;
+      state: "ok" | "warn" | "error";
+      hint?: string;
+    }[]
   >([]);
 
   const bumpSessions = () => setSessionRefreshKey((k) => k + 1);
@@ -793,8 +800,34 @@ const App: Component = () => {
 
       const mode = (redactionMode ?? "").trim().toLowerCase();
       const redactionOn = mode === "redact" || mode === "block";
-      const detectorsAllOn = (detectorsRaw ?? "").trim() === "";
       const nerOn = isOn(ner, false);
+
+      const detectorsRawTrimmed = (detectorsRaw ?? "").trim();
+      const detectorSlugs = new Set(REDACTION_DETECTORS.map((d) => d.slug));
+      const totalDetectors = REDACTION_DETECTORS.length;
+      let enabledDetectorCount: number;
+      if (detectorsRawTrimmed === "") {
+        enabledDetectorCount = totalDetectors;
+      } else {
+        const tokens = detectorsRawTrimmed
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => detectorSlugs.has(s));
+        enabledDetectorCount = new Set(tokens).size;
+      }
+      let detectorsState: "ok" | "warn" | "error";
+      let detectorsHint: string | undefined;
+      if (enabledDetectorCount === totalDetectors) {
+        detectorsState = "ok";
+        detectorsHint = undefined;
+      } else if (enabledDetectorCount === 0) {
+        detectorsState = "error";
+        detectorsHint =
+          "AICTL_REDACTION_DETECTORS disables every built-in detector.";
+      } else {
+        detectorsState = "warn";
+        detectorsHint = `Some detectors are disabled (${enabledDetectorCount} of ${totalDetectors} enabled) — AICTL_REDACTION_DETECTORS narrows the active set.`;
+      }
 
       const llmKeys = keys.filter(
         (k) => k.name.startsWith("LLM_") && k.location !== "unset",
@@ -804,68 +837,86 @@ const App: Component = () => {
       const leakingKeys = llmKeys.filter(
         (k) => k.location === "plain" || k.location === "both",
       );
-      const keysOk = leakingKeys.length === 0;
+      let keysState: "ok" | "warn" | "error";
+      let keysHint: string | undefined;
+      if (leakingKeys.length === 0) {
+        keysState = "ok";
+        keysHint = undefined;
+      } else if (leakingKeys.length === llmKeys.length) {
+        keysState = "error";
+        keysHint = `Every configured API key sits in plain config — lock them through Settings → API Keys.`;
+      } else {
+        keysState = "warn";
+        keysHint = `${leakingKeys.length} of ${llmKeys.length} key(s) sit in plain config — lock them through Settings → API Keys.`;
+      }
 
-      const checks: { label: string; ok: boolean; hint?: string }[] = [
-        {
-          label: "Security policy enabled",
-          ok: securityOn,
-          hint: securityOn
+      const boolCheck = (
+        label: string,
+        ok: boolean,
+        hint?: string,
+      ): { label: string; state: "ok" | "warn" | "error"; hint?: string } => ({
+        label,
+        state: ok ? "ok" : "error",
+        hint,
+      });
+
+      const checks: {
+        label: string;
+        state: "ok" | "warn" | "error";
+        hint?: string;
+      }[] = [
+        boolCheck(
+          "Security policy enabled",
+          securityOn,
+          securityOn
             ? undefined
             : "AICTL_SECURITY is off — CWD jail, shell allow-list, and tool denial are bypassed.",
-        },
-        {
-          label: "Prompt-injection guard",
-          ok: injectionOn,
-        },
-        {
-          label: "Audit log",
-          ok: auditOn,
-        },
-        {
-          label: "Workspace-only file access",
-          ok: cwdOn,
-        },
-        {
-          label: "Block shell metacharacters",
-          ok: subshellOn,
-        },
-        {
-          label: "Outbound redaction",
-          ok: redactionOn,
-          hint: redactionOn
+        ),
+        boolCheck("Prompt-injection guard", injectionOn),
+        boolCheck("Audit log", auditOn),
+        boolCheck("Workspace-only file access", cwdOn),
+        boolCheck("Block shell metacharacters", subshellOn),
+        boolCheck(
+          "Outbound redaction",
+          redactionOn,
+          redactionOn
             ? undefined
             : "Set AICTL_SECURITY_REDACTION to 'redact' or 'block' to strip secrets before they leave the machine.",
-        },
+        ),
         {
-          label: "All redaction detectors enabled",
-          ok: detectorsAllOn,
-          hint: detectorsAllOn
-            ? undefined
-            : "AICTL_REDACTION_DETECTORS narrows the active detector set.",
+          label:
+            detectorsState === "ok"
+              ? "All redaction detectors enabled"
+              : detectorsState === "warn"
+                ? `Redaction detectors (${enabledDetectorCount} of ${totalDetectors} enabled)`
+                : "All redaction detectors disabled",
+          state: detectorsState,
+          hint: detectorsHint,
         },
-        {
-          label: "NER pass enabled",
-          ok: nerOn,
-          hint: nerOn
+        boolCheck(
+          "NER pass enabled",
+          nerOn,
+          nerOn
             ? undefined
             : "AICTL_REDACTION_NER is off — names, locations, and organizations are not redacted.",
-        },
+        ),
         {
           label:
             llmKeys.length === 0
               ? "API keys stored in keyring"
-              : `API keys stored in keyring (${llmKeys.length} configured)`,
-          ok: keysOk,
-          hint: keysOk
-            ? undefined
-            : `${leakingKeys.length} key(s) sit in plain config — lock them through Settings → API Keys.`,
+              : keysState === "ok"
+                ? `API keys stored in keyring (${llmKeys.length} configured)`
+                : keysState === "warn"
+                  ? `API keys stored in keyring (${llmKeys.length - leakingKeys.length} of ${llmKeys.length} locked)`
+                  : `API keys stored in plain config (${llmKeys.length} configured)`,
+          state: keysState,
+          hint: keysHint,
         },
       ];
 
       let state: "ok" | "warn" | "error";
       if (!securityOn) state = "error";
-      else if (checks.every((c) => c.ok)) state = "ok";
+      else if (checks.every((c) => c.state === "ok")) state = "ok";
       else state = "warn";
 
       setSecurityState(state);

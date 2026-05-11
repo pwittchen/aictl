@@ -6,7 +6,7 @@ export type ShieldState = "ok" | "warn" | "error";
 
 export interface ShieldCheck {
   label: string;
-  ok: boolean;
+  state: ShieldState;
   hint?: string;
 }
 
@@ -159,10 +159,10 @@ const SecurityShield: Component<Props> = (props) => {
                     {(c) => (
                       <li
                         class="security-modal-check"
-                        data-ok={String(c.ok)}
+                        data-state={c.state}
                       >
                         <span class="security-modal-check-icon">
-                          {c.ok ? <CheckIcon /> : <XIcon />}
+                          {c.state === "error" ? <XIcon /> : <CheckIcon />}
                         </span>
                         <span class="security-modal-check-label">
                           {c.label}

@@ -4681,7 +4681,7 @@ const BucketCard: Component<{
   );
 };
 
-const REDACTION_DETECTORS = [
+export const REDACTION_DETECTORS = [
   { slug: "api_key", label: "API keys" },
   { slug: "aws", label: "AWS access keys" },
   { slug: "aws_secret", label: "AWS secret keys" },

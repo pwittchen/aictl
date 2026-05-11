@@ -5376,11 +5376,15 @@ button.primary:hover:not([disabled]) {
   height: 16px;
 }
 
-.security-modal-check[data-ok="true"] .security-modal-check-icon {
+.security-modal-check[data-state="ok"] .security-modal-check-icon {
   color: #4ade80;
 }
 
-.security-modal-check[data-ok="false"] .security-modal-check-icon {
+.security-modal-check[data-state="warn"] .security-modal-check-icon {
+  color: var(--warning);
+}
+
+.security-modal-check[data-state="error"] .security-modal-check-icon {
   color: var(--danger);
 }
 
