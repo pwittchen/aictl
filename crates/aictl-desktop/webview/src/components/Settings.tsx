@@ -522,6 +522,35 @@ const KeysTab: Component<KeysTabProps> = (props) => {
       (r) => r.location === "keyring" || r.location === "both",
     );
 
+  // Bucket keys into three groups so the table is split by purpose.
+  // LLM provider keys all share the LLM_ prefix on the Tauri side;
+  // both AICTL_*_MASTER_KEY entries belong to the self-hosted route
+  // (one is the bearer the CLI/desktop sends, the other is the value
+  // the server accepts); anything left over (Firecrawl today) lands
+  // in "Other".
+  const groupedRows = createMemo(() => {
+    const llm: KeyRow[] = [];
+    const aictl: KeyRow[] = [];
+    const other: KeyRow[] = [];
+    for (const r of rows() ?? []) {
+      if (r.name.startsWith("LLM_")) {
+        llm.push(r);
+      } else if (
+        r.name === "AICTL_CLIENT_MASTER_KEY" ||
+        r.name === "AICTL_SERVER_MASTER_KEY"
+      ) {
+        aictl.push(r);
+      } else {
+        other.push(r);
+      }
+    }
+    return [
+      { title: "LLM API Keys", rows: llm },
+      { title: "AICTL (self-hosted)", rows: aictl },
+      { title: "Other", rows: other },
+    ].filter((g) => g.rows.length > 0);
+  });
+
   return (
     <div class="settings-tab-content">
       <h3>API Keys</h3>
@@ -573,99 +602,107 @@ const KeysTab: Component<KeysTabProps> = (props) => {
           </button>
         </div>
       </Show>
-      <table class="settings-keys-table">
-        <thead>
-          <tr>
-            <th>Provider</th>
-            <th>Key name</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <For each={rows() ?? []}>
-            {(row) => (
-              <tr>
-                <td>{row.label || row.name}</td>
-                <td>
-                  <code>{row.name}</code>
-                </td>
-                <td>
-                  <span data-status={row.location}>{row.location}</span>
-                </td>
-                <td class="settings-keys-actions-cell">
-                  <div class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini"
-                      onClick={() => {
-                        setEditing(row);
-                        setDraft("");
-                        setFeedback(null);
-                        setError(null);
-                      }}
-                    >
-                      {row.location === "unset" ? "Set" : "Replace"}
-                    </button>
-                    <Show
-                      when={
-                        backend()?.available &&
-                        (row.location === "plain" || row.location === "both")
-                      }
-                    >
-                      <button
-                        type="button"
-                        class="ghost mini"
-                        title="Move from plain config to system keyring"
-                        onClick={() => {
-                          setFeedback(null);
-                          setError(null);
-                          setPendingLock(row);
-                        }}
-                      >
-                        Lock
-                      </button>
-                    </Show>
-                    <Show
-                      when={
-                        backend()?.available &&
-                        (row.location === "keyring" ||
-                          row.location === "both")
-                      }
-                    >
-                      <button
-                        type="button"
-                        class="ghost mini"
-                        title="Move from system keyring back to plain config"
-                        onClick={() => {
-                          setFeedback(null);
-                          setError(null);
-                          setPendingUnlock(row);
-                        }}
-                      >
-                        Unlock
-                      </button>
-                    </Show>
-                    <Show when={row.location !== "unset"}>
-                      <button
-                        type="button"
-                        class="ghost mini danger"
-                        onClick={() => {
-                          setFeedback(null);
-                          setError(null);
-                          setPendingClear(row);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    </Show>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+      <For each={groupedRows()}>
+        {(group) => (
+          <>
+            <h4 class="settings-subhead">{group.title}</h4>
+            <table class="settings-keys-table">
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Key name</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <For each={group.rows}>
+                  {(row) => (
+                    <tr>
+                      <td>{row.label || row.name}</td>
+                      <td>
+                        <code>{row.name}</code>
+                      </td>
+                      <td>
+                        <span data-status={row.location}>{row.location}</span>
+                      </td>
+                      <td class="settings-keys-actions-cell">
+                        <div class="settings-keys-actions">
+                          <button
+                            type="button"
+                            class="ghost mini"
+                            onClick={() => {
+                              setEditing(row);
+                              setDraft("");
+                              setFeedback(null);
+                              setError(null);
+                            }}
+                          >
+                            {row.location === "unset" ? "Set" : "Replace"}
+                          </button>
+                          <Show
+                            when={
+                              backend()?.available &&
+                              (row.location === "plain" ||
+                                row.location === "both")
+                            }
+                          >
+                            <button
+                              type="button"
+                              class="ghost mini"
+                              title="Move from plain config to system keyring"
+                              onClick={() => {
+                                setFeedback(null);
+                                setError(null);
+                                setPendingLock(row);
+                              }}
+                            >
+                              Lock
+                            </button>
+                          </Show>
+                          <Show
+                            when={
+                              backend()?.available &&
+                              (row.location === "keyring" ||
+                                row.location === "both")
+                            }
+                          >
+                            <button
+                              type="button"
+                              class="ghost mini"
+                              title="Move from system keyring back to plain config"
+                              onClick={() => {
+                                setFeedback(null);
+                                setError(null);
+                                setPendingUnlock(row);
+                              }}
+                            >
+                              Unlock
+                            </button>
+                          </Show>
+                          <Show when={row.location !== "unset"}>
+                            <button
+                              type="button"
+                              class="ghost mini danger"
+                              onClick={() => {
+                                setFeedback(null);
+                                setError(null);
+                                setPendingClear(row);
+                              }}
+                            >
+                              Clear
+                            </button>
+                          </Show>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </>
+        )}
+      </For>
       <Show when={editing()}>
         {(row) => (
           <KeyEditModal
