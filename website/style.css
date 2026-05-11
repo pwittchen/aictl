@@ -381,6 +381,34 @@ body.nav-open {
   pointer-events: none;
 }
 
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 35% 22% at 50% 102%,
+      rgba(94, 211, 243, 0.55) 0%,
+      rgba(94, 211, 243, 0.28) 35%,
+      rgba(94, 211, 243, 0.08) 65%,
+      transparent 85%),
+    radial-gradient(ellipse 90% 65% at 50% 112%,
+      rgba(94, 211, 243, 0.32) 0%,
+      rgba(94, 211, 243, 0.14) 30%,
+      rgba(94, 211, 243, 0.05) 55%,
+      transparent 78%),
+    linear-gradient(to top,
+      rgba(94, 211, 243, 0.12) 0%,
+      transparent 18%);
+  pointer-events: none;
+  opacity: 0;
+  animation: heroGlowIn 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) 80ms both;
+}
+
+@keyframes heroGlowIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .hero__inner {
   position: relative;
   text-align: center;
@@ -388,6 +416,24 @@ body.nav-open {
   flex-direction: column;
   align-items: center;
   gap: 32px;
+  animation: heroEnter 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes heroEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::after,
+  .hero__inner { animation: none; }
+  .hero::after { opacity: 1; }
 }
 
 .hero__title {
@@ -442,12 +488,12 @@ body.nav-open {
   justify-content: center;
   width: 44px;
   height: 44px;
-  color: var(--accent);
+  color: var(--fg);
   transition: color 200ms ease;
   z-index: 1;
 }
 
-.hero__scroll:hover { color: var(--fg); }
+.hero__scroll:hover { color: var(--fg-50); }
 
 .hero__scroll-bob {
   display: inline-flex;
