@@ -88,15 +88,19 @@ const STATE_DESCRIPTIONS: Record<ShieldState, string> = {
 const SecurityShield: Component<Props> = (props) => {
   const [open, setOpen] = createSignal(false);
 
+  // Capture-phase + stopImmediatePropagation so other window-level Esc
+  // handlers (Sidebar/Composer/FilePane) don't fire alongside this one
+  // while the popover is open.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape" && open()) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       setOpen(false);
     }
   };
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   const onBackdrop = (e: MouseEvent) => {

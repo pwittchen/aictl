@@ -11,22 +11,28 @@ interface Props {
 }
 
 const ToolApproval: Component<Props> = (props) => {
+  // Capture-phase + stopImmediatePropagation so any parent overlay
+  // listening for Esc/Enter on window doesn't fire alongside this one
+  // and close the surrounding UI underneath the modal.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onAllow();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onDeny();
     } else if (e.key === "a" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onAlways();
     }
   };
 
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   return (

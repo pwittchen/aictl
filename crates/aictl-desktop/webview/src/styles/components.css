@@ -2995,6 +2995,75 @@
   gap: var(--space-2);
 }
 
+/* Sessions table: keep every cell on a single line so the horizontal
+   borders line up across columns (matches the API Keys table). The
+   Name and Id columns truncate with an ellipsis when content is long;
+   Size / Modified / Actions are pinned to their natural widths so the
+   flexible columns share the remaining space. */
+.settings-keys-table.settings-sessions-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-keys-table.settings-sessions-table th,
+.settings-keys-table.settings-sessions-table td {
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-sessions-size-col {
+  width: 90px;
+}
+
+.settings-sessions-modified-col {
+  width: 110px;
+}
+
+.settings-sessions-actions-col {
+  width: 200px;
+}
+
+/* Session-detail modal: two-column definition list with mono labels
+   and value cells that can hold longer content (uuid, path) without
+   pushing the panel wider. */
+.settings-session-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-4);
+  font-size: 12px;
+}
+
+.settings-session-fields dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+  align-self: center;
+}
+
+.settings-session-fields dd {
+  margin: 0;
+  color: var(--fg);
+  word-break: break-all;
+}
+
+.settings-session-fields dd code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-soft);
+}
+
+.settings-session-id-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .settings-catalogue-table .settings-keys-actions {
   justify-content: flex-end;
   flex-wrap: nowrap;
@@ -3094,7 +3163,8 @@
   white-space: nowrap;
 }
 
-.settings-keys-actions button.ghost {
+.settings-keys-actions button.ghost,
+.settings-session-id-row button.ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--fg-soft);
@@ -3106,12 +3176,14 @@
   letter-spacing: 0.06em;
 }
 
-.settings-keys-actions button.ghost.mini {
+.settings-keys-actions button.ghost.mini,
+.settings-session-id-row button.ghost.mini {
   padding: 2px 8px;
   font-size: 10px;
 }
 
-.settings-keys-actions button.ghost:hover:not([disabled]) {
+.settings-keys-actions button.ghost:hover:not([disabled]),
+.settings-session-id-row button.ghost:hover:not([disabled]) {
   color: var(--fg);
   border-color: var(--fg-faint);
 }

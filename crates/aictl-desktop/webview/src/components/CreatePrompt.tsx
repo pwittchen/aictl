@@ -31,19 +31,24 @@ const CreatePrompt: Component<Props> = (props) => {
     props.onSubmit(trimmed);
   };
 
+  // Capture-phase + stopImmediatePropagation so any parent overlay
+  // listening for Esc/Enter on window doesn't fire alongside this one
+  // and close the surrounding UI underneath the modal.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       submit();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onCancel();
     }
   };
 
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
     // Defer focus so the input is mounted before we touch it.
     queueMicrotask(() => inputRef?.focus());
   });

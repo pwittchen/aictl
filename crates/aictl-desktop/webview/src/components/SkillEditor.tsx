@@ -25,15 +25,19 @@ const SkillEditor: Component<Props> = (props) => {
   const [error, setError] = createSignal<string | null>(null);
   const [info, setInfo] = createSignal<string | null>(null);
 
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the editor.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onClose();
     }
   };
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   const onBackdropClick = (e: MouseEvent) => {

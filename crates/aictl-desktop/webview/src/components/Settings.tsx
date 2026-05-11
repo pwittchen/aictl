@@ -44,11 +44,28 @@ import {
 } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
 import { checkUpdate, type UpdateInfo } from "../lib/updater";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import AgentEditor from "./AgentEditor";
 import ConfirmDelete from "./ConfirmDelete";
 import { Dropdown } from "./Dropdown";
 import McpEditor from "./McpEditor";
 import SkillEditor from "./SkillEditor";
+
+// Tauri's clipboard plugin is the happy path on desktop; the navigator
+// fallback covers Vite dev mode where the plugin isn't initialized.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await writeText(text);
+    return true;
+  } catch {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
 
 interface Props {
   workspace: WorkspaceState;
@@ -759,19 +776,24 @@ interface KeyEditModalProps {
 const KeyEditModal: Component<KeyEditModalProps> = (props) => {
   let inputRef: HTMLInputElement | undefined;
 
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the modal.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       if (props.draft.trim() !== "") props.onSubmit();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onCancel();
     }
   };
 
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
     queueMicrotask(() => inputRef?.focus());
   });
 
@@ -2221,15 +2243,19 @@ const LocalModelDownloader: Component<LocalModelDownloaderProps> = (props) => {
   const [name, setName] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the modal.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onClose();
     }
   };
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   const resolvedSpec = () => {
@@ -2580,15 +2606,19 @@ const PromptViewer: Component<{
   onClose: () => void;
 }> = (props) => {
   const [mode, setMode] = createSignal<"rendered" | "source">("rendered");
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the viewer.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onClose();
     }
   };
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
   return (
     <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
@@ -3420,15 +3450,19 @@ const MemoryViewer: Component<{
   formattedDate: string;
   onClose: () => void;
 }> = (props) => {
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the viewer.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onClose();
     }
   };
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
   return (
     <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
@@ -3756,6 +3790,24 @@ const SessionsTab: Component<{
     null,
   );
   const [pendingDeleteAll, setPendingDeleteAll] = createSignal(false);
+  const [viewing, setViewing] = createSignal<SessionRow | null>(null);
+  // Transient "Copied" state keyed by session id so each row's button
+  // can flip back independently after the 1.2s window.
+  const [copiedId, setCopiedId] = createSignal<string | null>(null);
+
+  const copyId = async (id: string) => {
+    const ok = await copyToClipboard(id);
+    if (!ok) {
+      setError("failed to copy session id");
+      return;
+    }
+    setCopiedId(id);
+    setFeedback(null);
+    setError(null);
+    window.setTimeout(() => {
+      if (copiedId() === id) setCopiedId(null);
+    }, 1200);
+  };
 
   const performRemove = async (row: SessionRow) => {
     setError(null);
@@ -3804,6 +3856,9 @@ const SessionsTab: Component<{
     return `${Math.floor(age / 86400)}d ago`;
   };
 
+  const fmtAbsolute = (secs: number) =>
+    new Date(secs * 1000).toLocaleString();
+
   return (
     <div class="settings-tab-content">
       <h3>Sessions</h3>
@@ -3841,41 +3896,76 @@ const SessionsTab: Component<{
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-sessions-table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Id</th>
-              <th>Size</th>
-              <th>Modified</th>
-              <th />
+              <th class="settings-sessions-size-col">Size</th>
+              <th class="settings-sessions-modified-col">Modified</th>
+              <th class="settings-sessions-actions-col" />
             </tr>
           </thead>
           <tbody>
             <For each={rows() ?? []}>
               {(row) => (
                 <tr>
-                  <td>{row.name ?? <em>unnamed</em>}</td>
-                  <td>
+                  <td class="settings-sessions-name">
+                    {row.name ?? <em>unnamed</em>}
+                  </td>
+                  <td class="settings-sessions-id">
                     <code>{row.id}</code>
-                    <Show when={row.active}> <span class="badge">active</span></Show>
+                    <Show when={row.active}>
+                      {" "}
+                      <span class="badge">active</span>
+                    </Show>
                   </td>
                   <td>{fmtSize(row.size)}</td>
                   <td>{fmtAge(row.modified_secs)}</td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini danger"
-                      onClick={() => setPendingDelete(row)}
-                    >
-                      Delete
-                    </button>
+                  <td class="settings-keys-actions-cell">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => setViewing(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        title="Copy session id"
+                        onClick={() => void copyId(row.id)}
+                      >
+                        {copiedId() === row.id ? "Copied" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => setPendingDelete(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
             </For>
           </tbody>
         </table>
+      </Show>
+      <Show when={viewing()}>
+        {(row) => (
+          <SessionViewer
+            row={row()}
+            sizeLabel={fmtSize(row().size)}
+            modifiedAbsolute={fmtAbsolute(row().modified_secs)}
+            modifiedRelative={fmtAge(row().modified_secs)}
+            copied={copiedId() === row().id}
+            onCopyId={() => void copyId(row().id)}
+            onClose={() => setViewing(null)}
+          />
+        )}
       </Show>
       <Show when={pendingDelete()}>
         {(row) => (
@@ -3910,6 +4000,74 @@ const SessionsTab: Component<{
           }}
         />
       </Show>
+    </div>
+  );
+};
+
+const SessionViewer: Component<{
+  row: SessionRow;
+  sizeLabel: string;
+  modifiedAbsolute: string;
+  modifiedRelative: string;
+  copied: boolean;
+  onCopyId: () => void;
+  onClose: () => void;
+}> = (props) => {
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the viewer.
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  });
+
+  return (
+    <div class="tool-modal" role="dialog" aria-modal="true">
+      <div class="panel">
+        <h2>Session</h2>
+        <dl class="settings-session-fields">
+          <dt>Name</dt>
+          <dd>
+            {props.row.name ?? <em>unnamed</em>}
+          </dd>
+          <dt>Id</dt>
+          <dd class="settings-session-id-row">
+            <code>{props.row.id}</code>
+            <button
+              type="button"
+              class="ghost mini"
+              onClick={props.onCopyId}
+            >
+              {props.copied ? "Copied" : "Copy"}
+            </button>
+          </dd>
+          <dt>Size</dt>
+          <dd>{props.sizeLabel}</dd>
+          <dt>Modified</dt>
+          <dd>
+            {props.modifiedAbsolute}{" "}
+            <span class="settings-meta">({props.modifiedRelative})</span>
+          </dd>
+          <dt>Active</dt>
+          <dd>{props.row.active ? "yes" : "no"}</dd>
+          <dt>Path</dt>
+          <dd>
+            <code>~/.aictl/sessions/{props.row.id}</code>
+          </dd>
+        </dl>
+        <div class="actions">
+          <button type="button" data-variant="allow" onClick={props.onClose}>
+            Close Esc
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

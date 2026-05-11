@@ -9,16 +9,20 @@ interface Props {
 }
 
 const ProviderSetup: Component<Props> = (props) => {
+  // Capture-phase + stopImmediatePropagation so any parent overlay
+  // listening for Esc on window doesn't fire alongside this one and
+  // close the surrounding UI underneath the modal.
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopImmediatePropagation();
       props.onDismiss();
     }
   };
 
   onMount(() => {
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   return (
