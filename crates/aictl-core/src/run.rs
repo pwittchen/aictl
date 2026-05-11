@@ -265,7 +265,13 @@ pub fn build_system_prompt() -> String {
         prompt.push_str("\n\n");
         prompt.push_str(&agent_prompt);
     }
-    if let Some(behavior) = crate::config::config_get("AICTL_BEHAVIOR")
+    // Behavior override lives in `~/.aictl/AICTL.md` (user-global,
+    // shared between the CLI and the desktop). The legacy
+    // `AICTL_BEHAVIOR` config key is consulted as a fallback so existing
+    // installs keep working until the user re-saves through the desktop
+    // editor, which migrates the value into the file.
+    if let Some(behavior) = crate::config::load_behavior()
+        .or_else(|| crate::config::config_get("AICTL_BEHAVIOR"))
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
     {

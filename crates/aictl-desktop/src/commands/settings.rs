@@ -50,7 +50,6 @@ const ALLOWED_CONFIG_KEYS: &[&str] = &[
     "AICTL_TOOL_APPROVAL",
     "AICTL_PROMPT_FALLBACK",
     "AICTL_STREAMING",
-    "AICTL_BEHAVIOR",
     "AICTL_CLIENT_HOST",
     "AICTL_CLIENT_ENABLED",
     "AICTL_MCP_ENABLED",
@@ -135,6 +134,28 @@ pub fn config_clear(args: ConfigUnsetArgs) -> Result<bool, String> {
 
 fn is_allowed(key: &str) -> bool {
     ALLOWED_CONFIG_KEYS.contains(&key) || key == AICTL_WORKING_DIR_DESKTOP
+}
+
+/// Read the user-global behavior override file (`~/.aictl/AICTL.md`).
+///
+/// Returns an empty string when the file is missing so the UI can
+/// render an empty textarea without a redundant null check. Surfaces
+/// any actual read error to the webview.
+#[tauri::command]
+pub fn behavior_read() -> Result<String, String> {
+    Ok(config::load_behavior().unwrap_or_default())
+}
+
+#[derive(Deserialize)]
+pub struct BehaviorWriteArgs {
+    pub value: String,
+}
+
+/// Persist the user-global behavior override file. Trimmed-empty input
+/// removes the file (no orphaned blank section in the system prompt).
+#[tauri::command]
+pub fn behavior_write(args: BehaviorWriteArgs) -> Result<(), String> {
+    config::save_behavior(&args.value).map_err(|e| e.to_string())
 }
 
 /// The CLI loads the redaction policy once at startup; the desktop is

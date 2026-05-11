@@ -592,6 +592,12 @@ export const ipc = {
       args: { name, disabled },
     });
   },
+  async behaviorRead() {
+    return invoke<string>("behavior_read");
+  },
+  async behaviorWrite(value: string) {
+    return invoke<void>("behavior_write", { args: { value } });
+  },
 
   // -- mcp ----
   async mcpStatus() {

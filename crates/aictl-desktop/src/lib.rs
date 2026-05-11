@@ -172,6 +172,8 @@ pub fn run() {
             commands::settings::keys_unlock_all,
             commands::settings::tools_list,
             commands::settings::tool_set_disabled,
+            commands::settings::behavior_read,
+            commands::settings::behavior_write,
             commands::chat::compact_chat,
             commands::images::read_workspace_image,
             commands::files::workspace_tree,

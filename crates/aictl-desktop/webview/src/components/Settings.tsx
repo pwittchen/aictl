@@ -1151,8 +1151,7 @@ const BehaviorEditor: Component<{ onSaved: () => void | Promise<unknown> }> = (
   props,
 ) => {
   const [initial, { refetch }] = createResource<string>(async () => {
-    const v = await ipc.configValue("AICTL_BEHAVIOR");
-    return v ?? "";
+    return await ipc.behaviorRead();
   });
   const [draft, setDraft] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
@@ -1167,12 +1166,7 @@ const BehaviorEditor: Component<{ onSaved: () => void | Promise<unknown> }> = (
     setError(null);
     setFeedback(null);
     try {
-      const trimmed = draft().trim();
-      if (trimmed === "") {
-        await ipc.configClear("AICTL_BEHAVIOR");
-      } else {
-        await ipc.configWrite("AICTL_BEHAVIOR", draft());
-      }
+      await ipc.behaviorWrite(draft());
       await refetch();
       await props.onSaved();
       setFeedback("saved");
@@ -1187,7 +1181,8 @@ const BehaviorEditor: Component<{ onSaved: () => void | Promise<unknown> }> = (
       <p class="settings-hint">
         Free-form text appended to every system prompt. Use it to lock
         in coding conventions, tone, or guardrails the agent must follow
-        across every session.
+        across every session. Stored at{" "}
+        <code>~/.aictl/AICTL.md</code> and shared with the CLI.
       </p>
       <textarea
         class="settings-textarea"

@@ -501,6 +501,62 @@ pub fn load_prompt_file() -> Option<(String, String)> {
     })
 }
 
+/// Resolve the path to the user-global behavior override file:
+/// `~/.aictl/AICTL.md`. Returns `None` when `HOME` is unset.
+///
+/// Distinct from [`load_prompt_file`], which reads a *project-local*
+/// `AICTL.md` from the current working directory. The behavior file is
+/// per-user, shared between the CLI and the desktop, and appended to
+/// every system prompt under a `# Behavior overrides` section.
+#[must_use]
+pub fn behavior_file_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(std::path::PathBuf::from(format!("{home}/.aictl/AICTL.md")))
+}
+
+/// Read the user-global behavior override file (`~/.aictl/AICTL.md`).
+///
+/// Returns `None` when the file does not exist, is unreadable, or
+/// `HOME` is unset. Whitespace-only content is treated as empty so the
+/// system prompt doesn't grow a blank "Behavior overrides" section.
+#[must_use]
+pub fn load_behavior() -> Option<String> {
+    let path = behavior_file_path()?;
+    let contents = std::fs::read_to_string(&path).ok()?;
+    let trimmed = contents.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(contents)
+    }
+}
+
+/// Write the user-global behavior override file (`~/.aictl/AICTL.md`).
+///
+/// An empty (after trim) `content` removes the file so the system
+/// prompt no longer carries a "Behavior overrides" section. Creates
+/// `~/.aictl/` if missing.
+///
+/// # Errors
+///
+/// Returns an `io::Error` when `HOME` is unset, the parent directory
+/// cannot be created, or the write/remove call fails.
+pub fn save_behavior(content: &str) -> std::io::Result<()> {
+    let Some(path) = behavior_file_path() else {
+        return Err(std::io::Error::other("HOME environment variable not set"));
+    };
+    if content.trim().is_empty() {
+        if path.exists() {
+            std::fs::remove_file(&path)?;
+        }
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, content)
+}
+
 /// Check whether a config line declares the given key.
 fn line_matches_key(line: &str, key: &str) -> bool {
     let trimmed = line.trim();
