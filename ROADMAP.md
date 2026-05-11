@@ -2,6 +2,11 @@
 
 ---
 
+## Desktop
+
+- remove panes view for file edit/browsing
+- add possibility to run server from desktop app with server logs in the separate tab, also add possibility to configure server from the desktop app. Mention that this is for development and testing purposes and in the production env, server should be launched without GUI
+
 ## Website
 
 - prepare 'Use Cases' page
