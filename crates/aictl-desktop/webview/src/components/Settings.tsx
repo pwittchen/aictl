@@ -4102,7 +4102,11 @@ const StatsTab: Component = () => {
             <div class="settings-stats-grid">
               <BucketCard label="Today" bucket={s().today} />
               <BucketCard label="This month" bucket={s().month} />
-              <BucketCard label="Overall" bucket={s().overall} />
+              <BucketCard
+                label="Overall"
+                bucket={s().overall}
+                wide
+              />
             </div>
           </>
         )}
@@ -4284,9 +4288,11 @@ const axisLabel = (v: number, metric: DailyMetric): string => {
   return `${Math.round(v)}`;
 };
 
-const BucketCard: Component<{ label: string; bucket: StatsBucket }> = (
-  props,
-) => {
+const BucketCard: Component<{
+  label: string;
+  bucket: StatsBucket;
+  wide?: boolean;
+}> = (props) => {
   const tokenTotal = () =>
     props.bucket.input_tokens + props.bucket.output_tokens;
   const inputPct = () => {
@@ -4300,7 +4306,10 @@ const BucketCard: Component<{ label: string; bucket: StatsBucket }> = (
     return m === 0 ? 1 : m;
   };
   return (
-    <div class="settings-stats-card">
+    <div
+      class="settings-stats-card"
+      classList={{ "settings-stats-card-wide": props.wide }}
+    >
       <h4>{props.label}</h4>
       <dl>
         <dt>Sessions</dt>

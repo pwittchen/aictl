@@ -4,7 +4,6 @@
 
 ## Desktop
 
-- in the stats, extend "overall" to full setting windows width
 - unify drop-downs across the app
 - move tools into the separate section in the settings
 - organize api keys - separate sections for all llm keys, aictl and other (firecrawl)

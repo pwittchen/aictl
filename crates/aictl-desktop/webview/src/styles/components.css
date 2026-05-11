@@ -3500,9 +3500,15 @@
 
 .settings-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   margin: var(--space-3) 0;
+}
+
+@media (max-width: 480px) {
+  .settings-stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settings-stats-card {
@@ -3510,6 +3516,10 @@
   background: var(--surface);
   padding: var(--space-3);
   min-width: 0;
+}
+
+.settings-stats-card-wide {
+  grid-column: 1 / -1;
 }
 
 .settings-stats-card h4 {
