@@ -46,6 +46,7 @@ import { renderMarkdown } from "../lib/markdown";
 import { checkUpdate, type UpdateInfo } from "../lib/updater";
 import AgentEditor from "./AgentEditor";
 import ConfirmDelete from "./ConfirmDelete";
+import { Dropdown } from "./Dropdown";
 import McpEditor from "./McpEditor";
 import SkillEditor from "./SkillEditor";
 
@@ -1019,16 +1020,14 @@ const GeneralTab: Component<{
       <div class="settings-row settings-row-stack">
         <label>Default approval mode</label>
         <div class="settings-control-line">
-          <select
-            class="settings-select"
+          <Dropdown
             value={approvalMode()}
-            onChange={(e) =>
-              void setApproval(e.currentTarget.value as "ask" | "auto")
-            }
-          >
-            <option value="ask">Ask each tool call (recommended)</option>
-            <option value="auto">Auto-accept all tool calls</option>
-          </select>
+            onChange={(v) => void setApproval(v as "ask" | "auto")}
+            options={[
+              { value: "ask", label: "Ask each tool call (recommended)" },
+              { value: "auto", label: "Auto-accept all tool calls" },
+            ]}
+          />
         </div>
         <p class="settings-hint">
           The composer's per-conversation toggle still wins for the
@@ -2293,25 +2292,24 @@ const LocalModelDownloader: Component<LocalModelDownloaderProps> = (props) => {
           </p>
           <div class="editor-modal-row">
             <label for="local-model-pick">Model</label>
-            <select
+            <Dropdown
               id="local-model-pick"
               value={String(pickIndex() ?? props.catalog.length)}
-              onInput={(e) => {
-                const v = Number.parseInt(e.currentTarget.value, 10);
-                setPickIndex(Number.isFinite(v) ? v : props.catalog.length);
+              onChange={(v) => {
+                const n = Number.parseInt(v, 10);
+                setPickIndex(Number.isFinite(n) ? n : props.catalog.length);
               }}
-            >
-              <For each={props.catalog}>
-                {(entry, i) => (
-                  <option value={String(i())}>
-                    {entry.label} — {entry.size_label}
-                  </option>
-                )}
-              </For>
-              <option value={String(props.catalog.length)}>
-                custom spec…
-              </option>
-            </select>
+              options={[
+                ...props.catalog.map((entry, i) => ({
+                  value: String(i),
+                  label: `${entry.label} — ${entry.size_label}`,
+                })),
+                {
+                  value: String(props.catalog.length),
+                  label: "custom spec…",
+                },
+              ]}
+            />
           </div>
           <Show when={isCustom()}>
             <div class="editor-modal-row">
@@ -2470,15 +2468,11 @@ const HooksTab: Component = () => {
         <div class="settings-row settings-row-stack">
           <label>New hook</label>
           <div class="settings-control-line">
-            <select
-              class="settings-select"
+            <Dropdown
               value={draftEvent()}
-              onChange={(e) => setDraftEvent(e.currentTarget.value)}
-            >
-              <For each={HOOK_EVENTS}>
-                {(ev) => <option value={ev}>{ev}</option>}
-              </For>
-            </select>
+              onChange={(v) => setDraftEvent(v)}
+              options={HOOK_EVENTS.map((ev) => ({ value: ev, label: ev }))}
+            />
             <input
               type="text"
               class="settings-text-input"
@@ -4605,18 +4599,20 @@ const RedactionTab: Component = () => {
       <div class="settings-row settings-row-stack">
         <label>Outbound redaction</label>
         <div class="settings-control-line">
-          <select
-            class="settings-select"
+          <Dropdown
             value={mode()}
-            onChange={(e) => void setConfig(
-              "AICTL_SECURITY_REDACTION",
-              e.currentTarget.value === "off" ? "" : e.currentTarget.value,
-            )}
-          >
-            <option value="off">Off — pass through unchanged</option>
-            <option value="redact">Redact — replace matches with [REDACTED:&lt;KIND&gt;]</option>
-            <option value="block">Block — abort the turn on any match</option>
-          </select>
+            onChange={(v) =>
+              void setConfig(
+                "AICTL_SECURITY_REDACTION",
+                v === "off" ? "" : v,
+              )
+            }
+            options={[
+              { value: "off", label: "Off — pass through unchanged" },
+              { value: "redact", label: "Redact — replace matches with [REDACTED:<KIND>]" },
+              { value: "block", label: "Block — abort the turn on any match" },
+            ]}
+          />
         </div>
         <p class="settings-hint">
           Off is the default. Redact lets the turn continue with secrets
@@ -5067,17 +5063,15 @@ const AppearanceTab: Component = () => {
       <div class="settings-row settings-row-stack">
         <label>Color scheme</label>
         <div class="settings-control-line">
-          <select
-            class="settings-select"
+          <Dropdown
             value={theme()}
-            onChange={(e) =>
-              void setConfig("AICTL_DESKTOP_THEME", e.currentTarget.value)
-            }
-          >
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-            <option value="system">Follow system</option>
-          </select>
+            onChange={(v) => void setConfig("AICTL_DESKTOP_THEME", v)}
+            options={[
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
+              { value: "system", label: "Follow system" },
+            ]}
+          />
         </div>
         <p class="settings-hint">
           Light theme is a higher-contrast variant of the brutalist palette.
@@ -5088,16 +5082,14 @@ const AppearanceTab: Component = () => {
       <div class="settings-row settings-row-stack">
         <label>Editor placement</label>
         <div class="settings-control-line">
-          <select
-            class="settings-select"
+          <Dropdown
             value={layout()}
-            onChange={(e) =>
-              void setConfig("AICTL_DESKTOP_LAYOUT", e.currentTarget.value)
-            }
-          >
-            <option value="panes">Split panes</option>
-            <option value="tabs">Tabs</option>
-          </select>
+            onChange={(v) => void setConfig("AICTL_DESKTOP_LAYOUT", v)}
+            options={[
+              { value: "panes", label: "Split panes" },
+              { value: "tabs", label: "Tabs" },
+            ]}
+          />
         </div>
         <p class="settings-hint">
           Split panes shows the editor in its own column next to the chat.
@@ -5109,17 +5101,15 @@ const AppearanceTab: Component = () => {
       <div class="settings-row settings-row-stack">
         <label>Chat density</label>
         <div class="settings-control-line">
-          <select
-            class="settings-select"
+          <Dropdown
             value={density()}
-            onChange={(e) =>
-              void setConfig("AICTL_DESKTOP_DENSITY", e.currentTarget.value)
-            }
-          >
-            <option value="comfortable">Comfortable</option>
-            <option value="compact">Compact</option>
-            <option value="cozy">Cozy</option>
-          </select>
+            onChange={(v) => void setConfig("AICTL_DESKTOP_DENSITY", v)}
+            options={[
+              { value: "comfortable", label: "Comfortable" },
+              { value: "compact", label: "Compact" },
+              { value: "cozy", label: "Cozy" },
+            ]}
+          />
         </div>
         <p class="settings-hint">
           Adjusts message padding and font scale across the chat.

@@ -2,6 +2,7 @@ import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import type { Component } from "solid-js";
 
 import { ipc } from "../lib/ipc";
+import { Dropdown } from "./Dropdown";
 
 interface Props {
   /// Names of currently-configured servers — surfaced for the
@@ -187,17 +188,16 @@ const McpEditor: Component<Props> = (props) => {
           </div>
           <div class="editor-modal-row">
             <label for="mcp-editor-transport">Transport</label>
-            <select
+            <Dropdown
               id="mcp-editor-transport"
               value={transport()}
-              onInput={(e) =>
-                setTransport(e.currentTarget.value as Transport)
-              }
-            >
-              <option value="stdio">stdio (local process)</option>
-              <option value="http">http (remote, streamable)</option>
-              <option value="sse">sse (remote, legacy)</option>
-            </select>
+              onChange={(v) => setTransport(v as Transport)}
+              options={[
+                { value: "stdio", label: "stdio (local process)" },
+                { value: "http", label: "http (remote, streamable)" },
+                { value: "sse", label: "sse (remote, legacy)" },
+              ]}
+            />
             <p class="editor-modal-help">
               <code>stdio</code> spawns a local subprocess.{" "}
               <code>http</code> / <code>sse</code> dispatch over the

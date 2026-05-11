@@ -4,7 +4,6 @@
 
 ## Desktop
 
-- unify drop-downs across the app
 - update labels from: aictl-server to: AICTL (self-hosted)
 - move tools into the separate section in the settings
 - organize api keys - separate sections for all llm keys, aictl and other (firecrawl)
