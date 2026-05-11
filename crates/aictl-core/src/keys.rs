@@ -8,18 +8,6 @@
 //! the keyring first and falls back to the config file. The `/keys` REPL menu
 //! exposes the lock/unlock/clear actions that migrate keys between the two
 //! storage backends.
-//!
-//! On macOS, when the running binary is signed with a `keychain-access-groups`
-//! entitlement and `AICTL_APPLE_TEAM_ID` was baked in at build time, items are
-//! stored in a shared access group so the CLI, `aictl-server` and the desktop
-//! app read the same Keychain entries without per-binary password prompts.
-//! Unsigned dev builds and binaries built without the team-id env var fall
-//! back to the unscoped `keyring::Entry` path, which itself falls back to
-//! plain `~/.aictl/config` storage — `cargo run` from a clone keeps working.
-//! See [`macos_keychain`] for the FFI implementation.
-
-#[cfg(target_os = "macos")]
-mod macos_keychain;
 
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
@@ -124,108 +112,13 @@ pub fn backend_name() -> &'static str {
     if !backend_available() {
         return "plain text";
     }
-    #[cfg(target_os = "macos")]
-    {
-        if shared_keychain_active() {
-            "keychain (shared)"
-        } else {
-            "keychain"
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
+    if cfg!(target_os = "macos") {
+        "keychain"
+    } else if cfg!(target_os = "linux") {
         "secret service"
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
+    } else {
         "system keyring"
     }
-}
-
-/// One-shot probe: is the shared-access-group Keychain path live for
-/// the running binary? Cached for the process lifetime — the result
-/// only changes across re-signs of the binary, which require a process
-/// restart anyway.
-///
-/// Returns `true` only when (a) `AICTL_APPLE_TEAM_ID` was baked in at
-/// build time and (b) the binary actually carries the matching
-/// `keychain-access-groups` entitlement at runtime. A non-`NoEntitlement`
-/// outcome from a sentinel `read` is enough to confirm both: the
-/// kernel only consults the entitlement when an access-group lookup is
-/// attempted, and any response other than `NoEntitlement` means the
-/// kernel accepted the access-group attribute.
-#[cfg(target_os = "macos")]
-fn shared_keychain_active() -> bool {
-    static ACTIVE: OnceLock<bool> = OnceLock::new();
-    *ACTIVE.get_or_init(|| {
-        if !macos_keychain::enabled() {
-            return false;
-        }
-        // `read` returns `NotFound` for a missing sentinel and
-        // `NoEntitlement` when the binary was not signed with the
-        // access-group entitlement. Either way, no item is written.
-        !matches!(
-            macos_keychain::read("__aictl_ag_probe__"),
-            macos_keychain::AgOutcome::NoEntitlement
-        )
-    })
-}
-
-/// Read a value from the system keyring. On macOS, when the shared
-/// access-group path is live, the lookup happens there first; a miss
-/// falls back to the legacy unscoped item, and a found legacy item is
-/// migrated across (re-inserted with the access group, then the
-/// unscoped copy is deleted) so subsequent reads stop touching the
-/// legacy slot. On other platforms or when the access-group path is
-/// dormant, behaves like a plain `keyring::Entry::get_password`.
-fn keyring_get(name: &str) -> Option<String> {
-    #[cfg(target_os = "macos")]
-    {
-        if shared_keychain_active() {
-            match macos_keychain::read(name) {
-                macos_keychain::AgOutcome::Ok(v) => return Some(v),
-                macos_keychain::AgOutcome::NotFound => {
-                    // Try the legacy unscoped item and, if present,
-                    // migrate it into the access-group store.
-                    if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, name)
-                        && let Ok(value) = entry.get_password()
-                    {
-                        if let macos_keychain::AgOutcome::Ok(()) =
-                            macos_keychain::write(name, &value)
-                        {
-                            // Drop the legacy item so future reads
-                            // skip the migration probe entirely.
-                            let _ = entry.delete_credential();
-                        }
-                        return Some(value);
-                    }
-                    return None;
-                }
-                // NoEntitlement here would contradict
-                // `shared_keychain_active`; treat as a soft fall-through.
-                macos_keychain::AgOutcome::NoEntitlement | macos_keychain::AgOutcome::Error(_) => {}
-            }
-        }
-    }
-    keyring::Entry::new(SERVICE_NAME, name)
-        .ok()
-        .and_then(|e| e.get_password().ok())
-}
-
-/// Whether an item is present in the system keyring at all (in either
-/// the access-group or the legacy unscoped slot on macOS).
-fn keyring_has(name: &str) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        if shared_keychain_active()
-            && matches!(macos_keychain::read(name), macos_keychain::AgOutcome::Ok(_))
-        {
-            return true;
-        }
-    }
-    keyring::Entry::new(SERVICE_NAME, name)
-        .and_then(|e| e.get_password())
-        .is_ok()
 }
 
 /// Read a secret. Resolution order:
@@ -241,7 +134,9 @@ pub fn get_secret(name: &str) -> Option<String> {
     {
         return Some(v.clone());
     }
-    if let Some(value) = keyring_get(name) {
+    if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, name)
+        && let Ok(value) = entry.get_password()
+    {
         return Some(value);
     }
     config_get(name)
@@ -260,7 +155,9 @@ fn derive_location(in_config: bool, in_keyring: bool) -> KeyLocation {
 /// Return the storage location for a single key.
 pub fn location(name: &str) -> KeyLocation {
     let in_config = config_get(name).filter(|v| !v.is_empty()).is_some();
-    let in_keyring = keyring_has(name);
+    let in_keyring = keyring::Entry::new(SERVICE_NAME, name)
+        .and_then(|e| e.get_password())
+        .is_ok();
     derive_location(in_config, in_keyring)
 }
 
@@ -273,49 +170,14 @@ pub fn all_locations() -> Vec<(&'static str, KeyLocation)> {
 }
 
 /// Write a secret to the keyring. Returns an error if the backend is
-/// unavailable or the write fails. On macOS with the shared
-/// access-group path live, writes go into the access-group store and
-/// any legacy unscoped copy is deleted to keep the two slots in sync.
+/// unavailable or the write fails.
 fn set_keyring(name: &str, value: &str) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        if shared_keychain_active() {
-            match macos_keychain::write(name, value) {
-                macos_keychain::AgOutcome::Ok(()) => {
-                    // Clean up any legacy unscoped twin.
-                    if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, name) {
-                        let _ = entry.delete_credential();
-                    }
-                    return Ok(());
-                }
-                macos_keychain::AgOutcome::Error(e) => return Err(e),
-                // NoEntitlement / NotFound here would contradict
-                // `shared_keychain_active`; fall through to the legacy
-                // path defensively.
-                macos_keychain::AgOutcome::NoEntitlement | macos_keychain::AgOutcome::NotFound => {}
-            }
-        }
-    }
     let entry = keyring::Entry::new(SERVICE_NAME, name).map_err(|e| e.to_string())?;
     entry.set_password(value).map_err(|e| e.to_string())
 }
 
-/// Delete a secret from the keyring. A missing entry is treated as
-/// success. On macOS, also clears any legacy unscoped twin even when
-/// the shared path is live, so a `clear_key` after migration leaves
-/// nothing behind.
+/// Delete a secret from the keyring. A missing entry is treated as success.
 fn delete_keyring(name: &str) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        if shared_keychain_active() {
-            match macos_keychain::delete(name) {
-                macos_keychain::AgOutcome::Ok(())
-                | macos_keychain::AgOutcome::NotFound
-                | macos_keychain::AgOutcome::NoEntitlement => {}
-                macos_keychain::AgOutcome::Error(e) => return Err(e),
-            }
-        }
-    }
     let entry = keyring::Entry::new(SERVICE_NAME, name).map_err(|e| e.to_string())?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
@@ -416,8 +278,13 @@ pub fn unlock_key(name: &str) -> UnlockOutcome {
         KeyLocation::None => UnlockOutcome::NotInKeyring,
         KeyLocation::Config => UnlockOutcome::AlreadyUnlocked,
         KeyLocation::Keyring | KeyLocation::Both => {
-            let Some(value) = keyring_get(name) else {
-                return UnlockOutcome::NotInKeyring;
+            let Ok(entry) = keyring::Entry::new(SERVICE_NAME, name) else {
+                return UnlockOutcome::Error("keyring backend unavailable".to_string());
+            };
+            let value = match entry.get_password() {
+                Ok(v) => v,
+                Err(keyring::Error::NoEntry) => return UnlockOutcome::NotInKeyring,
+                Err(e) => return UnlockOutcome::Error(e.to_string()),
             };
             config_set(name, &value);
             if let Err(e) = delete_keyring(name) {

@@ -168,14 +168,6 @@ jobs:
           key: ${{ matrix.target }}-${{ matrix.features }}-${{ matrix.server_features }}
 
       - name: Build aictl (CLI)
-        # `AICTL_APPLE_TEAM_ID` is baked into the binary at compile time
-        # by `aictl-core/build.rs` + `option_env!` so the macOS Keychain
-        # backend can address items by their `<TeamID>.com.piotrwittchen.aictl`
-        # access group. Linux builds are unaffected — the macOS module
-        # is cfg-gated out — but we set it unconditionally so the cargo
-        # cache key is stable across both targets.
-        env:
-          AICTL_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: cargo build --release -p aictl-cli --features "${{ matrix.features }}" --target ${{ matrix.target }}
 
       - name: Build aictl-server
@@ -183,108 +175,7 @@ jobs:
         # so it ships much smaller than the CLI. `redaction-ner` is kept
         # because the server applies the same outbound redaction on the
         # proxy path that the CLI does at the network boundary.
-        env:
-          AICTL_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: cargo build --release -p aictl-server --features "${{ matrix.server_features }}" --target ${{ matrix.target }}
-
-      - name: Substitute team ID into entitlements
-        # The entitlements files commit a `__TEAM_ID__` placeholder so
-        # the team identifier — treated as a repo secret — stays out of
-        # source. The substitution happens here, in CI, just before the
-        # codesign step. macOS-only: Linux builds skip signing entirely.
-        if: contains(matrix.os, 'macos')
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        shell: bash
-        run: |
-          if [ -z "${APPLE_TEAM_ID:-}" ]; then
-            echo "ERROR: APPLE_TEAM_ID secret is not set."
-            echo "       See crates/aictl-desktop/README.md (Releasing via GitHub Actions)."
-            exit 1
-          fi
-          for f in crates/aictl-cli/entitlements.plist crates/aictl-server/entitlements.plist; do
-            sed -i.bak "s/__TEAM_ID__/$APPLE_TEAM_ID/g" "$f"
-            rm -f "$f.bak"
-          done
-
-      - name: Import Developer ID certificate
-        # Same scratch-keychain pattern as the build-desktop job — see
-        # the comment block there for full details. Torn down in the
-        # `if: always()` cleanup step at the end of the job.
-        if: contains(matrix.os, 'macos')
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        shell: bash
-        run: |
-          CERT_PATH="$RUNNER_TEMP/devid.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          echo -n "$MACOS_CERTIFICATE" | base64 --decode -o "$CERT_PATH"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/[" ]//g')
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-      - name: Sign aictl and aictl-server with Developer ID
-        # Hardened runtime + the per-crate entitlements file +
-        # `--timestamp` to satisfy Apple's notarization requirements.
-        # Each binary is signed in place inside the cargo target dir;
-        # the subsequent package step picks the signed copy.
-        if: contains(matrix.os, 'macos')
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        shell: bash
-        run: |
-          cli_bin="target/${{ matrix.target }}/release/aictl"
-          server_bin="target/${{ matrix.target }}/release/aictl-server"
-          codesign --force \
-            --options runtime \
-            --entitlements crates/aictl-cli/entitlements.plist \
-            --sign "$APPLE_SIGNING_IDENTITY" \
-            --timestamp \
-            "$cli_bin"
-          codesign --force \
-            --options runtime \
-            --entitlements crates/aictl-server/entitlements.plist \
-            --sign "$APPLE_SIGNING_IDENTITY" \
-            --timestamp \
-            "$server_bin"
-          codesign --verify --strict --verbose=2 "$cli_bin"
-          codesign --verify --strict --verbose=2 "$server_bin"
-
-      - name: Notarize aictl and aictl-server
-        # notarytool only accepts .zip / .dmg / .pkg, so we ditto each
-        # binary into a transient zip and submit. `stapler` does not
-        # work on bare binaries — Gatekeeper resolves the ticket online
-        # on first run, which is fine for binaries downloaded directly
-        # from a GitHub release rather than a .app bundle.
-        if: contains(matrix.os, 'macos')
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        shell: bash
-        run: |
-          for bin in aictl aictl-server; do
-            bin_path="target/${{ matrix.target }}/release/$bin"
-            zip_path="$RUNNER_TEMP/${bin}-notarize.zip"
-            /usr/bin/ditto -c -k --keepParent "$bin_path" "$zip_path"
-            xcrun notarytool submit "$zip_path" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --wait
-            rm -f "$zip_path"
-          done
 
       - name: Package aictl (CLI)
         shell: bash
@@ -329,13 +220,6 @@ jobs:
         with:
           name: ${{ matrix.server_artifact }}
           path: ${{ env.server_asset }}
-
-      - name: Clean up keychain
-        if: always() && contains(matrix.os, 'macos')
-        shell: bash
-        run: |
-          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
-          rm -f "$RUNNER_TEMP/devid.p12"
 
   build-desktop:
     needs: version-bump
@@ -404,11 +288,6 @@ jobs:
         # shells out to `npm run build` to populate webview/dist.
         # `--features` mirrors the CLI matrix so the desktop ships with
         # the same engine capabilities (gguf / mlx / redaction-ner).
-        # `AICTL_APPLE_TEAM_ID` is read by `aictl-core/build.rs` at
-        # compile time and baked into the Keychain access-group string —
-        # see `crates/aictl-core/src/keys/macos_keychain.rs`.
-        env:
-          AICTL_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         working-directory: crates/aictl-desktop
         run: tauri build --target ${{ matrix.target }} --features "${{ matrix.features }}" --bundles app
 
@@ -462,30 +341,10 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/[" ]//g')
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
-      - name: Substitute team ID into desktop entitlements
-        # The committed entitlements file uses `__TEAM_ID__` as a
-        # placeholder for the `keychain-access-groups` entry so the
-        # team identifier stays out of source. CI substitutes the real
-        # value (from the `APPLE_TEAM_ID` secret) right before the
-        # codesign step — the matching substitution happens in the
-        # `build` job for the CLI and server entitlement files.
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        shell: bash
-        run: |
-          if [ -z "${APPLE_TEAM_ID:-}" ]; then
-            echo "ERROR: APPLE_TEAM_ID secret is not set."
-            echo "       See crates/aictl-desktop/README.md (Releasing via GitHub Actions)."
-            exit 1
-          fi
-          sed -i.bak "s/__TEAM_ID__/$APPLE_TEAM_ID/g" crates/aictl-desktop/entitlements.plist
-          rm -f crates/aictl-desktop/entitlements.plist.bak
-
       - name: Sign .app with Developer ID
         # Hardened runtime + entitlements (allow-jit etc., needed by
-        # WKWebView; plus `keychain-access-groups` for shared Keychain
-        # access with the CLI/server) + secure timestamp — all required
-        # for Apple to accept the bundle for notarization.
+        # WKWebView) + secure timestamp — all required for Apple to
+        # accept the bundle for notarization.
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         shell: bash
@@ -502,11 +361,6 @@ jobs:
             --timestamp \
             "$app_dir"
           codesign --verify --deep --strict --verbose=2 "$app_dir"
-          # Surface the entitlements as a sanity check so a future
-          # regression where the placeholder is not substituted fails
-          # loudly here rather than at runtime on a user's machine.
-          codesign -d --entitlements :- "$app_dir" | grep -q "keychain-access-groups" \
-            || { echo "ERROR: keychain-access-groups missing from signed .app"; exit 1; }
 
       - name: Notarize and staple .app
         # notarytool needs zip/dmg/pkg, so ditto the .app into a zip

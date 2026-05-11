@@ -43,17 +43,6 @@ gline-rs = { version = "1", optional = true }
 # and must be imported directly when the feature is on.
 orp = { version = "0.9", optional = true }
 
-# macOS Keychain access-group support. The `keyring` crate above gives
-# us a portable backend, but does not expose `kSecAttrAccessGroup` —
-# without that attribute every signed binary lands in its own ACL and
-# users get a password prompt the first time they read another binary's
-# entries. We use these to write/read items scoped to a shared access
-# group declared in each binary's entitlements.plist.
-[target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "3"
-security-framework-sys = "2"
-core-foundation = "0.10"
-
 [dev-dependencies]
 tempfile = "3"
 
