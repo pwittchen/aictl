@@ -8,7 +8,7 @@
 
 ## Desktop
 
-- In the settings of the desktop app, add Images section, where user can choose models currently used for analyzing images and generating images from the currently available models. Also there should be an option to keep the current state as a default, where model is the same as the provider and there should be an option to enable/disable image models fallback in the checkbox (fallback enabled by default)
+- In the settings of the desktop app, add Image Models section, where user can choose models currently used for analyzing images and generating images from the currently available models. Also there should be an option to keep the current state as a default, where model is the same as the provider and there should be an option to enable/disable image models fallback in the checkbox (fallback enabled by default)
 
 ## Server
 
