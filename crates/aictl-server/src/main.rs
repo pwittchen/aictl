@@ -281,6 +281,7 @@ fn build_router(state: Arc<AppState>) -> Router {
             post(routes::gateway::chat_completions),
         )
         .route("/v1/completions", post(routes::gateway::completions))
+        .route("/v1/messages", post(routes::messages::messages))
         .route("/v1/models", get(routes::models::list))
         .route("/v1/stats", get(routes::stats::stats))
         .layer(middleware::from_fn_with_state(

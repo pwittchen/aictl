@@ -8,8 +8,9 @@ Pure proxy. No agent loop, no tool dispatch, no agents/skills/sessions, no slash
 
 **Does**
 
-- Expose `POST /v1/chat/completions`, `POST /v1/completions`, `GET /v1/models`, `GET /v1/stats`, `GET /healthz`, `GET /openapi.json`.
+- Expose `POST /v1/chat/completions`, `POST /v1/completions`, `POST /v1/messages`, `GET /v1/models`, `GET /v1/stats`, `GET /healthz`, `GET /openapi.json`.
 - Translate OpenAI-shaped requests into each provider's native format and back.
+- Proxy native Anthropic Messages API requests verbatim to `api.anthropic.com` so Claude Code (and any client speaking the Anthropic shape directly) can route through the server with tools, content blocks, and prompt caching intact.
 - Apply outbound redaction (`run::redact_outbound`) on every gateway request.
 - Apply the prompt-injection guard (`security::detect_prompt_injection`) on every user message.
 - Audit every gateway dispatch via `audit::log_tool` as `gateway:<provider>`.
@@ -243,6 +244,58 @@ data: [DONE]
 ```
 
 **Tool-calling passthrough** — not implemented in this phase. Requests with a non-empty `tools` array, a non-`null` non-`"none"` `tool_choice`, or any legacy `functions` field get a `400 tools_unsupported_for_provider`.
+
+### `POST /v1/messages`
+
+Native Anthropic Messages API endpoint. Used by clients that speak the Anthropic shape directly — most notably **Claude Code** via `ANTHROPIC_BASE_URL`. The body is forwarded verbatim to `https://api.anthropic.com/v1/messages` with the operator's stored `LLM_ANTHROPIC_API_KEY` substituted in, so tool use, content blocks, system prompts, and prompt caching all pass through unchanged.
+
+The `model` field must resolve to an Anthropic model (`GET /v1/models` with `owned_by: "Anthropic"`). Non-Anthropic models are rejected with `400 model_not_found` — cross-provider translation of the Anthropic shape (with its `tool_use` / `tool_result` blocks) is out of scope; use `POST /v1/chat/completions` to reach other providers.
+
+```sh
+curl http://127.0.0.1:7878/v1/messages \
+  -H "Authorization: Bearer $AICTL_SERVER_MASTER_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+**Streaming**: `"stream": true` returns the native Anthropic SSE event stream (`message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop`) piped through unchanged — *not* the OpenAI `data: {...}` shape.
+
+**Headers**: `anthropic-version` defaults to `2023-06-01`; the client can override per request, and any `anthropic-beta` header the client sends is forwarded. The server's master-key gate is on `Authorization: Bearer ...`, distinct from Anthropic's `x-api-key` — the proxy fills in `x-api-key` itself.
+
+**Security passes**: the prompt-injection guard runs on user-text content; the redactor runs on `system` and `messages[*].content` text surfaces. `tool_use` / `tool_result` blocks are deliberately left untouched (regex passes can't meaningfully redact opaque tool JSON without risking corruption).
+
+### Connecting Claude Code
+
+Claude Code ships with first-class support for third-party Anthropic-compatible inference via two environment variables. Point them at this server:
+
+```sh
+export ANTHROPIC_BASE_URL="http://127.0.0.1:7878"
+export ANTHROPIC_AUTH_TOKEN="<value of AICTL_SERVER_MASTER_KEY>"
+
+# Optional — pin the models Claude Code should use. Any model from
+# `GET /v1/models` owned by Anthropic works.
+export ANTHROPIC_MODEL="claude-sonnet-4-6"
+export ANTHROPIC_SMALL_FAST_MODEL="claude-haiku-4-5-20251001"
+
+claude
+```
+
+`ANTHROPIC_AUTH_TOKEN` (vs `ANTHROPIC_API_KEY`) is the right variable — Claude Code sends the value as `Authorization: Bearer <token>`, which is what this server's master-key gate expects. `ANTHROPIC_API_KEY` sends it as `x-api-key` instead, which the server's auth layer doesn't read.
+
+What you get out of routing Claude Code through `aictl-server`:
+
+- **Centralized Anthropic key** — the actual `LLM_ANTHROPIC_API_KEY` lives only on the server host. Every laptop running Claude Code talks to the server with the master key instead.
+- **Audit trail** — every Claude Code dispatch is logged as `gateway:anthropic` in `AICTL_SERVER_AUDIT_FILE` with the per-request UUID.
+- **Outbound redaction** — secrets in user messages get rewritten as `[REDACTED:<KIND>]` before they leave the network (set `AICTL_SERVER_SECURITY_REDACTION=redact`).
+- **Prompt-injection guard** — poisoned content surfaces as `400 prompt_injection` so it cannot burn the operator's tokens.
+- **Concurrency cap + per-IP rate limit** — same backpressure controls as the OpenAI gateway routes.
+
+For a non-loopback deployment, terminate TLS in front (see the [nginx snippet](#nginx-reverse-proxy-tls--sse) below) and point `ANTHROPIC_BASE_URL` at the HTTPS hostname.
 
 ### `POST /v1/completions`
 

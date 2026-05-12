@@ -109,6 +109,72 @@
         }
       }
     },
+    "/v1/messages": {
+      "post": {
+        "tags": ["chat"],
+        "summary": "Anthropic Messages passthrough",
+        "description": "Native Anthropic Messages API endpoint. Used by clients that speak the Anthropic shape directly — notably Claude Code via `ANTHROPIC_BASE_URL` — so tool use, content blocks, and prompt caching pass through unchanged.\n\nPhase 1 is a pure passthrough proxy: the request body is forwarded to `https://api.anthropic.com/v1/messages` with the operator's stored `LLM_ANTHROPIC_API_KEY` (and the `anthropic-version` / `anthropic-beta` headers the client sent, if any). The `model` field **must** resolve to an Anthropic model — cross-provider translation of the Anthropic shape is out of scope; non-Anthropic models are rejected with `400 model_not_found`.\n\nThe prompt-injection guard runs on user-text content, and the redactor runs on `system` plus `messages[*].content` text surfaces. `tool_use` / `tool_result` blocks are deliberately left untouched.",
+        "operationId": "messages",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Native Anthropic Messages API request. See https://docs.anthropic.com/en/api/messages — the body is forwarded verbatim after redaction.",
+                "additionalProperties": true,
+                "required": ["model", "messages"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "Must resolve to an Anthropic model in `GET /v1/models`.",
+                    "examples": ["claude-sonnet-4-6", "claude-opus-4-7"]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "object", "additionalProperties": true }
+                  },
+                  "system": {
+                    "description": "Optional system prompt — string or content-block array."
+                  },
+                  "max_tokens": { "type": "integer", "minimum": 1 },
+                  "stream":     { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Native Anthropic Messages response body, or an SSE stream when `stream: true`. Both bodies are forwarded verbatim from `api.anthropic.com`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "Anthropic message envelope (id, role, content, model, stop_reason, usage)."
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Native Anthropic SSE event stream (`message_start`, `content_block_*`, `message_delta`, `message_stop`) piped through unchanged."
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "413": { "$ref": "#/components/responses/PayloadTooLarge" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "504": { "$ref": "#/components/responses/GatewayTimeout" }
+        }
+      }
+    },
     "/v1/models": {
       "get": {
         "tags": ["models"],

@@ -282,6 +282,21 @@ AICTL_CLIENT_MASTER_KEY=sk-aictl-…
 
 `AICTL_CLIENT_MASTER_KEY` participates in the same `/keys` lock/unlock/clear lifecycle as the provider keys, so it can move into the OS keyring like any other secret. Local providers (`Ollama`, `GGUF`, `MLX`) bypass the server unconditionally — the proxy hop would be pointless.
 
+### Use `aictl-server` as Claude Code's inference provider
+
+Claude Code supports third-party Anthropic-compatible inference via `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`. Point them at this server and Claude Code talks to Anthropic *through* `aictl-server`, picking up centralized key management, audit logging, redaction, and the prompt-injection guard along the way.
+
+```sh
+export ANTHROPIC_BASE_URL="http://127.0.0.1:7878"
+export ANTHROPIC_AUTH_TOKEN="$AICTL_SERVER_MASTER_KEY"
+export ANTHROPIC_MODEL="claude-sonnet-4-6"
+export ANTHROPIC_SMALL_FAST_MODEL="claude-haiku-4-5-20251001"
+
+claude
+```
+
+The server exposes a native `POST /v1/messages` endpoint that forwards the request body verbatim to `api.anthropic.com` after substituting the operator's stored `LLM_ANTHROPIC_API_KEY` — tool use, content blocks, prompt caching, and streaming all pass through unchanged. See [SERVER.md](SERVER.md#connecting-claude-code) for the full setup reference.
+
 ## Uninstall
 
 ### Binary release (installed via `install.sh`)
