@@ -101,11 +101,6 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-2.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-flash-lite", "LLM_GEMINI_API_KEY"),
-    (
-        "gemini",
-        "gemini-3.1-flash-lite-preview",
-        "LLM_GEMINI_API_KEY",
-    ),
     ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3", "LLM_GROK_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
@@ -969,7 +964,7 @@ mod tests {
     #[test]
     fn context_limit_gemini_3_1_pro_is_1m() {
         assert_eq!(context_limit("gemini-3.1-pro-preview"), 1_000_000);
-        assert_eq!(context_limit("gemini-3.1-flash-lite-preview"), 1_000_000);
+        assert_eq!(context_limit("gemini-3.1-flash-lite"), 1_000_000);
         // older gemini stays at 200K
         assert_eq!(context_limit("gemini-2.5-pro"), 200_000);
     }

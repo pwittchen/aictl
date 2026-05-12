@@ -73,7 +73,7 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 | `gpt-5.4-mini` | $0.95 | $0.52 | $20.90 | $11.44 |
 | `gpt-5.4-nano` | $0.26 | $0.14 | $5.72 | $3.08 |
 | `gemini-3.1-pro-preview` | $2.52 | $1.58 | $55.44 | $34.76 |
-| `gemini-3.1-flash-lite-preview` | $0.32 | $0.20 | $7.04 | $4.40 |
+| `gemini-3.1-flash-lite` | $0.32 | $0.20 | $7.04 | $4.40 |
 | `grok-4` | $3.60 | $2.18 | $79.20 | $47.96 |
 | `grok-4-fast-reasoning` | $0.21 | $0.12 | $4.62 | $2.64 |
 | `deepseek-chat` | $0.31 | $0.18 | $6.82 | $3.96 |
@@ -90,7 +90,7 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 | `gpt-5.4-mini` | $14.63 | $6.53 | $321.86 | $143.66 |
 | `gpt-5.4-nano` | $3.94 | $1.78 | $86.68 | $39.16 |
 | `gemini-3.1-pro-preview` | $39.00 | $21.00 | $858.00 | $462.00 |
-| `gemini-3.1-flash-lite-preview` | $4.88 | $2.63 | $107.36 | $57.86 |
+| `gemini-3.1-flash-lite` | $4.88 | $2.63 | $107.36 | $57.86 |
 | `grok-4` | $56.25 | $29.25 | $1,237.50 | $643.50 |
 | `grok-4-fast-reasoning` | $3.38 | $1.58 | $74.36 | $34.76 |
 | `deepseek-chat` | $4.88 | $2.45 | $107.36 | $53.90 |
@@ -118,7 +118,7 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 - **The value plays for heavy coding use** all come in under
   **$60/month cached** for 50 tasks × 10 iterations × 22 working days:
   `grok-4-fast-reasoning` ($34.76/month), `deepseek-chat` ($53.90),
-  `gemini-3.1-flash-lite-preview` ($57.86), and `gpt-5.4-nano`
+  `gemini-3.1-flash-lite` ($57.86), and `gpt-5.4-nano`
   ($39.16). These are viable "always-on" coding assistants even for
   individuals.
 - **The flagship cluster** — GPT-5.4, Gemini 3.1 Pro, and Claude

@@ -903,7 +903,6 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gemini-3.1-pro-preview` | $2.00 | $12.00 |
 | `gemini-3-flash-preview` | $0.50 | $3.00 |
 | `gemini-3.1-flash-lite` | $0.25 | $1.50 |
-| `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
 | `gemini-2.5-flash` | $0.30 | $2.50 |
 | `gemini-2.5-flash-lite` | $0.10 | $0.40 |
