@@ -473,10 +473,17 @@ const MessageView: Component<{ msg: Message }> = (props) => {
       // every access rather than caching `props.msg.result` once.
       const result = () =>
         props.msg.kind === "tool" ? props.msg.result : undefined;
+      const tool = props.msg.tool;
+      const input = props.msg.input;
+      const diff = parseFileDiffInput(tool, input);
       return (
         <div class="tool-callout">
-          <span class="tag">tool · {props.msg.tool}</span>
-          <div style={{ color: "var(--fg-soft)" }}>{props.msg.input}</div>
+          <span class="tag">tool · {tool}</span>
+          {diff ? (
+            <EditFilePreview diff={diff} />
+          ) : (
+            <div style={{ color: "var(--fg-soft)" }}>{input}</div>
+          )}
           <Show when={result() !== undefined}>
             <div
               style={{
@@ -568,6 +575,102 @@ const AssistantMessage: Component<{ text: string }> = (props) => {
           <span class="icon" innerHTML={COPY_ICON} />
           <span class="label">{copied() ? "Copied" : "Copy"}</span>
         </button>
+      </div>
+    </div>
+  );
+};
+
+interface EditFileDiff {
+  path: string;
+  oldLines: string[];
+  newLines: string[];
+}
+
+// Dispatch on the tool name. `edit_file` produces a real old/new diff;
+// `write_file` is an overwrite so every line is rendered as an addition.
+function parseFileDiffInput(
+  tool: string,
+  input: string,
+): EditFileDiff | null {
+  if (tool === "edit_file") return parseEditFileInput(input);
+  if (tool === "write_file") return parseWriteFileInput(input);
+  return null;
+}
+
+// Parse the `edit_file` tool body shape (see
+// `crates/aictl-core/src/tools/filesystem.rs::tool_edit_file`):
+//   path\n<<<\nold\n===\nnew\n>>>
+// Returns `null` for malformed input — the caller falls back to the
+// plain-text rendering so a streaming/partial payload still shows
+// something rather than disappearing.
+function parseEditFileInput(input: string): EditFileDiff | null {
+  const firstNl = input.indexOf("\n");
+  if (firstNl < 0) return null;
+  const path = input.slice(0, firstNl).trim();
+  if (!path) return null;
+  const rest = input.slice(firstNl + 1).trim();
+  if (!rest.startsWith("<<<")) return null;
+  const afterOpen = rest.slice(3);
+  const closeIdx = afterOpen.indexOf(">>>");
+  if (closeIdx < 0) return null;
+  const body = afterOpen.slice(0, closeIdx);
+  const sepIdx = body.indexOf("===");
+  if (sepIdx < 0) return null;
+  const stripEdges = (s: string) =>
+    s.replace(/^\n/, "").replace(/\n$/, "");
+  const oldText = stripEdges(body.slice(0, sepIdx));
+  const newText = stripEdges(body.slice(sepIdx + 3));
+  return {
+    path,
+    oldLines: oldText.split("\n"),
+    newLines: newText.split("\n"),
+  };
+}
+
+// Parse the `write_file` tool body shape (see
+// `crates/aictl-core/src/tools/filesystem.rs::tool_write_file`):
+//   path\n<content>
+// The tool overwrites the target unconditionally and has no view of
+// the prior contents, so every content line is treated as an addition.
+function parseWriteFileInput(input: string): EditFileDiff | null {
+  const trimmed = input.replace(/^\s+/, "");
+  const firstNl = trimmed.indexOf("\n");
+  if (firstNl < 0) {
+    const path = trimmed.trim();
+    if (!path) return null;
+    return { path, oldLines: [], newLines: [] };
+  }
+  const path = trimmed.slice(0, firstNl).trim();
+  if (!path) return null;
+  const content = trimmed.slice(firstNl + 1).replace(/\n$/, "");
+  return {
+    path,
+    oldLines: [],
+    newLines: content.length === 0 ? [] : content.split("\n"),
+  };
+}
+
+const EditFilePreview: Component<{ diff: EditFileDiff }> = (props) => {
+  return (
+    <div class="edit-diff">
+      <div class="edit-diff-path">{props.diff.path}</div>
+      <div class="edit-diff-body">
+        <For each={props.diff.oldLines}>
+          {(line) => (
+            <div class="edit-diff-line edit-diff-del">
+              <span class="edit-diff-marker">-</span>
+              <span class="edit-diff-text">{line}</span>
+            </div>
+          )}
+        </For>
+        <For each={props.diff.newLines}>
+          {(line) => (
+            <div class="edit-diff-line edit-diff-add">
+              <span class="edit-diff-marker">+</span>
+              <span class="edit-diff-text">{line}</span>
+            </div>
+          )}
+        </For>
       </div>
     </div>
   );

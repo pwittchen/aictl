@@ -947,6 +947,68 @@
   letter-spacing: 0.08em;
 }
 
+/* edit_file diff preview — added lines render green, removed lines
+   render red. Colours are kept independent of `--accent`/`--danger`
+   so they read as diff semantics rather than picking up the chat's
+   error/warning palette. */
+.edit-diff {
+  margin-top: var(--space-2);
+}
+
+.edit-diff-path {
+  color: var(--fg-soft);
+  margin-bottom: var(--space-2);
+  word-break: break-all;
+}
+
+.edit-diff-body {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.edit-diff-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 1px var(--space-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.edit-diff-marker {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  user-select: none;
+  opacity: 0.7;
+}
+
+.edit-diff-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-diff-del {
+  background: rgba(255, 95, 86, 0.12);
+  color: #ff8a82;
+}
+
+.edit-diff-add {
+  background: rgba(46, 204, 113, 0.12);
+  color: #5fd28a;
+}
+
+[data-theme="light"] .edit-diff-del {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+[data-theme="light"] .edit-diff-add {
+  background: rgba(22, 163, 74, 0.1);
+  color: #15803d;
+}
+
 .composer {
   border-top: 1px solid var(--border);
   padding: var(--space-3) var(--space-6);
