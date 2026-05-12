@@ -258,7 +258,7 @@ Both single-shot and REPL modes share the same loop:
  │  │ fetch_datetime      │ date command (subprocess) │      │
  │  │ fetch_geolocation   │ ip-api.com (reqwest)      │      │
  │  │ read_image          │ fs::read / HTTP GET+base64│      │
- │  │ generate_image      │ DALL-E/Imagen/Grok+write  │      │
+ │  │ generate_image      │ GPT Image/Imagen/Grok+wr. │      │
  │  │ read_document       │ pdf-extract/zip/calamine  │      │
  │  │ git                 │ git subprocess (no shell) │      │
  │  │ run_code            │ interpreter via stdin     │      │

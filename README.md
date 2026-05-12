@@ -1121,7 +1121,7 @@ Available tools:
 | `fetch_datetime` | Get the current date, time, timezone, and day of week |
 | `fetch_geolocation` | Get geolocation data for an IP address (city, country, timezone, coordinates, ISP) via ip-api.com |
 | `read_image` | Read an image from a file path or URL for vision analysis (PNG, JPEG, GIF, WebP, BMP, TIFF, SVG, ICO) |
-| `generate_image` | Generate an image from a text description via DALL-E, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
+| `generate_image` | Generate an image from a text description via GPT Image, Imagen, or Grok (auto-selects provider based on available keys; saves PNG to current directory) |
 | `read_document` | Read a PDF, DOCX, or spreadsheet and extract content as markdown text. Supports `.pdf`, `.docx`, `.xlsx`, `.xls`, `.ods`. PDF text extracted directly; DOCX converted to markdown; spreadsheets converted to markdown tables (one per sheet) |
 | `git` | Run a restricted `git` subcommand (no shell). Allows `status`, `diff`, `log`, `blame`, `commit` with a per-subcommand flag allowlist. Dangerous flags (`-c`, `-C`, `--ext-diff`, `--upload-pack`, `--exec-path`, `--no-verify`, `--amend`, `--git-dir`, `--work-tree`) and all other subcommands are rejected. Env vars that could redirect the subprocess (`GIT_DIR`, `GIT_SSH_COMMAND`, `GIT_CONFIG_*`, editor/askpass) are scrubbed |
 | `run_code` | Execute a short code snippet in a chosen interpreter and return stdout/stderr. First line is the language (`python`, `node`, `ruby`, `perl`, `lua`, `bash`, `sh`); remaining lines are piped to the interpreter on stdin (no temp file). Useful for quick calculations, data transforms, and one-off logic checks. Shares the shell timeout, env scrubber, and CWD pin with `exec_shell`. Not a true sandbox |
@@ -1146,7 +1146,7 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 
 | Provider | Image analysis (`read_image`) | Image generation (`generate_image`) |
 |----------|-------------------------------|-------------------------------------|
-| OpenAI | All models | DALL-E 3 |
+| OpenAI | All models | GPT Image 2 |
 | Anthropic | All models | -- |
 | Gemini | All models | Imagen 4.0 |
 | Grok | All models | Grok 2 Image |

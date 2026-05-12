@@ -125,11 +125,10 @@ async fn generate_via_openai(api_key: &str, prompt: &str) -> Result<Vec<u8>, Str
 
     let client = crate::config::http_client();
     let body = serde_json::json!({
-        "model": "dall-e-3",
+        "model": "gpt-image-2",
         "prompt": prompt,
         "n": 1,
-        "size": "1024x1024",
-        "response_format": "b64_json"
+        "size": "1024x1024"
     });
 
     let resp = client
@@ -139,27 +138,27 @@ async fn generate_via_openai(api_key: &str, prompt: &str) -> Result<Vec<u8>, Str
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("Error calling DALL-E API: {e}"))?;
+        .map_err(|e| format!("Error calling GPT Image API: {e}"))?;
 
     let status = resp.status();
     let text = resp
         .text()
         .await
-        .map_err(|e| format!("Error reading DALL-E response: {e}"))?;
+        .map_err(|e| format!("Error reading GPT Image response: {e}"))?;
 
     if !status.is_success() {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
             let msg = json["error"]["message"].as_str().unwrap_or("unknown error");
-            return Err(format!("DALL-E API error ({status}): {msg}"));
+            return Err(format!("GPT Image API error ({status}): {msg}"));
         }
-        return Err(format!("DALL-E API error ({status}): {text}"));
+        return Err(format!("GPT Image API error ({status}): {text}"));
     }
 
-    let json: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("Error parsing DALL-E response: {e}"))?;
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Error parsing GPT Image response: {e}"))?;
     let b64 = json["data"][0]["b64_json"]
         .as_str()
-        .ok_or("Error: no image data in DALL-E response")?;
+        .ok_or("Error: no image data in GPT Image response")?;
     base64::engine::general_purpose::STANDARD
         .decode(b64)
         .map_err(|e| format!("Error decoding image data: {e}"))
@@ -287,7 +286,7 @@ pub(super) async fn tool_generate_image(input: &str) -> String {
             "openai" => {
                 if let Some(key) = crate::keys::get_secret("LLM_OPENAI_API_KEY") {
                     return match generate_via_openai(&key, input).await {
-                        Ok(bytes) => save_image(&bytes, input, "DALL-E").await,
+                        Ok(bytes) => save_image(&bytes, input, "GPT Image").await,
                         Err(e) => e,
                     };
                 }
@@ -312,5 +311,5 @@ pub(super) async fn tool_generate_image(input: &str) -> String {
         }
     }
 
-    "Error: no image generation API key available. Set LLM_OPENAI_API_KEY (DALL-E), LLM_GEMINI_API_KEY (Imagen), or LLM_GROK_API_KEY (Grok) in ~/.aictl/config or system keyring".to_string()
+    "Error: no image generation API key available. Set LLM_OPENAI_API_KEY (GPT Image), LLM_GEMINI_API_KEY (Imagen), or LLM_GROK_API_KEY (Grok) in ~/.aictl/config or system keyring".to_string()
 }

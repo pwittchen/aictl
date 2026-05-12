@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use crate::workspace;
 
-/// Hard cap on previewed bytes — DALL-E / Imagen / Grok currently top
+/// Hard cap on previewed bytes — GPT Image / Imagen / Grok currently top
 /// out around 1.5 MB at 1024×1024, so 10 MB leaves head-room for the
 /// occasional large PNG without letting a runaway file blow the IPC
 /// channel.

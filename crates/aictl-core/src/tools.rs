@@ -184,7 +184,7 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ("read_image", "read an image from file or URL for analysis"),
     (
         "generate_image",
-        "generate an image from text (DALL-E/Imagen/Grok)",
+        "generate an image from text (GPT Image/Imagen/Grok)",
     ),
     (
         "read_document",
