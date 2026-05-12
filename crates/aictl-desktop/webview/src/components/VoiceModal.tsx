@@ -38,7 +38,7 @@ type Phase =
   | { kind: "transcribing" }
   | { kind: "error"; message: string };
 
-const BAR_COUNT = 24;
+const BAR_COUNT = 36;
 const TARGET_SAMPLE_RATE = 16_000;
 
 const VoiceModal: Component<Props> = (props) => {
