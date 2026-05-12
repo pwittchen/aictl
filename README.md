@@ -1146,9 +1146,9 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 
 | Provider | Image analysis (`read_image`) | Image generation (`generate_image`) |
 |----------|-------------------------------|-------------------------------------|
-| OpenAI | All models | GPT Image 2 |
+| OpenAI | All models | GPT Image 1 / 1 Mini / 2 |
 | Anthropic | All models | -- |
-| Gemini | All models | Imagen 4.0 |
+| Gemini | All models | Imagen 4.0 / 4.0 Ultra / 4.0 Fast |
 | Grok | All models | Grok 2 Image |
 | Mistral | All models | -- |
 | DeepSeek | -- | -- |

@@ -160,7 +160,11 @@ pub const MODELS: &[(&str, &str, &str)] = &[
 /// backend has no code path for.
 pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
     ("openai", "gpt-image-2"),
+    ("openai", "gpt-image-1"),
+    ("openai", "gpt-image-1-mini"),
     ("gemini", "imagen-4.0-generate-001"),
+    ("gemini", "imagen-4.0-ultra-generate-001"),
+    ("gemini", "imagen-4.0-fast-generate-001"),
     ("grok", "grok-2-image"),
 ];
 
