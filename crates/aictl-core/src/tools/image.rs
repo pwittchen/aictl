@@ -120,12 +120,18 @@ async fn save_image(bytes: &[u8], prompt: &str, provider: &str) -> String {
     format!("Image saved to {filename} ({size_kb}KB, generated via {provider})")
 }
 
-async fn generate_via_openai(api_key: &str, prompt: &str) -> Result<Vec<u8>, String> {
+/// Default model names per provider. The Settings dropdown lets users
+/// override via [`crate::config::AICTL_IMAGE_GENERATION_MODEL`].
+const DEFAULT_OPENAI_IMAGE_MODEL: &str = "gpt-image-2";
+const DEFAULT_GEMINI_IMAGE_MODEL: &str = "imagen-4.0-generate-001";
+const DEFAULT_GROK_IMAGE_MODEL: &str = "grok-2-image";
+
+async fn generate_via_openai(api_key: &str, prompt: &str, model: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
 
     let client = crate::config::http_client();
     let body = serde_json::json!({
-        "model": "gpt-image-2",
+        "model": model,
         "prompt": prompt,
         "n": 1,
         "size": "1024x1024"
@@ -164,11 +170,10 @@ async fn generate_via_openai(api_key: &str, prompt: &str) -> Result<Vec<u8>, Str
         .map_err(|e| format!("Error decoding image data: {e}"))
 }
 
-async fn generate_via_gemini(api_key: &str, prompt: &str) -> Result<Vec<u8>, String> {
+async fn generate_via_gemini(api_key: &str, prompt: &str, model: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
 
     let client = crate::config::http_client();
-    let model = "imagen-4.0-generate-001";
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{model}:predict?key={api_key}"
     );
@@ -212,12 +217,12 @@ async fn generate_via_gemini(api_key: &str, prompt: &str) -> Result<Vec<u8>, Str
         .map_err(|e| format!("Error decoding image data: {e}"))
 }
 
-async fn generate_via_grok(api_key: &str, prompt: &str) -> Result<Vec<u8>, String> {
+async fn generate_via_grok(api_key: &str, prompt: &str, model: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
 
     let client = crate::config::http_client();
     let body = serde_json::json!({
-        "model": "grok-2-image",
+        "model": model,
         "prompt": prompt,
         "n": 1,
         "response_format": "b64_json"
@@ -268,24 +273,63 @@ pub(super) async fn tool_generate_image(input: &str) -> String {
         return "Error: no prompt provided for image generation".to_string();
     }
 
-    // Try providers in order based on the active provider, then fall back
-    // to whichever key is available: OpenAI → Gemini → Grok.
-    let active = crate::config::config_get("AICTL_PROVIDER");
-    let mut order: Vec<&str> = vec!["openai", "gemini", "grok"];
+    // Settings → Image Models can pin a preferred generation provider
+    // (with an optional model override) and disable the fallback chain.
+    // When unset, behavior matches pre-override: active provider first,
+    // then walk openai → gemini → grok.
+    let override_pair = crate::config::image_generation_override();
+    let fallback = crate::config::image_fallback_enabled();
 
-    // Move the active provider to the front so users get what they expect
-    if let Some(ref p) = active
-        && let Some(pos) = order.iter().position(|&x| x == p.as_str())
-    {
-        order.remove(pos);
-        order.insert(0, p.as_str());
-    }
+    let preferred = override_pair
+        .as_ref()
+        .map(|(p, _)| p.clone())
+        .or_else(|| crate::config::config_get("AICTL_PROVIDER"));
+    let model_override = override_pair.and_then(|(_, m)| m);
+
+    let order = if let Some(p) = preferred.as_deref() {
+        if fallback {
+            let mut o: Vec<&str> = vec!["openai", "gemini", "grok"];
+            if let Some(pos) = o.iter().position(|&x| x == p) {
+                o.remove(pos);
+                o.insert(0, p);
+            }
+            o
+        } else if matches!(p, "openai" | "gemini" | "grok") {
+            // Fallback off + pinned provider: this is the *only* provider
+            // we'll try. Anything other than the three we support is a
+            // user error (Settings only offers these three) — surface
+            // that loudly rather than silently falling back.
+            vec![p]
+        } else {
+            return format!(
+                "Error: image generation provider '{p}' is not supported. Pick one of openai, gemini, grok in Settings → Image Models."
+            );
+        }
+    } else if fallback {
+        vec!["openai", "gemini", "grok"]
+    } else {
+        // No active provider configured AND fallback disabled — degenerate
+        // case; behave like the historical no-key error rather than
+        // silently picking one.
+        return "Error: no image generation provider configured and fallback is disabled. Pick a provider in Settings → Image Models, or re-enable fallback.".to_string();
+    };
 
     for provider in &order {
+        // Only the first iteration honors the user's model override —
+        // a fallback call against a different provider can't reuse a
+        // model name that belongs to the preferred provider's catalogue.
+        let use_override = preferred.as_deref() == Some(*provider) && model_override.is_some();
         match *provider {
             "openai" => {
                 if let Some(key) = crate::keys::get_secret("LLM_OPENAI_API_KEY") {
-                    return match generate_via_openai(&key, input).await {
+                    let model = if use_override {
+                        model_override
+                            .as_deref()
+                            .unwrap_or(DEFAULT_OPENAI_IMAGE_MODEL)
+                    } else {
+                        DEFAULT_OPENAI_IMAGE_MODEL
+                    };
+                    return match generate_via_openai(&key, input, model).await {
                         Ok(bytes) => save_image(&bytes, input, "GPT Image").await,
                         Err(e) => e,
                     };
@@ -293,7 +337,14 @@ pub(super) async fn tool_generate_image(input: &str) -> String {
             }
             "gemini" => {
                 if let Some(key) = crate::keys::get_secret("LLM_GEMINI_API_KEY") {
-                    return match generate_via_gemini(&key, input).await {
+                    let model = if use_override {
+                        model_override
+                            .as_deref()
+                            .unwrap_or(DEFAULT_GEMINI_IMAGE_MODEL)
+                    } else {
+                        DEFAULT_GEMINI_IMAGE_MODEL
+                    };
+                    return match generate_via_gemini(&key, input, model).await {
                         Ok(bytes) => save_image(&bytes, input, "Imagen").await,
                         Err(e) => e,
                     };
@@ -301,7 +352,14 @@ pub(super) async fn tool_generate_image(input: &str) -> String {
             }
             "grok" => {
                 if let Some(key) = crate::keys::get_secret("LLM_GROK_API_KEY") {
-                    return match generate_via_grok(&key, input).await {
+                    let model = if use_override {
+                        model_override
+                            .as_deref()
+                            .unwrap_or(DEFAULT_GROK_IMAGE_MODEL)
+                    } else {
+                        DEFAULT_GROK_IMAGE_MODEL
+                    };
+                    return match generate_via_grok(&key, input, model).await {
                         Ok(bytes) => save_image(&bytes, input, "Grok").await,
                         Err(e) => e,
                     };

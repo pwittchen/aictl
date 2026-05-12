@@ -111,6 +111,72 @@ impl Provider {
     }
 }
 
+/// Parse the lowercase provider tag the desktop / `/model` menu writes
+/// to [`crate::config::AICTL_PROVIDER`] back into a [`Provider`] variant.
+/// Returns `None` for unrecognized strings — every caller treats that as
+/// "skip the override" rather than a hard error.
+fn provider_from_tag(tag: &str) -> Option<Provider> {
+    match tag.trim() {
+        "openai" => Some(Provider::Openai),
+        "anthropic" => Some(Provider::Anthropic),
+        "gemini" => Some(Provider::Gemini),
+        "grok" => Some(Provider::Grok),
+        "mistral" => Some(Provider::Mistral),
+        "deepseek" => Some(Provider::Deepseek),
+        "kimi" => Some(Provider::Kimi),
+        "zai" => Some(Provider::Zai),
+        "ollama" => Some(Provider::Ollama),
+        "gguf" => Some(Provider::Gguf),
+        "mlx" => Some(Provider::Mlx),
+        "aictl-server" => Some(Provider::AictlServer),
+        _ => None,
+    }
+}
+
+/// Map a [`Provider`] onto the keyring/plain-config secret name it
+/// expects. Local providers and the server proxy return `None` — they
+/// don't speak per-provider API keys.
+fn api_key_name_for(provider: &Provider) -> Option<&'static str> {
+    match provider {
+        Provider::Openai => Some("LLM_OPENAI_API_KEY"),
+        Provider::Anthropic => Some("LLM_ANTHROPIC_API_KEY"),
+        Provider::Gemini => Some("LLM_GEMINI_API_KEY"),
+        Provider::Grok => Some("LLM_GROK_API_KEY"),
+        Provider::Mistral => Some("LLM_MISTRAL_API_KEY"),
+        Provider::Deepseek => Some("LLM_DEEPSEEK_API_KEY"),
+        Provider::Kimi => Some("LLM_KIMI_API_KEY"),
+        Provider::Zai => Some("LLM_ZAI_API_KEY"),
+        Provider::Ollama
+        | Provider::Gguf
+        | Provider::Mlx
+        | Provider::Mock
+        | Provider::AictlServer => None,
+    }
+}
+
+/// True when any message in the current turn carries one or more image
+/// attachments. Drives the Settings → Image Models analysis override —
+/// a text-only conversation never swaps providers.
+fn messages_have_images(msgs: &[Message]) -> bool {
+    msgs.iter().any(|m| !m.images.is_empty())
+}
+
+/// Resolve the user-configured image-analysis override into a runtime
+/// `(Provider, model, api_key)` tuple. Returns `None` when no override
+/// is configured or the configured provider tag is unrecognized.
+///
+/// Mirrors the per-binary `api_key_for` helpers in the CLI / desktop
+/// crates so the engine can swap routing for one call without asking
+/// the caller to re-resolve keys.
+fn resolve_image_analysis_override() -> Option<(Provider, String, String)> {
+    let (prov_tag, model) = config::image_analysis_override()?;
+    let provider = provider_from_tag(&prov_tag)?;
+    let api_key = api_key_name_for(&provider)
+        .and_then(crate::keys::get_secret)
+        .unwrap_or_default();
+    Some((provider, model, api_key))
+}
+
 #[cfg(test)]
 mod provider_tests {
     use super::Provider;
@@ -798,6 +864,25 @@ pub async fn run_agent_turn(
         };
         let llm_messages: &[Message] = redacted_buf.as_deref().unwrap_or(base_messages);
 
+        // Settings → Image Models override: when the turn carries any
+        // image attachments AND the user pinned a separate analysis
+        // provider/model, route this single call through that
+        // provider/model. Recomputed every iteration in case `read_image`
+        // produced new image-bearing messages mid-turn. Owned tuple lives
+        // for the iteration scope; the &Provider / &str borrowed below
+        // either point at the caller's args or into this local.
+        let analysis_override: Option<(Provider, String, String)> =
+            if messages_have_images(llm_messages) {
+                resolve_image_analysis_override()
+            } else {
+                None
+            };
+        let (eff_provider, eff_model, eff_api_key): (&Provider, &str, &str) =
+            match &analysis_override {
+                Some((p, m, k)) => (p, m.as_str(), k.as_str()),
+                None => (provider, model, api_key),
+            };
+
         let call_start = std::time::Instant::now();
         let llm_timeout = config::llm_timeout();
 
@@ -824,7 +909,7 @@ pub async fn run_agent_turn(
         // chose that provider, so the request belongs there. To use
         // the proxy, switch to `--provider aictl-server` (or the
         // matching `/model` entry).
-        let server_route = if matches!(provider, Provider::AictlServer) {
+        let server_route = if matches!(eff_provider, Provider::AictlServer) {
             if let Some(pair) = config::active_server() {
                 Some(pair)
             } else {
@@ -841,19 +926,25 @@ pub async fn run_agent_turn(
             run_provider_call(
                 tokio::time::timeout(
                     llm_timeout,
-                    llm::server_proxy::call(&server_url, &master_key, model, llm_messages, sink),
+                    llm::server_proxy::call(
+                        &server_url,
+                        &master_key,
+                        eff_model,
+                        llm_messages,
+                        sink,
+                    ),
                 ),
                 rx_opt,
                 ui,
             )
             .await
         } else {
-            match provider {
+            match eff_provider {
                 Provider::Openai => {
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::openai::call_openai(api_key, model, llm_messages, sink),
+                            llm::openai::call_openai(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -864,7 +955,12 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::anthropic::call_anthropic(api_key, model, llm_messages, sink),
+                            llm::anthropic::call_anthropic(
+                                eff_api_key,
+                                eff_model,
+                                llm_messages,
+                                sink,
+                            ),
                         ),
                         rx_opt,
                         ui,
@@ -875,7 +971,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::gemini::call_gemini(api_key, model, llm_messages, sink),
+                            llm::gemini::call_gemini(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -886,7 +982,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::grok::call_grok(api_key, model, llm_messages, sink),
+                            llm::grok::call_grok(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -897,7 +993,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::mistral::call_mistral(api_key, model, llm_messages, sink),
+                            llm::mistral::call_mistral(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -908,7 +1004,12 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::deepseek::call_deepseek(api_key, model, llm_messages, sink),
+                            llm::deepseek::call_deepseek(
+                                eff_api_key,
+                                eff_model,
+                                llm_messages,
+                                sink,
+                            ),
                         ),
                         rx_opt,
                         ui,
@@ -919,7 +1020,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::kimi::call_kimi(api_key, model, llm_messages, sink),
+                            llm::kimi::call_kimi(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -930,7 +1031,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::zai::call_zai(api_key, model, llm_messages, sink),
+                            llm::zai::call_zai(eff_api_key, eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -941,7 +1042,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::ollama::call_ollama(model, llm_messages, sink),
+                            llm::ollama::call_ollama(eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -952,7 +1053,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::gguf::call_gguf(model, llm_messages, sink),
+                            llm::gguf::call_gguf(eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -963,7 +1064,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::mlx::call_mlx(model, llm_messages, sink),
+                            llm::mlx::call_mlx(eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -974,7 +1075,7 @@ pub async fn run_agent_turn(
                     run_provider_call(
                         tokio::time::timeout(
                             llm_timeout,
-                            llm::mock::call_mock(model, llm_messages, sink),
+                            llm::mock::call_mock(eff_model, llm_messages, sink),
                         ),
                         rx_opt,
                         ui,
@@ -1018,7 +1119,7 @@ pub async fn run_agent_turn(
         total_usage.cache_read_input_tokens += usage.cache_read_input_tokens;
         last_input_tokens = usage.input_tokens;
 
-        let token_pct = llm::pct(last_input_tokens, llm::context_limit(model));
+        let token_pct = llm::pct(last_input_tokens, llm::context_limit(eff_model));
         let message_pct = llm::pct_usize(messages.len(), MAX_MESSAGES);
         let context_pct = token_pct.max(message_pct);
 
@@ -1040,7 +1141,7 @@ pub async fn run_agent_turn(
         let emit_status = |tool_calls: u32| {
             ui.show_token_usage(
                 &usage,
-                model,
+                eff_model,
                 is_final_answer,
                 tool_calls,
                 call_elapsed,

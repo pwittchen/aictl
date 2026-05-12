@@ -19,6 +19,7 @@ import {
   type ContextStatus,
   type HookRow,
   type HooksStatus,
+  type ImageModelCatalogue,
   type KeyBackend,
   type KeyRow,
   type LocalModelsStatus,
@@ -117,6 +118,7 @@ export type Tab =
   | "agents"
   | "plugins"
   | "models"
+  | "image-models"
   | "sessions"
   | "context"
   | "stats"
@@ -131,6 +133,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "provider", label: "Models" },
   { id: "models", label: "Local Models" },
+  { id: "image-models", label: "Image Models" },
   { id: "keys", label: "API Keys" },
   { id: "security", label: "Security" },
   { id: "redaction", label: "Redaction" },
@@ -245,6 +248,9 @@ const Settings: Component<Props> = (props) => {
             </Show>
             <Show when={tab() === "models"}>
               <ModelsTab onRefreshModels={props.onRefreshModels} />
+            </Show>
+            <Show when={tab() === "image-models"}>
+              <ImageModelsTab />
             </Show>
             <Show when={tab() === "hooks"}>
               <HooksTab />
@@ -379,6 +385,339 @@ const ProviderTab: Component<ProviderTabProps> = (props) => {
             </div>
           )}
         </For>
+      </div>
+    </div>
+  );
+};
+
+const ImageModelsTab: Component = () => {
+  // Two catalogues — vision-capable analysis models and the three
+  // hard-coded image-generation models — both come down filtered to
+  // providers the user has an API key for. The page never lists a
+  // model the engine can't actually call.
+  const [catalogue, { refetch: refetchCatalogue }] =
+    createResource<ImageModelCatalogue>(() => ipc.listImageModels());
+  const [config, { refetch: refetchConfig }] = createResource<ConfigEntry[]>(
+    () => ipc.configDump(),
+  );
+  const [error, setError] = createSignal<string | null>(null);
+  const [feedback, setFeedback] = createSignal<string | null>(null);
+
+  const get = (key: string): string | null => {
+    const entry = (config() ?? []).find((e) => e.key === key);
+    return entry?.value ?? null;
+  };
+
+  // AICTL_IMAGE_FALLBACK_ENABLED defaults to `true` so an absent key
+  // means "fallback on" — matches the engine-side `image_fallback_enabled`.
+  const fallbackOn = (): boolean => {
+    const v = get("AICTL_IMAGE_FALLBACK_ENABLED");
+    if (v === null) return true;
+    return v !== "false" && v !== "0";
+  };
+
+  const analysisActive = () => ({
+    provider: get("AICTL_IMAGE_ANALYSIS_PROVIDER"),
+    model: get("AICTL_IMAGE_ANALYSIS_MODEL"),
+  });
+  const generationActive = () => ({
+    provider: get("AICTL_IMAGE_GENERATION_PROVIDER"),
+    model: get("AICTL_IMAGE_GENERATION_MODEL"),
+  });
+
+  // Both selectors render the same shape — clear current pick (the
+  // "Default" path) or write provider+model together. Keeps the engine
+  // invariant intact: both halves of the override set, or neither.
+  const selectAnalysis = async (
+    provider: string | null,
+    model: string | null,
+  ) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (provider && model) {
+        await ipc.configWrite("AICTL_IMAGE_ANALYSIS_PROVIDER", provider);
+        await ipc.configWrite("AICTL_IMAGE_ANALYSIS_MODEL", model);
+        setFeedback(`Image analysis → ${provider} · ${model}`);
+      } else {
+        await ipc.configClear("AICTL_IMAGE_ANALYSIS_PROVIDER");
+        await ipc.configClear("AICTL_IMAGE_ANALYSIS_MODEL");
+        setFeedback("Image analysis → default (active model)");
+      }
+      await refetchConfig();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const selectGeneration = async (
+    provider: string | null,
+    model: string | null,
+  ) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (provider && model) {
+        await ipc.configWrite("AICTL_IMAGE_GENERATION_PROVIDER", provider);
+        await ipc.configWrite("AICTL_IMAGE_GENERATION_MODEL", model);
+        setFeedback(`Image generation → ${provider} · ${model}`);
+      } else {
+        await ipc.configClear("AICTL_IMAGE_GENERATION_PROVIDER");
+        await ipc.configClear("AICTL_IMAGE_GENERATION_MODEL");
+        setFeedback("Image generation → default (active provider)");
+      }
+      await refetchConfig();
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const setFallback = async (on: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      if (on) {
+        // `on` is the default — clear the key so the engine reads the
+        // built-in `true` rather than persisting redundant config.
+        await ipc.configClear("AICTL_IMAGE_FALLBACK_ENABLED");
+      } else {
+        await ipc.configWrite("AICTL_IMAGE_FALLBACK_ENABLED", "false");
+      }
+      await refetchConfig();
+      setFeedback(`Fallback ${on ? "enabled" : "disabled"}`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  // Bucket the catalogue rows by provider so the picker mirrors the
+  // Models tab's grouped layout — easier to scan than a flat list.
+  const groupBy = (entries: ModelEntry[]) => {
+    const order: string[] = [];
+    const buckets = new Map<string, string[]>();
+    for (const e of entries) {
+      if (!buckets.has(e.provider)) {
+        buckets.set(e.provider, []);
+        order.push(e.provider);
+      }
+      buckets.get(e.provider)!.push(e.model);
+    }
+    return order.map((provider) => ({
+      provider,
+      label: PROVIDER_LABELS[provider] ?? provider,
+      models: buckets.get(provider)!,
+    }));
+  };
+
+  const analysisGroups = createMemo(() =>
+    groupBy(catalogue()?.analysis ?? []),
+  );
+  const generationGroups = createMemo(() =>
+    groupBy(catalogue()?.generation ?? []),
+  );
+
+  return (
+    <div class="settings-tab-content">
+      <h3>Image Models</h3>
+      <p class="settings-hint">
+        Pin which model handles image-bearing turns (analysis) and which
+        provider <code>generate_image</code> calls. Leave a selector on{" "}
+        <em>Default</em> to keep using the active model from the{" "}
+        <strong>Models</strong> tab. Both selectors are filtered by your
+        configured API keys.
+      </p>
+      <Show when={error()}>
+        <p class="settings-error">{error()}</p>
+      </Show>
+      <Show when={feedback()}>
+        <p class="settings-success">{feedback()}</p>
+      </Show>
+
+      <h4 class="settings-subhead">Image analysis</h4>
+      <p class="settings-hint">
+        Used when a turn includes images (uploaded files, screenshots, or
+        the output of <code>read_image</code>). Only vision-capable models
+        appear here.
+      </p>
+      <div class="settings-row">
+        <label>Active</label>
+        <div class="settings-value">
+          <Show
+            when={
+              analysisActive().provider !== null &&
+              analysisActive().model !== null
+            }
+            fallback={
+              <span class="settings-empty">Default (use active model)</span>
+            }
+          >
+            <code>
+              {PROVIDER_LABELS[analysisActive().provider!] ??
+                analysisActive().provider}{" "}
+              · {analysisActive().model}
+            </code>
+          </Show>
+        </div>
+      </div>
+      <div class="settings-model-grid">
+        <div class="settings-model-group">
+          <h4>Default</h4>
+          <ul>
+            <li>
+              <button
+                type="button"
+                class="settings-model-option"
+                data-active={String(
+                  analysisActive().provider === null &&
+                    analysisActive().model === null,
+                )}
+                onClick={() => void selectAnalysis(null, null)}
+              >
+                Use active model
+              </button>
+            </li>
+          </ul>
+        </div>
+        <For each={analysisGroups()}>
+          {(group) => (
+            <div class="settings-model-group">
+              <h4>{group.label}</h4>
+              <ul>
+                <For each={group.models}>
+                  {(model) => {
+                    const isActive = () =>
+                      analysisActive().provider === group.provider &&
+                      analysisActive().model === model;
+                    return (
+                      <li>
+                        <button
+                          type="button"
+                          class="settings-model-option"
+                          data-active={String(isActive())}
+                          onClick={() =>
+                            void selectAnalysis(group.provider, model)
+                          }
+                        >
+                          {model}
+                        </button>
+                      </li>
+                    );
+                  }}
+                </For>
+              </ul>
+            </div>
+          )}
+        </For>
+      </div>
+      <Show when={(catalogue()?.analysis.length ?? 0) === 0}>
+        <p class="settings-empty">
+          No vision-capable models available — add a key for OpenAI,
+          Anthropic, Gemini, Grok, or Kimi in the API Keys tab.
+        </p>
+      </Show>
+
+      <h4 class="settings-subhead">Image generation</h4>
+      <p class="settings-hint">
+        Used by <code>generate_image</code>. Three providers support image
+        generation today.
+      </p>
+      <div class="settings-row">
+        <label>Active</label>
+        <div class="settings-value">
+          <Show
+            when={
+              generationActive().provider !== null &&
+              generationActive().model !== null
+            }
+            fallback={
+              <span class="settings-empty">
+                Default (prefer active provider)
+              </span>
+            }
+          >
+            <code>
+              {PROVIDER_LABELS[generationActive().provider!] ??
+                generationActive().provider}{" "}
+              · {generationActive().model}
+            </code>
+          </Show>
+        </div>
+      </div>
+      <div class="settings-model-grid">
+        <div class="settings-model-group">
+          <h4>Default</h4>
+          <ul>
+            <li>
+              <button
+                type="button"
+                class="settings-model-option"
+                data-active={String(
+                  generationActive().provider === null &&
+                    generationActive().model === null,
+                )}
+                onClick={() => void selectGeneration(null, null)}
+              >
+                Use active provider
+              </button>
+            </li>
+          </ul>
+        </div>
+        <For each={generationGroups()}>
+          {(group) => (
+            <div class="settings-model-group">
+              <h4>{group.label}</h4>
+              <ul>
+                <For each={group.models}>
+                  {(model) => {
+                    const isActive = () =>
+                      generationActive().provider === group.provider &&
+                      generationActive().model === model;
+                    return (
+                      <li>
+                        <button
+                          type="button"
+                          class="settings-model-option"
+                          data-active={String(isActive())}
+                          onClick={() =>
+                            void selectGeneration(group.provider, model)
+                          }
+                        >
+                          {model}
+                        </button>
+                      </li>
+                    );
+                  }}
+                </For>
+              </ul>
+            </div>
+          )}
+        </For>
+      </div>
+      <Show when={(catalogue()?.generation.length ?? 0) === 0}>
+        <p class="settings-empty">
+          No image-generation providers available — add a key for OpenAI,
+          Gemini, or Grok in the API Keys tab.
+        </p>
+      </Show>
+
+      <h4 class="settings-subhead">Fallback</h4>
+      <BoolRow
+        label="Enable image-generation fallback"
+        help="When the preferred provider is unavailable or its key is missing, walk the openai → gemini → grok chain. Turn off to fail loudly instead of silently switching providers."
+        on={fallbackOn()}
+        onChange={(next) => void setFallback(next)}
+      />
+
+      <div class="settings-actions">
+        <button
+          type="button"
+          onClick={() => {
+            void refetchCatalogue();
+            void refetchConfig();
+          }}
+        >
+          Refresh
+        </button>
       </div>
     </div>
   );

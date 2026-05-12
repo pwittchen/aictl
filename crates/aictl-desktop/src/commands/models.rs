@@ -78,6 +78,58 @@ pub fn get_active_model() -> ActiveModel {
     }
 }
 
+/// Curated catalogues consumed by Settings → Image Models.
+/// Both lists are filtered by the user's available API keys: a model
+/// whose provider has no key configured is omitted so the dropdown
+/// only shows options the user can actually use without first going to
+/// the API Keys tab.
+#[derive(Serialize)]
+pub struct ImageModelCatalogue {
+    pub analysis: Vec<ModelEntry>,
+    pub generation: Vec<ModelEntry>,
+}
+
+#[tauri::command]
+pub fn list_image_models() -> ImageModelCatalogue {
+    let key_for = |provider: &str| -> Option<&'static str> {
+        match provider {
+            "openai" => Some("LLM_OPENAI_API_KEY"),
+            "anthropic" => Some("LLM_ANTHROPIC_API_KEY"),
+            "gemini" => Some("LLM_GEMINI_API_KEY"),
+            "grok" => Some("LLM_GROK_API_KEY"),
+            "mistral" => Some("LLM_MISTRAL_API_KEY"),
+            "deepseek" => Some("LLM_DEEPSEEK_API_KEY"),
+            "kimi" => Some("LLM_KIMI_API_KEY"),
+            "zai" => Some("LLM_ZAI_API_KEY"),
+            _ => None,
+        }
+    };
+    let available = |provider: &str| -> bool { key_for(provider).is_some_and(has_api_key) };
+
+    let analysis = llm::vision_capable_models()
+        .into_iter()
+        .filter(|(p, _)| available(p))
+        .map(|(p, m)| ModelEntry {
+            provider: p.to_string(),
+            model: m.to_string(),
+        })
+        .collect();
+
+    let generation = llm::IMAGE_GEN_MODELS
+        .iter()
+        .filter(|(p, _)| available(p))
+        .map(|(p, m)| ModelEntry {
+            provider: (*p).to_string(),
+            model: (*m).to_string(),
+        })
+        .collect();
+
+    ImageModelCatalogue {
+        analysis,
+        generation,
+    }
+}
+
 #[tauri::command]
 pub fn set_active_model(provider: String, model: String) -> Result<ActiveModel, String> {
     match provider.as_str() {

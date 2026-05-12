@@ -179,6 +179,69 @@ pub fn ollama_enabled() -> bool {
     bool_flag("LLM_OLLAMA_ENABLED", true)
 }
 
+// --- Image-models overrides (desktop Settings → Image Models) ---
+
+/// Config key holding the provider to use when a turn carries images.
+/// Empty/unset means "use the active provider/model" (default).
+pub const AICTL_IMAGE_ANALYSIS_PROVIDER: &str = "AICTL_IMAGE_ANALYSIS_PROVIDER";
+/// Companion to [`AICTL_IMAGE_ANALYSIS_PROVIDER`] — the model name on
+/// that provider. Both keys must be set together to actually swap.
+pub const AICTL_IMAGE_ANALYSIS_MODEL: &str = "AICTL_IMAGE_ANALYSIS_MODEL";
+/// Config key holding the provider [`crate::tools::image::tool_generate_image`]
+/// should prefer for new images. Empty/unset means "use the active provider"
+/// (today's behavior).
+pub const AICTL_IMAGE_GENERATION_PROVIDER: &str = "AICTL_IMAGE_GENERATION_PROVIDER";
+/// Companion to [`AICTL_IMAGE_GENERATION_PROVIDER`] — the model name on
+/// that provider. When unset the per-provider default
+/// (`gpt-image-2` / `imagen-4.0-generate-001` / `grok-2-image`) is used.
+pub const AICTL_IMAGE_GENERATION_MODEL: &str = "AICTL_IMAGE_GENERATION_MODEL";
+/// Whether [`crate::tools::image::tool_generate_image`] should walk the
+/// openai → gemini → grok fallback chain when the preferred provider
+/// fails or has no key. Defaults to `true` to preserve existing behavior.
+pub const AICTL_IMAGE_FALLBACK_ENABLED: &str = "AICTL_IMAGE_FALLBACK_ENABLED";
+
+/// Resolved image-analysis override.
+///
+/// Returns `Some((provider, model))` only when BOTH config keys are set
+/// to non-empty values. Anything else returns `None` so the agent loop
+/// keeps using the active provider/model for image-bearing turns.
+#[must_use]
+pub fn image_analysis_override() -> Option<(String, String)> {
+    let provider = config_get(AICTL_IMAGE_ANALYSIS_PROVIDER)?;
+    let model = config_get(AICTL_IMAGE_ANALYSIS_MODEL)?;
+    let p = provider.trim();
+    let m = model.trim();
+    if p.is_empty() || m.is_empty() {
+        return None;
+    }
+    Some((p.to_string(), m.to_string()))
+}
+
+/// Resolved image-generation override.
+///
+/// Returns `Some((provider, optional_model))`. The provider is the only
+/// required half — when [`AICTL_IMAGE_GENERATION_MODEL`] is unset the
+/// caller falls back to the provider's hard-coded default model name.
+#[must_use]
+pub fn image_generation_override() -> Option<(String, Option<String>)> {
+    let provider = config_get(AICTL_IMAGE_GENERATION_PROVIDER)?;
+    let p = provider.trim();
+    if p.is_empty() {
+        return None;
+    }
+    let model = config_get(AICTL_IMAGE_GENERATION_MODEL)
+        .map(|m| m.trim().to_string())
+        .filter(|m| !m.is_empty());
+    Some((p.to_string(), model))
+}
+
+/// Whether `tool_generate_image` should walk the provider fallback chain.
+/// Defaults to `true` (today's behavior) so existing users see no change.
+#[must_use]
+pub fn image_fallback_enabled() -> bool {
+    bool_flag(AICTL_IMAGE_FALLBACK_ENABLED, true)
+}
+
 fn bool_flag(key: &str, default: bool) -> bool {
     let Some(raw) = config_get(key) else {
         return default;

@@ -154,6 +154,56 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("zai", "glm-4-32b-0414-128k", "LLM_ZAI_API_KEY"),
 ];
 
+/// Image-generation models the [`crate::tools::image::tool_generate_image`]
+/// tool can actually call today. Used to populate the desktop Settings
+/// → Image Models generation dropdown so users can't pick a model the
+/// backend has no code path for.
+pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
+    ("openai", "gpt-image-2"),
+    ("gemini", "imagen-4.0-generate-001"),
+    ("grok", "grok-2-image"),
+];
+
+/// Heuristic per-provider check for "does this model accept images in
+/// chat messages?". Conservative — favours false negatives over false
+/// positives so the analysis dropdown never offers a clearly text-only
+/// model. Drives [`vision_capable_models`] and the desktop Tauri command
+/// of the same name.
+#[must_use]
+pub fn is_vision_capable(provider: &str, model: &str) -> bool {
+    match provider {
+        // Every Claude entry in MODELS is a 4.x model; the whole 4 family is multimodal.
+        "anthropic" => true,
+        "openai" => {
+            model.starts_with("gpt-4o")
+                || model.starts_with("gpt-4.1")
+                || model.starts_with("gpt-5")
+                || model == "o3"
+                || model == "o4-mini"
+        }
+        // Gemini 2.x and 3.x are all multimodal.
+        "gemini" => model.starts_with("gemini-2") || model.starts_with("gemini-3"),
+        // grok-3 is text-only; grok-4 family adds vision.
+        "grok" => model.starts_with("grok-4"),
+        // Moonshot's `*-vision-preview` variants plus the k2 series are vision-capable per docs.
+        "kimi" => model.contains("vision") || model.starts_with("kimi-k2"),
+        _ => false,
+    }
+}
+
+/// Curated subset of [`MODELS`] that can analyze image inputs. The
+/// desktop Settings → Image Models analysis dropdown lists exactly this
+/// — keeping the filter in one place stops the UI and the per-turn
+/// override in `run_agent_turn` from drifting.
+#[must_use]
+pub fn vision_capable_models() -> Vec<(&'static str, &'static str)> {
+    MODELS
+        .iter()
+        .filter(|(p, m, _)| is_vision_capable(p, m))
+        .map(|(p, m, _)| (*p, *m))
+        .collect()
+}
+
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::struct_field_names)]
 pub struct TokenUsage {

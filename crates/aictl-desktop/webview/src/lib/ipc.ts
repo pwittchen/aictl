@@ -101,6 +101,11 @@ export interface ActiveModel {
   model: string | null;
 }
 
+export interface ImageModelCatalogue {
+  analysis: ModelEntry[];
+  generation: ModelEntry[];
+}
+
 export interface ConfigEntry {
   key: string;
   value: string | null;
@@ -480,6 +485,9 @@ export const ipc = {
   // -- models ----
   async listModels() {
     return invoke<ModelEntry[]>("list_models");
+  },
+  async listImageModels() {
+    return invoke<ImageModelCatalogue>("list_image_models");
   },
   async getActiveModel() {
     return invoke<ActiveModel>("get_active_model");

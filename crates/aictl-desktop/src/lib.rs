@@ -156,6 +156,7 @@ pub fn run() {
             commands::sessions::new_incognito_session,
             commands::sessions::get_active_session,
             commands::models::list_models,
+            commands::models::list_image_models,
             commands::models::get_active_model,
             commands::models::set_active_model,
             commands::settings::config_dump,
