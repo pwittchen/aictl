@@ -187,13 +187,15 @@
           </p>
         </header>
 
-        <ul class="providers" style="grid-template-columns: repeat(5, 1fr);">
+        <ul class="providers" style="grid-template-columns: repeat(6, 1fr);">
           <li><a href="#install">Install</a></li>
           <li><a href="#quickstart">Quickstart</a></li>
+          <li><a href="#claude-code">Claude Code</a></li>
           <li><a href="#docker">Docker</a></li>
           <li><a href="#api">Endpoints</a></li>
           <li><a href="#config">Knobs</a></li>
           <li><a href="#security">Security</a></li>
+          <li><a href="#audit-log">Audit log</a></li>
           <li><a href="#reference">Reference</a></li>
           <li><a href="#license">License</a></li>
           <li><a href="desktop.html">Desktop</a></li>
@@ -304,6 +306,66 @@ curl http://127.0.0.1:7878/v1/chat/completions <span class="tok-p">\</span>
       </div>
     </section>
 
+    <section class="section" id="claude-code">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// claude code</span>
+          <h2 class="section__title">Use it with Claude Code</h2>
+          <p class="section__lead">
+            Claude Code speaks the native Anthropic API. Point its
+            <code>ANTHROPIC_BASE_URL</code> at this server and every
+            prompt routes through <code>aictl-server</code> — tool
+            use, content blocks, prompt caching, and streaming all
+            pass through unchanged, gated on your master key.
+          </p>
+        </header>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-claude"><span class="tok-c"># Point Claude Code at aictl-server.</span>
+<span class="tok-k">export</span> ANTHROPIC_BASE_URL<span class="tok-p">=</span><span class="tok-s">"http://127.0.0.1:7878"</span>
+<span class="tok-k">export</span> ANTHROPIC_AUTH_TOKEN<span class="tok-p">=</span><span class="tok-s">"$AICTL_SERVER_MASTER_KEY"</span>
+<span class="tok-k">export</span> ANTHROPIC_MODEL<span class="tok-p">=</span><span class="tok-s">"claude-sonnet-4-6"</span>
+<span class="tok-k">export</span> ANTHROPIC_SMALL_FAST_MODEL<span class="tok-p">=</span><span class="tok-s">"claude-haiku-4-5-20251001"</span>
+
+claude</code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-claude" aria-label="Copy Claude Code env vars">Copy</button>
+        </div>
+
+        <p class="api-errors" style="margin-top: 16px;">
+          Three things must already be true on the server host:
+          <code>aictl-server</code> is running,
+          <code>LLM_ANTHROPIC_API_KEY</code> is configured in
+          <code>~/.aictl/config</code>, and the value of
+          <code>ANTHROPIC_AUTH_TOKEN</code> matches the server's
+          <code>AICTL_SERVER_MASTER_KEY</code>.
+        </p>
+
+        <div class="grid grid--2" style="margin-top: 48px;">
+          <article class="card">
+            <h3>Why <code>ANTHROPIC_AUTH_TOKEN</code></h3>
+            <p>
+              Not <code>ANTHROPIC_API_KEY</code>. Claude Code sends
+              the auth-token form as
+              <code>Authorization: Bearer …</code>, which is what the
+              server's master-key gate reads. The api-key form goes
+              out as <code>x-api-key</code> and never reaches the
+              gate — every request would land as <code>401</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>What routing buys you</h3>
+            <p>
+              The real <code>LLM_ANTHROPIC_API_KEY</code> stays on
+              the server host. Every Claude Code dispatch lands in
+              the audit log as <code>gateway:anthropic</code>, runs
+              through the redactor and prompt-injection guard, and
+              obeys the concurrency cap and per-IP rate limit.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section section--alt" id="docker">
       <div class="container">
         <header class="section__head">
@@ -391,7 +453,7 @@ docker logs aictl-server</code>
           <span class="section__kicker">// rest api</span>
           <h2 class="section__title">Endpoints</h2>
           <p class="section__lead" style="line-height: 2;">
-            Six endpoints. Every authenticated request needs<br>
+            Seven endpoints. Every authenticated request needs<br>
             <code>Authorization: Bearer &lt;master-key&gt;</code>.<br>
             <code>GET /healthz</code> and <code>GET /openapi.json</code> are the only auth-free routes.
           </p>
@@ -440,6 +502,57 @@ docker logs aictl-server</code>
   <span class="tok-k">"usage"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"prompt_tokens"</span><span class="tok-p">:</span> <span class="tok-n">8</span><span class="tok-p">,</span> <span class="tok-k">"completion_tokens"</span><span class="tok-p">:</span> <span class="tok-n">2</span><span class="tok-p">,</span> <span class="tok-k">"total_tokens"</span><span class="tok-p">:</span> <span class="tok-n">10</span><span class="tok-p">}</span>
 <span class="tok-p">}</span></code>
                   <button class="cmd__copy" type="button" data-copy="#srv-resp-chat" aria-label="Copy chat response example">Copy</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="api-endpoint">
+            <div class="api-endpoint__head">
+              <span class="api-endpoint__method api-endpoint__method--post">POST</span>
+              <code class="api-endpoint__path">/v1/messages</code>
+              <span class="api-endpoint__auth">auth required</span>
+            </div>
+            <p class="api-endpoint__desc">
+              Native Anthropic Messages API endpoint &mdash; the route
+              Claude Code reaches via <code>ANTHROPIC_BASE_URL</code>.
+              The body is forwarded verbatim to
+              <code>api.anthropic.com/v1/messages</code> with your
+              stored <code>LLM_ANTHROPIC_API_KEY</code> substituted in,
+              so tool use, content blocks, and prompt caching pass
+              through unchanged. <code>stream: true</code> returns the
+              native Anthropic SSE event stream. Non-Anthropic models
+              are rejected with <code>400 model_not_found</code>.
+            </p>
+            <div class="api-endpoint__samples">
+              <div>
+                <span class="api-endpoint__sample-label">Request</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-req-messages">curl <span class="tok-k">-X</span> POST http://127.0.0.1:7878/v1/messages <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Authorization: Bearer $AICTL_SERVER_MASTER_KEY"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"anthropic-version: 2023-06-01"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-H</span> <span class="tok-s">"Content-Type: application/json"</span> <span class="tok-p">\</span>
+  <span class="tok-k">-d</span> <span class="tok-s">'{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-req-messages" aria-label="Copy messages request example">Copy</button>
+                </div>
+              </div>
+              <div>
+                <span class="api-endpoint__sample-label">Response</span>
+                <div class="cmd cmd--block" style="max-width: none;">
+                  <code id="srv-resp-messages"><span class="tok-p">{</span>
+  <span class="tok-k">"id"</span><span class="tok-p">:</span> <span class="tok-s">"msg_01ABC..."</span><span class="tok-p">,</span>
+  <span class="tok-k">"type"</span><span class="tok-p">:</span> <span class="tok-s">"message"</span><span class="tok-p">,</span>
+  <span class="tok-k">"role"</span><span class="tok-p">:</span> <span class="tok-s">"assistant"</span><span class="tok-p">,</span>
+  <span class="tok-k">"content"</span><span class="tok-p">:</span> <span class="tok-p">[{</span><span class="tok-k">"type"</span><span class="tok-p">:</span> <span class="tok-s">"text"</span><span class="tok-p">,</span> <span class="tok-k">"text"</span><span class="tok-p">:</span> <span class="tok-s">"Hi!"</span><span class="tok-p">}],</span>
+  <span class="tok-k">"model"</span><span class="tok-p">:</span> <span class="tok-s">"claude-sonnet-4-6"</span><span class="tok-p">,</span>
+  <span class="tok-k">"stop_reason"</span><span class="tok-p">:</span> <span class="tok-s">"end_turn"</span><span class="tok-p">,</span>
+  <span class="tok-k">"usage"</span><span class="tok-p">:</span> <span class="tok-p">{</span><span class="tok-k">"input_tokens"</span><span class="tok-p">:</span> <span class="tok-n">8</span><span class="tok-p">,</span> <span class="tok-k">"output_tokens"</span><span class="tok-p">:</span> <span class="tok-n">2</span><span class="tok-p">}</span>
+<span class="tok-p">}</span></code>
+                  <button class="cmd__copy" type="button" data-copy="#srv-resp-messages" aria-label="Copy messages response example">Copy</button>
                 </div>
               </div>
             </div>
@@ -771,27 +884,16 @@ docker logs aictl-server</code>
             </p>
           </article>
           <article class="card">
-            <h3>Server log &amp; audit</h3>
+            <h3>Server log</h3>
             <p>
               Two sinks share one event source: JSON-Lines appended to
               <code>~/.aictl/server.log</code> (override with
               <code>AICTL_SERVER_LOG_FILE</code>, empty disables) and
               human-readable lines on stderr. Level via
               <code>AICTL_SERVER_LOG_LEVEL</code>; rotation is the
-              operator's job.
-            </p>
-            <p>
-              A separate audit trail records every successful gateway
-              dispatch as <code>gateway:&lt;provider&gt;</code> (tagged
-              with the per-request UUID) and every redaction event to
-              a per-process JSON-Lines file at
-              <code>~/.aictl/server-audit.log</code> (override with
-              <code>AICTL_SERVER_AUDIT_FILE</code> or
-              <code>--audit-file</code>; empty disables). Toggle the
-              whole stream with
-              <code>AICTL_SERVER_SECURITY_AUDIT_LOG</code>. Unlike the
-              CLI's session-keyed scheme, the server uses one file for
-              the whole process — there is no session id.
+              operator's job. The dedicated
+              <a href="#audit-log">audit log</a> sits beside it,
+              recording every gateway dispatch and redaction event.
             </p>
           </article>
           <article class="card">
@@ -815,6 +917,83 @@ docker logs aictl-server</code>
               (default 32). Saturation returns 503 immediately rather
               than queueing — clients that care about backpressure
               handle retry themselves.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="audit-log">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// audit log</span>
+          <h2 class="section__title">Every request leaves a trace</h2>
+          <p class="section__lead">
+            One JSON-Lines file per process. Every successful gateway
+            dispatch lands as <code>gateway:&lt;provider&gt;</code>
+            tagged with the per-request UUID; every redaction event
+            lands as its own row. Defaults to
+            <code>~/.aictl/server-audit.log</code> &mdash; one file for
+            the whole process, no session ids (the server has no
+            sessions).
+          </p>
+        </header>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-audit-sample"><span class="tok-c"># ~/.aictl/server-audit.log &mdash; one JSON object per line.</span>
+<span class="tok-p">{</span><span class="tok-k">"timestamp"</span><span class="tok-p">:</span> <span class="tok-s">"2026-05-12T14:22:08Z"</span><span class="tok-p">,</span> <span class="tok-k">"tool"</span><span class="tok-p">:</span> <span class="tok-s">"gateway:anthropic"</span><span class="tok-p">,</span> <span class="tok-k">"input"</span><span class="tok-p">:</span> <span class="tok-s">"Hello"</span><span class="tok-p">,</span> <span class="tok-k">"outcome"</span><span class="tok-p">:</span> <span class="tok-s">"executed"</span><span class="tok-p">,</span> <span class="tok-k">"result_summary"</span><span class="tok-p">:</span> <span class="tok-s">"7f3a92c1abc01234"</span><span class="tok-p">}</span>
+<span class="tok-p">{</span><span class="tok-k">"timestamp"</span><span class="tok-p">:</span> <span class="tok-s">"2026-05-12T14:22:15Z"</span><span class="tok-p">,</span> <span class="tok-k">"event"</span><span class="tok-p">:</span> <span class="tok-s">"redaction"</span><span class="tok-p">,</span> <span class="tok-k">"mode"</span><span class="tok-p">:</span> <span class="tok-s">"redact"</span><span class="tok-p">,</span> <span class="tok-k">"direction"</span><span class="tok-p">:</span> <span class="tok-s">"outbound"</span><span class="tok-p">,</span> <span class="tok-k">"source"</span><span class="tok-p">:</span> <span class="tok-s">"user_message"</span><span class="tok-p">,</span> <span class="tok-k">"matches"</span><span class="tok-p">:</span> <span class="tok-p">[{</span><span class="tok-k">"kind"</span><span class="tok-p">:</span> <span class="tok-s">"email"</span><span class="tok-p">,</span> <span class="tok-k">"range"</span><span class="tok-p">:</span> <span class="tok-p">[</span><span class="tok-n">12</span><span class="tok-p">,</span> <span class="tok-n">29</span><span class="tok-p">],</span> <span class="tok-k">"confidence"</span><span class="tok-p">:</span> <span class="tok-n">1.0</span><span class="tok-p">,</span> <span class="tok-k">"snippet"</span><span class="tok-p">:</span> <span class="tok-s">"…contact [REDACTED:email] please…"</span><span class="tok-p">}]}</span>
+<span class="tok-p">{</span><span class="tok-k">"timestamp"</span><span class="tok-p">:</span> <span class="tok-s">"2026-05-12T14:22:31Z"</span><span class="tok-p">,</span> <span class="tok-k">"tool"</span><span class="tok-p">:</span> <span class="tok-s">"gateway:openai"</span><span class="tok-p">,</span> <span class="tok-k">"input"</span><span class="tok-p">:</span> <span class="tok-s">"Summarize the diff"</span><span class="tok-p">,</span> <span class="tok-k">"outcome"</span><span class="tok-p">:</span> <span class="tok-s">"executed"</span><span class="tok-p">,</span> <span class="tok-k">"result_summary"</span><span class="tok-p">:</span> <span class="tok-s">"a1b2c3d4e5f60718"</span><span class="tok-p">}</span></code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-audit-sample" aria-label="Copy audit log sample">Copy</button>
+        </div>
+
+        <div class="grid grid--2" style="margin-top: 48px;">
+          <article class="card">
+            <h3>Where it lives</h3>
+            <p>
+              Default path:
+              <code>~/.aictl/server-audit.log</code>. Override per
+              launch with <code>--audit-file &lt;PATH&gt;</code>, or
+              persistently with
+              <code>AICTL_SERVER_AUDIT_FILE</code>. Setting the env
+              var to an empty string disables disk audit even when
+              the toggle is on.
+            </p>
+          </article>
+          <article class="card">
+            <h3>What gets recorded</h3>
+            <p>
+              <strong>Gateway dispatches</strong> &mdash; one row per
+              successful upstream call, tagged
+              <code>gateway:openai</code>,
+              <code>gateway:anthropic</code>, …, with the per-request
+              UUID under <code>result_summary</code> so you can
+              correlate with the server log.
+              <strong>Redaction events</strong> &mdash; one row per
+              detection batch, with the kind, character range,
+              confidence, and a placeholder-substituted snippet (the
+              raw secret never lands in the file).
+            </p>
+          </article>
+          <article class="card">
+            <h3>Toggle &amp; rotation</h3>
+            <p>
+              Turn the whole stream off with
+              <code>AICTL_SERVER_SECURITY_AUDIT_LOG=false</code> &mdash;
+              every <code>audit::log_*</code> call becomes a no-op.
+              The file is opened append-only; rotation is the
+              operator's job (<code>logrotate</code>, journald,
+              whatever fits the deploy).
+            </p>
+          </article>
+          <article class="card">
+            <h3>Vs the CLI</h3>
+            <p>
+              The CLI keys audit files by session
+              (<code>~/.aictl/audit/&lt;session-id&gt;</code>); the
+              server has no notion of a long-lived session, so one
+              file per process is the whole story. No session id
+              appears anywhere in the rows.
             </p>
           </article>
         </div>
