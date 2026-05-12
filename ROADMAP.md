@@ -1,5 +1,9 @@
 # Roadmap
 
+## Testing
+
+- test plugins and hooks to ensure they work properly both for desktop and CLI
+
 ## Website
 
 - prepare 'Use Cases' page
