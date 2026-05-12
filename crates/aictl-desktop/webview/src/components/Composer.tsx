@@ -17,6 +17,7 @@ import {
   type SkillRow,
   type VoiceStatus,
 } from "../lib/ipc";
+import PingModal from "./PingModal";
 import SecurityShield, {
   type ShieldCheck,
   type ShieldState,
@@ -835,6 +836,7 @@ const Composer: Component<Props> = (props) => {
             </div>
           </Show>
         </span>
+        <PingModal disabled={props.disabled} />
         <SecurityShield
           state={props.securityState}
           checks={props.securityChecks}

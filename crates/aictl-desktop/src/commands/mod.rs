@@ -17,6 +17,7 @@ pub mod mcp;
 pub mod memory;
 pub mod models;
 pub mod ner;
+pub mod ping;
 pub mod plugins;
 pub mod server;
 pub mod sessions;

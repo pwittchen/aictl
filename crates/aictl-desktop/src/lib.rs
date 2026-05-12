@@ -226,6 +226,7 @@ pub fn run() {
             commands::server::server_probe,
             commands::server::ollama_status,
             commands::server::ollama_probe,
+            commands::ping::ping_providers,
             commands::context::context_status,
             commands::memory::memory_status,
             commands::memory::memory_set_enabled,

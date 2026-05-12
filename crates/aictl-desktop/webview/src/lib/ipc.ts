@@ -331,6 +331,15 @@ export interface OllamaProbeResult {
   sample_models: string[];
 }
 
+export type PingStatus = "ok" | "no_key" | "fail" | "not_running";
+
+export interface PingResult {
+  provider: string;
+  status: PingStatus;
+  detail: string;
+  elapsed_ms: number | null;
+}
+
 export interface CatalogEntryRow {
   label: string;
   spec: string;
@@ -847,6 +856,9 @@ export const ipc = {
   },
   async ollamaProbe() {
     return invoke<OllamaProbeResult>("ollama_probe");
+  },
+  async pingProviders() {
+    return invoke<PingResult[]>("ping_providers");
   },
 
   // -- context ----

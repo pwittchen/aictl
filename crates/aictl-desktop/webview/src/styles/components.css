@@ -5449,6 +5449,85 @@ button.primary:hover:not([disabled]) {
   color: var(--fg-faint);
 }
 
+/* Ping icon — same shape/feel as the security shield to its right,
+   but anchored on the left of the icon row (it's the left-most chip
+   in the composer toolbar). `margin-left: auto` on `.security-icon`
+   pushes both this and the shield to the right, so we don't repeat
+   the auto-margin here. */
+.composer .ping-icon {
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease, opacity 120ms ease;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+  margin-left: auto;
+}
+
+.composer .ping-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .ping-icon:hover:not([disabled]) {
+  color: var(--fg);
+  background: transparent;
+}
+
+.composer .ping-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* When the ping icon is present, the security shield no longer needs
+   to push the icon row to the right edge — the ping icon does that.
+   Drop its auto-margin so the two icons sit shoulder-to-shoulder. */
+.composer .ping-icon + .security-icon {
+  margin-left: 0;
+}
+
+.ping-modal-loading {
+  font-size: 13px;
+  color: var(--fg-soft);
+  padding: var(--space-3) 0;
+  text-align: center;
+}
+
+.ping-modal-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.ping-modal-provider {
+  color: var(--fg);
+  text-transform: lowercase;
+  flex-shrink: 0;
+  min-width: 100px;
+}
+
+.ping-modal-detail {
+  color: var(--fg-soft);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ping-modal-elapsed {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
 .composer .security-icon svg {
   width: 18px;
   height: 18px;
