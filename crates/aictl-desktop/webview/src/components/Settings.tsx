@@ -23,6 +23,8 @@ import {
   type KeyBackend,
   type KeyRow,
   type LocalModelsStatus,
+  type McpServerDetails,
+  type McpServerRow,
   type McpStatus,
   type NerStatus,
   type MemoryRow,
@@ -2249,6 +2251,10 @@ const McpTab: Component = () => {
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
   const [showEditor, setShowEditor] = createSignal(false);
+  const [viewing, setViewing] = createSignal<McpServerDetails | null>(null);
+  const [pendingDelete, setPendingDelete] = createSignal<McpServerRow | null>(
+    null,
+  );
 
   const setEnabled = async (on: boolean) => {
     setError(null);
@@ -2273,6 +2279,28 @@ const McpTab: Component = () => {
       await ipc.mcpToggle(name, on);
       await refetch();
       setFeedback(`${name} ${on ? "enabled" : "disabled"} (restart desktop to apply)`);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const openDetails = async (row: McpServerRow) => {
+    setError(null);
+    try {
+      const details = await ipc.mcpDetails(row.name);
+      setViewing(details);
+    } catch (err) {
+      setError(`${err}`);
+    }
+  };
+
+  const performDelete = async (row: McpServerRow) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      await ipc.mcpDelete(row.name);
+      await refetch();
+      setFeedback(`deleted ${row.name} (restart desktop to free the running process)`);
     } catch (err) {
       setError(`${err}`);
     }
@@ -2319,13 +2347,10 @@ const McpTab: Component = () => {
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-mcp-table">
           <thead>
             <tr>
               <th>Server</th>
-              <th>Transport</th>
-              <th>Target</th>
-              <th>Tools</th>
               <th>State</th>
               <th />
             </tr>
@@ -2338,13 +2363,6 @@ const McpTab: Component = () => {
                     <code>{row.name}</code>
                   </td>
                   <td>
-                    <code>{row.transport || "stdio"}</code>
-                  </td>
-                  <td>
-                    <code>{row.url || row.command}</code>
-                  </td>
-                  <td>{row.tool_count}</td>
-                  <td>
                     <span data-status={row.state}>{row.state}</span>
                     <Show when={row.state_detail}>
                       {(d) => (
@@ -2354,14 +2372,30 @@ const McpTab: Component = () => {
                       )}
                     </Show>
                   </td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini"
-                      onClick={() => void toggle(row.name, !row.enabled)}
-                    >
-                      {row.enabled ? "Disable" : "Enable"}
-                    </button>
+                  <td class="settings-keys-actions-cell">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => void openDetails(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => void toggle(row.name, !row.enabled)}
+                      >
+                        {row.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => setPendingDelete(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -2381,6 +2415,175 @@ const McpTab: Component = () => {
           onClose={() => setShowEditor(false)}
         />
       </Show>
+      <Show when={viewing()}>
+        {(d) => (
+          <McpDetailsViewer
+            details={d()}
+            onClose={() => setViewing(null)}
+          />
+        )}
+      </Show>
+      <Show when={pendingDelete()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Delete MCP server"
+            detail={row().name}
+            note="The entry will be removed from mcp.json. The running process keeps the connection alive until the next restart."
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingDelete(null);
+              void performDelete(target);
+            }}
+          />
+        )}
+      </Show>
+    </div>
+  );
+};
+
+const McpDetailsViewer: Component<{
+  details: McpServerDetails;
+  onClose: () => void;
+}> = (props) => {
+  // Capture-phase + stopImmediatePropagation so the parent <Settings>'s
+  // window-level Esc handler doesn't fire alongside this one and close
+  // the whole panel underneath the viewer.
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  });
+
+  const transport = () => props.details.transport || "stdio";
+  const isRemote = () => transport() !== "stdio";
+
+  return (
+    <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
+      <div class="prompt-viewer mcp-details-viewer">
+        <header class="prompt-viewer-header">
+          <div>
+            <h3>MCP server</h3>
+            <p class="settings-meta">
+              <code>{props.details.name}</code> ·{" "}
+              <span data-status={props.details.state}>
+                {props.details.state}
+              </span>
+            </p>
+          </div>
+          <div class="prompt-viewer-actions">
+            <button
+              type="button"
+              class="settings-close"
+              aria-label="Close viewer"
+              title="Close (Esc)"
+              onClick={props.onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div class="prompt-viewer-body">
+          <dl class="settings-session-fields mcp-details-fields">
+            <dt>Transport</dt>
+            <dd>
+              <code>{transport()}</code>
+            </dd>
+            <Show when={isRemote()}>
+              <dt>URL</dt>
+              <dd>
+                <code>{props.details.url || "—"}</code>
+              </dd>
+            </Show>
+            <Show when={!isRemote()}>
+              <dt>Command</dt>
+              <dd>
+                <code>{props.details.command || "—"}</code>
+              </dd>
+              <Show when={props.details.args.length > 0}>
+                <dt>Args</dt>
+                <dd>
+                  <pre class="mcp-details-block">
+                    {props.details.args.join("\n")}
+                  </pre>
+                </dd>
+              </Show>
+              <Show when={props.details.env.length > 0}>
+                <dt>Env</dt>
+                <dd>
+                  <pre class="mcp-details-block">
+                    {props.details.env
+                      .map(([k, v]) => `${k}=${v}`)
+                      .join("\n")}
+                  </pre>
+                </dd>
+              </Show>
+            </Show>
+            <Show when={isRemote() && props.details.headers.length > 0}>
+              <dt>Headers</dt>
+              <dd>
+                <pre class="mcp-details-block">
+                  {props.details.headers
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join("\n")}
+                </pre>
+              </dd>
+            </Show>
+            <Show when={props.details.timeout_secs !== null}>
+              <dt>Timeout</dt>
+              <dd>{props.details.timeout_secs}s</dd>
+            </Show>
+            <dt>Enabled</dt>
+            <dd>{props.details.enabled ? "yes" : "no"}</dd>
+            <Show when={props.details.state_detail}>
+              {(d) => (
+                <>
+                  <dt>Detail</dt>
+                  <dd>{d()}</dd>
+                </>
+              )}
+            </Show>
+            <dt>Tools</dt>
+            <dd>
+              <Show
+                when={props.details.tools.length > 0}
+                fallback={
+                  <span class="settings-meta">
+                    No tools (server is{" "}
+                    {props.details.state === "ready" ? "idle" : props.details.state})
+                  </span>
+                }
+              >
+                <ul class="mcp-details-tools">
+                  <For each={props.details.tools}>
+                    {(t) => (
+                      <li>
+                        <code>{t.name}</code>
+                        <Show when={t.description}>
+                          <span class="settings-meta">
+                            {" — "}
+                            {t.description}
+                          </span>
+                        </Show>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </dd>
+            <dt>Config</dt>
+            <dd>
+              <code>{props.details.config_path}</code>
+            </dd>
+          </dl>
+        </div>
+      </div>
     </div>
   );
 };

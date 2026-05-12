@@ -154,6 +154,29 @@ export interface McpStatus {
   servers: McpServerRow[];
 }
 
+export interface McpToolRow {
+  name: string;
+  description: string;
+}
+
+export interface McpServerDetails {
+  name: string;
+  transport: string;
+  command: string;
+  args: string[];
+  /// `[key, value]` pairs — sorted alphabetically by key on the server
+  /// side so the order is deterministic.
+  env: [string, string][];
+  url: string;
+  headers: [string, string][];
+  timeout_secs: number | null;
+  enabled: boolean;
+  state: string;
+  state_detail: string | null;
+  tools: McpToolRow[];
+  config_path: string;
+}
+
 export interface HookRow {
   idx: number;
   event: string;
@@ -641,6 +664,12 @@ export const ipc = {
   },
   async mcpReload() {
     return invoke<void>("mcp_reload");
+  },
+  async mcpDelete(name: string) {
+    return invoke<void>("mcp_delete", { args: { name } });
+  },
+  async mcpDetails(name: string) {
+    return invoke<McpServerDetails>("mcp_details", { args: { name } });
   },
 
   // -- hooks ----

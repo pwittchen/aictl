@@ -3116,6 +3116,139 @@
   width: 200px;
 }
 
+/* MCP servers table: three columns (Server / State / Actions). Full
+   per-server details (transport, command, args, env, url, headers,
+   timeout, tools) live behind the per-row View button so the table
+   itself stays scannable and never blows out the panel with long URLs
+   or command paths. Override `.settings-keys-table`'s four-column
+   widths so every column gets a sensible share, and pin the Actions
+   column wide enough to fit View / Disable / Delete on one line. */
+.settings-keys-table.settings-mcp-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-keys-table.settings-mcp-table th,
+.settings-keys-table.settings-mcp-table td {
+  vertical-align: middle;
+}
+
+.settings-keys-table.settings-mcp-table th:nth-child(1),
+.settings-keys-table.settings-mcp-table td:nth-child(1) {
+  width: 28%;
+}
+
+.settings-keys-table.settings-mcp-table th:nth-child(2),
+.settings-keys-table.settings-mcp-table td:nth-child(2) {
+  width: 28%;
+}
+
+.settings-keys-table.settings-mcp-table th:nth-child(3),
+.settings-keys-table.settings-mcp-table td:nth-child(3) {
+  width: 44%;
+}
+
+/* `.settings-meta` brings a 12px bottom margin from its default rule
+   — inside a table row that pushes the row taller and makes the
+   horizontal borders drift. Reset it for the inline state-detail. */
+.settings-keys-table.settings-mcp-table td .settings-meta {
+  margin: 2px 0 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.settings-keys-table.settings-mcp-table .settings-keys-actions {
+  justify-content: flex-end;
+}
+
+/* State badge color: ready → green, everything else (failed /
+   disabled / unknown) → red. Applies in both the table row and the
+   details modal header. Same green as the keyring "all locked"
+   padlock so the success signal reads consistently across Settings. */
+.settings-keys-table.settings-mcp-table span[data-status="ready"],
+.prompt-viewer.mcp-details-viewer span[data-status="ready"] {
+  color: #4ade80;
+}
+
+.settings-keys-table.settings-mcp-table span[data-status="failed"],
+.settings-keys-table.settings-mcp-table span[data-status="disabled"],
+.settings-keys-table.settings-mcp-table span[data-status="unknown"],
+.prompt-viewer.mcp-details-viewer span[data-status="failed"],
+.prompt-viewer.mcp-details-viewer span[data-status="disabled"],
+.prompt-viewer.mcp-details-viewer span[data-status="unknown"] {
+  color: var(--danger);
+}
+
+/* MCP details viewer (View button → modal). Reuses
+   `.prompt-viewer-overlay` / `.prompt-viewer` so the visual rhythm
+   matches the Memory viewer; size to content (capped at 70vh) and
+   center vertically instead of stretching to fill the overlay — the
+   details list is usually 6–10 short rows and a full-height panel
+   leaves a lot of empty space below it. */
+.prompt-viewer.mcp-details-viewer {
+  width: min(640px, 100%);
+  align-self: center;
+  max-height: min(70vh, 100%);
+}
+
+.mcp-details-fields dd code {
+  word-break: break-all;
+}
+
+/* Multi-line value blocks (args / env / headers). Keep them in the
+   mono font but tighten the padding so they don't dominate the modal. */
+.mcp-details-block {
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-soft);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.mcp-details-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.mcp-details-tools li {
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.mcp-details-tools li code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+}
+
+/* The "danger" variant for the row-level Delete button (matches the
+   pattern used by the Memory tab). Slightly muted red border so it
+   reads as destructive without overpowering View / Disable next to
+   it; flips to the full accent red on hover. */
+.settings-keys-actions button.ghost.mini.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.settings-keys-actions button.ghost.mini.danger:hover:not([disabled]) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 /* Session-detail modal: two-column definition list with mono labels
    and value cells that can hold longer content (uuid, path) without
    pushing the panel wider. */
