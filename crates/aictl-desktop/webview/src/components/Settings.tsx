@@ -32,6 +32,7 @@ import {
   type ModelEntry,
   type OllamaProbeResult,
   type OllamaStatus,
+  type PluginRow,
   type PluginsStatus,
   type RemoteCatalogueRow,
   type ServerProbeResult,
@@ -3111,6 +3112,8 @@ const HooksTab: Component = () => {
   const [draftMatcher, setDraftMatcher] = createSignal("*");
   const [draftCommand, setDraftCommand] = createSignal("");
   const [draftTimeout, setDraftTimeout] = createSignal("");
+  const [viewing, setViewing] = createSignal<HookRow | null>(null);
+  const [pendingDelete, setPendingDelete] = createSignal<HookRow | null>(null);
 
   const toggle = async (row: HookRow) => {
     setError(null);
@@ -3122,8 +3125,9 @@ const HooksTab: Component = () => {
     }
   };
 
-  const remove = async (row: HookRow) => {
+  const performDelete = async (row: HookRow) => {
     setError(null);
+    setFeedback(null);
     try {
       await ipc.hookDelete(row.event, row.idx);
       await refetch();
@@ -3230,14 +3234,11 @@ const HooksTab: Component = () => {
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-hooks-table">
           <thead>
             <tr>
               <th>Event</th>
               <th>Matcher</th>
-              <th>Command</th>
-              <th>Timeout</th>
-              <th>State</th>
               <th />
             </tr>
           </thead>
@@ -3251,30 +3252,30 @@ const HooksTab: Component = () => {
                   <td>
                     <code>{row.matcher}</code>
                   </td>
-                  <td>
-                    <code class="settings-cmd">{row.command}</code>
-                  </td>
-                  <td>{row.timeout_secs}s</td>
-                  <td>
-                    <span data-status={row.enabled ? "ok" : "unset"}>
-                      {row.enabled ? "enabled" : "disabled"}
-                    </span>
-                  </td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini"
-                      onClick={() => void toggle(row)}
-                    >
-                      {row.enabled ? "Disable" : "Enable"}
-                    </button>
-                    <button
-                      type="button"
-                      class="ghost mini danger"
-                      onClick={() => void remove(row)}
-                    >
-                      Delete
-                    </button>
+                  <td class="settings-keys-actions-cell">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => setViewing(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => void toggle(row)}
+                      >
+                        {row.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => setPendingDelete(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -3282,6 +3283,107 @@ const HooksTab: Component = () => {
           </tbody>
         </table>
       </Show>
+      <Show when={viewing()}>
+        {(row) => (
+          <HookDetailsViewer
+            row={row()}
+            configPath={status()?.config_path ?? null}
+            onClose={() => setViewing(null)}
+          />
+        )}
+      </Show>
+      <Show when={pendingDelete()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Delete hook"
+            detail={`${row().event} · ${row().matcher}`}
+            note="The entry is removed from hooks.json and stops firing immediately."
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingDelete(null);
+              void performDelete(target);
+            }}
+          />
+        )}
+      </Show>
+    </div>
+  );
+};
+
+const HookDetailsViewer: Component<{
+  row: HookRow;
+  configPath: string | null;
+  onClose: () => void;
+}> = (props) => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  });
+
+  return (
+    <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
+      <div class="prompt-viewer mcp-details-viewer">
+        <header class="prompt-viewer-header">
+          <div>
+            <h3>Hook</h3>
+            <p class="settings-meta">
+              <code>{props.row.event}</code> ·{" "}
+              <span data-status={props.row.enabled ? "ok" : "unset"}>
+                {props.row.enabled ? "enabled" : "disabled"}
+              </span>
+            </p>
+          </div>
+          <div class="prompt-viewer-actions">
+            <button
+              type="button"
+              class="settings-close"
+              aria-label="Close viewer"
+              title="Close (Esc)"
+              onClick={props.onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div class="prompt-viewer-body">
+          <dl class="settings-session-fields mcp-details-fields">
+            <dt>Event</dt>
+            <dd>
+              <code>{props.row.event}</code>
+            </dd>
+            <dt>Matcher</dt>
+            <dd>
+              <code>{props.row.matcher}</code>
+            </dd>
+            <dt>Command</dt>
+            <dd>
+              <pre class="mcp-details-block">{props.row.command}</pre>
+            </dd>
+            <dt>Timeout</dt>
+            <dd>{props.row.timeout_secs}s</dd>
+            <dt>Enabled</dt>
+            <dd>{props.row.enabled ? "yes" : "no"}</dd>
+            <Show when={props.configPath}>
+              {(p) => (
+                <>
+                  <dt>Config</dt>
+                  <dd>
+                    <code>{p()}</code>
+                  </dd>
+                </>
+              )}
+            </Show>
+          </dl>
+        </div>
+      </div>
     </div>
   );
 };
@@ -4201,6 +4303,10 @@ const PluginsTab: Component = () => {
   const [draftConfirm, setDraftConfirm] = createSignal(true);
   const [draftTimeout, setDraftTimeout] = createSignal("");
   const [saving, setSaving] = createSignal(false);
+  const [viewing, setViewing] = createSignal<PluginRow | null>(null);
+  const [pendingDelete, setPendingDelete] = createSignal<PluginRow | null>(
+    null,
+  );
 
   const resetDraft = () => {
     setDraftName("");
@@ -4290,14 +4396,13 @@ const PluginsTab: Component = () => {
     }
   };
 
-  const remove = async (name: string) => {
-    if (!window.confirm(`Delete plugin "${name}"?`)) return;
+  const performDelete = async (row: PluginRow) => {
     setError(null);
     setFeedback(null);
     try {
-      await ipc.pluginDelete(name);
+      await ipc.pluginDelete(row.name);
       await refetch();
-      setFeedback(`plugin "${name}" deleted`);
+      setFeedback(`plugin "${row.name}" deleted`);
     } catch (err) {
       setError(`${err}`);
     }
@@ -4415,14 +4520,10 @@ const PluginsTab: Component = () => {
           </p>
         }
       >
-        <table class="settings-keys-table">
+        <table class="settings-keys-table settings-plugins-table">
           <thead>
             <tr>
               <th>Plugin</th>
-              <th>Description</th>
-              <th>Entrypoint</th>
-              <th>Confirm?</th>
-              <th>Timeout</th>
               <th />
             </tr>
           </thead>
@@ -4433,22 +4534,23 @@ const PluginsTab: Component = () => {
                   <td>
                     <code>{row.name}</code>
                   </td>
-                  <td class="settings-desc">{row.description}</td>
-                  <td>
-                    <code>{row.entrypoint}</code>
-                  </td>
-                  <td>{row.requires_confirmation ? "yes" : "no"}</td>
-                  <td>
-                    {row.timeout_secs !== null ? `${row.timeout_secs}s` : "—"}
-                  </td>
-                  <td class="settings-keys-actions">
-                    <button
-                      type="button"
-                      class="ghost mini danger"
-                      onClick={() => void remove(row.name)}
-                    >
-                      Delete
-                    </button>
+                  <td class="settings-keys-actions-cell">
+                    <div class="settings-keys-actions">
+                      <button
+                        type="button"
+                        class="ghost mini"
+                        onClick={() => setViewing(row)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost mini danger"
+                        onClick={() => setPendingDelete(row)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -4456,6 +4558,98 @@ const PluginsTab: Component = () => {
           </tbody>
         </table>
       </Show>
+      <Show when={viewing()}>
+        {(row) => (
+          <PluginDetailsViewer
+            row={row()}
+            pluginsDir={status()?.plugins_dir ?? ""}
+            onClose={() => setViewing(null)}
+          />
+        )}
+      </Show>
+      <Show when={pendingDelete()}>
+        {(row) => (
+          <ConfirmDelete
+            title="Delete plugin"
+            detail={row().name}
+            note="Removes ~/.aictl/plugins/<name>/. Restart the desktop so the agent stops dispatching to it."
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              const target = row();
+              setPendingDelete(null);
+              void performDelete(target);
+            }}
+          />
+        )}
+      </Show>
+    </div>
+  );
+};
+
+const PluginDetailsViewer: Component<{
+  row: PluginRow;
+  pluginsDir: string;
+  onClose: () => void;
+}> = (props) => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      props.onClose();
+    }
+  };
+  onMount(() => {
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  });
+
+  return (
+    <div class="prompt-viewer-overlay" role="dialog" aria-modal="true">
+      <div class="prompt-viewer mcp-details-viewer">
+        <header class="prompt-viewer-header">
+          <div>
+            <h3>Plugin</h3>
+            <p class="settings-meta">
+              <code>{props.row.name}</code>
+            </p>
+          </div>
+          <div class="prompt-viewer-actions">
+            <button
+              type="button"
+              class="settings-close"
+              aria-label="Close viewer"
+              title="Close (Esc)"
+              onClick={props.onClose}
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div class="prompt-viewer-body">
+          <dl class="settings-session-fields mcp-details-fields">
+            <dt>Description</dt>
+            <dd>{props.row.description || "—"}</dd>
+            <dt>Entrypoint</dt>
+            <dd>
+              <code>{props.row.entrypoint}</code>
+            </dd>
+            <dt>Requires confirmation</dt>
+            <dd>{props.row.requires_confirmation ? "yes" : "no"}</dd>
+            <dt>Timeout</dt>
+            <dd>
+              {props.row.timeout_secs !== null
+                ? `${props.row.timeout_secs}s`
+                : "—"}
+            </dd>
+            <Show when={props.pluginsDir}>
+              <dt>Directory</dt>
+              <dd>
+                <code>{props.pluginsDir}</code>
+              </dd>
+            </Show>
+          </dl>
+        </div>
+      </div>
     </div>
   );
 };

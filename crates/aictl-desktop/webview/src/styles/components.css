@@ -3179,6 +3179,84 @@
   color: var(--danger);
 }
 
+/* Hooks table is intentionally narrow: three columns (Event / Matcher
+   / Actions). Full details — command body, timeout, enabled flag, on-
+   disk config path — live behind the per-row View button so the table
+   stays scannable and command bodies (often multi-line shell scripts)
+   never blow out the row height. The base `.settings-keys-table`'s
+   four-column widths would leave the Actions cell at zero width, so
+   we redefine all three here. */
+.settings-keys-table.settings-hooks-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-keys-table.settings-hooks-table th,
+.settings-keys-table.settings-hooks-table td {
+  vertical-align: middle;
+}
+
+.settings-keys-table.settings-hooks-table th:nth-child(1),
+.settings-keys-table.settings-hooks-table td:nth-child(1) {
+  width: 26%;
+}
+
+.settings-keys-table.settings-hooks-table th:nth-child(2),
+.settings-keys-table.settings-hooks-table td:nth-child(2) {
+  width: 30%;
+}
+
+.settings-keys-table.settings-hooks-table th:nth-child(3),
+.settings-keys-table.settings-hooks-table td:nth-child(3) {
+  width: 44%;
+}
+
+.settings-keys-table.settings-hooks-table .settings-keys-actions {
+  justify-content: flex-end;
+}
+
+/* Hook state badge (rendered inside the details modal): enabled
+   ("ok") → green, disabled ("unset") → red. Same palette MCP uses so
+   the two panes scan consistently. The same data-status values appear
+   on probe banners (`/healthz` / `/v1/models`) but those carry
+   `.settings-probe` and have their own colors. */
+.prompt-viewer.mcp-details-viewer span[data-status="ok"] {
+  color: #4ade80;
+}
+
+.prompt-viewer.mcp-details-viewer span[data-status="unset"] {
+  color: var(--danger);
+}
+
+/* Plugins table is even narrower: just Name + Actions. Description,
+   entrypoint, requires-confirmation flag, and timeout live behind the
+   per-row View button. Two columns means no risk of the Actions cell
+   collapsing — the explicit widths exist only so the buttons hug the
+   right edge instead of stretching. */
+.settings-keys-table.settings-plugins-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.settings-keys-table.settings-plugins-table th,
+.settings-keys-table.settings-plugins-table td {
+  vertical-align: middle;
+}
+
+.settings-keys-table.settings-plugins-table th:nth-child(1),
+.settings-keys-table.settings-plugins-table td:nth-child(1) {
+  width: 60%;
+}
+
+.settings-keys-table.settings-plugins-table th:nth-child(2),
+.settings-keys-table.settings-plugins-table td:nth-child(2) {
+  width: 40%;
+}
+
+.settings-keys-table.settings-plugins-table .settings-keys-actions {
+  justify-content: flex-end;
+}
+
 /* MCP details viewer (View button → modal). Reuses
    `.prompt-viewer-overlay` / `.prompt-viewer` so the visual rhythm
    matches the Memory viewer; size to content (capped at 70vh) and
