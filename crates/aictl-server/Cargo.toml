@@ -24,6 +24,12 @@ tower-http = { version = "0.6", features = ["limit", "cors", "timeout", "trace"]
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3"
 futures = "0.3"
+bytes = "1"
+# HTTP client — provider dispatch from the cross-provider /v1/messages
+# translator. The aictl-core engine already pulls reqwest in transitively;
+# we declare it here so the translator can name `reqwest::Error` in
+# stream-trait bounds without depending on the transitive re-export.
+reqwest = { version = "0.13", features = ["json", "stream"] }
 
 # JSON / serde.
 serde = { version = "1", features = ["derive"] }

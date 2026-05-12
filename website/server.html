@@ -362,6 +362,164 @@ claude</code>
               obeys the concurrency cap and per-IP rate limit.
             </p>
           </article>
+          <article class="card">
+            <h3>Anthropic models work best</h3>
+            <p>
+              Claude models hit the byte-for-byte passthrough path —
+              prompt caching (up to 90% input-token discount on cached
+              prefixes), extended thinking, fine-grained tool
+              streaming, <code>anthropic-beta</code> features, and PDF
+              content blocks all survive unchanged. Long Claude Code
+              sessions stay cheap and the SSE event timing matches
+              native Anthropic exactly.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Cross-provider routing</h3>
+            <p>
+              Set
+              <code>AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true</code>
+              and Claude Code can run against OpenAI, Gemini, Ollama,
+              Grok, Mistral, DeepSeek, Kimi, or Z.ai — pick the model
+              by setting <code>ANTHROPIC_MODEL</code> to any id from
+              <code>GET /v1/models</code>. Native tool use, content
+              blocks, and streaming all translate through. Anthropic
+              models keep the passthrough path either way.
+            </p>
+          </article>
+          <article class="card" style="grid-column: 1 / -1;">
+            <h3>Trade-offs on non-Anthropic routes</h3>
+            <p>
+              Cross-provider routes lose Anthropic-only features:
+              prompt caching (full input-token cost every turn),
+              extended thinking, fine-grained tool streaming, and any
+              <code>anthropic-beta</code> features. PDF blocks are
+              rejected; <code>cache_control</code> markers are
+              stripped; stop reasons map best-effort. Local GGUF / MLX
+              backends are out of scope — use Ollama with a
+              tool-capable model for local + tools.
+            </p>
+          </article>
+        </div>
+
+        <header class="section__head" style="margin-top: 64px;">
+          <span class="section__kicker">// cross-provider</span>
+          <h2 class="section__title">Route Claude Code to any model</h2>
+          <p class="section__lead">
+            Flip
+            <code>AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true</code> and
+            <code>POST /v1/messages</code> stops being a pure Anthropic
+            passthrough — it becomes a bidirectional translator. Claude
+            Code sends its native Anthropic shape; the server rewrites
+            it into OpenAI / Gemini / Ollama / Grok / Mistral /
+            DeepSeek / Kimi / Z.ai shapes, dispatches, then translates
+            the response back. Anthropic models keep the byte-for-byte
+            passthrough path — zero behavioral drift, all
+            Anthropic-only features intact. The flag defaults to off
+            so existing deployments see no change until you opt in.
+          </p>
+        </header>
+
+        <p class="api-errors">
+          <strong>Experimental.</strong> The translator works for most
+          chat-tuned models in the supported families, but it is
+          best-effort — not every model survives the round-trip. Known
+          gaps: OpenAI reasoning models (<code>o1</code>,
+          <code>o3</code>, <code>o3-mini</code>, <code>gpt-5</code>)
+          reject the request shape; Ollama models without the
+          <code>tools</code> capability silently drop tool calls;
+          vision inputs need a vision-capable target model;
+          <code>deepseek-reasoner</code> ignores tools;
+          Anthropic-only tools (<code>memory</code>,
+          <code>computer_use</code>, <code>code_execution_*</code>)
+          have no equivalent on other providers. Upstream rejections
+          surface as <code>503 provider_unavailable</code> or
+          <code>400</code> with the body logged at warn level. Use
+          Anthropic models for production reliability; treat
+          cross-provider routes as best-effort.
+        </p>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-xprovider-server"><span class="tok-c"># Server host — enable the translator. Make sure the upstream key for</span>
+<span class="tok-c"># the target provider is configured (LLM_OPENAI_API_KEY, LLM_GEMINI_API_KEY,</span>
+<span class="tok-c"># …); local Ollama needs no key.</span>
+<span class="tok-k">export</span> AICTL_SERVER_MESSAGES_CROSS_PROVIDER<span class="tok-p">=</span><span class="tok-s">"true"</span>
+<span class="tok-c"># Optional — restrict which providers the translator will dispatch to.</span>
+<span class="tok-c"># export AICTL_SERVER_MESSAGES_TRANSLATE_PROVIDERS="openai,gemini"</span>
+<span class="tok-c"># Optional — reject instead of stripping unsupported Anthropic-only fields.</span>
+<span class="tok-c"># export AICTL_SERVER_MESSAGES_FEATURE_GATE="reject"</span>
+aictl-server</code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-xprovider-server" aria-label="Copy server-side cross-provider env vars">Copy</button>
+        </div>
+
+        <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">
+          <code id="srv-cmd-xprovider-client"><span class="tok-c"># Client laptop — same Authorization scheme as the Anthropic passthrough;</span>
+<span class="tok-c"># only the model id changes. Any model from GET /v1/models works.</span>
+<span class="tok-k">export</span> ANTHROPIC_BASE_URL<span class="tok-p">=</span><span class="tok-s">"http://127.0.0.1:7878"</span>
+<span class="tok-k">export</span> ANTHROPIC_AUTH_TOKEN<span class="tok-p">=</span><span class="tok-s">"$AICTL_SERVER_MASTER_KEY"</span>
+
+<span class="tok-k">export</span> ANTHROPIC_MODEL<span class="tok-p">=</span><span class="tok-s">"gpt-4o-mini"</span>            <span class="tok-c"># OpenAI</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="gemini-2.5-flash"     # Gemini</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="qwen2.5-coder:14b"    # Ollama (tool-capable model)</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="deepseek-chat"        # DeepSeek</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="grok-2-1212"          # Grok</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="mistral-large-latest" # Mistral</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="kimi-k2-0905-preview" # Kimi</span>
+<span class="tok-c"># export ANTHROPIC_MODEL="glm-4.6"              # Z.ai</span>
+<span class="tok-k">export</span> ANTHROPIC_SMALL_FAST_MODEL<span class="tok-p">=</span><span class="tok-s">"$ANTHROPIC_MODEL"</span>
+
+claude</code>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-xprovider-client" aria-label="Copy client-side cross-provider env vars">Copy</button>
+        </div>
+
+        <div class="grid grid--2" style="margin-top: 32px;">
+          <article class="card">
+            <h3>What you gain</h3>
+            <p>
+              Claude Code (and any other native-Anthropic client) can
+              run against any model the server already supports for
+              <code>/v1/chat/completions</code>. Native tool use,
+              content blocks, image inputs, and streaming all
+              translate. The full mapping table — every Anthropic
+              field across every provider — lives in
+              <code>SERVER.md</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>What you give up</h3>
+            <p>
+              On cross-provider routes you lose Anthropic-only
+              features: prompt caching (full input-token cost every
+              turn), extended thinking, fine-grained tool streaming,
+              <code>anthropic-beta</code> features, and native PDF
+              blocks. <code>cache_control</code> markers are stripped;
+              stop reasons map best-effort. Long Claude Code sessions
+              can cost meaningfully more without caching — budget
+              before enabling.
+            </p>
+          </article>
+          <article class="card">
+            <h3>What stays the same</h3>
+            <p>
+              Every request — passthrough or translated — passes the
+              master-key gate, the prompt-injection guard, the
+              redactor on every text surface, and the per-request
+              audit log entry. The concurrency cap and per-IP rate
+              limit apply equally. Translation never relaxes a
+              security pass.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Local-only scope</h3>
+            <p>
+              Ollama is in scope (with a tool-capable model like
+              Qwen 2.5, Llama 3.1+, or Mistral Nemo). GGUF and MLX
+              are rejected on the cross-provider path — the
+              in-process backends don't expose native tool calling.
+              Reasoning models (OpenAI o1, o3) are also not mapped;
+              use <code>/v1/chat/completions</code> for those.
+            </p>
+          </article>
         </div>
       </div>
     </section>

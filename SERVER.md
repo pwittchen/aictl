@@ -249,7 +249,7 @@ data: [DONE]
 
 Native Anthropic Messages API endpoint. Used by clients that speak the Anthropic shape directly — most notably **Claude Code** via `ANTHROPIC_BASE_URL`. The body is forwarded verbatim to `https://api.anthropic.com/v1/messages` with the operator's stored `LLM_ANTHROPIC_API_KEY` substituted in, so tool use, content blocks, system prompts, and prompt caching all pass through unchanged.
 
-The `model` field must resolve to an Anthropic model (`GET /v1/models` with `owned_by: "Anthropic"`). Non-Anthropic models are rejected with `400 model_not_found` — cross-provider translation of the Anthropic shape (with its `tool_use` / `tool_result` blocks) is out of scope; use `POST /v1/chat/completions` to reach other providers.
+By default the `model` field must resolve to an Anthropic model (`GET /v1/models` with `owned_by: "Anthropic"`); non-Anthropic models are rejected with `400 model_not_found`. Set `AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true` and the route translates the Anthropic Messages shape to/from any supported provider (OpenAI, Grok, Mistral, DeepSeek, Kimi, Z.ai, Gemini, Ollama) — see [Cross-provider routing](#cross-provider-routing) below for the full trade-off table. The OpenAI-shaped `POST /v1/chat/completions` remains the other route to non-Anthropic providers.
 
 ```sh
 curl http://127.0.0.1:7878/v1/messages \
@@ -268,6 +268,101 @@ curl http://127.0.0.1:7878/v1/messages \
 **Headers**: `anthropic-version` defaults to `2023-06-01`; the client can override per request, and any `anthropic-beta` header the client sends is forwarded. The server's master-key gate is on `Authorization: Bearer ...`, distinct from Anthropic's `x-api-key` — the proxy fills in `x-api-key` itself.
 
 **Security passes**: the prompt-injection guard runs on user-text content; the redactor runs on `system` and `messages[*].content` text surfaces. `tool_use` / `tool_result` blocks are deliberately left untouched (regex passes can't meaningfully redact opaque tool JSON without risking corruption).
+
+### Cross-provider routing
+
+> [!WARNING]
+> **Experimental.** The translator works for most chat-tuned models in the supported provider families, but it is best-effort — not every model survives the round-trip. Known gaps:
+>
+> - **OpenAI reasoning models** (`o1`, `o3`, `o3-mini`, `gpt-5`) — won't work. They use `max_completion_tokens` instead of `max_tokens`, reject the `system` role, ignore `temperature`, and need a `reasoning_effort` parameter the translator doesn't send.
+> - **Ollama models without the `tools` capability** (plain Llama 2, older Phi, DeepSeek-V2) — basic chat works, but Ollama silently drops tool calls. Use Qwen 2.5/3, Llama 3.1+, Mistral Nemo, or Command-R for tool-using sessions.
+> - **Vision inputs** need a vision-capable model on the target provider (GPT-4o, Gemini Flash/Pro, Llava, Qwen-VL); text-only models reject image content blocks upstream.
+> - **DeepSeek-R1** (`deepseek-reasoner`) — works for text but ignores tools; its `reasoning_content` is not surfaced.
+> - **Anthropic-only tools** (`memory`, `computer_use`, `code_execution_*`) — Claude Code may declare these; on cross-provider routes they reach the upstream as plain function definitions and fail because no implementation exists.
+>
+> Upstream rejections surface as `503 provider_unavailable` (or `400` for shape errors) with the response body logged at warn level for diagnosis. Use Anthropic models for production reliability; treat cross-provider routes as best-effort.
+
+By default the route only forwards to Anthropic — that's the byte-for-byte passthrough path described above, and it preserves every Anthropic-specific feature (prompt caching, extended thinking, `anthropic-beta` headers, fine-grained tool streaming, native PDF blocks). Flip the master flag and a second mode translates the Anthropic Messages shape into each provider's native shape and back, so Claude Code (or any native-Anthropic client) can run against OpenAI, Grok, Mistral, DeepSeek, Kimi, Z.ai, Gemini, or Ollama models. Anthropic models keep the passthrough path with zero behavioral drift; non-Anthropic models flow through a dedicated translator that owns the full provider HTTP round-trip (not `aictl_core::llm::call_*`, which uses the engine's internal XML tool format).
+
+The full design — translation matrices for every Anthropic field, the streaming SSE state machine, feature-gate policy — lives in [`.claude/plans/done/messages-cross-provider.md`](.claude/plans/done/messages-cross-provider.md).
+
+**Configuration:**
+
+| Key                                            | Default     | Effect                                                                  |
+|------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| `AICTL_SERVER_MESSAGES_CROSS_PROVIDER`         | `false`     | Master switch. When `false`, non-Anthropic models return `400 model_not_found`. |
+| `AICTL_SERVER_MESSAGES_FEATURE_GATE`           | `strip`     | `strip` / `warn` / `reject` for unsupported Anthropic features.         |
+| `AICTL_SERVER_MESSAGES_TRANSLATE_PROVIDERS`    | `*`         | Comma-separated allow-list (`openai,gemini,ollama`). `*` = any non-Anthropic provider.            |
+
+**Usage — Claude Code against a non-Anthropic model:**
+
+```sh
+# 1. Server host — enable the translator and make sure the upstream key
+#    for the target provider is configured (e.g. LLM_OPENAI_API_KEY for
+#    OpenAI, LLM_GEMINI_API_KEY for Gemini, none needed for Ollama).
+export AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true
+# Optional — restrict which providers the translator will dispatch to:
+# export AICTL_SERVER_MESSAGES_TRANSLATE_PROVIDERS=openai,gemini
+# Optional — fail loud instead of stripping unsupported Anthropic-only
+# fields like cache_control or thinking:
+# export AICTL_SERVER_MESSAGES_FEATURE_GATE=reject
+aictl-server
+```
+
+```sh
+# 2. Client laptop — point Claude Code at the server and pick any model
+#    GET /v1/models exposes. Same Authorization scheme as the Anthropic
+#    passthrough; only the model id changes.
+export ANTHROPIC_BASE_URL="http://127.0.0.1:7878"
+export ANTHROPIC_AUTH_TOKEN="$AICTL_SERVER_MASTER_KEY"
+
+export ANTHROPIC_MODEL="gpt-4o-mini"                   # OpenAI
+# export ANTHROPIC_MODEL="gemini-2.5-flash"            # Gemini
+# export ANTHROPIC_MODEL="qwen2.5-coder:14b"           # Ollama (must declare `tools` capability)
+# export ANTHROPIC_MODEL="deepseek-chat"               # DeepSeek
+# export ANTHROPIC_MODEL="grok-2-1212"                 # Grok
+# export ANTHROPIC_MODEL="mistral-large-latest"        # Mistral
+# export ANTHROPIC_MODEL="kimi-k2-0905-preview"        # Kimi
+# export ANTHROPIC_MODEL="glm-4.6"                     # Z.ai
+export ANTHROPIC_SMALL_FAST_MODEL="$ANTHROPIC_MODEL"
+
+claude
+```
+
+Anthropic models continue to use the byte-for-byte passthrough path even with the flag on — the cross-provider translator only activates when the resolved provider is non-Anthropic. Flipping the flag on a host that already serves Claude Code against Anthropic models is therefore safe (no behavioral drift on Anthropic dispatches; the translator path is only reached when a client picks a non-Anthropic `ANTHROPIC_MODEL`).
+
+**What survives on the cross-provider path:**
+
+| Feature                                | Anthropic passthrough | OpenAI-family   | Gemini          | Ollama (tool-capable model) |
+|----------------------------------------|------------------------|------------------|------------------|-----------------------------|
+| Text content blocks                    | yes                    | yes              | yes              | yes                         |
+| Image blocks (base64)                  | yes                    | yes (data URL)   | yes (`inlineData`) | yes (`images[]`)          |
+| Image blocks (URL)                     | yes                    | yes              | rejected         | rejected                    |
+| Tool use (`tool_use` / `tool_result`)  | yes                    | yes              | yes              | yes (capability-gated)      |
+| Streaming SSE event sequence           | native (verbatim)      | translated       | translated       | translated (from NDJSON)    |
+| Prompt caching (`cache_control`)       | yes                    | **stripped**     | **stripped**     | **stripped**                |
+| Extended thinking (`thinking`)         | yes                    | **stripped**     | **stripped**     | **stripped**                |
+| `anthropic-beta` headers               | yes (forwarded)        | **ignored**      | **ignored**      | **ignored**                 |
+| Memory tool / computer use             | yes                    | **n/a**          | **n/a**          | **n/a**                     |
+| PDF `document` blocks                  | yes                    | **rejected**     | **rejected**     | **rejected**                |
+| `top_k`                                | yes                    | **stripped**     | yes              | yes                         |
+| `metadata.user_id`                     | yes                    | yes (`user`)     | **stripped**     | **stripped**                |
+| Reasoning models (o1, o3, …)           | n/a                    | **not mapped** (use `/v1/chat/completions`) | n/a | n/a |
+
+**What's preserved on every path** (passthrough and translation alike):
+
+- Master-key gate on every request.
+- Prompt-injection guard on every user-role text surface.
+- Redaction on every text surface in the request.
+- Per-request UUID + audit log entry (`gateway:anthropic` for passthrough, `gateway:messages:<provider>` for translation).
+
+**Trade-offs to weigh before enabling:**
+
+- **Cost.** Cross-provider routes lose prompt caching. On long agent conversations (Claude Code typical: 20k-token system prompts cached on Anthropic) the same workflow can cost meaningfully more on OpenAI/Gemini. Run a budget probe first.
+- **Tool fidelity.** `tool_use` ↔ `tool_calls` translation is mechanical; subtle JSON-schema differences (Anthropic accepts looser schemas than OpenAI strict mode) may cause provider-side rejections. Set `AICTL_SERVER_MESSAGES_FEATURE_GATE=warn` initially and watch the response headers.
+- **Streaming feel.** Anthropic's event sequence is more structured than OpenAI's flat deltas. The translator approximates the rhythm but can't perfectly replicate latency profiles.
+- **Local-only inference scope.** GGUF and MLX are rejected on the cross-provider path — the in-process backends don't expose native tool calling. Use Ollama with a tool-capable model (Qwen 2.5, Llama 3.1+, Mistral Nemo) if you want local + tools.
+- **Stop reasons.** Best-effort mapping; `content_filter` collapses to `end_turn`, `length` → `max_tokens`, `tool_calls` → `tool_use`. Clients that key off granular stop reasons may behave differently.
 
 ### Connecting Claude Code
 

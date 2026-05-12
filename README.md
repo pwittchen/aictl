@@ -297,6 +297,38 @@ claude
 
 The server exposes a native `POST /v1/messages` endpoint that forwards the request body verbatim to `api.anthropic.com` after substituting the operator's stored `LLM_ANTHROPIC_API_KEY` — tool use, content blocks, prompt caching, and streaming all pass through unchanged. See [SERVER.md](SERVER.md#connecting-claude-code) for the full setup reference.
 
+**Anthropic models by default; opt-in cross-provider routing.** With the master flag off (the default), `POST /v1/messages` only forwards Anthropic models verbatim to `api.anthropic.com` and rejects everything else with `400 model_not_found`. Flip `AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true` and the route translates the Anthropic Messages shape to/from OpenAI, Grok, Mistral, DeepSeek, Kimi, Z.ai, Gemini, and Ollama — Claude Code can then talk to GPT-4o, Gemini, or a local Ollama model.
+
+> [!WARNING]
+> Cross-provider routing is **experimental** and may not work for every model. Tested working on chat-tuned models in the supported provider families, but specific gaps include: OpenAI reasoning models (o1/o3/o3-mini/gpt-5) reject the translator's request shape; Ollama models without the `tools` capability silently drop tool calls; vision inputs need a vision-capable target model; DeepSeek-R1 ignores tools; Anthropic-only tools (memory, computer_use, code_execution_*) have no equivalent on other providers. Errors from the upstream surface as `503 provider_unavailable` or `400` with the body logged at warn level. Use Anthropic models for production reliability; treat cross-provider routes as best-effort.
+
+#### Use Claude Code with non-Anthropic models
+
+On the **server host** (where `aictl-server` runs), enable cross-provider routing and make sure the relevant upstream key is configured. The example below assumes `LLM_OPENAI_API_KEY` is already in `~/.aictl/config` from `aictl /keys`:
+
+```sh
+# Server side — enable the translator (or set it in ~/.aictl/config).
+export AICTL_SERVER_MESSAGES_CROSS_PROVIDER=true
+aictl-server
+```
+
+On the **client laptop** (where Claude Code runs), point it at the server and pick a non-Anthropic model:
+
+```sh
+export ANTHROPIC_BASE_URL="http://127.0.0.1:7878"
+export ANTHROPIC_AUTH_TOKEN="$AICTL_SERVER_MASTER_KEY"
+
+# Pick any model the server can dispatch — GPT-4o, Gemini, Ollama, etc.
+export ANTHROPIC_MODEL="gpt-4o-mini"
+export ANTHROPIC_SMALL_FAST_MODEL="gpt-4o-mini"
+
+claude
+```
+
+The same `ANTHROPIC_BASE_URL` works for any provider — just change `ANTHROPIC_MODEL` to `gemini-2.5-flash`, `qwen2.5-coder:14b` (Ollama), `deepseek-chat`, etc. To restrict which providers the translator is willing to dispatch to, set `AICTL_SERVER_MESSAGES_TRANSLATE_PROVIDERS=openai,gemini` on the server.
+
+Anthropic models keep the byte-for-byte passthrough path on both settings — prompt caching, extended thinking, and `anthropic-beta` features stay intact. Cross-provider routes lose those Anthropic-only features and pay full input-token cost (no prompt caching). Full trade-off table in [SERVER.md](SERVER.md#cross-provider-routing); design notes in [`.claude/plans/done/messages-cross-provider.md`](.claude/plans/done/messages-cross-provider.md).
+
 ## Uninstall
 
 ### Binary release (installed via `install.sh`)

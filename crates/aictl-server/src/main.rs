@@ -28,6 +28,7 @@ mod config;
 mod error;
 mod log;
 mod master_key;
+mod messages;
 mod openai;
 mod rate_limit;
 mod routes;
