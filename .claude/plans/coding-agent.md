@@ -4,7 +4,7 @@
 
 Today aictl is a single general-purpose agent — every session uses the same `SYSTEM_PROMPT` from `crates/aictl-core/src/config.rs`, the same tool catalogue, and the same loose flow ("LLM decides, user approves, repeat"). That's fine for chat-shaped work (explain this code, refactor this function, draft a commit message), but it leaves real coding sessions under-instructed: the model jumps to edits without reading enough, doesn't run tests by default, and rarely reviews its own diff before declaring victory.
 
-The roadmap's "Coding Agent" section proposes a dedicated mode that flips the general-purpose agent into a coding-specialist agent: a stricter five-phase workflow (Explore → Plan → Code → Review → Test), an opinionated system prompt baked for code-editing sessions, and a richer set of code-aware tooling. The mode is **CLI-only**. The server has no agent loop ([`server.md`](done/server.md) is a pure proxy), and the desktop frontend is a chat-shaped UX that doesn't fit a multi-phase workflow; both stay on the general-purpose prompt.
+The roadmap's "Coding Agent" section proposes a dedicated mode that flips the general-purpose agent into a coding-specialist agent: a stricter five-phase workflow (Explore → Plan → Code → Review → Test), an opinionated system prompt baked for code-editing sessions, and a richer set of code-aware tooling. The mode is available in **both the CLI and the desktop app** — both call `run::run_agent_turn` and so both can swap in the coding-specialist base prompt. The server is the only frontend that stays excluded: it has no agent loop ([`server.md`](done/server.md) is a pure proxy) and the mode is structurally absent there. CLI-shaped affordances (REPL phase indicator, `/skip*` commands, single-shot `--coding-agent` flag) stay CLI-only; the desktop gets its own Settings-panel toggle that writes the same config key.
 
 This plan covers Phase 1 of the coding agent: the on/off setting, the prompt-override mechanism, the workflow loop, and the minimum CLI surface to turn the feature on. Smarter `edit_file`, ripgrep-backed search, automatic test-loop integration, and dedicated `test` / extended `git` tooling are sequenced into Phase 2+ so v1 can ship behind a feature gate without dragging a 20-file refactor along.
 
@@ -12,18 +12,19 @@ This plan covers Phase 1 of the coding agent: the on/off setting, the prompt-ove
 
 **Goals**
 
-- Add a single config knob `AICTL_CODING_AGENT=true` (default **`false`**) that activates coding-agent mode for the CLI. When off, behavior is identical to today.
+- Add a single config knob `AICTL_CODING_AGENT=true` (default **`false`**) that activates coding-agent mode for the CLI and the desktop. When off, behavior is identical to today.
 - When on, replace the general-purpose `SYSTEM_PROMPT` with a coding-specialist prompt at the same seam (`run::build_system_prompt`) — the override applies for the whole session.
-- Reflect the active mode in the REPL prompt and the `--info` banner so the user always knows which agent they're talking to.
+- Reflect the active mode in the REPL prompt and the `--info` banner (CLI) and in a Settings indicator (desktop) so the user always knows which agent they're talking to.
 - Enforce the five-phase Explore → Plan → Code → Review → Test workflow via prompt steering (not tool gating) and a lightweight `WorkflowPhase` enum tracked in the agent loop.
-- Expose the on/off toggle through three surfaces: the config file (persistent), a CLI flag (`--coding-agent` / `--no-coding-agent`, one-launch override), and a `/coding-agent` slash command (live toggle in the REPL).
-- Hard-block the mode in `aictl-server` and `aictl-desktop`. The config key is read by `aictl-core`, but the activation seam is gated on `Role::Cli`.
+- **Expose the on/off toggle from both the CLI and the desktop.** CLI surfaces: the config file (persistent), CLI flags (`--coding-agent` / `--no-coding-agent`, one-launch override), and a `/coding-agent` slash command (live toggle in the REPL). Desktop surface: a Settings → Coding Agent toggle backed by Tauri commands (`coding_agent_status` / `coding_agent_set_enabled`) that read/write the same `AICTL_CODING_AGENT` config key, so the two frontends share a single source of truth and a flip in one is visible to the other on next launch.
+- Hard-block the mode in `aictl-server` only. The config key is read by `aictl-core`, but the activation seam is gated against `Role::Server`.
 
 **Non-goals**
 
 - **Not a redesign of the tool surface.** No new tools land in v1 beyond what the existing catalogue already provides (`read_file`, `search_files`, `find_files`, `list_directory`, `edit_file`, `write_file`, `git`, `exec_shell`, `lint_file`, …). Phase 2+ may add a dedicated `test` tool, ripgrep-backed search, and extended `git` subcommands.
 - **Not a parallel agent system.** Coding-agent mode reuses `run::run_agent_turn` exactly — only the system prompt and phase tracker change. No second loop, no new dispatcher.
-- **Not server- or desktop-visible.** The desktop's Tauri commands and the server's HTTP routes never branch on `AICTL_CODING_AGENT`. Setting the key in `~/.aictl/config` with no CLI in play is a no-op.
+- **Not server-visible.** The server's HTTP routes never branch on `AICTL_CODING_AGENT`. Setting the key in `~/.aictl/config` with no CLI or desktop in play is a no-op. The desktop *is* visible — see Goals.
+- **No desktop-side phase UI in v1.** The desktop respects the master switch and gets the coding-specialist base prompt, but it does not render the `[phase]` indicator, the `/skip*` flow, or the Plan-phase interactive checkpoint. Those stay CLI-only until the desktop UX has a place to surface them. Phase 2+ can revisit (e.g. a phase chip in the chat header).
 - **Not a replacement for `--agent <name>`.** The named-agent system (persistent persona prompts under `~/.aictl/agents/`) keeps working. Coding-agent mode is orthogonal: it overrides the *base* system prompt, then a loaded agent / project prompt / behavior override append on top in the existing order.
 - **No auto-detection.** The mode is explicit. We do not heuristically activate coding mode when the user runs aictl inside a git repo — too easy to be wrong, and the "I just want to ask a quick question" path would be ruined.
 - **No multi-tenant coding sessions.** One mode setting per process. No per-prompt or per-message overrides.
@@ -31,13 +32,13 @@ This plan covers Phase 1 of the coding agent: the on/off setting, the prompt-ove
 
 ## How it differs from existing extension points
 
-|                  | Coding-agent mode                          | Loaded agent                       | Skill                              |
-|------------------|--------------------------------------------|------------------------------------|------------------------------------|
-| Scope            | Whole session                              | Whole session                      | Single turn                        |
-| Seam             | Replaces the base system prompt            | Appends after the base prompt      | Concatenated onto `messages[0]`    |
-| Activation       | Config / `--coding-agent` / `/coding-agent`| `--agent <name>` / `/agent`        | `/<skill>` / `--skill <name>`      |
-| What it changes  | Base prompt + workflow loop + UI hints     | Just the appended persona block    | One-turn procedure                 |
-| Frontends        | CLI only                                   | CLI, desktop                       | CLI, desktop                       |
+|                  | Coding-agent mode                                                       | Loaded agent                       | Skill                              |
+|------------------|-------------------------------------------------------------------------|------------------------------------|------------------------------------|
+| Scope            | Whole session                                                           | Whole session                      | Single turn                        |
+| Seam             | Replaces the base system prompt                                         | Appends after the base prompt      | Concatenated onto `messages[0]`    |
+| Activation       | Config / `--coding-agent` / `/coding-agent` / desktop Settings toggle   | `--agent <name>` / `/agent`        | `/<skill>` / `--skill <name>`      |
+| What it changes  | Base prompt + workflow loop + UI hints                                  | Just the appended persona block    | One-turn procedure                 |
+| Frontends        | CLI + desktop (phase UI is CLI-only)                                    | CLI, desktop                       | CLI, desktop                       |
 
 The three compose cleanly: coding-agent mode sets the base, a loaded agent narrows the persona ("Rust expert in coding mode"), and a skill drops a one-turn procedure on top ("apply the standard commit recipe in this Rust-expert coding session").
 
@@ -67,7 +68,7 @@ AICTL_CODING_TEST_CMD=                      # empty = auto-detect (cargo test / 
 pub fn coding_agent_enabled() -> bool;
 ```
 
-The accessor returns `false` whenever `config::role()` is `Role::Server` (the server has no agent loop) so the answer is honest no matter who loads the engine. The desktop frontend never reads the key — the Tauri commands hand the engine a normal `run_agent_turn` call, and the coding-agent gate (§3) returns the default prompt regardless of config when not invoked from the CLI's REPL path.
+The accessor returns `false` whenever `config::role()` is `Role::Server` (the server has no agent loop) so the answer is honest no matter who loads the engine. The CLI and the desktop both see the real value. The desktop's Tauri command surface adds `coding_agent_status` (reads the current value via the accessor) and `coding_agent_set_enabled(bool)` (writes through `config_set` to `~/.aictl/config`) so the Settings panel can flip the switch without restarting the app — the next `run::run_agent_turn` call re-reads the value via `build_system_prompt`.
 
 ### 2. Coding-agent system prompt
 
@@ -111,13 +112,13 @@ pub fn build_system_prompt() -> String {
 
 Three properties of this seam:
 
-1. **One file, one function.** Every frontend (CLI, server, desktop) calls the same `build_system_prompt`. The server and desktop are kept out by the `Role::Server` short-circuit inside `coding_agent_enabled()` — they read `false` no matter what `~/.aictl/config` says. The CLI sets `Role::Cli` by default, so it sees the real value.
+1. **One file, one function.** Every frontend (CLI, server, desktop) calls the same `build_system_prompt`. The server is kept out by the `Role::Server` short-circuit inside `coding_agent_enabled()` — it reads `false` no matter what `~/.aictl/config` says. The CLI defaults to `Role::Cli` and the desktop sets `Role::Desktop`; both see the real value and pick up the coding-specialist base when the master switch is on.
 2. **Coding mode replaces the base; everything else still appends.** A loaded agent (`# Agent: rust-expert`), the project prompt file (`AICTL.md`), the behavior override (`~/.aictl/AICTL.md`), and the memory block all still concatenate on top of the coding-agent base — they don't get clobbered. Persona refinements compose with the coding-agent baseline.
 3. **`tools::tools_enabled() = false` always wins.** Coding-agent mode is meaningless without tools. If a user turned tools off for some reason, coding mode silently degrades to the chat-only prompt and the workflow loop is bypassed.
 
 ### 4. Workflow phase tracker
 
-`run_agent_turn` gains a lightweight phase tracker. The CLI passes a `WorkflowPhase` into the loop when coding mode is on; the server and desktop never construct one.
+`run_agent_turn` gains a lightweight phase tracker. The CLI passes a `WorkflowPhase` into the loop when coding mode is on; the server never constructs one, and the desktop does not construct one in v1 (the chat-shaped UX has no place to render `[phase]` prefixes or expose `/skip*` flow). The desktop still benefits from the prompt steering — the LLM follows the five-phase discipline in its own output regardless of whether a host-side tracker is wired up.
 
 ```rust
 pub enum WorkflowPhase {
@@ -179,11 +180,26 @@ When coding mode is off, the prompt looks exactly like today. The `[phase]` pref
 
 **Single-shot mode**: `aictl --message "fix the bug" --coding-agent` works end-to-end. The five phases execute back-to-back without user prompts (the Plan phase logs to stderr but does not pause unless `AICTL_CODING_PLAN_APPROVE=true`). `--quiet` suppresses the `[phase]` markers in stdout.
 
-### 6. Server and desktop gating
+### 5a. Desktop surface
+
+The desktop app exposes the master switch through its existing Settings panel — the same place the user already manages providers, the memory store, and the local-models catalogue. The flow:
+
+- **Settings → Coding Agent** section, with a single toggle ("Coding Agent: on / off") and a one-paragraph explainer of what flipping it does.
+- Backed by two new Tauri commands wired up next to the `memory_status` / `memory_set_enabled` pair:
+  - `coding_agent_status() -> { enabled: bool }` — reads `config::coding_agent_enabled()`.
+  - `coding_agent_set_enabled(enabled: bool)` — writes through `config_set("AICTL_CODING_AGENT", "true"|"false")` so the change persists to `~/.aictl/config` and is visible to the CLI on next launch.
+- The toggle takes effect on the **next** `run::run_agent_turn` call — `build_system_prompt` re-reads the accessor every call, so no session reload is needed. The desktop optionally surfaces a small "Coding Agent active" chip in the chat header when the switch is on, so the user has a constant signal without needing to revisit Settings.
+- Phase indicators, `/skip*`, single-shot CLI flags, and the Plan-phase interactive checkpoint are **not** ported. The desktop runs the workflow purely on prompt steering — see §4.
+
+The toggle is bidirectional with the CLI: a CLI `--coding-agent` flag is a one-launch override and does not persist (matching today's `--no-coding-agent` semantics); a `/coding-agent on` slash command persists and the desktop picks it up on next launch; the desktop Settings toggle persists and the CLI picks it up on next launch.
+
+### 6. Server gating
 
 - **Server (`crates/aictl-server`)**: the server already does not call `run::run_agent_turn` — it dispatches directly to `llm::call_<provider>` via `server_proxy`. Coding-agent mode is structurally absent. The `coding_agent_enabled()` accessor short-circuits to `false` when `config::role()` is `Role::Server` so even if an operator sets `AICTL_CODING_AGENT=true` in the shared `~/.aictl/config`, the server reads `false` and ignores it. **Verification**: a CI grep ensures `SYSTEM_PROMPT_CODING` is never referenced in `crates/aictl-server/`.
-- **Desktop (`crates/aictl-desktop`)**: the desktop calls `run::run_agent_turn` (it's a real agent loop), so the `coding_agent_enabled()` accessor would normally return `true` if the user flipped the config. To keep the mode CLI-only, the accessor *also* gates on a process-level flag: `coding_agent_active()` returns `true` only when the active role is `Role::Cli` **and** the config key is set. The desktop sets `Role::Desktop` immediately after `load_config` (a new variant in `config::Role`), so it reads `false` and uses the regular prompt. Slash commands and CLI flags that toggle the mode never run on the desktop side — the Tauri command surface doesn't expose them — so there's no UI path that would let a desktop user accidentally enable a CLI-shaped feature. **Verification**: a CI grep ensures `SYSTEM_PROMPT_CODING` is never referenced in `crates/aictl-desktop/`.
-- **`config::Role`**: today the enum has `Cli` and `Server`. Add a `Desktop` variant. The desktop's `main.rs` (or its Tauri setup) calls `set_role(Role::Desktop)` after `load_config`. `coding_agent_enabled()` reads `Role::Cli` only.
+- **Desktop (`crates/aictl-desktop`)**: the desktop calls `run::run_agent_turn` (it's a real agent loop) and respects the master switch — see §5a for the Settings surface and §3 for the prompt seam. The desktop sets `Role::Desktop` immediately after `load_config` (a new variant in `config::Role`) so `coding_agent_enabled()` returns the real config value rather than short-circuiting. The phase tracker (§4) is the only piece that stays CLI-only.
+- **`config::Role`**: today the enum has `Cli` and `Server`. Add a `Desktop` variant. The desktop's `main.rs` (or its Tauri setup) calls `set_role(Role::Desktop)` after `load_config`. `coding_agent_enabled()` short-circuits to `false` only for `Role::Server`; `Role::Cli` and `Role::Desktop` both read the live config value.
+
+A note on the desktop-server-on-localhost composition: when the desktop is configured to route through a local `aictl-server`, the dispatch leaves the desktop's `run::run_agent_turn` with the coding-specialist prompt baked into `messages[0]`, hits the server, and the server forwards verbatim. The server's own `coding_agent_enabled()` still returns `false`, but that's correct — the server didn't build the prompt, the desktop did, and the prompt is already in the payload.
 
 ### 7. Phase-specific tool guidance vs. tool gating
 
@@ -237,6 +253,8 @@ Auto-detection runs lazily on Review / Test entry, not at session start, so it d
 | `crates/aictl-cli/src/commands/info.rs` | Add `coding-agent: on/off` line to the banner |
 | `crates/aictl-server/` | No code change. CI grep enforces `SYSTEM_PROMPT_CODING` is unreferenced |
 | `crates/aictl-desktop/src/main.rs` (or equivalent setup) | Call `set_role(Role::Desktop)` after `load_config` |
+| `crates/aictl-desktop/src/lib.rs` (Tauri command surface) | Register `coding_agent_status` / `coding_agent_set_enabled` next to the memory commands |
+| `crates/aictl-desktop/` (frontend) | New Settings → Coding Agent section with the toggle; optional "Coding Agent active" chip in the chat header |
 | `CLAUDE.md` | Add "Coding-agent mode" paragraph under "Key behaviors (non-obvious)" |
 | `README.md` | Short "Coding-agent mode" subsection next to "Agents" / "Skills" |
 | `ROADMAP.md` | Remove the "Coding Agent" section when Phase 1 ships; Phase 2+ items move to a follow-up section |
@@ -250,7 +268,7 @@ Auto-detection runs lazily on Review / Test entry, not at session start, so it d
   - Returns `false` when key set to `false`.
   - Returns `true` when key set to `true` and `Role::Cli`.
   - Returns `false` when key set to `true` and `Role::Server`.
-  - Returns `false` when key set to `true` and `Role::Desktop`.
+  - Returns `true` when key set to `true` and `Role::Desktop` (server is the only short-circuit).
 - `run::build_system_prompt`:
   - Coding mode on + tools on → starts with `SYSTEM_PROMPT_CODING` body.
   - Coding mode on + tools off → starts with `SYSTEM_PROMPT_CHAT_ONLY` body (tools-off wins).
@@ -280,23 +298,24 @@ Auto-detection runs lazily on Review / Test entry, not at session start, so it d
 2. Same, but with `--no-coding-agent` set globally and `--coding-agent` flag on one launch — confirm the flag wins for that launch and the config is unchanged after exit.
 3. `/coding-agent toggle` mid-session — confirm the next turn uses the new base prompt and the `[phase]` indicator appears/disappears.
 4. Launch `aictl-server` with `AICTL_CODING_AGENT=true` in `~/.aictl/config` — server starts, `/v1/chat/completions` calls do not include the coding-agent prompt.
-5. Launch the desktop app with the same config — desktop chat uses the regular `SYSTEM_PROMPT`.
+5. Launch the desktop app with the same shared config — Settings reflects "Coding Agent: on", chat uses `SYSTEM_PROMPT_CODING`, the chip is visible. Flip the Settings toggle off — next message uses the regular `SYSTEM_PROMPT`, and re-running `aictl --info` from a terminal confirms the same state.
+6. Flip the toggle in the CLI via `/coding-agent on`, quit, relaunch the desktop — Settings shows it on without any manual sync step.
 
 **CI gates**
 
 ```bash
-# Coding-agent prompt is CLI-only.
+# Coding-agent prompt is excluded from the server (only).
 grep -rE 'SYSTEM_PROMPT_CODING' crates/aictl-server/src/        # must be empty
-grep -rE 'SYSTEM_PROMPT_CODING' crates/aictl-desktop/src/       # must be empty
-# Coding-agent UI is CLI-only.
-grep -rE 'WorkflowPhase|coding[-_]agent' crates/aictl-server/src/   # must be empty
-grep -rE 'WorkflowPhase|coding[-_]agent' crates/aictl-desktop/src/  # must be empty
+# Coding-agent phase tracker / slash command is CLI-only.
+grep -rE 'WorkflowPhase' crates/aictl-server/src/               # must be empty
+grep -rE 'WorkflowPhase' crates/aictl-desktop/src/              # must be empty (phase UI is CLI-only in v1)
+grep -rE 'coding[-_]agent' crates/aictl-server/src/             # must be empty
 ```
 
 ### 12. Documentation
 
-- **`README.md`**: a short "Coding-agent mode" subsection near the existing "Agents" / "Skills" sections — one paragraph on what it does, the on/off knob, and a pointer to the longer doc.
-- **`CLAUDE.md`**: a paragraph under "Key behaviors (non-obvious)" — "Coding-agent mode: CLI-only base-prompt override gated by `AICTL_CODING_AGENT` and `Role::Cli`; assembled in `run::build_system_prompt`; phase tracker lives in the CLI agent-loop driver."
+- **`README.md`**: a short "Coding-agent mode" subsection near the existing "Agents" / "Skills" sections — one paragraph on what it does, the on/off knob (call out both the CLI `/coding-agent` command and the desktop Settings toggle), and a pointer to the longer doc.
+- **`CLAUDE.md`**: a paragraph under "Key behaviors (non-obvious)" — "Coding-agent mode: base-prompt override gated by `AICTL_CODING_AGENT`; available in CLI and desktop (server short-circuits via `Role::Server`); assembled in `run::build_system_prompt`; phase tracker / `/skip*` / `[phase]` prefix are CLI-only in v1; desktop exposes the toggle via `coding_agent_status` / `coding_agent_set_enabled` Tauri commands."
 - **No new top-level doc file** in v1. If the feature grows into a multi-page reference (extended `git` tool, ripgrep integration, test-loop tuning), Phase 2+ creates `CODING-AGENT.md` next to `SERVER.md` and `ARCH.md`.
 
 ---
@@ -306,11 +325,12 @@ grep -rE 'WorkflowPhase|coding[-_]agent' crates/aictl-desktop/src/  # must be em
 **Phase 1 — this plan**:
 1. `SYSTEM_PROMPT_CODING` constant + the `AICTL_CODING_AGENT` master switch.
 2. Prompt override in `build_system_prompt`.
-3. `--coding-agent` / `--no-coding-agent` flags + `/coding-agent` slash command + `--info` line.
-4. `WorkflowPhase` enum + phase-prefix REPL indicator + phase-specific prompt guidance injection.
-5. Server / desktop gating via `Role::Server` / `Role::Desktop`.
-6. Auto-detection of linter and test command.
-7. `--list-skip-*` config knobs for the Review / Test phases.
+3. CLI surface: `--coding-agent` / `--no-coding-agent` flags + `/coding-agent` slash command + `--info` line.
+4. Desktop surface: `coding_agent_status` / `coding_agent_set_enabled` Tauri commands + Settings → Coding Agent toggle + optional "Coding Agent active" chip in the chat header.
+5. `WorkflowPhase` enum + phase-prefix REPL indicator + phase-specific prompt guidance injection (CLI-only in v1).
+6. Server gating via `Role::Server`; desktop wiring via the new `Role::Desktop` variant.
+7. Auto-detection of linter and test command.
+8. `--list-skip-*` config knobs for the Review / Test phases.
 
 **Phase 2 — better edit and search** (separate plans):
 - Smarter `edit_file` (multi-edit, line-number addressing, fuzzy match) — from ROADMAP "Smarter edit tool" section.
@@ -345,7 +365,8 @@ Phase 1 sign-off requires:
 - **Phase tracker drift between LLM and loop**: the model's `<phase>` tag and the loop's implicit inference could disagree, leaving the user looking at `[explore]` while the model has clearly entered Code. Mitigation: keep the indicator best-effort and dim; never gate behavior on it. The Review phase's structured prompts are the ground truth, not the indicator label.
 - **Prompt bloat**: `SYSTEM_PROMPT_CODING` adds tokens to every coding-mode turn. Mitigation: keep it tight and prose-heavy; do not duplicate the tool catalogue (the existing catalogue extension already appends below). Measure the token cost in a smoke run before merging.
 - **Auto-detection false positives**: detecting `package.json` and running `npm test` in a monorepo with no test script could fail noisily. Mitigation: detect *and verify* the script exists before running; on missing-script, log a one-line note and skip the Test phase. Users with monorepo layouts set `AICTL_CODING_TEST_CMD` explicitly.
-- **CLI-only enforcement leaks**: a contributor adds a desktop Tauri command that calls `set_role(Role::Cli)` for some unrelated reason, accidentally re-enabling coding mode. Mitigation: the CI grep on `SYSTEM_PROMPT_CODING` plus a `#[cfg(test)]` invariant test in `aictl-core` that pins `coding_agent_enabled()` to `false` under each non-Cli role.
+- **Cross-frontend toggle drift**: a user flips the toggle in the desktop Settings, switches to the CLI in the same session, and is briefly confused that the CLI hasn't picked up the change (the CLI process started before the flip and cached the value). Mitigation: `coding_agent_enabled()` reads through to `config_get` on every call rather than caching, so re-launches and even live re-reads pick up disk changes; document the cross-frontend behavior in the README. The `/coding-agent` status display also calls the accessor live, so a user can confirm the current value at any time.
+- **Server enforcement leak**: a contributor accidentally adds `SYSTEM_PROMPT_CODING` to `aictl-server` (e.g. inside the messages translator), which would surface coding-mode prose in a context where the server is supposed to be neutral. Mitigation: the CI grep on `SYSTEM_PROMPT_CODING` in `crates/aictl-server/src/` plus a `#[cfg(test)]` invariant test in `aictl-core` that pins `coding_agent_enabled()` to `false` under `Role::Server`.
 - **User confusion between coding-agent mode and a loaded coding agent**: `aictl --agent code-reviewer` is *not* coding-agent mode. We already have an "agent" concept (the loaded-prompt extension). Mitigation: the `/coding-agent` command name and the README phrasing both lean on the word "mode" rather than "agent" in user-facing copy. The internal name `WorkflowPhase` (not `CodingPhase`) also helps.
 
 ## Scope boundaries with other plans
@@ -354,7 +375,7 @@ Phase 1 sign-off requires:
 - **Modular architecture (`modular-architecture.md`)**: prerequisite. The seam we extend (`run::build_system_prompt`) lives in `aictl-core` because of the modular split. No new modular work needed here.
 - **Skills (`skills.md`)** and **Agents (`agent-templates.md`)**: orthogonal. Coding-agent mode overrides the base prompt; agents and skills append on top.
 - **MCP (`mcp-support.md`)**, **Plugins (`plugin-system.md`)**: orthogonal. Their tool catalogues continue to be appended to `build_system_prompt` regardless of which base is chosen.
-- **Desktop app (`desktop-app.md`)**: explicit non-target. Coding-agent mode does not run in the desktop. A future "desktop coding workspace" would be a separate plan with its own UX shape.
+- **Desktop app (`desktop-app.md`)**: partial overlap. The desktop respects the master switch and the prompt override, and adds the Settings toggle + Tauri commands described in §5a. Phase UI (indicator, `/skip*`, interactive Plan checkpoint) stays out of v1 — a future "desktop coding workspace" plan can add a phase chip, a Plan-approval modal, and richer diff review on top of the same engine seam.
 
 ## Open questions
 
