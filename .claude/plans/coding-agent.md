@@ -16,7 +16,7 @@ This plan covers Phase 1 of the coding agent: the on/off setting, the prompt-ove
 - When on, replace the general-purpose `SYSTEM_PROMPT` with a coding-specialist prompt at the same seam (`run::build_system_prompt`) — the override applies for the whole session.
 - Reflect the active mode in the REPL prompt and the `--info` banner (CLI) and in a Settings indicator (desktop) so the user always knows which agent they're talking to.
 - Enforce the five-phase Explore → Plan → Code → Review → Test workflow via prompt steering (not tool gating) and a lightweight `WorkflowPhase` enum tracked in the agent loop.
-- **Expose the on/off toggle from both the CLI and the desktop.** CLI surfaces: the config file (persistent), CLI flags (`--coding-agent` / `--no-coding-agent`, one-launch override), and a `/coding-agent` slash command (live toggle in the REPL). Desktop surface: a Settings → Coding Agent toggle backed by Tauri commands (`coding_agent_status` / `coding_agent_set_enabled`) that read/write the same `AICTL_CODING_AGENT` config key, so the two frontends share a single source of truth and a flip in one is visible to the other on next launch.
+- **Expose the on/off toggle from both the CLI and the desktop.** CLI surfaces: the config file (persistent), CLI flags (`--coding-agent` / `--no-coding-agent`, one-launch override), and a `/coding-agent` slash command (live toggle in the REPL). Desktop surfaces (two — kept in sync via the same Tauri commands): a Settings → Coding Agent toggle for discoverability *and* a composer-toolbar icon in the main window for one-click flipping mid-session. Both are backed by Tauri commands (`coding_agent_status` / `coding_agent_set_enabled`) that read/write the same `AICTL_CODING_AGENT` config key, so the CLI and the desktop share a single source of truth and a flip in one is visible to the other on next launch.
 - Hard-block the mode in `aictl-server` only. The config key is read by `aictl-core`, but the activation seam is gated against `Role::Server`.
 
 **Non-goals**
@@ -182,16 +182,44 @@ When coding mode is off, the prompt looks exactly like today. The `[phase]` pref
 
 ### 5a. Desktop surface
 
-The desktop app exposes the master switch through its existing Settings panel — the same place the user already manages providers, the memory store, and the local-models catalogue. The flow:
+The desktop app exposes the master switch through **two** surfaces — a Settings panel for discoverability and a composer-toolbar icon for one-click flipping mid-session — and both routes call the same Tauri commands so the on/off state never drifts between them.
+
+**Settings panel.** The same place the user already manages providers, the memory store, and the local-models catalogue:
 
 - **Settings → Coding Agent** section, with a single toggle ("Coding Agent: on / off") and a one-paragraph explainer of what flipping it does.
 - Backed by two new Tauri commands wired up next to the `memory_status` / `memory_set_enabled` pair:
   - `coding_agent_status() -> { enabled: bool }` — reads `config::coding_agent_enabled()`.
   - `coding_agent_set_enabled(enabled: bool)` — writes through `config_set("AICTL_CODING_AGENT", "true"|"false")` so the change persists to `~/.aictl/config` and is visible to the CLI on next launch.
-- The toggle takes effect on the **next** `run::run_agent_turn` call — `build_system_prompt` re-reads the accessor every call, so no session reload is needed. The desktop optionally surfaces a small "Coding Agent active" chip in the chat header when the switch is on, so the user has a constant signal without needing to revisit Settings.
-- Phase indicators, `/skip*`, single-shot CLI flags, and the Plan-phase interactive checkpoint are **not** ported. The desktop runs the workflow purely on prompt steering — see §4.
+- The toggle takes effect on the **next** `run::run_agent_turn` call — `build_system_prompt` re-reads the accessor every call, so no session reload is needed.
 
-The toggle is bidirectional with the CLI: a CLI `--coding-agent` flag is a one-launch override and does not persist (matching today's `--no-coding-agent` semantics); a `/coding-agent on` slash command persists and the desktop picks it up on next launch; the desktop Settings toggle persists and the CLI picks it up on next launch.
+**Composer-toolbar icon.** A new icon in the composer footer, flipping the same `AICTL_CODING_AGENT` key through `coding_agent_set_enabled`. Sits alongside the existing tri-state / two-state icons (agent / skill / MCP / plugins / tools / image / location / web / memory / auto-accept / voice) and follows their shape:
+
+- **Position**: third icon from the left of the **Send** button. Today the rightmost cluster is `… memory → auto-accept → voice → Send`; the coding-agent icon slots in *before* the memory icon so the final order becomes `… memory → coding-agent → auto-accept → voice → Send`. ("Third from the left of Send" counts back from the Send button: 1 = voice, 2 = auto-accept, 3 = coding-agent.)
+- **Glyph**: a chevrons-in-square icon (Heroicons "code-bracket-square"). The exact SVG body lives next to the other Heroicons in `Composer.tsx`:
+
+  ```html
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path fill-rule="evenodd" d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm4.78 1.97a.75.75 0 0 1 0 1.06L5.81 8l.97.97a.75.75 0 1 1-1.06 1.06l-1.5-1.5a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0Zm2.44 1.06a.75.75 0 0 1 1.06-1.06l1.5 1.5a.75.75 0 0 1 0 1.06l-1.5 1.5a.75.75 0 1 1-1.06-1.06l.97-.97-.97-.97Z" clip-rule="evenodd" />
+  </svg>
+  ```
+
+- **State shape**: two-state (same as memory / MCP / plugins / auto-accept) — cyan when enabled, gray when disabled. Not tri-state (no per-tool subsetting).
+- **Default**: **off**. The icon renders gray on a fresh install and stays that way until the user clicks it (or flips the Settings toggle, or sets `AICTL_CODING_AGENT=true` in `~/.aictl/config`, or passes `--coding-agent` to the CLI). This matches the master-switch default established in §1.
+- **Labels and a11y**: `aria-pressed`, `aria-label`, and `title` follow the existing pattern, e.g. `"Coding Agent enabled — click to disable"` / `"Coding Agent disabled — click to enable"`. A toast flash ("coding agent enabled" / "coding agent disabled") fires on every click, identical to the memory toggle's UX.
+- **Wiring**: a new `codingAgentEnabled: boolean` + `onCodingAgentEnabledChange(next: boolean) => Promise<void>` pair on the `Composer` props, owned by `App.tsx` (same shape as `memoryEnabled` / `onMemoryEnabledChange`). The parent calls `ipc.codingAgentSetEnabled(next)` which is a thin wrapper over the `coding_agent_set_enabled` Tauri command, then mirrors the new value into local state so the icon repaints without a round trip.
+
+The two surfaces share state through the same Tauri commands, not through duplicated bookkeeping: when the toolbar icon is clicked, `App.tsx` re-fetches `coding_agent_status` (or trusts the new value it just wrote) and pushes it into the Settings panel's signal so opening Settings immediately after a click shows the new state, and vice versa.
+
+**Minimum window width.** The composer footer already packs many icons into a single row, and the Tauri window has a `minWidth: 895` floor (in `tauri.conf.json`) plus a matching `CHAT_MIN_WIDTH = 895` constant in `App.tsx` whose comment lists each icon by name. Adding a new icon between `memory` and `auto-accept` widens the toolbar by roughly one icon slot (~30–34 CSS px including spacing). Two changes keep the layout intact:
+
+- Bump `minWidth` in `crates/aictl-desktop/tauri.conf.json` from `895` to a value that accommodates the extra slot (target `~935` — measure on a debug build before locking in; round up a few pixels to avoid borderline overflow). The exact bump matches whatever the smallest non-overflowing chat-only layout requires once the new icon is wired up.
+- Bump `CHAT_MIN_WIDTH` in `crates/aictl-desktop/webview/src/App.tsx` to the same value so the OS-level resize floor and the JS auto-collapse trigger stay locked together (the comment block above the constant calls this out — keep the two in lockstep). Also add `coding-agent` to the icon list in the comment so the next contributor knows the slot exists.
+
+Both bumps are pure floor changes — windows that the user has already enlarged are unaffected.
+
+**Bidirectional sync with the CLI**: a CLI `--coding-agent` flag is a one-launch override and does not persist (matching today's `--no-coding-agent` semantics); a `/coding-agent on` slash command persists and the desktop picks it up on next launch; the desktop Settings toggle and the toolbar icon both persist and the CLI picks them up on next launch.
+
+**Out of scope for v1**: phase indicators, `/skip*`, the single-shot `--coding-agent` flag's UX, and the Plan-phase interactive checkpoint. The desktop runs the workflow purely on prompt steering — see §4. (A small "Coding Agent active" chip in the chat header was considered but is dropped from v1 — the toolbar icon already signals state continuously, and a second indicator would duplicate the affordance.)
 
 ### 6. Server gating
 
@@ -254,7 +282,12 @@ Auto-detection runs lazily on Review / Test entry, not at session start, so it d
 | `crates/aictl-server/` | No code change. CI grep enforces `SYSTEM_PROMPT_CODING` is unreferenced |
 | `crates/aictl-desktop/src/main.rs` (or equivalent setup) | Call `set_role(Role::Desktop)` after `load_config` |
 | `crates/aictl-desktop/src/lib.rs` (Tauri command surface) | Register `coding_agent_status` / `coding_agent_set_enabled` next to the memory commands |
-| `crates/aictl-desktop/` (frontend) | New Settings → Coding Agent section with the toggle; optional "Coding Agent active" chip in the chat header |
+| `crates/aictl-desktop/webview/src/lib/ipc.ts` | Add `codingAgentStatus()` / `codingAgentSetEnabled(next)` thin wrappers over the new Tauri commands |
+| `crates/aictl-desktop/webview/src/components/Settings.tsx` | New "Coding Agent" section with the on/off toggle |
+| `crates/aictl-desktop/webview/src/components/Composer.tsx` | New `codingAgentEnabled` + `onCodingAgentEnabledChange` props; new toolbar button using the chevrons-in-square SVG, slotted 3rd from the left of the Send button (between `memory` and `auto-accept`); flash toast on toggle |
+| `crates/aictl-desktop/webview/src/App.tsx` | Own the `codingAgentEnabled` signal, wire it into `Composer`'s new props, bump `CHAT_MIN_WIDTH` to match the wider toolbar, update the icon-list comment above the constant to include `coding-agent` |
+| `crates/aictl-desktop/tauri.conf.json` | Bump window `minWidth` from `895` to whatever value the wider toolbar requires (measure on a debug build; keep in lockstep with `CHAT_MIN_WIDTH`) |
+| `crates/aictl-desktop/webview/src/styles/components.css` | Add a `.coding-agent-icon` rule mirroring the two-state shape of `.memory-icon` / `.mcp-icon` (data-active = "true" → cyan, "false" → gray) |
 | `CLAUDE.md` | Add "Coding-agent mode" paragraph under "Key behaviors (non-obvious)" |
 | `README.md` | Short "Coding-agent mode" subsection next to "Agents" / "Skills" |
 | `ROADMAP.md` | Remove the "Coding Agent" section when Phase 1 ships; Phase 2+ items move to a follow-up section |
@@ -298,8 +331,10 @@ Auto-detection runs lazily on Review / Test entry, not at session start, so it d
 2. Same, but with `--no-coding-agent` set globally and `--coding-agent` flag on one launch — confirm the flag wins for that launch and the config is unchanged after exit.
 3. `/coding-agent toggle` mid-session — confirm the next turn uses the new base prompt and the `[phase]` indicator appears/disappears.
 4. Launch `aictl-server` with `AICTL_CODING_AGENT=true` in `~/.aictl/config` — server starts, `/v1/chat/completions` calls do not include the coding-agent prompt.
-5. Launch the desktop app with the same shared config — Settings reflects "Coding Agent: on", chat uses `SYSTEM_PROMPT_CODING`, the chip is visible. Flip the Settings toggle off — next message uses the regular `SYSTEM_PROMPT`, and re-running `aictl --info` from a terminal confirms the same state.
-6. Flip the toggle in the CLI via `/coding-agent on`, quit, relaunch the desktop — Settings shows it on without any manual sync step.
+5. Launch the desktop app with the same shared config — Settings reflects "Coding Agent: on", chat uses `SYSTEM_PROMPT_CODING`, the composer-toolbar icon is cyan. Flip the Settings toggle off — next message uses the regular `SYSTEM_PROMPT`, the toolbar icon turns gray, and re-running `aictl --info` from a terminal confirms the same state.
+6. Flip the toggle in the CLI via `/coding-agent on`, quit, relaunch the desktop — Settings shows it on and the toolbar icon is cyan, without any manual sync step.
+7. With the desktop running, click the coding-agent icon in the composer toolbar — icon flips, a toast fires, the Settings panel (open in the background or opened immediately after) shows the new state, and the next message uses the new base prompt.
+8. Drag the desktop window down to its minimum width — the composer footer keeps all icons (including the new coding-agent icon) on a single row, the Send button stays visible, and the chat column does not overflow horizontally.
 
 **CI gates**
 
@@ -326,7 +361,7 @@ grep -rE 'coding[-_]agent' crates/aictl-server/src/             # must be empty
 1. `SYSTEM_PROMPT_CODING` constant + the `AICTL_CODING_AGENT` master switch.
 2. Prompt override in `build_system_prompt`.
 3. CLI surface: `--coding-agent` / `--no-coding-agent` flags + `/coding-agent` slash command + `--info` line.
-4. Desktop surface: `coding_agent_status` / `coding_agent_set_enabled` Tauri commands + Settings → Coding Agent toggle + optional "Coding Agent active" chip in the chat header.
+4. Desktop surface: `coding_agent_status` / `coding_agent_set_enabled` Tauri commands + Settings → Coding Agent toggle + composer-toolbar icon (chevrons-in-square SVG, slotted 3rd from the left of Send) + matching `minWidth` / `CHAT_MIN_WIDTH` bumps so all toolbar icons keep fitting on a single row.
 5. `WorkflowPhase` enum + phase-prefix REPL indicator + phase-specific prompt guidance injection (CLI-only in v1).
 6. Server gating via `Role::Server`; desktop wiring via the new `Role::Desktop` variant.
 7. Auto-detection of linter and test command.
@@ -375,7 +410,7 @@ Phase 1 sign-off requires:
 - **Modular architecture (`modular-architecture.md`)**: prerequisite. The seam we extend (`run::build_system_prompt`) lives in `aictl-core` because of the modular split. No new modular work needed here.
 - **Skills (`skills.md`)** and **Agents (`agent-templates.md`)**: orthogonal. Coding-agent mode overrides the base prompt; agents and skills append on top.
 - **MCP (`mcp-support.md`)**, **Plugins (`plugin-system.md`)**: orthogonal. Their tool catalogues continue to be appended to `build_system_prompt` regardless of which base is chosen.
-- **Desktop app (`desktop-app.md`)**: partial overlap. The desktop respects the master switch and the prompt override, and adds the Settings toggle + Tauri commands described in §5a. Phase UI (indicator, `/skip*`, interactive Plan checkpoint) stays out of v1 — a future "desktop coding workspace" plan can add a phase chip, a Plan-approval modal, and richer diff review on top of the same engine seam.
+- **Desktop app (`desktop-app.md`)**: partial overlap. The desktop respects the master switch and the prompt override, and adds the Settings toggle, the composer-toolbar icon, the matching window-min-width bump, and the Tauri commands described in §5a. Phase UI (indicator, `/skip*`, interactive Plan checkpoint) stays out of v1 — a future "desktop coding workspace" plan can add a phase chip, a Plan-approval modal, and richer diff review on top of the same engine seam.
 
 ## Open questions
 
