@@ -176,6 +176,7 @@
           <li><a href="#key-storage">Key storage</a></li>
           <li><a href="#providers">Providers</a></li>
           <li><a href="#modes">Usage modes</a></li>
+          <li><a href="#coding-agent">Coding agent</a></li>
           <li><a href="#repl">REPL commands</a></li>
           <li><a href="#flags">CLI flags</a></li>
           <li><a href="#agents">Agents</a></li>
@@ -189,8 +190,7 @@
           <li><a href="#local-models">Local models</a></li>
           <li><a href="#examples">Examples</a></li>
           <li><a href="#uninstall">Uninstall</a></li>
-          <li><a href="desktop.html">Desktop</a></li>
-          <li><a href="server.html">Server</a></li>
+          <li><a href="#license">License</a></li>
         </ul>
       </div>
     </section>
@@ -540,6 +540,48 @@
       </div>
     </section>
 
+    <section class="section" id="coding-agent">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// coding agent</span>
+          <h2 class="section__title" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">Coding agent <span class="tag tag--inline" style="margin-left: 0; margin-top: 5px;">experimental</span></h2>
+          <p class="section__lead">
+            Opt-in mode that swaps the general-purpose system prompt for a
+            software-development specialist with an Explore &rarr; Plan
+            &rarr; Code &rarr; Review &rarr; Test workflow. Default off
+            &mdash; the CLI stays general-purpose unless you flip it on.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Five-phase workflow</h3>
+            <p>Each turn moves through Explore &rarr; Plan &rarr; Code &rarr; Review &rarr; Test. The REPL prompt shows the active phase as a dim <code>[phase]</code> prefix and the system prompt steers the model toward the discipline expected at each step.</p>
+          </article>
+          <article class="card">
+            <h3>Same engine underneath</h3>
+            <p>The 35 built-in tools, MCP catalogue, agents, skills, sessions, audit log, redaction, and the CWD jail all keep working unchanged. Only the base system prompt is swapped &mdash; everything else is the standard aictl runtime.</p>
+          </article>
+          <article class="card">
+            <h3>Toggling the mode</h3>
+            <p>REPL: <code>/coding on|off|toggle|status</code> (persisted to <code>~/.aictl/config</code>). One-launch overlay: <code>--coding-agent</code> / <code>--no-coding-agent</code>. Persistent env: <code>AICTL_CODING_AGENT=true</code>. The active state shows up as a <code>coding:</code> line in <code>aictl --info</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Phase shortcuts</h3>
+            <p><code>/skip</code> advances the workflow by one phase. <code>/skip review</code> or <code>/skip test</code> jumps past a specific phase &mdash; useful for quick edits where the full Explore-to-Test loop is overkill.</p>
+          </article>
+          <article class="card">
+            <h3>Tuning knobs</h3>
+            <p><code>AICTL_CODING_PLAN_APPROVE</code>, <code>AICTL_CODING_SKIP_REVIEW</code>, <code>AICTL_CODING_SKIP_TEST</code>, <code>AICTL_CODING_TEST_RETRIES</code>, <code>AICTL_CODING_LINTER</code>, and <code>AICTL_CODING_TEST_CMD</code> control approval gates, phase defaults, and the linter / test commands invoked during Review and Test.</p>
+          </article>
+          <article class="card">
+            <h3>For quick edits, not production</h3>
+            <p>This mode is experimental &mdash; best for quick fixes, exploration, and one-off refactors. For production coding work prefer purpose-built tools: <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>, <a href="https://openai.com/codex/" target="_blank" rel="noopener">OpenAI Codex CLI</a>, or <a href="https://opencode.ai/" target="_blank" rel="noopener">opencode</a>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section section--alt" id="repl">
       <div class="container">
         <header class="section__head">
@@ -743,7 +785,7 @@
             <h3>Naming</h3>
             <p>Agent names may contain letters, numbers, underscores, and dashes only. When loaded, the agent name appears in magenta brackets on the REPL prompt: <code>[my-agent] ❯</code>.</p>
           </article>
-          <article class="card">
+          <article class="card card--full">
             <h3>Unload &amp; delete</h3>
             <p>Pick <em>Unload</em> in the <code>/agent</code> menu to drop the active agent mid-session, or <em>Delete</em> to remove a saved file. <code>--list-agents</code> prints every saved agent.</p>
           </article>

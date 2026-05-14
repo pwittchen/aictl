@@ -1781,6 +1781,8 @@ body.nav-open {
 .grid--3 { grid-template-columns: repeat(3, 1fr); }
 .grid--2 { grid-template-columns: repeat(2, 1fr); }
 
+.card--full { grid-column: 1 / -1; }
+
 .card, .tools {
   padding: 32px;
   background: var(--bg);
@@ -1799,6 +1801,8 @@ body.nav-open {
   content: "";
   background: var(--bg);
 }
+/* A full-width last card has no trailing empty slot to fill. */
+.grid--2:has(> .card--full:last-child)::after { content: none; }
 .grid--3:has(> .card:nth-child(3n+1):last-child)::after,
 .grid--3:has(> .tools:nth-child(3n+1):last-child)::after {
   content: "";

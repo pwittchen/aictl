@@ -299,12 +299,12 @@
           <li><a href="#files">Files pane</a></li>
           <li><a href="#tool-approvals">Tool approvals</a></li>
           <li><a href="#settings">Settings</a></li>
+          <li><a href="#coding-agent">Coding agent</a></li>
           <li><a href="#shortcuts">Shortcuts</a></li>
           <li><a href="#shared-state">Shared state</a></li>
           <li><a href="#security">Security</a></li>
           <li><a href="#updates">Updates</a></li>
-          <li><a href="terminal.html">Terminal</a></li>
-          <li><a href="server.html">Server</a></li>
+          <li><a href="#license">License</a></li>
         </ul>
       </div>
     </section>
@@ -653,6 +653,49 @@
           <article class="card">
             <h3>Hooks, MCP, plugins, tools</h3>
             <p>Browse and toggle every extension. Hooks list shows matchers and timeouts, MCP servers show transport and tool catalogue, plugins show entrypoint and confirmations, tools list shows which are disabled. Same files (<code>~/.aictl/hooks.json</code>, <code>~/.aictl/mcp.json</code>, <code>~/.aictl/plugins/</code>) the CLI reads.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="coding-agent">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// coding agent</span>
+          <h2 class="section__title" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">Coding agent <span class="tag tag--inline" style="margin-left: 0; margin-top: 5px;">experimental</span></h2>
+          <p class="section__lead">
+            Opt-in mode that swaps the general-purpose system prompt for
+            a software-development specialist with an Explore &rarr; Plan
+            &rarr; Code &rarr; Review &rarr; Test workflow. Default off
+            &mdash; the desktop app stays general-purpose unless you flip
+            it on.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Where to find it</h3>
+            <p>Settings &rarr; General &rarr; Coding agent is the master switch. There is also a chevrons-in-square icon on the composer toolbar, slotted between the memory and auto-accept toggles, for one-click flipping without leaving the chat.</p>
+          </article>
+          <article class="card">
+            <h3>Same engine underneath</h3>
+            <p>Providers, tools, agents, skills, sessions, audit log, redaction, and the CWD jail are unchanged. Only the base system prompt is swapped &mdash; the model is asked to think in Explore &rarr; Plan &rarr; Code &rarr; Review &rarr; Test terms before reaching for a tool.</p>
+          </article>
+          <article class="card">
+            <h3>Shared with the CLI</h3>
+            <p>The state lives in <code>~/.aictl/config</code> as <code>AICTL_CODING_AGENT=true</code>. Flip it in the desktop and the next <code>aictl</code> REPL launches in coding mode &mdash; both surfaces read the same config.</p>
+          </article>
+          <article class="card">
+            <h3>Tuning knobs</h3>
+            <p><code>AICTL_CODING_PLAN_APPROVE</code>, <code>AICTL_CODING_SKIP_REVIEW</code>, <code>AICTL_CODING_SKIP_TEST</code>, <code>AICTL_CODING_TEST_RETRIES</code>, <code>AICTL_CODING_LINTER</code>, and <code>AICTL_CODING_TEST_CMD</code> tune approval gates, phase defaults, and the linter / test commands invoked during Review and Test.</p>
+          </article>
+          <article class="card">
+            <h3>Phase UI is CLI-only in v1</h3>
+            <p>The dim <code>[phase]</code> REPL prefix and the <code>/skip</code> command are terminal-only for now. The desktop benefits from the same prompt steering but does not render an explicit phase tracker yet.</p>
+          </article>
+          <article class="card">
+            <h3>For quick edits, not production</h3>
+            <p>This mode is experimental &mdash; best for quick fixes, exploration, and one-off refactors. For production coding work prefer purpose-built tools: <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>, <a href="https://openai.com/codex/" target="_blank" rel="noopener">OpenAI Codex CLI</a>, or <a href="https://opencode.ai/" target="_blank" rel="noopener">opencode</a>.</p>
           </article>
         </div>
       </div>

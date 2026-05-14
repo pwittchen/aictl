@@ -775,6 +775,48 @@
       </div>
     </section>
 
+    <section class="section" id="coding-agent">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// coding agent</span>
+          <h2 class="section__title" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">Coding agent <span class="tag tag--inline" style="margin-left: 0; margin-top: 5px;">experimental</span></h2>
+          <p class="section__lead">
+            Opt-in mode that swaps the general-purpose system prompt for a
+            software-development specialist with an
+            Explore &rarr; Plan &rarr; Code &rarr; Review &rarr; Test workflow.<br>
+            Default is off &mdash; aictl stays general-purpose unless you flip it on.
+          </p>
+        </header>
+
+        <div class="grid grid--3">
+          <article class="card">
+            <h3>Structured workflow</h3>
+            <p>Every turn moves through five phases: Explore the codebase, Plan the change, Code the fix, Review the diff, Test the result. The REPL prompt shows the active phase as a dim <code>[phase]</code> prefix so you always know where you are.</p>
+          </article>
+          <article class="card">
+            <h3>Same tools, same security</h3>
+            <p>The agent loop, tool catalogue, and security policy stay identical. Only the system prompt changes &mdash; the model is asked to think in coding-workflow terms before reaching for a tool. Audit log, redaction, and the CWD jail keep running.</p>
+          </article>
+          <article class="card">
+            <h3>Toggle anywhere</h3>
+            <p>REPL: <code>/coding on|off|toggle|status</code>. One-launch overlay: <code>--coding-agent</code> / <code>--no-coding-agent</code>. Persistent: <code>AICTL_CODING_AGENT=true</code> in <code>~/.aictl/config</code>. The desktop app exposes the same switch in Settings &rarr; General and as a composer-toolbar icon.</p>
+          </article>
+          <article class="card">
+            <h3>Phase shortcuts</h3>
+            <p><code>/skip</code> advances the workflow by one phase; <code>/skip review</code> or <code>/skip test</code> jumps past a specific phase. Useful for quick edits where the full Explore-to-Test cycle is overkill.</p>
+          </article>
+          <article class="card">
+            <h3>Tuning knobs</h3>
+            <p><code>AICTL_CODING_PLAN_APPROVE</code>, <code>AICTL_CODING_SKIP_REVIEW</code>, <code>AICTL_CODING_SKIP_TEST</code>, <code>AICTL_CODING_TEST_RETRIES</code>, <code>AICTL_CODING_LINTER</code>, and <code>AICTL_CODING_TEST_CMD</code> tune approval gates, phase defaults, and the linter / test commands invoked during Review and Test.</p>
+          </article>
+          <article class="card">
+            <h3>For quick edits, not production</h3>
+            <p>The mode is experimental &mdash; best for quick fixes, exploration, and one-off refactors. For production coding work prefer purpose-built tools: <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>, <a href="https://openai.com/codex/" target="_blank" rel="noopener">OpenAI Codex CLI</a>, or <a href="https://opencode.ai/" target="_blank" rel="noopener">opencode</a>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section section--alt" id="compare">
       <div class="container">
         <header class="section__head">
@@ -788,18 +830,6 @@
             aictl takes a different path &mdash; it is a general-purpose AI agent.
           </p>
         </header>
-
-        <p class="compare__note">
-          An experimental <code>/coding</code> mode swaps the base system prompt for
-          a coding-specialist prompt with an Explore &rarr; Plan &rarr; Code &rarr;
-          Review &rarr; Test workflow &mdash; useful for quick edits and exploration,
-          but not production-grade. If you are looking for an AI agent specialized
-          in software development today,<br>
-          consider <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>,
-          <a href="https://openai.com/codex/" target="_blank" rel="noopener">Codex</a>, or
-          <a href="https://opencode.ai/" target="_blank" rel="noopener">opencode</a>
-          &mdash; they are purpose-built for that workflow.
-        </p>
 
         <div class="grid grid--3">
           <article class="card">
