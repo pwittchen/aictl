@@ -212,6 +212,17 @@ pub fn clear_chat(state: State<'_, Arc<AppState>>) -> Result<TranscriptUpdate, S
     *msgs = vec![system];
     let projected = project(&msgs);
     persist(&state, &msgs);
+    // Reset the cached token counters: the previous reading was taken on
+    // the pre-clear transcript, so leaving it in place would keep the
+    // titlebar meter pinned at the old percentage even though the buffer
+    // just emptied. The next real turn overwrites these with a fresh
+    // reading.
+    state
+        .last_input_tokens
+        .store(0, std::sync::atomic::Ordering::Relaxed);
+    state
+        .last_output_tokens
+        .store(0, std::sync::atomic::Ordering::Relaxed);
     Ok(TranscriptUpdate {
         messages: projected,
         prompt: None,

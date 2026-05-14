@@ -1428,6 +1428,16 @@ const App: Component = () => {
     try {
       const update = await ipc.clearChat();
       setMessages(projectFromBackend(update.messages));
+      try {
+        const c = await ipc.contextStatus();
+        setContextPct(Math.min(100, Math.max(0, c.context_pct)));
+        setContextTokens({
+          input: c.last_input_tokens,
+          limit: c.context_limit,
+        });
+      } catch (err) {
+        console.warn("failed to refresh context status after clear", err);
+      }
     } catch (err) {
       append({ kind: "error", text: `${err}` });
     }
