@@ -6,6 +6,7 @@ import {
   createMemo,
   createSignal,
   onCleanup,
+  onMount,
 } from "solid-js";
 import { Portal } from "solid-js/web";
 
@@ -726,8 +727,103 @@ const Composer: Component<Props> = (props) => {
     }
   };
 
+  // Drag-to-resize: the handle on top of the composer grows the panel
+  // upward, and the chat message list (which sits as flex:1 above) gives
+  // up the corresponding pixels. Stored as null until the user grabs the
+  // handle so the default auto-sized layout still works on first paint.
+  // Persisted across launches via `AICTL_DESKTOP_COMPOSER_HEIGHT` so the
+  // user doesn't have to redo the gesture on every restart.
+  const [composerHeight, setComposerHeight] = createSignal<number | null>(
+    null,
+  );
+  let composerRef: HTMLDivElement | undefined;
+  let dragStartY = 0;
+  let dragStartHeight = 0;
+  let lastDragHeight: number | null = null;
+
+  // Hydrate the persisted height. Bad/out-of-range values are dropped so
+  // a hand-edited config can't lock the user out of their chat.
+  onMount(() => {
+    void ipc
+      .configValue("AICTL_DESKTOP_COMPOSER_HEIGHT")
+      .then((raw) => {
+        if (!raw) return;
+        const n = Number.parseInt(raw, 10);
+        if (!Number.isFinite(n)) return;
+        const maxAllowed =
+          typeof window !== "undefined"
+            ? window.innerHeight * 0.85
+            : Infinity;
+        if (n >= 120 && n <= maxAllowed) setComposerHeight(n);
+      })
+      .catch(() => {});
+  });
+
+  const onResizeMove = (e: MouseEvent) => {
+    const delta = dragStartY - e.clientY;
+    const next = Math.max(
+      120,
+      Math.min(window.innerHeight * 0.85, dragStartHeight + delta),
+    );
+    setComposerHeight(next);
+    lastDragHeight = next;
+  };
+
+  const onResizeUp = () => {
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeUp);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+    if (lastDragHeight !== null) {
+      void ipc.configWrite(
+        "AICTL_DESKTOP_COMPOSER_HEIGHT",
+        String(Math.round(lastDragHeight)),
+      );
+    }
+    lastDragHeight = null;
+  };
+
+  const onResizeDown = (e: MouseEvent) => {
+    if (!composerRef) return;
+    e.preventDefault();
+    dragStartY = e.clientY;
+    dragStartHeight = composerRef.getBoundingClientRect().height;
+    document.addEventListener("mousemove", onResizeMove);
+    document.addEventListener("mouseup", onResizeUp);
+    // Suppress text selection / restore the right cursor for the
+    // duration of the drag so the gesture feels like a window splitter
+    // rather than a regular click on a label.
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "ns-resize";
+  };
+
+  const resetComposerHeight = () => {
+    setComposerHeight(null);
+    void ipc.configClear("AICTL_DESKTOP_COMPOSER_HEIGHT");
+  };
+
+  onCleanup(() => {
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeUp);
+  });
+
   return (
-    <div class="composer">
+    <div
+      class="composer"
+      ref={(el) => (composerRef = el)}
+      style={
+        composerHeight() !== null ? { height: `${composerHeight()}px` } : {}
+      }
+    >
+      <div
+        class="composer-resize-handle"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize composer height"
+        title="Drag to resize"
+        onMouseDown={onResizeDown}
+        onDblClick={resetComposerHeight}
+      />
       <textarea
         ref={(el) => (textareaRef = el)}
         placeholder={

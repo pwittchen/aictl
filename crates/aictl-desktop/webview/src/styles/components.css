@@ -1016,16 +1016,38 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  position: relative;
+  min-height: 0;
+}
+
+/* Splitter on the top edge of the composer. Pulled into the panel's
+   own top padding via a negative top margin so the hit zone sits flush
+   with the border above and the visible chrome of the composer doesn't
+   shift. The handle is invisible at rest and lights up on hover so it
+   doesn't compete with the chat content. */
+.composer-resize-handle {
+  height: 8px;
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-6))
+    calc(-1 * var(--space-2));
+  cursor: ns-resize;
+  background: transparent;
+  transition: background-color 120ms ease;
+  flex-shrink: 0;
+}
+
+.composer-resize-handle:hover,
+.composer-resize-handle:active {
+  background: var(--accent-soft, rgba(96, 165, 250, 0.25));
 }
 
 .composer textarea {
   width: 100%;
   min-height: 56px;
-  max-height: 220px;
+  flex: 1 1 auto;
   padding: var(--space-3);
   background: var(--bg);
   border: 1px solid var(--border);
-  resize: vertical;
+  resize: none;
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--fg);
