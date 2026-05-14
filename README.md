@@ -1310,6 +1310,7 @@ If you or your team need help with any of the following, get in touch at [piotr@
 - **Hosted `aictl-server`** — managed multi-user proxy with shared keys, audit logs, and per-user budgets, deployed on your infra or mine.
 - **On-prem deployment & setup** — installing, configuring, and integrating aictl into your stack (corporate proxies, SSO, internal MCP servers, custom redaction rules).
 - **Custom features & integrations** — provider adapters, MCP servers, plugins, redaction detectors, or domain-specific agents and skills tailored to your workflow.
+- **Custom AI Agents development** — design and build bespoke AI agents (tools, prompts, evaluations, deployment) tailored to your domain, whether on top of aictl or as standalone systems.
 - **Commercial licensing** — a license for use inside a for-profit organization (the default [PolyForm Noncommercial License](LICENSE) does not cover this).
 - **Support contracts** — SLA-backed support, security reviews, and prioritized bug fixes.
 
