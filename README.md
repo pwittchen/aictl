@@ -545,6 +545,32 @@ Pull skills from the catalogue in two ways:
 
 Catalogue skills carry `source: aictl-official` in their frontmatter; both `/skills` and `--list-skills` render an `[official]` badge so you can tell at a glance which skills came from the catalogue and which you wrote yourself. Users can edit or delete pulled skills freely — there is nothing special about them on disk. Public-repo reads are unauthenticated (≈60 requests/hour), which is plenty for browse-then-pull; errors are reported in the REPL without crashing the session.
 
+### Coding-agent mode — experimental
+
+> **Experimental.** This mode is available and works on small-to-medium tasks, but it is not battle-tested for production coding workflows. The prompt and the five-phase loop are still being tuned, and the agent has no IDE integration, no semantic indexing, no edit-batching, and no parallel-tool execution. For production-grade coding work — large refactors, day-to-day feature work in mature codebases, anything where reliability matters — prefer dedicated coding agents: [Claude Code](https://docs.claude.com/en/docs/claude-code/overview), [OpenAI Codex CLI](https://github.com/openai/codex), or [opencode](https://github.com/sst/opencode). Use aictl's coding-agent mode for quick edits, exploration, and one-off scripts.
+
+Coding-agent mode swaps the general-purpose system prompt for a coding-specialist prompt that follows a five-phase workflow: **Explore → Plan → Code → Review → Test**. Same tools, tighter discipline — read code before changing it, plan before editing, run tests after changes, prefer minimal diffs.
+
+The mode is **off by default**. Flip it on in any of these ways:
+
+- **CLI flag (one launch):** `aictl --coding-agent` (or `--no-coding-agent` to force off for a launch when the config key is `true`).
+- **CLI slash command:** `/coding on | off | toggle | status` in the REPL (or bare `/coding` to open an interactive menu) — persists to `~/.aictl/config` so the desktop picks it up on next launch.
+- **Config key:** `AICTL_CODING_AGENT=true` in `~/.aictl/config`.
+- **Desktop:** Settings → Coding Agent toggle, or click the chevrons-in-square icon in the composer toolbar (between the memory and auto-accept icons).
+
+When coding mode is on, the CLI REPL prompt shows a dim `[phase]` prefix tracking the current workflow phase, and `--info` adds a `coding-agent: on` line. Phase transitions follow what the model says (a `<phase>NAME</phase>` tag at the start of its turn) and what it does (an `edit_file` / `write_file` tool call infers `Code`, a final answer past `Code` infers `Review`, past `Review` infers `Test`). Use `/skip` to advance the phase manually (`/skip` alone advances by one; `/skip review` or `/skip test` skips that phase).
+
+The mode also enforces a **definition of done**: the agent must run the project's build, lint, and test commands after every change (and report pass/fail counts) before declaring success — if it can't run them itself, it tells the user the exact commands to run. Documentation is part of the same gate: when the change is user-visible and the project already has a `README.md` or other docs, the agent updates the affected sections; when the project has no `README.md` at all, the agent creates one with a project name, build/install instructions, and a minimal usage example.
+
+Optional tuning knobs in `~/.aictl/config`:
+
+- `AICTL_CODING_PLAN_APPROVE=true` — pause for confirmation before the Code phase.
+- `AICTL_CODING_SKIP_REVIEW=true` / `AICTL_CODING_SKIP_TEST=true` — bypass those phases.
+- `AICTL_CODING_TEST_RETRIES=3` — bound the Code → Review → Test re-loop on test failures.
+- `AICTL_CODING_LINTER` / `AICTL_CODING_TEST_CMD` — override the auto-detected linter / test command. The defaults pick up `cargo`, `npm test`, `pytest`, or `go test ./...` from project markers in the working directory.
+
+Coding-agent mode composes with the rest of the prompt extension points: a loaded agent (`--agent rust-expert`) still appends its persona block on top of the coding-specialist base, a `/<skill>` invocation still injects its body for one turn, and `AICTL.md` / `~/.aictl/AICTL.md` still apply. The server (`aictl-server`) is unaffected — it has no agent loop, so `AICTL_CODING_AGENT` is ignored there even when set in a shared config.
+
 ### Plugins
 
 Plugins are user-installed external tools that extend the agent without forking the repo. A plugin is a directory under `~/.aictl/plugins/<name>/` containing a `plugin.toml` manifest and an executable entrypoint (any language — shell script, Python, compiled binary, anything that reads stdin and writes stdout).

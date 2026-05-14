@@ -23,8 +23,8 @@ use std::sync::OnceLock;
 use clap::ValueEnum;
 
 use crate::config::{
-    self, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, SYSTEM_PROMPT_CHAT_ONLY, load_prompt_file,
-    max_iterations,
+    self, MAX_MESSAGES, SPINNER_PHRASES, SYSTEM_PROMPT, SYSTEM_PROMPT_CHAT_ONLY,
+    SYSTEM_PROMPT_CODING, coding_agent_enabled, load_prompt_file, max_iterations,
 };
 use crate::error::AictlError;
 use crate::hooks::{self, HookContext, HookEvent};
@@ -178,6 +178,30 @@ fn resolve_image_analysis_override() -> Option<(Provider, String, String)> {
 }
 
 #[cfg(test)]
+mod prompt_tests {
+    use super::{build_system_prompt, build_system_prompt_with};
+
+    // The CONFIG global is process-wide and shared across the test
+    // suite, so we don't try to assert which of the three base prompts
+    // landed — that depends on whatever earlier tests left in
+    // `AICTL_CODING_AGENT` / `AICTL_TOOLS_ENABLED`. We only assert the
+    // non-empty + phase-hint behaviors that are pure on the inputs.
+    #[test]
+    fn build_system_prompt_returns_non_empty() {
+        let s = build_system_prompt();
+        assert!(!s.is_empty(), "system prompt must be non-empty");
+    }
+
+    #[test]
+    fn build_system_prompt_with_none_matches_build_system_prompt() {
+        // Both helpers should hit the same code path when no hint is
+        // supplied — `build_system_prompt` is literally
+        // `build_system_prompt_with(None)`.
+        assert_eq!(build_system_prompt(), build_system_prompt_with(None));
+    }
+}
+
+#[cfg(test)]
 mod provider_tests {
     use super::Provider;
 
@@ -274,12 +298,35 @@ pub async fn with_esc_cancel<F: std::future::Future>(
 /// `<tool>` XML (which would be blocked by the execute-tool guard anyway)
 /// and stops it hallucinating filesystem or network access.
 pub fn build_system_prompt() -> String {
-    let base = if tools::tools_enabled() {
-        SYSTEM_PROMPT
-    } else {
-        SYSTEM_PROMPT_CHAT_ONLY
+    build_system_prompt_with(None)
+}
+
+/// Like [`build_system_prompt`] but appends an optional per-turn phase
+/// guidance block. The CLI's REPL hands this in when coding-agent mode
+/// is on; every other frontend (and the CLI when coding mode is off)
+/// calls [`build_system_prompt`] which passes `None`.
+///
+/// The hint is appended to the base coding-agent prompt as a
+/// `# Phase guidance` section so the model sees it as an authoritative
+/// per-turn cue rather than persona drift.
+#[must_use]
+pub fn build_system_prompt_with(phase_hint: Option<&str>) -> String {
+    // Tools-off always wins: a coding agent without tools is a chat-only
+    // session that happens to know the word "phase". Fall back to the
+    // chat-only prompt and ignore any phase hint in that case.
+    let base = match (tools::tools_enabled(), coding_agent_enabled()) {
+        (false, _) => SYSTEM_PROMPT_CHAT_ONLY,
+        (true, true) => SYSTEM_PROMPT_CODING,
+        (true, false) => SYSTEM_PROMPT,
     };
     let mut prompt = base.to_string();
+    if tools::tools_enabled()
+        && coding_agent_enabled()
+        && let Some(hint) = phase_hint
+    {
+        prompt.push_str("\n\n# Phase guidance\n\n");
+        prompt.push_str(hint);
+    }
     if tools::tools_enabled() {
         let plugin_list = plugins::list();
         if !plugin_list.is_empty() {

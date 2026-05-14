@@ -183,15 +183,16 @@ const App: Component = () => {
   // Floor for the chat column when computing whether the layout fits
   // the current window. Sized to keep the composer footer (model
   // picker + security shield + agent / skill / mcp / plugins / tools /
-  // image / web / memory / auto-accept / voice icons + Send button
-  // with its ⌘↵ chip) on a single row alongside the standard
-  // horizontal padding — auto-grow reserves at least this many pixels,
-  // and auto-close drops side panes once the chat column would dip
-  // below it. Locked to 895 to match the Tauri `minWidth` floor: the
-  // OS-level resize boundary and the auto-collapse trigger move
-  // together so a user dragging the window to its smallest size lands
-  // on a chat-only layout that's still wide enough for the composer.
-  const CHAT_MIN_WIDTH = 895;
+  // image / web / memory / coding-agent / auto-accept / voice icons +
+  // Send button with its ⌘↵ chip) on a single row alongside the
+  // standard horizontal padding — auto-grow reserves at least this
+  // many pixels, and auto-close drops side panes once the chat column
+  // would dip below it. Locked to 935 to match the Tauri `minWidth`
+  // floor: the OS-level resize boundary and the auto-collapse trigger
+  // move together so a user dragging the window to its smallest size
+  // lands on a chat-only layout that's still wide enough for the
+  // composer.
+  const CHAT_MIN_WIDTH = 935;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
   // Total CSS-pixel width the layout needs given which panes are
@@ -356,6 +357,10 @@ const App: Component = () => {
   // trips through the same `memory_set_enabled` Tauri command the
   // Settings → Memory panel calls so the two surfaces stay in sync.
   const [memoryEnabled, setMemoryEnabled] = createSignal(true);
+  // Coding-agent toggle — mirrors `AICTL_CODING_AGENT` (default off).
+  // Same shape as the memory toggle: shared with the Settings →
+  // Coding Agent panel through `coding_agent_set_enabled`.
+  const [codingAgentEnabled, setCodingAgentEnabled] = createSignal(false);
   const [models, setModels] = createSignal<ModelEntry[]>([]);
   const [activeModel, setActiveModel] = createSignal<ActiveModel>({
     provider: null,
@@ -587,6 +592,23 @@ const App: Component = () => {
   const setMemoryEnabledMaster = async (next: boolean) => {
     const status = await ipc.memorySetEnabled(next);
     setMemoryEnabled(status.enabled);
+  };
+
+  // Coding-agent master switch — same shape as the memory toggle so the
+  // composer-toolbar icon, the Settings panel, and the CLI's
+  // `/coding-agent` view all share a single source of truth.
+  const refreshCodingAgentEnabled = async () => {
+    try {
+      const status = await ipc.codingAgentStatus();
+      setCodingAgentEnabled(status.enabled);
+    } catch {
+      setCodingAgentEnabled(false);
+    }
+  };
+
+  const setCodingAgentEnabledMaster = async (next: boolean) => {
+    const status = await ipc.codingAgentSetEnabled(next);
+    setCodingAgentEnabled(status.enabled);
   };
 
   // Plugins toggle — reads `AICTL_PLUGINS_ENABLED` and treats a missing
@@ -1144,6 +1166,7 @@ const App: Component = () => {
     void refreshImageEnabled();
     void refreshLocationEnabled();
     void refreshMemoryEnabled();
+    void refreshCodingAgentEnabled();
     void refreshPluginsEnabled();
     void refreshMcpEnabled();
     void refreshNotifications();
@@ -1800,6 +1823,8 @@ const App: Component = () => {
               onLocationEnabledChange={setLocationTools}
               memoryEnabled={memoryEnabled()}
               onMemoryEnabledChange={setMemoryEnabledMaster}
+              codingAgentEnabled={codingAgentEnabled()}
+              onCodingAgentEnabledChange={setCodingAgentEnabledMaster}
               securityState={securityState()}
               securityChecks={securityChecks()}
               onOpenSecuritySettings={() => {
@@ -1886,6 +1911,7 @@ const App: Component = () => {
             void refreshImageEnabled();
             void refreshLocationEnabled();
             void refreshMemoryEnabled();
+            void refreshCodingAgentEnabled();
             void refreshPluginsEnabled();
             void refreshNotifications();
             void refreshSecurityStatus();
@@ -1909,6 +1935,8 @@ const App: Component = () => {
           onShowUpdate={openUpdate}
           onDeleteSession={deleteSession}
           onClearAllSessions={clearAllSessions}
+          codingAgentEnabled={codingAgentEnabled()}
+          onCodingAgentEnabledChange={setCodingAgentEnabledMaster}
         />
       </Show>
     </div>

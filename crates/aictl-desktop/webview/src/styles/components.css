@@ -765,6 +765,51 @@
   margin-bottom: 0;
 }
 
+/* Coding-agent phase chip. Rendered above an assistant message body
+   when the model leads its turn with a `<phase>NAME</phase>` tag.
+   Mirrors the meta line's monospace+uppercase typography so it reads
+   as part of the message header rather than competing with the
+   markdown body. Coloured leading dot per phase tracks the
+   Explore → Plan → Code → Review → Test arc; the label itself stays
+   soft so the chip is informative without being loud. */
+.phase-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-soft);
+  background: var(--bg-soft, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin-bottom: var(--space-3, 10px);
+  user-select: none;
+}
+
+/* When a chip follows prose (or another chip) — the model emitted a
+   mid-message phase transition like `…done planning. <phase>code</phase>` —
+   give it enough top margin that it doesn't sit flush against the
+   paragraph above. The first chip in a message (immediately after the
+   meta line or the segments wrapper start) keeps its natural top
+   spacing so the message header doesn't grow a stray gap. */
+.phase-chip:not(:first-child) {
+  margin-top: var(--space-4, 14px);
+}
+
+.phase-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.phase-chip-label {
+  line-height: 1;
+}
+
 .message .body.markdown ul,
 .message .body.markdown ol {
   padding-left: 1.4em;
@@ -1704,6 +1749,52 @@
   cursor: not-allowed;
 }
 
+/* Coding-agent toggle: chevrons-in-square icon. Drives
+   `AICTL_CODING_AGENT`. Two-state — cyan when enabled, soft gray when
+   disabled. Same shape and treatment as the memory icon; slots between
+   `memory` and `auto-accept` in the composer toolbar. */
+.composer .coding-agent-icon {
+  margin-left: var(--space-1, 4px);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 120ms ease;
+  text-transform: none;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+.composer .coding-agent-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.composer .coding-agent-icon:hover,
+.composer .coding-agent-icon:hover:not([disabled]) {
+  background: transparent;
+  color: var(--fg-soft);
+}
+
+.composer .coding-agent-icon[data-active="true"] {
+  color: var(--accent);
+}
+
+.composer .coding-agent-icon[data-active="true"]:hover:not([disabled]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.composer .coding-agent-icon[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Image tools toggle: picture icon. Drives `read_image` and
    `generate_image` in `AICTL_SECURITY_DISABLED_TOOLS`. Tri-state via
    `data-state`, identical convention to the web globe and the master
@@ -2412,6 +2503,17 @@
   color: var(--fg-faint);
   border-bottom: 1px solid var(--border);
   padding-bottom: var(--space-1);
+}
+
+/* Small yellow `[experimental]` chip used inline in a settings subhead
+   for features that work but aren't production-ready (currently the
+   Coding agent subsection in the General tab). Mirrors the CLI's
+   `--info` banner treatment so the warning reads the same across
+   frontends. */
+.settings-experimental-tag {
+  margin-left: var(--space-2, 6px);
+  color: var(--warn, #f4c145);
+  font-weight: normal;
 }
 
 .settings-hint {

@@ -233,6 +233,8 @@ pub fn run() {
             commands::memory::memory_add,
             commands::memory::memory_remove,
             commands::memory::memory_clear,
+            commands::coding_agent::coding_agent_status,
+            commands::coding_agent::coding_agent_set_enabled,
             commands::local_models::local_models_status,
             commands::local_models::local_models_pull_gguf,
             commands::local_models::local_models_pull_mlx,

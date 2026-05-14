@@ -119,6 +119,17 @@ pub fn print_info(
         .map_or_else(|| "(none)".to_string(), |n| format!("{n} (loaded)"));
     println!("  {} {agent_info}", "agent:    ".with(Color::Cyan));
 
+    let coding_agent_label = if crate::config::coding_agent_enabled() {
+        "on".with(Color::Green).to_string()
+    } else {
+        "off".with(Color::DarkGrey).to_string()
+    };
+    let coding_agent_experimental = "[experimental]".with(Color::Yellow).to_string();
+    println!(
+        "  {} {coding_agent_label} {coding_agent_experimental}",
+        "coding:   ".with(Color::Cyan),
+    );
+
     // Collect unique cloud providers from the static catalog. Anything in
     // MODELS counts as a cloud provider; ollama / native GGUF / native MLX
     // are listed separately under "local:".

@@ -28,6 +28,7 @@ use crate::{
     agents, fetch_remote_version, keys, llm, security, session, skills, stats, tools,
     version_cache, version_info_string,
 };
+use aictl_core::coding::{self, WorkflowPhase};
 
 // Codex-style prompt block uses raw SGR codes so the dark-gray bg stays
 // active across labels and the typing area. Crossterm's `Stylize` injects a
@@ -186,6 +187,13 @@ enum ReplAction {
     InvokeSkill {
         skill: Skill,
         task: String,
+    },
+    /// Advance the coding-agent workflow phase. `Some(true)` skips
+    /// Review (jumping straight to Test), `Some(false)` skips Test,
+    /// `None` is a one-phase step (`/skip`).
+    SkipPhase {
+        skip_review: bool,
+        skip_test: bool,
     },
 }
 
@@ -385,6 +393,37 @@ async fn dispatch_slash_command(
             handle_behavior(auto);
             ReplAction::Continue
         }
+        commands::CommandResult::CodingAgent(args) => {
+            commands::run_coding_agent(&args, &|msg| ui.show_error(msg));
+            // Rebuild the system prompt so the next turn picks up the
+            // new base prompt without the user having to /clear.
+            if let Some(first) = messages.first_mut()
+                && matches!(first.role, Role::System)
+            {
+                first.content = crate::run::build_system_prompt();
+            }
+            ReplAction::Continue
+        }
+        commands::CommandResult::SkipPhase(arg) => match arg.trim().to_ascii_lowercase().as_str() {
+            "" => ReplAction::SkipPhase {
+                skip_review: false,
+                skip_test: false,
+            },
+            "review" => ReplAction::SkipPhase {
+                skip_review: true,
+                skip_test: false,
+            },
+            "test" => ReplAction::SkipPhase {
+                skip_review: false,
+                skip_test: true,
+            },
+            other => {
+                ui.show_error(&format!(
+                    "/skip: unknown argument '{other}' (expected nothing, 'review', or 'test')"
+                ));
+                ReplAction::Continue
+            }
+        },
     }
 }
 
@@ -754,6 +793,70 @@ fn provider_api_key_name(provider: &Provider) -> &'static str {
     }
 }
 
+/// Infer the next `WorkflowPhase` after a turn completes.
+///
+/// Precedence (first match wins):
+///   1. The model's `<phase>NAME</phase>` tag in the final answer.
+///   2. An `edit_file` / `write_file` tool call anywhere in this turn's
+///      assistant messages → `Code`.
+///   3. From `Code`: a final answer with no tool calls advances to
+///      `Review` (or `Test` if `AICTL_CODING_SKIP_REVIEW=true`).
+///   4. From `Review`: a final answer with no tool calls advances to
+///      `Test` (unless `AICTL_CODING_SKIP_TEST=true`, in which case the
+///      phase persists — review was the last step).
+///   5. Otherwise the current phase persists.
+///
+/// The implicit transitions exist so a user who never sees the model
+/// emit a `<phase>` tag still gets the chip-by-chip walk through the
+/// workflow. The `Definition of done` section in [`SYSTEM_PROMPT_CODING`]
+/// instructs the model to actually run the build / lint / test
+/// commands during Review and Test; this function just keeps the
+/// host-side label in sync with where the model says it is.
+fn next_phase_after_turn(
+    current: WorkflowPhase,
+    messages: &[Message],
+    last_answer: &str,
+) -> WorkflowPhase {
+    if let Some((phase, _)) = WorkflowPhase::parse_tag(last_answer) {
+        return phase;
+    }
+    let mut saw_edit = false;
+    let mut saw_final_answer = false;
+    for msg in messages.iter().rev().take(12) {
+        if !matches!(msg.role, Role::Assistant) {
+            continue;
+        }
+        let body = &msg.content;
+        if body.contains("<tool name=\"edit_file\"") || body.contains("<tool name=\"write_file\"") {
+            saw_edit = true;
+        }
+        if !body.contains("<tool name=\"") {
+            saw_final_answer = true;
+        }
+    }
+    if saw_edit {
+        return WorkflowPhase::Code;
+    }
+    if saw_final_answer {
+        match current {
+            WorkflowPhase::Code => {
+                return if config::coding_skip_review() {
+                    WorkflowPhase::Test
+                } else {
+                    WorkflowPhase::Review
+                };
+            }
+            WorkflowPhase::Review => {
+                if !config::coding_skip_test() {
+                    return WorkflowPhase::Test;
+                }
+            }
+            _ => {}
+        }
+    }
+    current
+}
+
 /// Run an agent turn and display the result, updating REPL state.
 #[allow(clippy::too_many_arguments)]
 async fn run_and_display_turn(
@@ -938,15 +1041,34 @@ pub(crate) async fn run_interactive(
     // `--skill` in REPL mode applies to the first user turn only. After
     // consuming it once the REPL reverts to normal behavior.
     let mut pending_skill: Option<Skill> = initial_skill;
+    // Coding-agent workflow phase. Held even when coding mode is off so
+    // a `/coding on` mid-session has a sensible starting point.
+    // Phase transitions: model's `<phase>` tag wins; otherwise an
+    // edit_file / write_file tool call infers `Code`; a final answer
+    // with no tool calls bumps `Code` -> `Review`.
+    let mut phase = WorkflowPhase::Explore;
 
     loop {
         let unrestricted = !security::policy().enabled;
+        let coding_on = config::coding_agent_enabled();
         let agent_prefix =
             agents::loaded_agent_name().map(|name| format!("\x1b[35m[{name}]\x1b[39m "));
         let ap = agent_prefix.as_deref().unwrap_or("");
         let chevron = "\x1b[1;36m❯\x1b[22;39m";
         let auto_label = "\x1b[33m[auto]\x1b[39m";
         let unrestricted_label = "\x1b[31m[unrestricted]\x1b[39m";
+        // Dim `[phase]` indicator, only when coding mode is on.
+        // SGR 2 = faint; 22 resets faint without clobbering the bg.
+        let phase_label_owned = if coding_on {
+            Some(format!("\x1b[2;36m[{}]\x1b[22;39m", phase.as_str()))
+        } else {
+            None
+        };
+        let phase_prefix = phase_label_owned
+            .as_deref()
+            .map(|s| format!("{s} "))
+            .unwrap_or_default();
+        let pp = phase_prefix.as_str();
 
         // Pre-paint a 3-row dark-gray block (top padding, blank middle row,
         // bottom padding) and move the cursor up 2 rows. Rustyline then writes
@@ -965,15 +1087,15 @@ pub(crate) async fn run_interactive(
         // trailing reset so typed chars inherit the dark-gray bg.
         let prompt = match (auto, unrestricted) {
             (true, true) => format!(
-                "{PROMPT_BG}{PROMPT_FILL}  {ap}{auto_label} {unrestricted_label} {chevron}  "
+                "{PROMPT_BG}{PROMPT_FILL}  {pp}{ap}{auto_label} {unrestricted_label} {chevron}  "
             ),
             (true, false) => {
-                format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{auto_label} {chevron}  ")
+                format!("{PROMPT_BG}{PROMPT_FILL}  {pp}{ap}{auto_label} {chevron}  ")
             }
             (false, true) => {
-                format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{unrestricted_label} {chevron}  ")
+                format!("{PROMPT_BG}{PROMPT_FILL}  {pp}{ap}{unrestricted_label} {chevron}  ")
             }
-            (false, false) => format!("{PROMPT_BG}{PROMPT_FILL}  {ap}{chevron}  "),
+            (false, false) => format!("{PROMPT_BG}{PROMPT_FILL}  {pp}{ap}{chevron}  "),
         };
         let line = rl.readline(&prompt);
 
@@ -1020,9 +1142,49 @@ pub(crate) async fn run_interactive(
                             };
                             (Some(message), Some(skill))
                         }
+                        ReplAction::SkipPhase {
+                            skip_review,
+                            skip_test,
+                        } => {
+                            // /skip is meaningless when coding mode is off.
+                            // Keep the user informed rather than silently ignoring.
+                            if !config::coding_agent_enabled() {
+                                ui.show_error(
+                                    "/skip: coding-agent mode is off. Flip it on with /coding on.",
+                                );
+                                continue;
+                            }
+                            let next = phase.skip_to_after(skip_review, skip_test);
+                            phase = next;
+                            println!();
+                            println!(
+                                "  {} phase → {}",
+                                "·".with(Color::DarkGrey),
+                                next.as_str().with(Color::Cyan)
+                            );
+                            println!();
+                            continue;
+                        }
                     };
 
                 let turn_input = retry_input.as_deref().unwrap_or(input.as_str());
+
+                // Bake the current phase hint into the system prompt for
+                // this turn. `build_system_prompt_with` already gates the
+                // hint internally (no-op when coding mode is off), so an
+                // unconditional rebuild is safe and keeps the seam at one
+                // call-site.
+                if let Some(first) = messages.first_mut()
+                    && matches!(first.role, Role::System)
+                {
+                    let hint = if config::coding_agent_enabled() {
+                        Some(coding::phase_hint(phase))
+                    } else {
+                        None
+                    };
+                    first.content = crate::run::build_system_prompt_with(hint);
+                }
+
                 run_and_display_turn(
                     &provider,
                     &api_key,
@@ -1036,6 +1198,15 @@ pub(crate) async fn run_interactive(
                     turn_skill.as_ref(),
                 )
                 .await;
+
+                // Update the phase tracker based on what just happened.
+                // Explicit `<phase>` tag wins; otherwise the appearance of
+                // an edit_file / write_file tool call infers Code, and a
+                // final answer with no tool calls past Plan bumps to
+                // Review (or Test if review is disabled).
+                if config::coding_agent_enabled() {
+                    phase = next_phase_after_turn(phase, &messages, &last_answer);
+                }
                 session::save_current(&messages);
             }
             Err(ReadlineError::Interrupted) => {

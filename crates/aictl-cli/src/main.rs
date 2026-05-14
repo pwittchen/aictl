@@ -166,6 +166,17 @@ struct Cli {
     #[arg(long = "skill")]
     skill: Option<String>,
 
+    /// Force coding-agent mode on for this launch. Overrides
+    /// `AICTL_CODING_AGENT` in config without persisting. Wins over
+    /// `--no-coding-agent` if both are passed (clap takes the last).
+    #[arg(long = "coding-agent", conflicts_with = "no_coding_agent")]
+    coding_agent: bool,
+
+    /// Force coding-agent mode off for this launch. Overrides
+    /// `AICTL_CODING_AGENT` in config without persisting.
+    #[arg(long = "no-coding-agent", conflicts_with = "coding_agent")]
+    no_coding_agent: bool,
+
     /// List all saved skills and exit
     #[arg(long = "list-skills")]
     list_skills: bool,
@@ -352,6 +363,10 @@ async fn main() {
     // in-memory cache. The flags do not persist to disk between runs:
     // the overlay is wiped when the process exits.
     apply_client_overrides(cli.client_url.as_deref(), cli.client_master_key.as_deref());
+
+    // Coding-agent mode flag overrides — same shape as the client URL /
+    // key flags: in-memory overlay, not persisted between runs.
+    apply_coding_agent_override(cli.coding_agent, cli.no_coding_agent);
 
     let redaction_warnings = security::init(cli.unrestricted);
     if cli.unrestricted {
@@ -854,6 +869,19 @@ fn apply_client_overrides(client_url: Option<&str>, client_master_key: Option<&s
     }
     if let Some(key) = client_master_key {
         keys::override_secret("AICTL_CLIENT_MASTER_KEY", key.trim());
+    }
+}
+
+/// Apply the `--coding-agent` / `--no-coding-agent` flags for this run.
+///
+/// Overlays `AICTL_CODING_AGENT` in the in-memory config cache only —
+/// not written through to `~/.aictl/config`, so the next launch falls
+/// back to whatever the file says. Neither flag set is a no-op.
+fn apply_coding_agent_override(force_on: bool, force_off: bool) {
+    if force_on {
+        config::config_overlay(config::AICTL_CODING_AGENT, "true");
+    } else if force_off {
+        config::config_overlay(config::AICTL_CODING_AGENT, "false");
     }
 }
 

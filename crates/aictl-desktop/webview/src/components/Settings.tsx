@@ -106,6 +106,14 @@ interface Props {
   /// `refreshImageEnabled`; ToolsList fires it after each successful
   /// `toolSetDisabled` round-trip.
   onToolToggled?: () => void;
+  /// Current value of the coding-agent master switch. Owned by App so
+  /// the Composer toolbar icon and the Settings → Coding Agent toggle
+  /// stay in lockstep — flipping one updates the other on the next
+  /// render.
+  codingAgentEnabled: boolean;
+  /// Persist a coding-agent state change. Returns the new value the
+  /// engine reports back from `coding_agent_set_enabled`.
+  onCodingAgentEnabledChange: (next: boolean) => Promise<void>;
 }
 
 export type Tab =
@@ -229,6 +237,8 @@ const Settings: Component<Props> = (props) => {
               <GeneralTab
                 workspace={props.workspace}
                 onPickWorkspace={props.onPickWorkspace}
+                codingAgentEnabled={props.codingAgentEnabled}
+                onCodingAgentEnabledChange={props.onCodingAgentEnabledChange}
               />
             </Show>
             <Show when={tab() === "tools"}>
@@ -1348,12 +1358,31 @@ const NUM_KEYS: {
 const GeneralTab: Component<{
   workspace: WorkspaceState;
   onPickWorkspace: () => void | Promise<void>;
+  codingAgentEnabled: boolean;
+  onCodingAgentEnabledChange: (next: boolean) => Promise<void>;
 }> = (props) => {
   const [config, { refetch }] = createResource<ConfigEntry[]>(() =>
     ipc.configDump(),
   );
   const [error, setError] = createSignal<string | null>(null);
   const [feedback, setFeedback] = createSignal<string | null>(null);
+  const [codingAgentPending, setCodingAgentPending] = createSignal(false);
+  const [codingAgentError, setCodingAgentError] = createSignal<string | null>(
+    null,
+  );
+
+  const flipCodingAgent = async (next: boolean) => {
+    if (next === props.codingAgentEnabled) return;
+    setCodingAgentPending(true);
+    setCodingAgentError(null);
+    try {
+      await props.onCodingAgentEnabledChange(next);
+    } catch (e) {
+      setCodingAgentError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCodingAgentPending(false);
+    }
+  };
 
   const get = (key: string): string | null => {
     const entry = (config() ?? []).find((e) => e.key === key);
@@ -1455,6 +1484,63 @@ const GeneralTab: Component<{
 
       <h4 class="settings-subhead">Behavior</h4>
       <BehaviorEditor onSaved={() => void refetch()} />
+
+      <h4 class="settings-subhead">
+        Coding agent{" "}
+        <span class="settings-experimental-tag">[experimental]</span>
+      </h4>
+      <p class="settings-hint">
+        Swaps the general-purpose system prompt for a coding-specialist
+        prompt that follows a five-phase{" "}
+        <strong>Explore → Plan → Code → Review → Test</strong> workflow.
+        Same tools, tighter discipline — read code before changing it,
+        plan before editing, run build / lint / tests after changes,
+        keep docs in sync. Persists to{" "}
+        <code>AICTL_CODING_AGENT</code> in <code>~/.aictl/config</code>{" "}
+        so the CLI picks up the change on next launch.
+      </p>
+      <p class="settings-hint">
+        <strong>Experimental.</strong> For production coding work prefer
+        dedicated tools:{" "}
+        <a
+          href="https://docs.claude.com/en/docs/claude-code/overview"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Claude Code
+        </a>
+        ,{" "}
+        <a
+          href="https://github.com/openai/codex"
+          target="_blank"
+          rel="noreferrer"
+        >
+          OpenAI Codex CLI
+        </a>
+        , or{" "}
+        <a
+          href="https://github.com/sst/opencode"
+          target="_blank"
+          rel="noreferrer"
+        >
+          opencode
+        </a>
+        . Use aictl's coding-agent mode for quick edits, exploration,
+        and one-off scripts.
+      </p>
+      <Show when={codingAgentError()}>
+        <p class="settings-error">{codingAgentError()}</p>
+      </Show>
+      <BoolRow
+        label="Coding agent enabled"
+        help={
+          codingAgentPending()
+            ? "Saving…"
+            : "When on, every new turn uses the coding-specialist system prompt."
+        }
+        on={props.codingAgentEnabled}
+        onChange={(v) => void flipCodingAgent(v)}
+      />
 
       <h4 class="settings-subhead">Numbers</h4>
       <For each={NUM_KEYS}>

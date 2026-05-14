@@ -27,6 +27,7 @@
 
 pub mod agents;
 pub mod audit;
+pub mod coding;
 pub mod config;
 pub mod error;
 pub mod hooks;
@@ -58,7 +59,11 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // etc. ergonomic for frontend code without paving over the modular
 // structure.
 
+pub use coding::WorkflowPhase;
 pub use error::AictlError;
 pub use message::{ImageData, Message, Role};
-pub use run::{Interrupted, Provider, build_system_prompt, run_agent_single, with_esc_cancel};
+pub use run::{
+    Interrupted, Provider, build_system_prompt, build_system_prompt_with, run_agent_single,
+    with_esc_cancel,
+};
 pub use ui::{AgentUI, ProgressBackend, ProgressHandle, ToolApproval, WarningSink};

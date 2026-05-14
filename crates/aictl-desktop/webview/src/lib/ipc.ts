@@ -204,6 +204,10 @@ export interface MemoryStatus {
   entries: MemoryRow[];
 }
 
+export interface CodingAgentStatus {
+  enabled: boolean;
+}
+
 export interface SkillRow {
   name: string;
   description: string;
@@ -831,6 +835,14 @@ export const ipc = {
   },
   async memoryClear() {
     return invoke<void>("memory_clear");
+  },
+
+  // -- coding agent ----
+  async codingAgentStatus() {
+    return invoke<CodingAgentStatus>("coding_agent_status");
+  },
+  async codingAgentSetEnabled(enabled: boolean) {
+    return invoke<CodingAgentStatus>("coding_agent_set_enabled", { enabled });
   },
 
   // -- stats ----

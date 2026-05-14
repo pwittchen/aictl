@@ -5,6 +5,14 @@ pub(super) fn print_help() {
         ("/agent", "manage agents"),
         ("/balance", "show remaining credit / quota per provider"),
         ("/clear", "clear conversation context"),
+        (
+            "/coding",
+            "toggle coding-agent mode [experimental] (/coding on|off|toggle|status)",
+        ),
+        (
+            "/skip",
+            "advance the coding-agent workflow phase (/skip [review|test]) [experimental]",
+        ),
         ("/compact", "compact context into a summary"),
         ("/context", "show context usage"),
         ("/copy", "copy last response to clipboard"),

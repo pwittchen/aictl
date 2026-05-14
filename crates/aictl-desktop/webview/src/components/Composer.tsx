@@ -107,6 +107,12 @@ interface Props {
   /// the same switch.
   memoryEnabled: boolean;
   onMemoryEnabledChange: (next: boolean) => Promise<void>;
+  /// Coding-agent icon — flips `AICTL_CODING_AGENT`. When on the
+  /// engine swaps the general-purpose system prompt for the
+  /// coding-specialist prompt + five-phase workflow. Same two-state
+  /// shape as the memory icon; mirrors Settings → Coding Agent.
+  codingAgentEnabled: boolean;
+  onCodingAgentEnabledChange: (next: boolean) => Promise<void>;
   /// Aggregated posture for the shield icon. `App` reads the relevant
   /// config keys + keyring presence and pushes the result down here so
   /// every other composer toggle keeps its single-source-of-truth shape.
@@ -603,6 +609,37 @@ const Composer: Component<Props> = (props) => {
       }
       setMemoryFlash(`failed to toggle memory: ${err}`);
       memoryFlashTimer = window.setTimeout(() => setMemoryFlash(null), 1800);
+    }
+  };
+
+  // Coding-agent toggle — same shape as the memory toggle.
+  const [codingAgentFlash, setCodingAgentFlash] =
+    createSignal<string | null>(null);
+  let codingAgentFlashTimer: number | undefined;
+  const toggleCodingAgent = async () => {
+    if (props.disabled) return;
+    const next = !props.codingAgentEnabled;
+    try {
+      await props.onCodingAgentEnabledChange(next);
+      if (codingAgentFlashTimer !== undefined) {
+        window.clearTimeout(codingAgentFlashTimer);
+      }
+      setCodingAgentFlash(
+        next ? "coding agent enabled" : "coding agent disabled",
+      );
+      codingAgentFlashTimer = window.setTimeout(
+        () => setCodingAgentFlash(null),
+        1800,
+      );
+    } catch (err) {
+      if (codingAgentFlashTimer !== undefined) {
+        window.clearTimeout(codingAgentFlashTimer);
+      }
+      setCodingAgentFlash(`failed to toggle coding agent: ${err}`);
+      codingAgentFlashTimer = window.setTimeout(
+        () => setCodingAgentFlash(null),
+        1800,
+      );
     }
   };
 
@@ -1420,6 +1457,46 @@ const Composer: Component<Props> = (props) => {
           </svg>
         </button>
         <Show when={memoryFlash()}>
+          {(msg) => (
+            <Portal mount={document.body}>
+              <div class="auto-accept-toast" role="status" aria-live="polite">
+                <div class="panel">{msg()}</div>
+              </div>
+            </Portal>
+          )}
+        </Show>
+        <button
+          type="button"
+          class="coding-agent-icon"
+          data-active={String(props.codingAgentEnabled)}
+          disabled={props.disabled}
+          aria-pressed={props.codingAgentEnabled ? "true" : "false"}
+          aria-label={
+            props.codingAgentEnabled
+              ? "Coding Agent enabled [experimental] (click to disable coding-agent mode)"
+              : "Coding Agent disabled [experimental] (click to enable coding-agent mode)"
+          }
+          title={
+            props.codingAgentEnabled
+              ? "coding agent enabled [experimental] — click to disable"
+              : "coding agent disabled [experimental] — click to enable"
+          }
+          onClick={() => void toggleCodingAgent()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4Zm4.78 1.97a.75.75 0 0 1 0 1.06L5.81 8l.97.97a.75.75 0 1 1-1.06 1.06l-1.5-1.5a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 0Zm2.44 1.06a.75.75 0 0 1 1.06-1.06l1.5 1.5a.75.75 0 0 1 0 1.06l-1.5 1.5a.75.75 0 1 1-1.06-1.06l.97-.97-.97-.97Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+        <Show when={codingAgentFlash()}>
           {(msg) => (
             <Portal mount={document.body}>
               <div class="auto-accept-toast" role="status" aria-live="polite">

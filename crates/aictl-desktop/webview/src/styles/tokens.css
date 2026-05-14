@@ -80,6 +80,25 @@ select {
   color: inherit;
 }
 
+/* Global anchor colour — every `<a>` in the app inherits the cyan
+   accent (same hue the chat markdown links already use). Component-
+   specific rules (e.g. `.message .body.markdown a`) can still override
+   thickness / underline behaviour locally, but the base colour is
+   shared so links never fall back to the browser's blue / purple. */
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+a:visited {
+  color: var(--accent);
+}
+
 button:focus-visible,
 [role="button"]:focus-visible,
 a:focus-visible,

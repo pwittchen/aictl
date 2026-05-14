@@ -8,6 +8,7 @@
 
 pub mod agents;
 pub mod chat;
+pub mod coding_agent;
 pub mod context;
 pub mod files;
 pub mod hooks;

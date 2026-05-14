@@ -16,6 +16,7 @@ mod agent;
 mod balance;
 mod behavior;
 mod clipboard;
+mod coding_agent;
 mod compact;
 mod config_wizard;
 mod gguf;
@@ -44,6 +45,7 @@ mod update;
 pub use agent::{load_agent_by_name, print_agents_cli, run_agent_menu};
 pub use balance::run_balance;
 pub use behavior::select_behavior;
+pub use coding_agent::run as run_coding_agent;
 pub use compact::{compact, print_context};
 pub use config_wizard::run_config_wizard;
 pub use gguf::run_gguf_menu;
@@ -79,6 +81,7 @@ pub const COMMANDS: &[&str] = &[
     "balance",
     "behavior",
     "clear",
+    "coding",
     "compact",
     "config",
     "context",
@@ -101,6 +104,7 @@ pub const COMMANDS: &[&str] = &[
     "roadmap",
     "security",
     "session",
+    "skip",
     "skills",
     "stats",
     "tools",
@@ -192,6 +196,16 @@ pub enum CommandResult {
     /// anything. Carries the requested count (defaults to `1` when the user
     /// typed `/undo` with no argument).
     Undo(usize),
+    /// `/coding [on|off|toggle|status]` — flip or report coding-agent
+    /// mode. Carries the raw arg string. The legacy names `coding-agent` /
+    /// `coding_agent` route here too so existing muscle memory keeps
+    /// working; only `/coding` is documented and tab-completed.
+    CodingAgent(String),
+    /// `/skip [review|test]` — advance the coding-agent workflow phase
+    /// by one. With `review` the Review phase is skipped (the loop jumps
+    /// straight to Test); with `test` the Test phase is skipped. Carries
+    /// the trimmed arg string so the REPL can pick the right action.
+    SkipPhase(String),
     /// Command handled, continue the loop.
     Continue,
     /// Not a slash command, proceed normally.
@@ -310,6 +324,10 @@ pub fn handle(input: &str, last_answer: &str, show_error: &dyn Fn(&str)) -> Comm
         "config" => CommandResult::Config,
         "stats" => CommandResult::Stats,
         "skills" => CommandResult::Skills,
+        // `coding` is the documented form; the longer legacy names stay
+        // mapped here so existing muscle memory doesn't error out.
+        "coding" | "coding-agent" | "coding_agent" => CommandResult::CodingAgent(args.to_string()),
+        "skip" => CommandResult::SkipPhase(args.to_string()),
         _ => {
             // Fall through to a user-defined skill with this name. The
             // dispatcher only checks whether the SKILL.md exists — the REPL
@@ -536,6 +554,26 @@ mod tests {
             handle("/foo", "", &noop_error),
             CommandResult::Continue
         ));
+    }
+
+    #[test]
+    fn cmd_coding_and_legacy_aliases_dispatch_to_coding_agent() {
+        // `/coding` is the canonical name; the longer forms are silent
+        // aliases retained so existing muscle memory keeps working.
+        for input in ["/coding", "/coding-agent", "/coding_agent"] {
+            match handle(input, "", &noop_error) {
+                CommandResult::CodingAgent(args) => assert_eq!(args, ""),
+                _ => panic!("{input}: expected CodingAgent variant"),
+            }
+        }
+    }
+
+    #[test]
+    fn cmd_coding_forwards_args() {
+        match handle("/coding on", "", &noop_error) {
+            CommandResult::CodingAgent(args) => assert_eq!(args, "on"),
+            _ => panic!("expected CodingAgent('on')"),
+        }
     }
 
     #[test]

@@ -88,6 +88,87 @@ function extractSavedImagePath(result: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
+// Coding-agent mode lets the model self-report the current workflow
+// phase by emitting a `<phase>NAME</phase>` tag (see
+// `aictl_core::coding::WorkflowPhase`). Without explicit handling the
+// markdown renderer (html: false) escapes the tag and the user sees
+// the raw text. We split the body on every phase tag and let
+// `PhaseChip` render a styled label before each segment so a single
+// assistant message that walks through multiple phases (`plan` →
+// `code`, `review` → `test`, …) shows a chip for each one.
+//
+// Tolerant of whitespace and case (matching the CLI's
+// `WorkflowPhase::parse_tag`). Tags anywhere in the body are caught,
+// not just at the start — a multi-step turn that emits one tag per
+// transition still gets all the markers. Unknown labels are passed
+// through unchanged so a model that emits a garbage tag still shows
+// visibly rather than silently disappearing.
+const PHASE_TAG_RE = /<phase>\s*([a-zA-Z]+)\s*<\/phase>\n?/g;
+const PHASE_LABELS = new Set([
+  "explore",
+  "plan",
+  "code",
+  "review",
+  "test",
+]);
+
+interface PhaseSegment {
+  /// `null` for any prose that appears before the first phase tag.
+  /// Every subsequent segment carries the phase whose tag preceded it,
+  /// so the renderer can drop a `PhaseChip` ahead of the body.
+  phase: string | null;
+  body: string;
+}
+
+/// Split a piece of assistant text on every `<phase>NAME</phase>`
+/// marker. Returns at least one segment — for text with no phase tags
+/// the single returned segment has `phase: null` and the full text as
+/// its body.
+///
+/// During streaming the regex re-scans the partial body on every
+/// chunk; a half-finished tag (`<phase>cod`) simply won't match yet
+/// and falls into the previous segment's body until the closing
+/// `</phase>` arrives, at which point it becomes its own chip.
+function splitByPhase(text: string): PhaseSegment[] {
+  const segments: PhaseSegment[] = [];
+  // RegExp with the `g` flag carries iteration state across `exec`
+  // calls — but it's a module-level singleton, so reset it explicitly
+  // before each walk to keep concurrent renders (streaming + already-
+  // finalized messages) independent.
+  PHASE_TAG_RE.lastIndex = 0;
+  let lastEnd = 0;
+  let currentPhase: string | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = PHASE_TAG_RE.exec(text)) !== null) {
+    const label = match[1].toLowerCase();
+    if (!PHASE_LABELS.has(label)) {
+      // Leave unknown labels in the body so they're still visible.
+      continue;
+    }
+    const body = text.slice(lastEnd, match.index);
+    segments.push({ phase: currentPhase, body });
+    currentPhase = label;
+    lastEnd = match.index + match[0].length;
+  }
+  segments.push({ phase: currentPhase, body: text.slice(lastEnd) });
+  // Drop empty leading segments (the common case where the text
+  // starts with a phase tag — the pre-tag body is empty so the chip
+  // shouldn't be preceded by a blank section). Keep empties that
+  // *do* carry a phase so the chip still surfaces even when the
+  // model hasn't streamed any prose past the tag yet.
+  return segments.filter(
+    (s, i) => s.body.trim() !== "" || s.phase !== null || i === 0,
+  );
+}
+
+/// Strip every `<phase>` tag from a piece of text. Used for the copy
+/// button so users picking text out of the chat don't end up with
+/// workflow markers baked in.
+function stripPhaseTags(text: string): string {
+  PHASE_TAG_RE.lastIndex = 0;
+  return text.replace(PHASE_TAG_RE, "");
+}
+
 // `view_map` (see `crates/aictl-core/src/tools/view_map.rs`) emits a
 // single-line marker `[view_map] {json}` that this component parses to
 // render an OpenStreetMap embed. The Rust side only emits the marker
@@ -416,8 +497,11 @@ const Chat: Component<Props> = (props) => {
     });
   });
 
-  const streamingHtml = createMemo(() =>
-    props.streaming ? renderMarkdown(props.streamingText) : "",
+  // Split the streaming body on every phase tag so each phase the
+  // model walks through during this turn gets its own chip. Re-runs
+  // on every chunk; segments grow as more tokens arrive.
+  const streamingSegments = createMemo<PhaseSegment[]>(() =>
+    props.streaming ? splitByPhase(props.streamingText) : [],
   );
 
   return (
@@ -431,7 +515,21 @@ const Chat: Component<Props> = (props) => {
             assistant · streaming
             <LoadingDots />
           </div>
-          <div class="body markdown" innerHTML={streamingHtml()} />
+          <For each={streamingSegments()}>
+            {(seg) => (
+              <>
+                <Show when={seg.phase}>
+                  {(p) => <PhaseChip phase={p()} />}
+                </Show>
+                <Show when={seg.body.trim() !== ""}>
+                  <div
+                    class="body markdown"
+                    innerHTML={renderMarkdown(seg.body)}
+                  />
+                </Show>
+              </>
+            )}
+          </For>
         </div>
       </Show>
       <Show when={props.busy && !props.streaming}>
@@ -532,24 +630,67 @@ const MessageView: Component<{ msg: Message }> = (props) => {
   }
 };
 
+// Coding-agent workflow phase chip. Rendered above an assistant
+// message body whenever the model leads its turn with a
+// `<phase>NAME</phase>` tag (extracted by `extractPhase`). Visual
+// shape mirrors the CLI's dim `[phase]` REPL prefix — small label
+// with a coloured leading dot per phase so a glance is enough to
+// place the response in the Explore → Plan → Code → Review → Test
+// arc. Phase colours map roughly to "neutral → progress → action →
+// review → terminal" so the chip subtly walks the user through the
+// workflow without competing with the chat content for attention.
+const PHASE_COLOURS: Record<string, string> = {
+  explore: "#94a3b8", // slate — investigating, no commitment yet
+  plan: "#5ed3f3",    // cyan — designing the change
+  code: "#f4c145",    // amber — actively modifying files
+  review: "#a855f7",  // purple — checking the diff / linter
+  test: "#10b981",    // green — verifying the change works
+};
+
+const PhaseChip: Component<{ phase: string }> = (props) => {
+  const colour = () => PHASE_COLOURS[props.phase] ?? "var(--fg-soft)";
+  return (
+    <div
+      class="phase-chip"
+      data-phase={props.phase}
+      aria-label={`Coding-agent phase: ${props.phase}`}
+      title={`Coding-agent phase: ${props.phase}`}
+    >
+      <span class="phase-chip-dot" style={{ background: colour() }} />
+      <span class="phase-chip-label">{props.phase}</span>
+    </div>
+  );
+};
+
 const AssistantMessage: Component<{ text: string }> = (props) => {
-  let bodyRef: HTMLDivElement | undefined;
+  let segmentsRef: HTMLDivElement | undefined;
   const [copied, setCopied] = createSignal(false);
   let resetCopiedTimer: number | undefined;
 
-  // The body's `innerHTML` is set by Solid from `renderMarkdown`. Solid
-  // doesn't expose a post-set hook, so re-run decoration whenever the
-  // text changes — `queueMicrotask` defers the query until after Solid
-  // has flushed the new HTML into the DOM.
+  // Split the body on every coding-agent `<phase>` tag so a turn that
+  // walks `plan → code → review → test` shows a chip for each phase
+  // rather than only catching the leading tag. Each segment's body is
+  // rendered through markdown-it independently — markdown-it has
+  // `html: false`, so we'd otherwise see escaped `<phase>` text in
+  // every body past the first tag.
+  const segments = createMemo<PhaseSegment[]>(() => splitByPhase(props.text));
+
+  // Re-run code-block decoration whenever the segment list changes.
+  // `queueMicrotask` defers the query until after Solid has flushed
+  // the new HTML into the DOM. We scope the walk to the wrapper that
+  // holds every segment so a single decoration pass covers them all.
   createEffect(() => {
-    void props.text;
+    void segments();
     queueMicrotask(() => {
-      if (bodyRef) decorateCodeBlocks(bodyRef);
+      if (segmentsRef) decorateCodeBlocks(segmentsRef);
     });
   });
 
   const onCopy = async () => {
-    const ok = await copyText(props.text);
+    // Copy the human-visible body, not the raw tags — users picking
+    // text out of the chat to paste elsewhere shouldn't have to scrub
+    // workflow markers out by hand.
+    const ok = await copyText(stripPhaseTags(props.text));
     if (!ok) return;
     setCopied(true);
     if (resetCopiedTimer !== undefined) window.clearTimeout(resetCopiedTimer);
@@ -559,11 +700,23 @@ const AssistantMessage: Component<{ text: string }> = (props) => {
   return (
     <div class="message" data-role="assistant">
       <div class="meta">assistant</div>
-      <div
-        class="body markdown"
-        ref={bodyRef}
-        innerHTML={renderMarkdown(props.text)}
-      />
+      <div ref={segmentsRef}>
+        <For each={segments()}>
+          {(seg) => (
+            <>
+              <Show when={seg.phase}>
+                {(p) => <PhaseChip phase={p()} />}
+              </Show>
+              <Show when={seg.body.trim() !== ""}>
+                <div
+                  class="body markdown"
+                  innerHTML={renderMarkdown(seg.body)}
+                />
+              </Show>
+            </>
+          )}
+        </For>
+      </div>
       <div class="message-actions">
         <button
           type="button"

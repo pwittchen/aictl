@@ -319,6 +319,7 @@
               <li><code>AICTL_AUTO_COMPACT_THRESHOLD</code> — context usage % at which the REPL auto-compacts (1–100, default <code>80</code>)</li>
               <li><code>AICTL_LLM_TIMEOUT</code> — per-call LLM timeout in seconds; <code>0</code> disables (default <code>30</code>)</li>
               <li><code>AICTL_MAX_ITERATIONS</code> — max LLM calls per agent turn (default <code>20</code>)</li>
+              <li><code>AICTL_CODING_AGENT</code> — <code>true</code> swaps the base system prompt for the coding-specialist Explore &rarr; Plan &rarr; Code &rarr; Review &rarr; Test prompt (default <code>false</code>, <em>experimental</em>). Tuning knobs: <code>AICTL_CODING_PLAN_APPROVE</code>, <code>AICTL_CODING_SKIP_REVIEW</code>, <code>AICTL_CODING_SKIP_TEST</code>, <code>AICTL_CODING_TEST_RETRIES</code>, <code>AICTL_CODING_LINTER</code>, <code>AICTL_CODING_TEST_CMD</code></li>
             </ul>
           </div>
         </div>
@@ -575,6 +576,8 @@
               <li><code>/behavior</code> — toggle auto / human-in-the-loop</li>
               <li><code>/agent</code> — manage agents (create, load, delete)</li>
               <li><code>/skills</code> — manage one-turn skills (create, invoke, delete)</li>
+              <li><code>/coding</code> — toggle coding-agent mode <em>[experimental]</em>; bare opens a menu, or <code>/coding on|off|toggle|status</code></li>
+              <li><code>/skip [review|test]</code> — advance the coding-agent workflow phase manually (bare advances by one; <code>review</code> / <code>test</code> skips that phase)</li>
               <li><code>/plugins</code> — manage external plugin tools (list, view manifest, toggle)</li>
               <li><code>/hooks</code> — manage lifecycle hooks (view, toggle, test-fire, reload)</li>
               <li><code>/mcp</code> — manage external MCP servers (list, view tools &amp; schemas, toggle)</li>
@@ -635,6 +638,7 @@
               <li><code>--cwd &lt;path&gt;</code> — working directory for this run; used as the CWD jail root and the spawn dir for every tool call. Overrides <code>AICTL_WORKING_DIR_CLI</code> (or the legacy <code>AICTL_WORKING_DIR</code>) in <code>~/.aictl/config</code>; when neither is set, the launch directory is used</li>
               <li><code>--unrestricted</code> — disable security checks</li>
               <li><code>--incognito</code> — no session save</li>
+              <li><code>--coding-agent</code> / <code>--no-coding-agent</code> — force coding-agent mode on / off for this launch (overrides <code>AICTL_CODING_AGENT</code> without persisting); <em>experimental</em></li>
               <li><code>--balance</code> / <code>--list-balances</code> — show remaining credit / quota and exit</li>
               <li><code>--config</code> — interactive wizard</li>
               <li><code>--version</code>, <code>-v</code> — print version</li>
