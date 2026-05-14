@@ -3,6 +3,7 @@
 ## Desktop
 
 - after clicking clear in the main UI aso update CTX progress bar in the main UI
+- for files in the file explorer, add file icon
 
 ## Coding Agent
 
