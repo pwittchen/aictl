@@ -548,8 +548,8 @@ const TreeNode: Component<TreeNodeProps> = (props) => {
                             title={entry.path}
                           >
                             <span class="tree-caret" aria-hidden="true" />
-                            <span class="tree-icon" aria-hidden="true">
-                              ·
+                            <span class="tree-icon tree-icon-file" aria-hidden="true">
+                              <FileIcon />
                             </span>
                             <span class="tree-label">{entry.name}</span>
                           </button>
@@ -629,6 +629,19 @@ const FolderIcon: Component<{ open: boolean }> = (props) => (
       <path d="M3 3.5A1.5 1.5 0 0 1 4.5 2h1.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.62 4H11.5A1.5 1.5 0 0 1 13 5.5v1H3v-3ZM3.081 8a1.5 1.5 0 0 0-1.423 1.974l1 3A1.5 1.5 0 0 0 4.081 14h7.838a1.5 1.5 0 0 0 1.423-1.026l1-3A1.5 1.5 0 0 0 12.919 8H3.081Z" />
     </svg>
   </Show>
+);
+
+const FileIcon: Component = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 16 16"
+    fill="currentColor"
+    width="13"
+    height="13"
+    aria-hidden="true"
+  >
+    <path d="M2.5 3.5A1.5 1.5 0 0 1 4 2h4.879a1.5 1.5 0 0 1 1.06.44l3.122 3.12a1.5 1.5 0 0 1 .439 1.061V12.5A1.5 1.5 0 0 1 12 14H4a1.5 1.5 0 0 1-1.5-1.5v-9Z" />
+  </svg>
 );
 
 interface RenameInputProps {
