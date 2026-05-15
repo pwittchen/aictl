@@ -528,6 +528,134 @@ async fn provider_error_propagates_out_of_the_turn() {
     assert!(err.to_string().contains("fake upstream error"));
 }
 
+// --- Parallel batch dispatch (Phase 4) ---
+
+/// A response carrying multiple read-only `<tool>` blocks dispatches as a
+/// batch and lands as a single `<tool_results>` user turn whose body lists
+/// the per-tool results in source order.
+#[tokio::test]
+async fn parallel_batch_of_reads_joins_results_in_source_order() {
+    let guard = MockGuard::new();
+    // Three calculator reads in one response — `calculate` is read-only so
+    // the host runs them in parallel.
+    guard.push_response(
+        "Computing three values.\n\
+         <tool name=\"calculate\">1001 + 1</tool>\n\
+         <tool name=\"calculate\">2002 + 2</tool>\n\
+         <tool name=\"calculate\">3003 + 3</tool>",
+    );
+    guard.push_response("Done batching.");
+
+    let mut messages = make_system_messages();
+    let mut auto = true;
+    let ui = quiet_ui();
+
+    let turn = run_agent_turn(
+        &Provider::Mock,
+        "",
+        "mock-model",
+        &mut messages,
+        "batch please",
+        &mut auto,
+        &ui,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(turn.answer, "Done batching.");
+    assert_eq!(turn.llm_calls, 2);
+    // All three calls counted as executed.
+    assert_eq!(turn.tool_calls, 3);
+
+    // The second LLM call should see one `<tool_results>` envelope carrying
+    // all three results in source order.
+    let calls = guard.calls();
+    let second = &calls[1];
+    let batched = second
+        .iter()
+        .find(|m| matches!(m.role, Role::User) && m.content.starts_with("<tool_results>"))
+        .expect("second call should carry the <tool_results> envelope");
+    let p1 = batched
+        .content
+        .find("name=\"calculate\"")
+        .expect("first result");
+    let p2 = batched.content[p1 + 1..]
+        .find("name=\"calculate\"")
+        .expect("second result");
+    let _p3 = batched.content[p1 + 1 + p2 + 1..]
+        .find("name=\"calculate\"")
+        .expect("third result");
+    // First result must contain "1002" (1001 + 1) — source-order preserved.
+    let first_result = &batched.content[..p1 + 1 + p2];
+    assert!(
+        first_result.contains("1002"),
+        "first result block must carry the first call's output: {first_result}"
+    );
+}
+
+/// A batch that mixes a side-effect call with read-only ones short-circuits:
+/// only the side-effect call dispatches, and the reads get rejection notes.
+#[tokio::test]
+async fn parallel_batch_with_side_effect_partially_rejects_reads() {
+    let guard = MockGuard::new();
+    // First response: one side-effect (write_file) and two reads. Order matters.
+    let dir = std::env::temp_dir().join(format!("aictl_batch_se_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("out.txt");
+    guard.push_response(format!(
+        "Stage the write and read two files.\n\
+         <tool name=\"write_file\">{}\nbatch content</tool>\n\
+         <tool name=\"calculate\">444 + 1</tool>\n\
+         <tool name=\"calculate\">555 + 1</tool>",
+        path.display()
+    ));
+    guard.push_response("Wrote one file, will re-emit reads next turn.");
+
+    let mut messages = make_system_messages();
+    let mut auto = true;
+    let ui = quiet_ui();
+
+    let turn = run_agent_turn(
+        &Provider::Mock,
+        "",
+        "mock-model",
+        &mut messages,
+        "mixed batch",
+        &mut auto,
+        &ui,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Only the side-effect call counts as executed; reads were rejected.
+    assert_eq!(turn.tool_calls, 1);
+    assert!(path.exists(), "write_file should have run");
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(written, "batch content");
+
+    // The second LLM call sees a `<tool_result>` for write_file and a
+    // separate `<tool_results>` envelope carrying rejection messages for the
+    // two reads.
+    let calls = guard.calls();
+    let second = &calls[1];
+    let rejection_found = second.iter().any(|m| {
+        matches!(m.role, Role::User)
+            && m.content.starts_with("<tool_results>")
+            && m.content
+                .contains("Rejected: batched alongside side-effect call")
+    });
+    assert!(
+        rejection_found,
+        "rejected reads should land in a <tool_results> envelope"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 // --- Redaction: outbound seam (Seam 1) integration ---
 
 fn build_redact_policy(mode: RedactionMode) -> RedactionPolicy {

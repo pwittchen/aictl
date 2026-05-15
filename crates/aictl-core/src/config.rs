@@ -355,7 +355,7 @@ Web search routing rules (read carefully — the fallback is mandatory, not opti
 - save_memory: Persist a fact about the user to long-term memory (`~/.aictl/memory.json`) so it survives across sessions. Pass the fact to remember as input — a single concise sentence works best. Use this when the user shares something worth remembering (a stated preference, their role, ongoing work, recurring context) or asks you to "remember", "memorize", or "save" something. Saved facts are automatically loaded into the system prompt of every future conversation under a `# Memory` block, so subsequent answers can rely on them without the user repeating themselves. The tool returns `Memory saved: <text>` on success — relay that back to the user verbatim so they see the fact was captured. Skipped silently when the user is in incognito mode or has disabled memory.
 
 Rules:
-- Use at most one tool call per response.
+- You may emit MORE THAN ONE `<tool>` block in a single response only when ALL calls are read-only (`read_file`, `list_directory`, `search_files`, `find_files`, `git status`, `git log`, `git blame`, `git diff`, `lint_file`, `check_port`, `system_info`, `json_query`, `csv_query`, `calculate`, `fetch_datetime`, `fetch_url`, `extract_website`, `read_document`, `read_image`, `fetch_geolocation`, `clipboard read`, `diff_files`, `checksum`, `list_processes`). Batched calls run in parallel and the results return together as a `<tool_results>` block, in the order you emitted them. Any side-effect call (`write_file`, `edit_file`, `remove_file`, `create_directory`, `exec_shell`, `run_code`, `git commit`, `notify`, `archive`, `save_memory`, `generate_image`, `test`, `clipboard write`) MUST be emitted alone — one per response. If the host detects a batched side-effect call, only the side-effect call runs and the read-only siblings are rejected with a message telling you to re-emit them in a separate turn.
 - When you have enough information to answer the user's question, respond normally without any tool tags.
 - Show your reasoning before tool calls.
 "#;
@@ -502,7 +502,7 @@ Available tools:
 - save_memory: Persist a fact about the user to long-term memory.
 
 Rules:
-- Use at most one tool call per response.
+- You may emit MORE THAN ONE `<tool>` block in a single response only when ALL calls are read-only (`read_file`, `list_directory`, `search_files`, `find_files`, `git status`, `git log`, `git blame`, `git diff`, `lint_file`, `check_port`, `system_info`, `json_query`, `csv_query`, `calculate`, `fetch_datetime`, `fetch_url`, `extract_website`, `read_document`, `read_image`, `fetch_geolocation`, `clipboard read`, `diff_files`, `checksum`, `list_processes`). Batched calls run in parallel and the results return together as a `<tool_results>` block, in the order you emitted them — use this aggressively during the Explore phase to bundle five `read_file`s or a `read_file` + `search_files` + `git log` discovery burst into one round-trip. Any side-effect call (`write_file`, `edit_file`, `remove_file`, `create_directory`, `exec_shell`, `run_code`, `git commit`, `notify`, `archive`, `save_memory`, `generate_image`, `test`, `clipboard write`) MUST be emitted alone — one per response. If the host detects a batched side-effect call, only the side-effect call runs and the read-only siblings are rejected with a message telling you to re-emit them in a separate turn.
 - When you have enough information to answer the user's question, respond normally without any tool tags.
 - Show your reasoning before tool calls. State which phase you are in (and why) when transitioning.
 "#;
@@ -562,6 +562,17 @@ pub const AICTL_CODING_REPO_CONTEXT_TREE_MAX: &str = "AICTL_CODING_REPO_CONTEXT_
 /// Default filter passed to the `test` tool when no filter is supplied
 /// in the body. Empty (default) means "run everything".
 pub const AICTL_CODING_TEST_FILTER_DEFAULT: &str = "AICTL_CODING_TEST_FILTER_DEFAULT";
+
+/// Maximum number of tool calls dispatched in parallel per batch.
+///
+/// Phase 4 batch-dispatch cap. Applies to *any* multi-tool batch the
+/// model emits (the name is grouped under `AICTL_CODING_` for catalogue
+/// reasons, but the dispatch path itself is not coding-mode-specific).
+/// Default `4`; values >16 clamp to 16; `0` disables parallel dispatch
+/// entirely — the loop falls back to "first call only; reject the rest
+/// with a serialize message" so a problematic provider can be
+/// quarantined without re-rolling.
+pub const AICTL_CODING_PARALLEL_TOOLS_MAX: &str = "AICTL_CODING_PARALLEL_TOOLS_MAX";
 
 /// Whether coding-agent mode is enabled for this process.
 ///
@@ -685,6 +696,16 @@ pub fn coding_repo_context_tree_max() -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|v| (5..=400).contains(v))
         .unwrap_or(60)
+}
+
+/// Read `AICTL_CODING_PARALLEL_TOOLS_MAX`. Default `4`. Values >16
+/// clamp to 16 so a typo can't spawn an unbounded number of tool
+/// futures at once. A value of `0` disables parallel dispatch.
+#[must_use]
+pub fn coding_parallel_tools_max() -> usize {
+    config_get(AICTL_CODING_PARALLEL_TOOLS_MAX)
+        .and_then(|v| v.parse::<usize>().ok())
+        .map_or(4, |v| v.min(16))
 }
 
 /// Read `AICTL_CODING_TEST_FILTER_DEFAULT`. Returns `None` when unset or

@@ -1200,12 +1200,17 @@ pub(crate) async fn run_interactive(
                 .await;
 
                 // Update the phase tracker based on what just happened.
-                // Explicit `<phase>` tag wins; otherwise the appearance of
-                // an edit_file / write_file tool call infers Code, and a
-                // final answer with no tool calls past Plan bumps to
-                // Review (or Test if review is disabled).
+                // A mid-stream `<phase>` tag observed during this turn
+                // wins outright — it reflects the model's latest
+                // self-report even if buried in an intermediate LLM
+                // call. Otherwise fall back to the post-turn inference:
+                // an explicit `<phase>` in the final answer wins, then
+                // an `edit_file` / `write_file` infers `Code`, then a
+                // final answer past `Plan` advances toward Review/Test.
                 if config::coding_agent_enabled() {
-                    phase = next_phase_after_turn(phase, &messages, &last_answer);
+                    phase = ui
+                        .take_latest_phase()
+                        .unwrap_or_else(|| next_phase_after_turn(phase, &messages, &last_answer));
                 }
                 session::save_current(&messages);
             }

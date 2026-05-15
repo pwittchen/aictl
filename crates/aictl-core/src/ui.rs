@@ -204,4 +204,14 @@ pub trait AgentUI {
     fn interruption(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(std::future::pending())
     }
+
+    /// Called from the streaming pipeline once for each complete
+    /// `<phase>NAME</phase>` tag the model emits during a turn (Phase 4
+    /// mid-stream wiring). Default no-op; the CLI's `InteractiveUI`
+    /// overrides this to update the `[phase]` prompt-prefix state so the
+    /// next REPL prompt reflects the model's currently-claimed phase
+    /// — even if the tag fired mid-stream rather than in the final
+    /// answer. Non-coding frontends (desktop, server, plain UI) leave it
+    /// as the no-op default.
+    fn on_phase_change(&self, _phase: crate::coding::WorkflowPhase) {}
 }

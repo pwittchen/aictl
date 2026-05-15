@@ -350,6 +350,13 @@ pub struct InteractiveUI {
     /// `stream_suspend` is still running. `stream_end` reads this to know
     /// whether to stop a spinner (and reset to `false`).
     suspend_spinner: Cell<bool>,
+    /// Latest `<phase>` tag observed mid-stream (Phase 4). Drained by
+    /// `take_latest_phase` after each REPL turn so the next prompt
+    /// prefix reflects the model's currently-claimed phase even when
+    /// the tag arrived inside an intermediate LLM call rather than the
+    /// final answer. `Mutex` (not `Cell`) because the streaming sink
+    /// runs on a tokio task and writes from a non-REPL thread.
+    latest_phase: Mutex<Option<aictl_core::coding::WorkflowPhase>>,
 }
 
 impl InteractiveUI {
@@ -363,7 +370,18 @@ impl InteractiveUI {
             stream_word: RefCell::new(String::new()),
             stream_spaces: Cell::new(0),
             suspend_spinner: Cell::new(false),
+            latest_phase: Mutex::new(None),
         }
+    }
+
+    /// Drain and return the most recent `<phase>` tag observed during
+    /// the agent turn that just ended. The REPL calls this after
+    /// `run_and_display_turn` so the next prompt prefix is informed by
+    /// any mid-stream phase transition the model emitted — including
+    /// tags buried inside intermediate LLM calls rather than the final
+    /// answer.
+    pub fn take_latest_phase(&self) -> Option<aictl_core::coding::WorkflowPhase> {
+        self.latest_phase.lock().ok().and_then(|mut g| g.take())
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1029,6 +1047,17 @@ impl AgentUI for InteractiveUI {
         };
         pb.set_message(label.to_string());
         ProgressHandle::from_backend(Box::new(IndicatifBackend(Mutex::new(pb))))
+    }
+
+    fn on_phase_change(&self, phase: aictl_core::coding::WorkflowPhase) {
+        // Record the most recent phase tag the streaming sink observed.
+        // The REPL drains this via `take_latest_phase` after the turn so
+        // the next prompt prefix flips to the model's currently-claimed
+        // phase even when the tag fired mid-stream rather than in the
+        // final answer.
+        if let Ok(mut slot) = self.latest_phase.lock() {
+            *slot = Some(phase);
+        }
     }
 
     fn interruption(&self) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {

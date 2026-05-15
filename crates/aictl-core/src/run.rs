@@ -555,6 +555,12 @@ pub fn build_system_prompt_with(phase_hint: Option<&str>) -> String {
 enum StreamEvent {
     Delta(String),
     Suspend,
+    /// Parsed `<phase>NAME</phase>` self-report from the model. Forwarded
+    /// to `AgentUI::on_phase_change` so the CLI's REPL can flip the
+    /// `[phase]` prompt prefix to the model's currently-claimed phase
+    /// before the next prompt renders. Gated downstream on
+    /// `config::coding_agent_enabled()` — non-coding sessions ignore.
+    PhaseChange(crate::coding::WorkflowPhase),
 }
 
 /// Build the [`TokenSink`] callback the agent loop hands to a provider when
@@ -595,6 +601,9 @@ fn build_stream_sink() -> (
         if result.became_suspended {
             let _ = tx.send(StreamEvent::Suspend);
         }
+        if let Some(phase) = result.phase {
+            let _ = tx.send(StreamEvent::PhaseChange(phase));
+        }
     });
     (sink, rx, state)
 }
@@ -624,6 +633,13 @@ where
                 *began = true;
             }
             ui.stream_chunk(&chunk);
+        }
+        StreamEvent::PhaseChange(phase) => {
+            // Forward unconditionally — the UI impl decides whether to
+            // act on it. CLI's `InteractiveUI` stores the latest phase
+            // for the next REPL prompt; `PlainUI` (and every other
+            // frontend in v1) no-ops.
+            ui.on_phase_change(phase);
         }
         StreamEvent::Suspend => {
             // Only meaningful once we've started streaming visible prose —
@@ -770,6 +786,391 @@ fn tool_hook_ctx<'a>(tool_call: &'a tools::ToolCall, output: Option<&'a str>) ->
         tool_output: output,
         ..Default::default()
     }
+}
+
+/// Result of a tool-dispatch decision passed back to the agent loop.
+///
+/// Carries both the executed-call count (for stats) and the names of every
+/// call that landed in history (so the loop's post-dispatch hooks — the
+/// `test`-retry block in particular — can fire whether the call ran solo or
+/// as part of a parallel batch).
+struct DispatchResult {
+    executed: u32,
+    dispatched_names: Vec<String>,
+}
+
+/// Outcome of one tool call inside a parallel batch.
+struct ParallelCallOutcome {
+    idx: usize,
+    call: tools::ToolCall,
+    result_body: String,
+    images: Vec<crate::ImageData>,
+    /// `additional_context` lines from the `PostToolUse` hook plus the
+    /// hook's `blocked` reason (if any). Appended as a single
+    /// `hook_context` user turn after the batch's `<tool_results>` lands.
+    hook_extras: Vec<String>,
+    /// `true` when the call was rejected by the `PreToolUse` hook, never
+    /// dispatched. Doesn't count toward the executed `tool_calls` counter.
+    denied: bool,
+}
+
+/// Execute one tool call inside a parallel batch. Runs `PreToolUse` → dispatch →
+/// `PostToolUse` → optional redaction-block seam, and packages everything into
+/// a [`ParallelCallOutcome`] so the orchestrator can join results in source
+/// order.
+async fn run_parallel_call(idx: usize, call: tools::ToolCall) -> ParallelCallOutcome {
+    let pre_outcome = hooks::run_hooks(
+        HookEvent::PreToolUse,
+        &call.name,
+        tool_hook_ctx(&call, None),
+    )
+    .await;
+    if let Some(reason) = pre_outcome.blocked {
+        crate::audit::log_tool(
+            &call,
+            crate::audit::Outcome::DeniedByPolicy {
+                reason: &format!("hook: {reason}"),
+            },
+        );
+        return ParallelCallOutcome {
+            idx,
+            call,
+            result_body: format!("Tool call blocked by hook: {reason}"),
+            images: vec![],
+            hook_extras: vec![],
+            denied: true,
+        };
+    }
+
+    let output = tools::execute_tool(&call).await;
+
+    // Coding-agent workspace tracking. Reads / list / search never land
+    // here in a parallel batch (they're parallelizable and side-effect
+    // calls aren't), but the partial-rejection path dispatches a single
+    // side-effect call through this helper too, so keep the invariant
+    // honest.
+    if matches!(
+        call.name.as_str(),
+        "write_file" | "edit_file" | "remove_file" | "create_directory"
+    ) {
+        crate::coding::invalidate_repo_context();
+        if let Some(first) = call.input.lines().next() {
+            let path = first.trim();
+            if !path.is_empty() {
+                crate::coding::record_workspace_change(std::path::Path::new(path));
+            }
+        }
+    }
+
+    let pol = redaction::policy();
+    let mut result_content = output.text.clone();
+    if matches!(pol.mode, RedactionMode::Block)
+        && let RedactionResult::Blocked { matches } = redaction::redact(&output.text, &pol)
+    {
+        audit::log_redaction(
+            RedactionDirection::Inbound,
+            RedactionSource::ToolResult,
+            pol.mode,
+            &output.text,
+            &matches,
+        );
+        result_content = format!(
+            "[tool result blocked by redaction policy — {} matches detected]",
+            matches.len()
+        );
+    }
+
+    let post = hooks::run_hooks(
+        HookEvent::PostToolUse,
+        &call.name,
+        tool_hook_ctx(&call, Some(&result_content)),
+    )
+    .await;
+    let mut hook_extras = post.additional_context;
+    if let Some(reason) = post.blocked {
+        hook_extras.push(format!("hook objection (post): {reason}"));
+    }
+
+    ParallelCallOutcome {
+        idx,
+        call,
+        result_body: result_content,
+        images: output.images,
+        hook_extras,
+        denied: false,
+    }
+}
+
+/// Render a `<tool_results>` user turn aggregating multiple per-call result
+/// bodies. The body lists `<tool_result name="…">` blocks in source order so
+/// the model reads them in the order it emitted the calls — regardless of
+/// completion order during parallel dispatch.
+fn build_tool_results_block(outcomes: &[ParallelCallOutcome]) -> String {
+    use std::fmt::Write as _;
+    let mut body = String::from("<tool_results>\n");
+    for o in outcomes {
+        let _ = writeln!(body, "<tool_result name=\"{}\">", o.call.name);
+        body.push_str(&o.result_body);
+        if !body.ends_with('\n') {
+            body.push('\n');
+        }
+        body.push_str("</tool_result>\n");
+    }
+    body.push_str("</tool_results>");
+    body
+}
+
+/// Append a single `<tool_results>` user turn carrying rejection messages for
+/// every call that was *not* dispatched (because the host short-circuited a
+/// mixed batch or `AICTL_CODING_PARALLEL_TOOLS_MAX=0`).
+fn push_rejection_block(messages: &mut Vec<Message>, rejected: &[(&tools::ToolCall, String)]) {
+    use std::fmt::Write as _;
+    if rejected.is_empty() {
+        return;
+    }
+    let mut body = String::from("<tool_results>\n");
+    for (call, reason) in rejected {
+        let _ = writeln!(body, "<tool_result name=\"{}\">", call.name);
+        body.push_str(reason);
+        if !body.ends_with('\n') {
+            body.push('\n');
+        }
+        body.push_str("</tool_result>\n");
+    }
+    body.push_str("</tool_results>");
+    messages.push(Message {
+        role: Role::User,
+        content: body,
+        images: vec![],
+    });
+}
+
+/// Dispatch a multi-call batch.
+///
+/// Three sub-paths, decided up-front:
+///   * `AICTL_CODING_PARALLEL_TOOLS_MAX=0` — parallel dispatch kill switch.
+///     Run the first call only via [`handle_tool_call`]; reject the rest with
+///     a "serialize" message so the model re-emits them one at a time.
+///   * Batch contains any side-effect call — partial rejection: run the first
+///     side-effect call (serially) via [`handle_tool_call`]; everything else
+///     gets a per-call rejection so the model knows to re-emit reads on a
+///     fresh turn.
+///   * Pure read-only batch — parallel dispatch via [`tokio::task::JoinSet`],
+///     chunked by the configured cap; per-call results join into one
+///     `<tool_results>` user turn in source order.
+#[allow(clippy::too_many_lines)]
+async fn handle_tool_batch(
+    calls: Vec<tools::ToolCall>,
+    response: &str,
+    auto: &mut bool,
+    ui: &dyn AgentUI,
+    messages: &mut Vec<Message>,
+    streamed: bool,
+) -> Result<DispatchResult, AictlError> {
+    debug_assert!(
+        calls.len() > 1,
+        "handle_tool_batch should not be called with <2 tool calls"
+    );
+
+    // Reasoning that preceded the first tool tag is shown once for the
+    // whole batch — same rule as the single-call path: skip when streaming
+    // already forwarded it to the UI.
+    if !streamed && let Some(idx) = response.find("<tool") {
+        let reasoning = response[..idx].trim();
+        if !reasoning.is_empty() {
+            ui.show_reasoning(reasoning);
+        }
+    }
+
+    let cap = config::coding_parallel_tools_max();
+
+    // Kill switch: cap == 0. Run the first call only via the single-call
+    // path (so its approval, security gate, hooks, and audit all run
+    // unchanged) and queue the rest as rejections in a single
+    // `<tool_results>` block.
+    if cap == 0 {
+        let action = handle_tool_call(&calls[0], response, auto, ui, messages, streamed).await?;
+        let executed = match action {
+            ToolAction::Executed => 1u32,
+            ToolAction::Denied => 0,
+        };
+        let rejected: Vec<(&tools::ToolCall, String)> = calls[1..]
+            .iter()
+            .map(|c| {
+                (
+                    c,
+                    "Parallel dispatch is disabled (AICTL_CODING_PARALLEL_TOOLS_MAX=0). \
+                     Re-emit this call alone in a separate response."
+                        .to_string(),
+                )
+            })
+            .collect();
+        push_rejection_block(messages, &rejected);
+        return Ok(DispatchResult {
+            executed,
+            dispatched_names: vec![calls[0].name.clone()],
+        });
+    }
+
+    // Partial rejection: any side-effect call shoves the batch onto the
+    // serial path. The first side-effect dispatches via the single-call
+    // handler; every other call (read-only or side-effect) is rejected.
+    if let Some(se_idx) = calls.iter().position(|c| !tools::is_parallelizable(c)) {
+        let action =
+            handle_tool_call(&calls[se_idx], response, auto, ui, messages, streamed).await?;
+        let executed = match action {
+            ToolAction::Executed => 1u32,
+            ToolAction::Denied => 0,
+        };
+        let se_name = calls[se_idx].name.clone();
+        let rejected: Vec<(&tools::ToolCall, String)> = calls
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != se_idx)
+            .map(|(_, c)| {
+                let reason = if tools::is_parallelizable(c) {
+                    format!(
+                        "Rejected: batched alongside side-effect call `{se_name}`. \
+                         Emit read-only calls in a separate turn so they can run in parallel."
+                    )
+                } else {
+                    format!(
+                        "Rejected: only one side-effect call per response. The host ran `{se_name}` \
+                         instead; re-emit this call alone in a follow-up turn."
+                    )
+                };
+                (c, reason)
+            })
+            .collect();
+        push_rejection_block(messages, &rejected);
+        return Ok(DispatchResult {
+            executed,
+            dispatched_names: vec![se_name],
+        });
+    }
+
+    // Pure read-only batch — parallel dispatch path.
+    //
+    // Approval gate: in v1 we ask once (on the first call) and apply the
+    // decision to the whole batch. Concurrent UI prompts would be a UX
+    // mess and `confirm_tool_async` is awkward to fan out anyway. The
+    // user sees every batched call via `show_reasoning` before the prompt
+    // so they know what they're approving.
+    let approval = if *auto {
+        for c in &calls {
+            ui.show_auto_tool(c);
+        }
+        ui::ToolApproval::Allow
+    } else {
+        let summary = calls
+            .iter()
+            .map(|c| {
+                let snip = c.input.lines().next().unwrap_or("").trim();
+                format!("  • {} : {snip}", c.name)
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        ui.show_reasoning(&format!(
+            "running {} parallel tool calls (approval applies to all):\n{summary}",
+            calls.len()
+        ));
+        ui.confirm_tool_async(&calls[0]).await
+    };
+
+    if approval == ui::ToolApproval::AutoAccept {
+        *auto = true;
+    }
+
+    if approval != ui::ToolApproval::Allow && approval != ui::ToolApproval::AutoAccept {
+        crate::audit::log_tool(&calls[0], crate::audit::Outcome::DeniedByUser);
+        messages.push(Message {
+            role: Role::User,
+            content: "Tool call denied by user. Try a different approach or answer without tools."
+                .to_string(),
+            images: vec![],
+        });
+        return Ok(DispatchResult {
+            executed: 0,
+            dispatched_names: calls.into_iter().map(|c| c.name).collect(),
+        });
+    }
+
+    let mut all_outcomes: Vec<ParallelCallOutcome> = Vec::with_capacity(calls.len());
+
+    // Chunk the batch by the configured cap. Each chunk dispatches
+    // concurrently; the next chunk starts only after the previous one
+    // drains.
+    for chunk in calls.chunks(cap) {
+        let label = if chunk.len() > 1 {
+            format!("running {} tools in parallel...", chunk.len())
+        } else {
+            "running tool...".to_string()
+        };
+        ui.start_spinner(&label);
+
+        let chunk_start = all_outcomes.len();
+        let mut set: tokio::task::JoinSet<ParallelCallOutcome> = tokio::task::JoinSet::new();
+        for (i, call) in chunk.iter().enumerate() {
+            let owned = call.clone();
+            let idx = chunk_start + i;
+            set.spawn(async move { run_parallel_call(idx, owned).await });
+        }
+
+        let drain = async {
+            let mut collected = Vec::with_capacity(chunk.len());
+            while let Some(joined) = set.join_next().await {
+                collected.push(
+                    joined.map_err(|e| AictlError::Other(format!("tool task panicked: {e}")))?,
+                );
+            }
+            Ok::<_, AictlError>(collected)
+        };
+
+        let mut collected = with_esc_cancel(ui, drain).await??;
+        ui.stop_spinner();
+
+        collected.sort_by_key(|o| o.idx);
+        for o in &collected {
+            ui.show_tool_result(&o.result_body);
+        }
+        all_outcomes.extend(collected);
+    }
+
+    // Build the joined results in source order and push as a single
+    // `<tool_results>` user turn.
+    let body = build_tool_results_block(&all_outcomes);
+    let mut combined_images: Vec<crate::ImageData> = vec![];
+    let mut combined_extras: Vec<String> = vec![];
+    let mut executed = 0u32;
+    let mut dispatched_names: Vec<String> = Vec::with_capacity(all_outcomes.len());
+    for o in &all_outcomes {
+        combined_images.extend(o.images.iter().cloned());
+        combined_extras.extend(o.hook_extras.iter().cloned());
+        dispatched_names.push(o.call.name.clone());
+        if !o.denied {
+            executed += 1;
+        }
+    }
+    messages.push(Message {
+        role: Role::User,
+        content: body,
+        images: combined_images,
+    });
+    if !combined_extras.is_empty() {
+        messages.push(Message {
+            role: Role::User,
+            content: format!(
+                "<hook_context>\n{}\n</hook_context>",
+                combined_extras.join("\n\n")
+            ),
+            images: vec![],
+        });
+    }
+
+    Ok(DispatchResult {
+        executed,
+        dispatched_names,
+    })
 }
 
 /// Handle a single tool call: display reasoning, get approval, execute, push result.
@@ -1348,10 +1749,10 @@ pub async fn run_agent_turn(
             images: vec![],
         });
 
-        let tool_call = tools::parse_tool_call(&response);
+        let calls = tools::parse_tool_calls(&response);
         let malformed_tool_call =
-            tool_call.is_none() && tools::looks_like_malformed_tool_call(&response);
-        let is_final_answer = tool_call.is_none() && !malformed_tool_call;
+            calls.is_empty() && tools::looks_like_malformed_tool_call(&response);
+        let is_final_answer = calls.is_empty() && !malformed_tool_call;
 
         // Helper closure so every exit path shows the same rule+status line.
         // We intentionally defer this past tool execution in the tool-call
@@ -1383,7 +1784,7 @@ pub async fn run_agent_turn(
             continue;
         }
 
-        let Some(tool_call) = tool_call else {
+        if calls.is_empty() {
             // No tool call — candidate final answer.
             //
             // Coding-agent only: before releasing, run the host-driven
@@ -1481,17 +1882,14 @@ pub async fn run_agent_turn(
                 elapsed: turn_start.elapsed(),
                 last_input_tokens,
             });
-        };
+        }
 
-        // Abort the turn if the model is trying to repeat a tool call it
-        // has already made this session. `tools::execute_tool` would reject
-        // the duplicate anyway, but continuing the loop just gives the
-        // model another chance to emit the same call.
-        if tools::is_duplicate_call(&tool_call) {
+        // Duplicate-call guard runs on the single-call shape only — for
+        // batches each call has its own duplicate check inside
+        // `tools::execute_tool`, and a batch by definition isn't a
+        // back-to-back repeat of one call.
+        if calls.len() == 1 && tools::is_duplicate_call(&calls[0]) {
             emit_status(tool_calls);
-            // Only print the leading reasoning when streaming wasn't already
-            // showing it. With streaming on, the reasoning is on screen
-            // already (the suspend buffer flushed it before catching <tool).
             if !streamed && let Some(idx) = response.find("<tool") {
                 let reasoning = response[..idx].trim();
                 if !reasoning.is_empty() {
@@ -1500,15 +1898,24 @@ pub async fn run_agent_turn(
             }
             return Err(AictlError::Other(format!(
                 "Agent stopped: model tried to call `{}` again with the same input — it is looping. Try a stronger model or rephrase the request.",
-                tool_call.name
+                calls[0].name
             )));
         }
 
-        if let ToolAction::Executed =
-            handle_tool_call(&tool_call, &response, auto, ui, messages, streamed).await?
-        {
-            tool_calls += 1;
-        }
+        let dispatch = if calls.len() == 1 {
+            let action =
+                handle_tool_call(&calls[0], &response, auto, ui, messages, streamed).await?;
+            DispatchResult {
+                executed: match action {
+                    ToolAction::Executed => 1,
+                    ToolAction::Denied => 0,
+                },
+                dispatched_names: vec![calls[0].name.clone()],
+            }
+        } else {
+            handle_tool_batch(calls, &response, auto, ui, messages, streamed).await?
+        };
+        tool_calls += dispatch.executed;
 
         // Coding-agent: host-driven test-retry loop. After a `test`
         // tool dispatch the tool stores a structured `TestSummary` on a
@@ -1519,7 +1926,7 @@ pub async fn run_agent_turn(
         // injecting the failure before letting the model produce a
         // terminal answer.
         if coding_agent_enabled()
-            && tool_call.name == "test"
+            && dispatch.dispatched_names.iter().any(|n| n == "test")
             && let Some(summary) = tools::take_last_test_summary().await
             && summary.failed > 0
         {

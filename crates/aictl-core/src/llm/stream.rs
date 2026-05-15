@@ -38,6 +38,12 @@ pub struct StreamState {
     /// the user-visible stream. The full text is still recorded in `full`
     /// so `parse_tool_call` can act on it after the stream ends.
     pub suspended: bool,
+    /// Byte cursor into `full` where the phase-tag scan should resume on
+    /// the next [`StreamState::accept`] call. Each scan walks forward
+    /// from this point, reports any completed `<phase>NAME</phase>` tag,
+    /// and advances past it — so multiple transitions in one turn each
+    /// fire exactly once.
+    phase_scan_cursor: usize,
 }
 
 /// Outcome of feeding one delta into [`StreamState::accept`].
@@ -51,6 +57,13 @@ pub struct Accepted {
     /// any buffered word-wrap tail and show a "preparing tool call…"
     /// spinner during the (otherwise invisible) tool-XML stream.
     pub became_suspended: bool,
+    /// Phase tag the model self-reported during (or up to) this delta, if
+    /// any. `Some(phase)` exactly once per `<phase>NAME</phase>` tag the
+    /// stream completes; subsequent deltas without a fresh tag yield
+    /// `None`. Labels that aren't recognized by
+    /// [`crate::coding::WorkflowPhase::from_label`] are silently dropped
+    /// so a model typo doesn't change state.
+    pub phase: Option<crate::coding::WorkflowPhase>,
 }
 
 impl StreamState {
@@ -73,10 +86,16 @@ impl StreamState {
     ///   `suspended = true` and drop everything after the prefix start.
     pub fn accept(&mut self, delta: &str) -> Accepted {
         self.full.push_str(delta);
+        // Phase-tag scan runs against `full` (not `pending`) so a tag
+        // that completes during the tool-XML phase still fires — useful
+        // when the model self-reports a phase at the very top of a turn
+        // followed immediately by a tool call.
+        let phase = self.scan_phase();
         if self.suspended {
             return Accepted {
                 emit: String::new(),
                 became_suspended: false,
+                phase,
             };
         }
 
@@ -91,11 +110,37 @@ impl StreamState {
             return Accepted {
                 emit: flush,
                 became_suspended: true,
+                phase,
             };
         }
         Accepted {
             emit: flush,
             became_suspended: false,
+            phase,
+        }
+    }
+
+    /// Look for a complete `<phase>NAME</phase>` tag past
+    /// [`Self::phase_scan_cursor`]. Returns the parsed phase and advances
+    /// the cursor past the matched tag. Returns `None` if no complete
+    /// tag is available yet (so a tag split across chunks completes on
+    /// the chunk that finishes it).
+    fn scan_phase(&mut self) -> Option<crate::coding::WorkflowPhase> {
+        const OPEN: &str = "<phase>";
+        const CLOSE: &str = "</phase>";
+        loop {
+            let rest = &self.full[self.phase_scan_cursor..];
+            let open_idx = rest.find(OPEN)?;
+            let after_open = open_idx + OPEN.len();
+            let close_idx = rest[after_open..].find(CLOSE)?;
+            let label = &rest[after_open..after_open + close_idx];
+            let tag_end = after_open + close_idx + CLOSE.len();
+            self.phase_scan_cursor += tag_end;
+            if let Some(phase) = crate::coding::WorkflowPhase::from_label(label) {
+                return Some(phase);
+            }
+            // Unknown label — keep walking past this tag in case a
+            // later one in the same delta is parseable.
         }
     }
 
@@ -378,6 +423,53 @@ mod tests {
         let _ = s.accept(full_match());
         let leftover = s.flush();
         assert_eq!(leftover, "");
+    }
+
+    // --- Phase tag detection (Phase 4 mid-stream wiring) ---
+
+    #[test]
+    fn phase_tag_in_one_chunk_emits_once() {
+        let mut s = StreamState::new();
+        let r = s.accept("<phase>plan</phase>I will...");
+        assert_eq!(r.phase, Some(crate::coding::WorkflowPhase::Plan));
+        // Second call without a fresh tag must not re-fire.
+        let r2 = s.accept(" continue");
+        assert!(r2.phase.is_none());
+    }
+
+    #[test]
+    fn phase_tag_split_across_chunks_emits_on_completion() {
+        let mut s = StreamState::new();
+        let r1 = s.accept("<pha");
+        assert!(r1.phase.is_none());
+        let r2 = s.accept("se>code</phase> ready");
+        assert_eq!(r2.phase, Some(crate::coding::WorkflowPhase::Code));
+    }
+
+    #[test]
+    fn phase_tag_with_unknown_label_emits_none() {
+        let mut s = StreamState::new();
+        let r = s.accept("<phase>refactor</phase>");
+        assert!(r.phase.is_none());
+    }
+
+    #[test]
+    fn phase_tag_multiple_in_one_turn_each_fire_once() {
+        let mut s = StreamState::new();
+        let r1 = s.accept("<phase>explore</phase> reading...");
+        assert_eq!(r1.phase, Some(crate::coding::WorkflowPhase::Explore));
+        let r2 = s.accept(" <phase>plan</phase> now planning");
+        assert_eq!(r2.phase, Some(crate::coding::WorkflowPhase::Plan));
+    }
+
+    #[test]
+    fn phase_tag_during_tool_suspend_still_fires() {
+        let mut s = StreamState::new();
+        // The model emits a phase tag mid-tool-XML stream.
+        let r1 = s.accept(&format!("{}read_file\">", full_match()));
+        assert!(r1.became_suspended);
+        let r2 = s.accept("a.rs</tool><phase>code</phase>");
+        assert_eq!(r2.phase, Some(crate::coding::WorkflowPhase::Code));
     }
 
     #[test]

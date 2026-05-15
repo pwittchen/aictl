@@ -145,6 +145,17 @@ pub fn print_info(
         println!("  {} {test_cmd}", "  test:   ".with(Color::DarkCyan));
     }
 
+    // Phase 4 parallel tool dispatch cap. Surfaces on every run (not
+    // coding-mode-only) because batched read-only dispatch applies in both
+    // modes.
+    let parallel_cap = crate::config::coding_parallel_tools_max();
+    let parallel_label = if parallel_cap == 0 {
+        "disabled".with(Color::Yellow).to_string()
+    } else {
+        parallel_cap.to_string().with(Color::Green).to_string()
+    };
+    println!("  {} {parallel_label}", "parallel: ".with(Color::Cyan),);
+
     // Collect unique cloud providers from the static catalog. Anything in
     // MODELS counts as a cloud provider; ollama / native GGUF / native MLX
     // are listed separately under "local:".

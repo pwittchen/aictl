@@ -121,7 +121,7 @@ fn normalize_for(tool_name: &str, input: &str) -> String {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ToolCall {
     pub name: String,
     pub input: String,
@@ -270,6 +270,115 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
         .trim()
         .to_string();
     Some(ToolCall { name, input })
+}
+
+/// Parse every well-formed `<tool …>…</tool>` block from a model response, in
+/// source order.
+///
+/// Phase 4 batch-dispatch entry point: when the model emits more than one
+/// `<tool>` block in a single response (legal only for read-only calls — see
+/// [`is_parallelizable`]), the agent loop uses this instead of
+/// [`parse_tool_call`] so it can dispatch the batch in parallel.
+///
+/// Single-call shape is preserved: any response that returns `Some(_)` from
+/// [`parse_tool_call`] returns a `Vec` of length 1 here. Malformed tags are
+/// silently skipped — the existing [`looks_like_malformed_tool_call`] helper
+/// handles "model tried but produced invalid XML" when this returns empty.
+#[must_use]
+pub fn parse_tool_calls(response: &str) -> Vec<ToolCall> {
+    let start_prefix = "<tool name=\"";
+    let end_tag = "</tool>";
+    let mut out = Vec::new();
+    let mut cursor = 0usize;
+    while cursor < response.len() {
+        let Some(start_idx) = response[cursor..].find(start_prefix) else {
+            break;
+        };
+        let abs_start = cursor + start_idx;
+        let after_prefix = abs_start + start_prefix.len();
+        let Some(name_end) = response[after_prefix..].find('"') else {
+            break;
+        };
+        let name = response[after_prefix..after_prefix + name_end].to_string();
+        let Some(tag_close) = response[after_prefix + name_end..].find('>') else {
+            break;
+        };
+        let content_start = after_prefix + name_end + tag_close + 1;
+        let Some(content_end_rel) = response[content_start..].find(end_tag) else {
+            break;
+        };
+        let input = response[content_start..content_start + content_end_rel]
+            .trim()
+            .to_string();
+        out.push(ToolCall { name, input });
+        cursor = content_start + content_end_rel + end_tag.len();
+    }
+    out
+}
+
+/// Tools whose execution mutates state outside the host's memory: file
+/// writes, process spawns, network sends, persisted memory writes,
+/// clipboard writes. These are *not* parallelizable — the model must
+/// emit them alone, one per LLM response.
+///
+/// Note: `git` and `clipboard` are split — both have read-only and
+/// side-effect modes; [`is_parallelizable`] inspects the body to
+/// classify per call.
+const SIDE_EFFECT_TOOLS: &[&str] = &[
+    "write_file",
+    "edit_file",
+    "remove_file",
+    "create_directory",
+    "exec_shell",
+    "run_code",
+    "notify",
+    "archive",
+    "save_memory",
+    "generate_image",
+    "test",
+];
+
+/// `git` is split: status/log/blame/diff are read-only, commit is a
+/// side-effect. The dispatch loop inspects the body's first token to
+/// classify.
+fn is_git_side_effect(input: &str) -> bool {
+    let first = input.split_whitespace().next().unwrap_or("");
+    matches!(first, "commit")
+}
+
+/// `clipboard` is split similarly — `read` is parallelizable, `write`
+/// is a side-effect. Empty / unparseable body defaults to read.
+fn is_clipboard_side_effect(input: &str) -> bool {
+    let first = input.split_whitespace().next().unwrap_or("");
+    matches!(first, "write")
+}
+
+/// Return `true` when this tool call is safe to run concurrently with
+/// other parallelizable calls in the same batch.
+///
+/// Side-effect tools, MCP tools, and plugin tools always return `false`.
+/// `git` and `clipboard` are split by body inspection.
+#[must_use]
+pub fn is_parallelizable(call: &ToolCall) -> bool {
+    if SIDE_EFFECT_TOOLS.contains(&call.name.as_str()) {
+        return false;
+    }
+    if call.name == "git" && is_git_side_effect(&call.input) {
+        return false;
+    }
+    if call.name == "clipboard" && is_clipboard_side_effect(&call.input) {
+        return false;
+    }
+    // MCP and plugin tools are conservatively *not* parallelizable in
+    // v1. Their side-effect surface is unknown to us, so the safe
+    // default is serial. A future MCP capability bit can lift this.
+    if call.name.starts_with("mcp__") {
+        return false;
+    }
+    if crate::plugins::find(&call.name).is_some() {
+        return false;
+    }
+    true
 }
 
 /// Returns `true` when the response clearly *attempted* a tool call but
@@ -592,6 +701,141 @@ mod tests {
         let resp = "Sure, let me check.\n<tool name=\"read_file\">a.txt</tool>\nDone.";
         assert!(parse_tool_call(resp).is_some());
         assert!(!looks_like_malformed_tool_call(resp));
+    }
+
+    // --- Multi-tool parsing (parse_tool_calls) ---
+
+    #[test]
+    fn parse_calls_empty_response_returns_empty_vec() {
+        let resp = "Here is the answer to your question.";
+        assert!(parse_tool_calls(resp).is_empty());
+    }
+
+    #[test]
+    fn parse_calls_single_call_returns_one_entry() {
+        let resp = r#"<tool name="read_file">src/main.rs</tool>"#;
+        let calls = parse_tool_calls(resp);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "read_file");
+        assert_eq!(calls[0].input, "src/main.rs");
+
+        // Must match the single-call shape exactly.
+        let single = parse_tool_call(resp).unwrap();
+        assert_eq!(single.name, calls[0].name);
+        assert_eq!(single.input, calls[0].input);
+    }
+
+    #[test]
+    fn parse_calls_three_reads_in_source_order() {
+        let resp = "Let me check three files.\n\
+                    <tool name=\"read_file\">a.rs</tool>\n\
+                    <tool name=\"read_file\">b.rs</tool>\n\
+                    <tool name=\"read_file\">c.rs</tool>";
+        let calls = parse_tool_calls(resp);
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[0].input, "a.rs");
+        assert_eq!(calls[1].input, "b.rs");
+        assert_eq!(calls[2].input, "c.rs");
+    }
+
+    #[test]
+    fn parse_calls_mixed_tool_names() {
+        let resp = "<tool name=\"read_file\">a.rs</tool>\
+                    <tool name=\"list_directory\">.</tool>\
+                    <tool name=\"git\">status</tool>";
+        let calls = parse_tool_calls(resp);
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[0].name, "read_file");
+        assert_eq!(calls[1].name, "list_directory");
+        assert_eq!(calls[2].name, "git");
+        assert_eq!(calls[2].input, "status");
+    }
+
+    #[test]
+    fn parse_calls_malformed_at_end_stops_scan() {
+        // The malformed trailing block (missing close) terminates the scan;
+        // earlier well-formed blocks are still collected.
+        let resp = "<tool name=\"read_file\">a.rs</tool>\n\
+                    <tool name=\"read_file\">broken";
+        let calls = parse_tool_calls(resp);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].input, "a.rs");
+    }
+
+    // --- Side-effect classifier (is_parallelizable) ---
+
+    fn call(name: &str, input: &str) -> ToolCall {
+        ToolCall {
+            name: name.to_string(),
+            input: input.to_string(),
+        }
+    }
+
+    #[test]
+    fn parallelizable_read_only_tools_return_true() {
+        for name in &[
+            "read_file",
+            "list_directory",
+            "search_files",
+            "find_files",
+            "lint_file",
+            "check_port",
+            "system_info",
+            "fetch_url",
+            "extract_website",
+            "read_document",
+            "json_query",
+            "csv_query",
+            "calculate",
+            "fetch_datetime",
+            "fetch_geolocation",
+            "diff_files",
+            "checksum",
+            "list_processes",
+        ] {
+            assert!(
+                is_parallelizable(&call(name, "")),
+                "{name} should be parallelizable"
+            );
+        }
+    }
+
+    #[test]
+    fn parallelizable_side_effect_tools_return_false() {
+        for name in SIDE_EFFECT_TOOLS {
+            assert!(
+                !is_parallelizable(&call(name, "any body")),
+                "{name} must not be parallelizable"
+            );
+        }
+    }
+
+    #[test]
+    fn parallelizable_git_split_by_first_token() {
+        for ro in &["status", "log", "blame", "diff", "log --oneline -n 5"] {
+            assert!(
+                is_parallelizable(&call("git", ro)),
+                "git {ro} should be parallelizable"
+            );
+        }
+        for se in &["commit -m \"x\"", "commit"] {
+            assert!(
+                !is_parallelizable(&call("git", se)),
+                "git {se} must not be parallelizable"
+            );
+        }
+    }
+
+    #[test]
+    fn parallelizable_clipboard_split_by_first_token() {
+        assert!(is_parallelizable(&call("clipboard", "read")));
+        assert!(is_parallelizable(&call("clipboard", "")));
+        assert!(!is_parallelizable(&call("clipboard", "write\nhello")));
+    }
+
+    #[test]
+    fn parallelizable_mcp_tools_return_false() {
+        assert!(!is_parallelizable(&call("mcp__foo__bar", "{}")));
     }
 
     // --- Duplicate-call guard tests ---
