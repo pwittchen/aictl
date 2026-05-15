@@ -1,5 +1,9 @@
 # Roadmap
 
+## Docs
+
+- Simplify README.md docs and move large docs into the separate `*.md` file
+
 ## Coding-agent mode
 
 Phase 1 (master switch, `SYSTEM_PROMPT_CODING`, `WorkflowPhase`, CLI surface, desktop toggle) has shipped. Follow-up phases:
