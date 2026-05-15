@@ -433,27 +433,9 @@ pub fn validate_tool(tool_call: &ToolCall) -> Result<(), String> {
             let path = if path.is_empty() { "." } else { path };
             check_dir(path).map(|_| ())
         }
-        "search_files" => {
-            let input = input.trim();
-            let dir = match input.split_once('\n') {
-                Some((_, d)) => {
-                    let d = d.trim();
-                    if d.is_empty() { "." } else { d }
-                }
-                None => ".",
-            };
-            check_dir(dir).map(|_| ())
-        }
-        "find_files" => {
-            let input = input.trim();
-            let base_dir = match input.split_once('\n') {
-                Some((_, d)) => {
-                    let d = d.trim();
-                    if d.is_empty() { "." } else { d }
-                }
-                None => ".",
-            };
-            check_dir(base_dir).map(|_| ())
+        "search_files" | "find_files" => {
+            let dir = extract_search_dir(input);
+            check_dir(&dir).map(|_| ())
         }
         "archive" => check_archive(input),
         "checksum" => check_checksum(input),
@@ -919,6 +901,25 @@ fn extract_first_word(s: &str) -> String {
 }
 
 // --- Path validation ---
+
+/// Extract the directory argument from a `search_files` or `find_files`
+/// tool input under the Phase-2 grammar: line 1 is the pattern, subsequent
+/// lines are either `--flag [value]` or the directory. The directory is
+/// the last non-flag, non-empty line; defaults to `.` when absent.
+fn extract_search_dir(input: &str) -> String {
+    let input = input.trim();
+    let mut iter = input.lines();
+    let _pattern = iter.next();
+    let mut dir: Option<&str> = None;
+    for line in iter {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("--") {
+            continue;
+        }
+        dir = Some(line);
+    }
+    dir.filter(|d| !d.is_empty()).unwrap_or(".").to_string()
+}
 
 fn check_path_read(path: &str) -> Result<PathBuf, String> {
     check_path(path, false)

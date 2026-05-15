@@ -146,10 +146,16 @@ pub const TOOL_COUNT: usize = 35;
 /// [`TOOL_COUNT`].
 pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ("exec_shell", "execute a shell command via sh -c"),
-    ("read_file", "read the contents of a file"),
+    (
+        "read_file",
+        "read a file; optional --lines [N|N-M] for slice and numbered output",
+    ),
     ("write_file", "write content to a file"),
     ("remove_file", "remove (delete) a file"),
-    ("edit_file", "edit a file with find-and-replace"),
+    (
+        "edit_file",
+        "edit a file with multi-block find-and-replace; optional @start-end line scope and fuzzy fallback",
+    ),
     (
         "diff_files",
         "compute a unified diff between two text files",
@@ -159,8 +165,14 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
         "create a directory and any missing parents",
     ),
     ("list_directory", "list files and directories at a path"),
-    ("search_files", "search file contents by pattern"),
-    ("find_files", "find files matching a glob pattern"),
+    (
+        "search_files",
+        "search file contents (ripgrep when available); --regex / --type / --context / --case",
+    ),
+    (
+        "find_files",
+        "find files by glob; --type for fast language filter (ripgrep when available)",
+    ),
     (
         "search_web_fc",
         "search the web via Firecrawl API (primary)",

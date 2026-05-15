@@ -562,6 +562,12 @@ When coding mode is on, the CLI REPL prompt shows a dim `[phase]` prefix trackin
 
 The mode also enforces a **definition of done**: the agent must run the project's build, lint, and test commands after every change (and report pass/fail counts) before declaring success — if it can't run them itself, it tells the user the exact commands to run. Documentation is part of the same gate: when the change is user-visible and the project already has a `README.md` or other docs, the agent updates the affected sections; when the project has no `README.md` at all, the agent creates one with a project name, build/install instructions, and a minimal usage example.
 
+The mode benefits from a sharper **tool surface** shared with the general agent (additive — old grammars keep working):
+
+- **`edit_file`** accepts multiple `<<< … === … >>>` blocks per call (applied top-to-bottom and atomic — any block failure aborts the write, no partial state on disk), each optionally scoped by `@N` / `@N-M` to a 1-based inclusive line range; on a zero-hit exact match it retries with whitespace normalized per line and applies the change only if exactly one fuzzy candidate exists, otherwise it surfaces an "N candidates" error rather than guessing.
+- **`search_files`** and **`find_files`** shell out to `rg` (ripgrep) when it's on `PATH` — `.gitignore` is respected by default, with flags `--regex` / `--literal`, `--case sensitive|smart|insensitive`, `--type rust|py|js|…`, `--context <N>`, `--max <N>`, `--no-ignore` on search and `--type <lang>` on find. When `rg` isn't available the tools fall back to the pure-Rust path so no install is required.
+- **`read_file`** takes an optional second-line `--lines [N|N-M]` flag that returns the requested slice (or the whole file when bare `--lines` is passed) with `NNNNN: ` line-number prefixes — paired with `edit_file`'s `@N-M` directive so the model can pin a change to a specific line range without ambiguity.
+
 Optional tuning knobs in `~/.aictl/config`:
 
 - `AICTL_CODING_PLAN_APPROVE=true` — pause for confirmation before the Code phase.
