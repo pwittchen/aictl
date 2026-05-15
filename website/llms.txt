@@ -17,9 +17,9 @@ aictl is written in Rust and ships as a single binary with no runtime dependenci
 
 - [GitHub repository](https://github.com/pwittchen/aictl): Full source code (Cargo workspace: `aictl-core`, `aictl-cli`, `aictl-server`, `aictl-desktop`).
 - [README](https://github.com/pwittchen/aictl/blob/master/README.md): User-facing documentation.
-- [ARCH.md](https://github.com/pwittchen/aictl/blob/master/ARCH.md): Architecture notes.
-- [SERVER.md](https://github.com/pwittchen/aictl/blob/master/SERVER.md): aictl-server canonical reference (REST API, configuration, security, deployment).
-- [DESIGN.md](https://github.com/pwittchen/aictl/blob/master/DESIGN.md): Visual design system shared by the website and the desktop app.
+- [docs/ARCH.md](https://github.com/pwittchen/aictl/blob/master/docs/ARCH.md): Architecture notes.
+- [docs/SERVER.md](https://github.com/pwittchen/aictl/blob/master/docs/SERVER.md): aictl-server canonical reference (REST API, configuration, security, deployment).
+- [docs/DESIGN.md](https://github.com/pwittchen/aictl/blob/master/docs/DESIGN.md): Visual design system shared by the website and the desktop app.
 - [ROADMAP](https://github.com/pwittchen/aictl/blob/master/ROADMAP.md): Planned work.
 - [Releases](https://github.com/pwittchen/aictl/releases): Prebuilt CLI binaries for macOS and Linux on x86_64 and aarch64, plus signed and notarized macOS desktop app DMGs (Apple Silicon and Intel).
 - [Issues](https://github.com/pwittchen/aictl/issues): Bug reports and feature requests.

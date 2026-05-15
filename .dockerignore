@@ -23,7 +23,7 @@ screenshot*.png
 website/.claude/settings.local.json
 
 # Notes that don't belong in the image.
-COMMERCIAL_PRICING.md
+docs/COMMERCIAL_PRICING.md
 
 # The CLI's per-user state is mounted at runtime, never baked in.
 .aictl/

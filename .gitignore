@@ -31,7 +31,7 @@ target
 website/.claude/settings.local.json
 
 # commercial pricing notes
-COMMERCIAL_PRICING.md
+docs/COMMERCIAL_PRICING.md
 
 # dir with app signing details
 .macos-signing

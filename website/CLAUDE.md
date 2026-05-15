@@ -29,7 +29,7 @@ Plain HTML/CSS/JS single-page site. Four source files drive everything:
 
 ## Design system
 
-The visual design is fully specified in [`DESIGN.md`](DESIGN.md) and must be followed for any UI changes. Load-bearing rules:
+The visual design is fully specified in [`docs/DESIGN.md`](../docs/DESIGN.md) and must be followed for any UI changes. Load-bearing rules:
 
 - Background is `#1f2228` (never pure black); primary text is `#ffffff`.
 - Two fonts only: **Geist Mono** for display headlines and buttons (uppercase, 1.4px letter-spacing), **Inter** (substituting for `universalSans`) for body and section headings. Never mix these roles.
@@ -37,7 +37,7 @@ The visual design is fully specified in [`DESIGN.md`](DESIGN.md) and must be fol
 - Sharp corners (0px radius) by default; no box shadows anywhere — depth comes from border/background opacity.
 - Hover **dims** interactive elements to `rgba(255,255,255,0.5)` rather than brightening them.
 
-When adding or modifying components, cross-reference `DESIGN.md` sections 4 (component stylings) and 7 (do's and don'ts) before writing CSS.
+When adding or modifying components, cross-reference `docs/DESIGN.md` sections 4 (component stylings) and 7 (do's and don'ts) before writing CSS.
 
 ## Conventions
 

@@ -30,7 +30,7 @@ build.ts      # Bun build: minifies HTML/CSS/JS into dist/
 serve.ts      # dev server
 ```
 
-The design follows [`DESIGN.md`](../DESIGN.md) — pure `#1f2228` background, white
+The design follows [`docs/DESIGN.md`](../docs/DESIGN.md) — pure `#1f2228` background, white
 text, Geist Mono for display and buttons, Inter for body. The only color accent
 is a cyan `#5ed3f3` (borrowed from the terminal app's banner), used sparingly
 for the blinking caret, section kickers, and command-prompt glyphs.

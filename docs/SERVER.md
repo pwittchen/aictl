@@ -2,7 +2,7 @@
 
 `aictl-server` is an HTTP **LLM proxy**. It exposes the same provider catalogue that the CLI ships behind one **OpenAI-compatible** endpoint so any client that already speaks the OpenAI SDK can transparently call Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models.
 
-Pure proxy. No agent loop, no tool dispatch, no agents/skills/sessions, no slash commands. Those are CLI-only and stay CLI-only — see [README.md](README.md) and [ARCH.md](ARCH.md). For agent capabilities over HTTP, use the CLI.
+Pure proxy. No agent loop, no tool dispatch, no agents/skills/sessions, no slash commands. Those are CLI-only and stay CLI-only — see [README.md](../README.md) and [ARCH.md](ARCH.md). For agent capabilities over HTTP, use the CLI.
 
 ## Scope
 
@@ -284,7 +284,7 @@ curl http://127.0.0.1:7878/v1/messages \
 
 By default the route only forwards to Anthropic — that's the byte-for-byte passthrough path described above, and it preserves every Anthropic-specific feature (prompt caching, extended thinking, `anthropic-beta` headers, fine-grained tool streaming, native PDF blocks). Flip the master flag and a second mode translates the Anthropic Messages shape into each provider's native shape and back, so Claude Code (or any native-Anthropic client) can run against OpenAI, Grok, Mistral, DeepSeek, Kimi, Z.ai, Gemini, or Ollama models. Anthropic models keep the passthrough path with zero behavioral drift; non-Anthropic models flow through a dedicated translator that owns the full provider HTTP round-trip (not `aictl_core::llm::call_*`, which uses the engine's internal XML tool format).
 
-The full design — translation matrices for every Anthropic field, the streaming SSE state machine, feature-gate policy — lives in [`.claude/plans/done/messages-cross-provider.md`](.claude/plans/done/messages-cross-provider.md).
+The full design — translation matrices for every Anthropic field, the streaming SSE state machine, feature-gate policy — lives in [`.claude/plans/done/messages-cross-provider.md`](../.claude/plans/done/messages-cross-provider.md).
 
 **Configuration:**
 
@@ -553,7 +553,7 @@ server {
 
 ### Docker
 
-A multi-stage Dockerfile lives at [`docker/server.Dockerfile`](docker/server.Dockerfile). The build context expects to be the workspace root so cargo can see every crate.
+A multi-stage Dockerfile lives at [`docker/server.Dockerfile`](../docker/server.Dockerfile). The build context expects to be the workspace root so cargo can see every crate.
 
 ```sh
 # Build the image (Rust → debian:bookworm-slim, ~25 MB final layer).

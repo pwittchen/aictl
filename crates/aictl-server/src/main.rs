@@ -1,7 +1,7 @@
 //! `aictl-server` — OpenAI-compatible HTTP LLM proxy.
 //!
 //! Pure proxy. No agent loop, no tool dispatch, no skills/agents/sessions.
-//! See SERVER.md and `.claude/plans/server.md` for the full design.
+//! See docs/SERVER.md and `.claude/plans/done/server.md` for the full design.
 
 #![allow(
     clippy::must_use_candidate,

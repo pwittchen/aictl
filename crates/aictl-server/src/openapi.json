@@ -3,7 +3,7 @@
   "info": {
     "title": "aictl-server",
     "summary": "OpenAI-compatible HTTP LLM proxy for aictl.",
-    "description": "Pure proxy. Translates OpenAI-shaped requests into each upstream provider's native format (Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, MLX) and back, with built-in outbound redaction, prompt-injection blocking, and per-process audit. No agent loop, no tool dispatch. See SERVER.md for the full reference.",
+    "description": "Pure proxy. Translates OpenAI-shaped requests into each upstream provider's native format (Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, MLX) and back, with built-in outbound redaction, prompt-injection blocking, and per-process audit. No agent loop, no tool dispatch. See docs/SERVER.md for the full reference.",
     "version": "${VERSION}",
     "license": {
       "name": "PolyForm Noncommercial 1.0.0",
@@ -15,8 +15,8 @@
     }
   },
   "externalDocs": {
-    "description": "SERVER.md",
-    "url": "https://github.com/pwittchen/aictl/blob/master/SERVER.md"
+    "description": "docs/SERVER.md",
+    "url": "https://github.com/pwittchen/aictl/blob/master/docs/SERVER.md"
   },
   "servers": [
     { "url": "http://127.0.0.1:7878", "description": "Default loopback bind." }
@@ -471,7 +471,7 @@
             "properties": {
               "code": {
                 "type": "string",
-                "description": "Stable machine code. See SERVER.md § Errors for the full list.",
+                "description": "Stable machine code. See docs/SERVER.md § Errors for the full list.",
                 "examples": [
                   "auth_invalid",
                   "body_malformed",

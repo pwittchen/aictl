@@ -5,7 +5,7 @@ use crossterm::style::{Color, Stylize};
 pub const UPDATE_CMD: &str = "curl -sSf https://aictl.app/install.sh | sh";
 
 /// Server install one-liner — kept in sync with the URL `--serve` prints
-/// when `aictl-server` is missing and with `SERVER.md`.
+/// when `aictl-server` is missing and with `docs/SERVER.md`.
 pub const SERVER_UPDATE_CMD: &str = "curl -fsSL https://aictl.app/server/install.sh | sh";
 
 /// Check the current version against the latest available (REPL `/version`).

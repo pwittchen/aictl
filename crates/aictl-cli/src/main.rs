@@ -326,7 +326,7 @@ struct Cli {
     /// Launch the bundled `aictl-server` HTTP LLM proxy if it's installed.
     /// Convenience shortcut so users don't have to remember the second
     /// binary name. Forwards any trailing args to the server, e.g.
-    /// `aictl --serve -- --bind 0.0.0.0:7878 --quiet`. See SERVER.md.
+    /// `aictl --serve -- --bind 0.0.0.0:7878 --quiet`. See docs/SERVER.md.
     #[arg(long = "serve")]
     serve: bool,
 

@@ -1,12 +1,12 @@
 ---
 name: sync-models
-description: Check each provider for newly released models, compare against the supported set, add any missing ones, and update the README and website accordingly
+description: Check each provider for newly released models, compare against the supported set, add any missing ones, and update the per-provider docs and website accordingly
 allowed-tools: Bash, Read, Edit, Write, Grep, WebFetch, WebSearch
 ---
 
 ## Purpose
 
-Keep aictl's supported-model catalog in step with what each LLM provider actually offers — for both **text/chat models** (the `MODELS` constant) and **image-generation models** (the `IMAGE_GEN_MODELS` constant). This skill discovers newly released models per provider, diffs them against both catalogs in `crates/aictl-core/src/llm.rs`, and — after user confirmation — adds the new entries and updates `README.md` plus the website (`website/index.html`, `website/terminal.html`) so the pricing tables, image-capability matrix, provider sections, and public landing page stay accurate.
+Keep aictl's supported-model catalog in step with what each LLM provider actually offers — for both **text/chat models** (the `MODELS` constant) and **image-generation models** (the `IMAGE_GEN_MODELS` constant). This skill discovers newly released models per provider, diffs them against both catalogs in `crates/aictl-core/src/llm.rs`, and — after user confirmation — adds the new entries and updates `docs/PROVIDERS.md` (pricing tables) and `docs/TOOLS.md` (image-capability matrix) plus the website (`website/index.html`, `website/terminal.html`) so the docs and public landing page stay accurate.
 
 Source of truth:
 
@@ -14,7 +14,7 @@ Source of truth:
 - **Current supported image-gen set** — `IMAGE_GEN_MODELS` in the same file (`provider`, `model_name`). Drives the desktop Settings → Image Models generation dropdown and the `generate_image` tool dispatcher in `crates/aictl-core/src/tools/image.rs`.
 - **Vision heuristic** — `is_vision_capable(provider, model)` in `crates/aictl-core/src/llm.rs`. Per-provider rules that decide whether a chat model can accept images in messages; drives `vision_capable_models()` and the desktop's analysis dropdown.
 - **Per-model pricing** — `price_per_million()` in `crates/aictl-core/src/llm.rs` (chat models only — image-gen models have no per-million pricing here; they bill per-image and aren't tracked).
-- **Docs** — `README.md` (per-provider chat-model tables, the "Image capabilities by provider" matrix, total model count in the tagline), `LLM_PRICING.md` (overall cost table header mentions the effective date; not edited here).
+- **Docs** — `docs/PROVIDERS.md` (per-provider chat-model tables), `docs/TOOLS.md` (the "Image capabilities by provider" matrix), `README.md` (total model count in the tagline, if mentioned), `docs/LLM_PRICING.md` (overall cost table header mentions the effective date; not edited here).
 - **Website** — `website/index.html` (hero copy + meta tags reference the total cloud-model count), `website/terminal.html` (per-provider cards under `#providers` describe each provider's model lineup in prose, including the "Image generation via …" line where applicable).
 
 ## Scope of "new model"
@@ -58,7 +58,8 @@ Do **not** remove a model that is still served by the provider, even if newer va
 ### 1. Read the current catalogs
 
 - `crates/aictl-core/src/llm.rs` — `MODELS` constant (line ~33), `IMAGE_GEN_MODELS` constant (line ~161), `is_vision_capable()` (line ~173), and `price_per_million()` (line ~188).
-- `README.md` — per-provider "Supported models with cost estimates" tables under `### Providers`, plus the "Image capabilities by provider" matrix.
+- `docs/PROVIDERS.md` — per-provider "Supported models with cost estimates" tables (one `## <Provider>` section per provider).
+- `docs/TOOLS.md` — the "Image capabilities by provider" matrix.
 
 Build three maps:
 
@@ -133,21 +134,21 @@ For each confirmed new **image-generation** model:
 2. **`crates/aictl-core/src/tools/image.rs` — defaults**: if the new model **replaces** the previous default for that provider (e.g. `gpt-image-3` succeeds `gpt-image-2`), update the matching `DEFAULT_*_IMAGE_MODEL` constant. If it's an additional option alongside the existing default, leave the default alone — the desktop dropdown picks it up from `IMAGE_GEN_MODELS` automatically and users can override via Settings. Do **not** update the default for an unreleased / preview model.
 3. **`crates/aictl-core/src/tools/image.rs` — request shape**: only touch the `generate_via_<provider>` function if the new model requires a different request body, response field, or endpoint. The scope rule above means this should be rare; if a change is needed, flag it before editing.
 
-### 5. Update the README
+### 5. Update the per-provider docs
 
-For each provider with new **chat** additions, edit the corresponding `#### <Provider>` section table in `README.md` (see lines ~415–530):
+For each provider with new **chat** additions, edit the corresponding `## <Provider>` section table in `docs/PROVIDERS.md`:
 
 - Insert a new `| <model> | $X.XX | $Y.YY |` row. Keep the same ordering the table already uses (newest → oldest, or grouped by tier).
 - If a footnote exists mentioning specific models (e.g. dual-tier pricing, 2M context), extend it if the new model shares that property.
-- If new additions change the total cloud-model count, update the tagline near the top of `README.md` (line ~7: `N built-in cloud models across M providers`). Recompute `N` from `MODELS` excluding `ollama` / `gguf` / `mlx`. `M` rarely changes — only bump it if a new provider module landed.
 
-For each provider with new **image-generation** or vision-heuristic changes, edit the **"Image capabilities by provider"** matrix in `README.md` (search for `#### Image capabilities by provider`, around line ~1143):
+For each provider with new **image-generation** or vision-heuristic changes, edit the **"Image capabilities by provider"** matrix in `docs/TOOLS.md` (search for `## Image capabilities by provider`):
 
 - If a provider's image-generation cell changed (e.g. `GPT Image 2` → `GPT Image 3` or a new alternative added), update the cell to reflect the current set. Use the human-friendly name (`GPT Image 2`, `Imagen 4.0`, `Grok 2 Image`), not the API id.
 - If `is_vision_capable` changed for a provider, update the "Image analysis" cell so it matches the new heuristic (e.g. flip from "Model-dependent" to "All models", or narrow the description).
-- Total chat-model count `N` in the tagline only counts entries in `MODELS`; image-gen additions do not increment it.
 
-Do **not** edit `LLM_PRICING.md` from this skill — that doc aggregates daily/monthly scenario costs, not per-model rates, and is updated separately.
+`README.md` is a thin landing page that doesn't hard-code the cloud-model count any more — no tagline update needed.
+
+Do **not** edit `docs/LLM_PRICING.md` from this skill — that doc aggregates daily/monthly scenario costs, not per-model rates, and is updated separately.
 
 ### 6. Update the website
 
@@ -178,14 +179,14 @@ If any command fails, fix the cause (commonly: a stray comma, an out-of-order `s
 
 The website has no test suite or linter — visually inspect the diff for `website/index.html` and `website/terminal.html` instead. If `bun` is available locally, optionally run `bun run build` from `website/` to confirm the bundler still produces `dist/` cleanly. Do not commit `dist/` artifacts.
 
-Finally, re-read the changed regions of `crates/aictl-core/src/llm.rs`, `crates/aictl-core/src/tools/image.rs`, `README.md`, `website/index.html`, and `website/terminal.html` and confirm:
+Finally, re-read the changed regions of `crates/aictl-core/src/llm.rs`, `crates/aictl-core/src/tools/image.rs`, `docs/PROVIDERS.md`, `docs/TOOLS.md`, `website/index.html`, and `website/terminal.html` and confirm:
 
 - Every new `MODELS` tuple has a matching `price_per_million` branch.
 - Every new `IMAGE_GEN_MODELS` tuple is reachable from `tools/image.rs` (provider has a `generate_via_<provider>` function; the new model id is accepted by it).
-- Every new README chat-table row matches a `MODELS` tuple exactly (string equality).
-- The README "Image capabilities by provider" matrix reflects the current `IMAGE_GEN_MODELS` set and the current `is_vision_capable` outcomes.
+- Every new `docs/PROVIDERS.md` chat-table row matches a `MODELS` tuple exactly (string equality).
+- The `docs/TOOLS.md` "Image capabilities by provider" matrix reflects the current `IMAGE_GEN_MODELS` set and the current `is_vision_capable` outcomes.
 - No existing row was reordered or deleted.
-- The cloud-model count `N` (chat-only) is identical in `README.md` (tagline), `website/index.html` (meta description, OG description, hero subtitle), and the actual count of non-local entries in `MODELS`. Image-gen additions do not affect `N`.
+- The cloud-model count in `website/index.html` (meta description, OG description, hero subtitle) matches the actual count of non-local entries in `MODELS`. Image-gen additions do not affect this count.
 - Each `website/terminal.html` provider card mentions the new model name(s) and (where relevant) the updated "Image generation via …" line.
 
 ### 8. Report
@@ -196,7 +197,7 @@ Print a short summary to the user:
 - Image-gen models added per provider (count + list).
 - Vision-heuristic changes (if any).
 - Models flagged but skipped, with reason (unknown pricing, deprecated, image-gen for an unsupported provider, request-shape divergence).
-- Files changed (expect `crates/aictl-core/src/llm.rs`, optionally `crates/aictl-core/src/tools/image.rs`, `README.md`, `website/index.html`, `website/terminal.html`).
+- Files changed (expect `crates/aictl-core/src/llm.rs`, optionally `crates/aictl-core/src/tools/image.rs`, `docs/PROVIDERS.md`, `docs/TOOLS.md`, `website/index.html`, `website/terminal.html`).
 - New total cloud-model count if it changed (chat-only).
 
 Do **not** commit — leave staging to the user (or a follow-up `/commit`).
@@ -205,10 +206,10 @@ Do **not** commit — leave staging to the user (or a follow-up `/commit`).
 
 - Ask before adding a chat model when pricing is uncertain; never guess prices.
 - Ask before adding an image-gen model from a provider that has no `tools/image.rs` dispatcher — the skill must not invent a generator function.
-- Preserve the existing ordering and formatting of `MODELS`, `IMAGE_GEN_MODELS`, README tables, and website prose.
+- Preserve the existing ordering and formatting of `MODELS`, `IMAGE_GEN_MODELS`, `docs/PROVIDERS.md` tables, and website prose.
 - Never remove supported models in this skill — additions only. This includes `IMAGE_GEN_MODELS`.
 - Keep `is_vision_capable` changes minimal and narrow; favour false negatives over false positives.
-- Do not edit `LLM_PRICING.md`; it is updated separately.
+- Do not edit `docs/LLM_PRICING.md`; it is updated separately.
 - Within `website/`, only touch `index.html` and `terminal.html`. Leave CSS, JS, build scripts, and `dist/` alone.
 - Do not add emoji or `Co-Authored-By` lines.
 - If a provider's docs page is unreachable, report it and continue with the next provider — a partial sync is still useful.

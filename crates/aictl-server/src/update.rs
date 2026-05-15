@@ -10,7 +10,7 @@
 use aictl_core::config;
 
 /// Server install one-liner — must stay in sync with the URL printed by
-/// `aictl-cli`'s `--serve` "not installed" hint and with `SERVER.md`.
+/// `aictl-cli`'s `--serve` "not installed" hint and with `docs/SERVER.md`.
 pub const UPDATE_CMD: &str = "curl -fsSL https://aictl.app/server/install.sh | sh";
 
 /// Fetch the current upstream version from `Cargo.toml` on master.
