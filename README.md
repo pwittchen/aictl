@@ -15,9 +15,6 @@ Project website: [aictl.app](https://aictl.app) — source in [`website/`](websi
 - Terminal: https://aictl.app/terminal.html
 - Server: https://aictl.app/server.html
 
-> [!NOTE]
-> **aictl** is a general-purpose AI agent. Dedicated coding capabilities may be added in the future. If you are looking for an AI agent specialized in software development today, consider Claude Code, Codex, or opencode — they are purpose-built for that workflow.
-
 You can use **aictl** on your desktop and in your terminal — with a single configuration and feature parity between CLI and desktop app — or as an HTTP server with LLM proxy and security features.
 
 ## Install
@@ -60,6 +57,10 @@ The first launch will walk you through provider, model, and API-key setup. State
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | Commercial licensing pricing | [docs/COMMERCIAL_PRICING.md](docs/COMMERCIAL_PRICING.md) |
 | Design notes | [docs/DESIGN.md](docs/DESIGN.md) |
+
+## Desktop app (macOS)
+
+A native macOS desktop app (`aictl-desktop`) is available as a Tauri-based frontend over the same `aictl-core` engine the CLI uses — same providers, tools, agents, skills, and config. Download the latest `.dmg` from [aictl.app/desktop.html](https://aictl.app/desktop.html) (or the [GitHub releases](https://github.com/pwittchen/aictl/releases) page), open it, and drag `aictl.app` into `/Applications`. Apple Silicon and Intel builds are published per release. For build-from-source instructions see [docs/INSTALL.md](docs/INSTALL.md#desktop-app-macos).
 
 ## HTTP server (`aictl-server`)
 
