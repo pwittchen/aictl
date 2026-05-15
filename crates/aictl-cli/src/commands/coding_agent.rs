@@ -32,6 +32,9 @@ pub enum Action {
     SetOn,
     SetOff,
     Toggle,
+    /// `refresh` — bust the cached `<repo_context>` snapshot so the next
+    /// turn re-reads the working directory.
+    Refresh,
 }
 
 /// Parse the argument portion of a `/coding` invocation. Empty arg
@@ -44,8 +47,9 @@ pub fn parse_action(args: &str) -> Result<Action, String> {
         "on" | "enable" | "enabled" | "true" => Ok(Action::SetOn),
         "off" | "disable" | "disabled" | "false" => Ok(Action::SetOff),
         "toggle" => Ok(Action::Toggle),
+        "refresh" | "reload" => Ok(Action::Refresh),
         other => Err(format!(
-            "/coding: unknown argument '{other}' (expected on / off / toggle / status)"
+            "/coding: unknown argument '{other}' (expected on / off / toggle / status / refresh)"
         )),
     }
 }
@@ -70,6 +74,17 @@ pub fn run(args: &str, show_error: &dyn Fn(&str)) {
         }
         Action::Show => {
             print_status(current);
+            return;
+        }
+        Action::Refresh => {
+            aictl_core::coding::invalidate_repo_context();
+            aictl_core::coding::clear_changed_paths();
+            println!();
+            println!(
+                "  {} repo context refreshed — the next turn re-reads branch, commits, dirty files, and detected commands",
+                "✓".with(Color::Green),
+            );
+            println!();
             return;
         }
         Action::SetOn => true,
@@ -178,10 +193,49 @@ fn print_status(enabled: bool) {
         "[experimental]".with(Color::Yellow),
     );
     print_experimental_note();
+
+    let cwd = aictl_core::security::policy().paths.working_dir.clone();
+    let build = aictl_core::coding::detect_build_cmd(&cwd);
+    let lint = aictl_core::coding::detect_linter(&cwd);
+    let test = aictl_core::coding::detect_test_cmd(&cwd);
+    let test_retries = aictl_core::config::coding_test_retries();
+    let review_retries = aictl_core::config::coding_review_retries();
+    let changed = aictl_core::coding::changed_paths();
+
+    println!(
+        "  {} build: {}",
+        "·".with(Color::Cyan),
+        build
+            .unwrap_or_else(|| "(none detected)".to_string())
+            .with(Color::DarkGrey),
+    );
+    println!(
+        "  {} lint:  {}",
+        "·".with(Color::Cyan),
+        lint.unwrap_or_else(|| "(none detected)".to_string())
+            .with(Color::DarkGrey),
+    );
+    println!(
+        "  {} test:  {}",
+        "·".with(Color::Cyan),
+        test.unwrap_or_else(|| "(none detected)".to_string())
+            .with(Color::DarkGrey),
+    );
+    println!(
+        "  {} retries — test: {test_retries}, review: {review_retries}",
+        "·".with(Color::Cyan),
+    );
+    if !changed.is_empty() {
+        println!(
+            "  {} workspace changes this session: {} file(s)",
+            "·".with(Color::Cyan),
+            changed.len(),
+        );
+    }
     println!(
         "  {} flip with: {}",
         "→".with(Color::Cyan),
-        "/coding on | off | toggle".with(Color::DarkGrey)
+        "/coding on | off | toggle | refresh | status".with(Color::DarkGrey)
     );
     println!();
 }
@@ -218,5 +272,11 @@ mod tests {
     #[test]
     fn parse_action_unknown_is_err() {
         assert!(parse_action("maybe").is_err());
+    }
+
+    #[test]
+    fn parse_action_refresh() {
+        assert!(matches!(parse_action("refresh"), Ok(Action::Refresh)));
+        assert!(matches!(parse_action("reload"), Ok(Action::Refresh)));
     }
 }

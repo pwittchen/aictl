@@ -38,9 +38,13 @@ mod notify;
 mod run_code;
 mod shell;
 mod system_info;
+mod test;
 mod util;
 mod view_map;
 mod web;
+
+pub(crate) use lint::tool_lint_file;
+pub use test::{TestFailure, TestSummary, take_last_summary as take_last_test_summary};
 
 /// Slot holding the most recent successfully dispatched tool invocation,
 /// keyed by `(tool_name, normalized_input)`. Used to block the model from
@@ -138,7 +142,7 @@ impl ToolOutput {
     }
 }
 
-pub const TOOL_COUNT: usize = 35;
+pub const TOOL_COUNT: usize = 36;
 
 /// `(name, one-line description)` for every built-in tool. Both the CLI's
 /// `/tools` printer and the desktop Settings panel render from this single
@@ -213,6 +217,10 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     (
         "lint_file",
         "run a language-appropriate linter/formatter on a file",
+    ),
+    (
+        "test",
+        "run the project's test command and return structured pass/fail counts",
     ),
     (
         "json_query",
@@ -412,6 +420,7 @@ pub async fn execute_tool(tool_call: &ToolCall) -> ToolOutput {
         "git" => git::tool_git(input).await,
         "run_code" => run_code::tool_run_code(input).await,
         "lint_file" => lint::tool_lint_file(input).await,
+        "test" => test::tool_test(input).await,
         "json_query" => json_query::tool_json_query(input).await,
         "csv_query" => csv_query::tool_csv_query(input).await,
         "calculate" => calculate::tool_calculate(input),

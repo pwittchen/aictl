@@ -844,6 +844,15 @@ export const ipc = {
   async codingAgentSetEnabled(enabled: boolean) {
     return invoke<CodingAgentStatus>("coding_agent_set_enabled", { enabled });
   },
+  async codingAgentBuildCmd() {
+    return invoke<string | null>("coding_agent_build_cmd");
+  },
+  async codingAgentLintCmd() {
+    return invoke<string | null>("coding_agent_lint_cmd");
+  },
+  async codingAgentTestCmd() {
+    return invoke<string | null>("coding_agent_test_cmd");
+  },
 
   // -- stats ----
   async statsSnapshot() {

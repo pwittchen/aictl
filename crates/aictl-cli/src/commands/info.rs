@@ -129,6 +129,21 @@ pub fn print_info(
         "  {} {coding_agent_label} {coding_agent_experimental}",
         "coding:   ".with(Color::Cyan),
     );
+    // When coding-agent mode is on, expose the resolved
+    // build/lint/test commands so the user can sanity-check what the
+    // Review/Test phases will run.
+    if crate::config::coding_agent_enabled() {
+        let cwd = aictl_core::security::policy().paths.working_dir.clone();
+        let build_cmd = aictl_core::coding::detect_build_cmd(&cwd)
+            .unwrap_or_else(|| "(none detected)".to_string());
+        let lint_cmd = aictl_core::coding::detect_linter(&cwd)
+            .unwrap_or_else(|| "(none detected)".to_string());
+        let test_cmd = aictl_core::coding::detect_test_cmd(&cwd)
+            .unwrap_or_else(|| "(none detected)".to_string());
+        println!("  {} {build_cmd}", "  build:  ".with(Color::DarkCyan));
+        println!("  {} {lint_cmd}", "  lint:   ".with(Color::DarkCyan));
+        println!("  {} {test_cmd}", "  test:   ".with(Color::DarkCyan));
+    }
 
     // Collect unique cloud providers from the static catalog. Anything in
     // MODELS counts as a cloud provider; ollama / native GGUF / native MLX

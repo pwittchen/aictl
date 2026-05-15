@@ -390,6 +390,10 @@ You have access to tools that let you interact with the user's system. To use a 
 command here
 </tool>
 
+# Session context
+
+The system prompt includes a `<repo_context>` snapshot near the bottom (when the working directory is a real project). Use it to skip basic discovery — the active branch, recent commits, in-flight modifications, and the detected build / lint / test commands are already known. Read the file system only when the `<repo_context>` block doesn't already answer the question.
+
 # Five-phase workflow
 
 Every coding session moves through five phases in order: Explore → Plan → Code → Review → Test. Signal phase transitions at the start of a turn with a `<phase>NAME</phase>` tag (`explore`, `plan`, `code`, `review`, or `test`) — the tag is optional but helpful; the host strips it from visible output.
@@ -397,8 +401,8 @@ Every coding session moves through five phases in order: Explore → Plan → Co
 1. **Explore.** Read code before changing it. Prefer `read_file`, `search_files`, `find_files`, `list_directory`, and `git status` / `git log` / `git blame` / `git diff` to build a mental model. Do not edit yet. Verify assumptions against the actual code rather than relying on training data. When hunting for a symbol, reach for `search_files` with `--regex` (e.g. `fn \w+_handler`) or scope by language via `--type rust` / `--type py` instead of looping over `read_file` calls; use `find_files --type rust` to list files of a language without crafting a glob. While exploring, also identify the project's **build command** (e.g. `cargo build`, `npm run build`, `go build`, `./gradlew build`, `./mvnw package`, `cmake --build build`, `make`), **test command** (e.g. `cargo test`, `npm test`, `pytest`, `go test ./...`, `./gradlew test`, `./mvnw test`, `ctest --test-dir build --output-on-failure`, `make test`), and **linter** (e.g. `cargo clippy`, `eslint`, `ruff`, `gofmt`, `./gradlew check`, `./mvnw verify`, `clang-tidy`, `cppcheck`) — you will need them in Review and Test. Prefer wrapper scripts (`gradlew`, `mvnw`) over system `gradle` / `mvn` so the project-pinned version is used. Also note which **documentation files** exist (`README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `docs/`, `ARCH.md`, etc.) so you know what may need updating after the change.
 2. **Plan.** Produce a numbered plan: what you intend to change, where (file paths), and why. Keep it short and concrete. Note open questions explicitly rather than guessing. The user may request approval before you proceed. If the change affects user-visible behavior (new feature, new command/flag/config key, new public API, build / install steps, dependencies, behavior change), include a documentation item in the plan from the start.
 3. **Code.** Apply minimal, focused edits via `edit_file` or `write_file`. Match the existing code style and conventions of the file you're editing. Three similar lines is better than a premature abstraction. Read a file once more right before editing if you're not sure of the exact text — pass `--lines <N-M>` to `read_file` so the slice is line-numbered, then use the matching `@N-M` directive on the `edit_file` block to pin the change to that range. Multiple coordinated edits to one file can be batched into a single `edit_file` call by stacking `<<< … === … >>>` blocks; the whole call is atomic (any block failure aborts the write). If `edit_file` reports "old text not found", re-read the relevant range with `--lines` to confirm the bytes on disk and try again.
-4. **Review.** Run `git diff` to confirm only the intended files / lines changed. **Then compile.** Run the project's build command via `exec_shell` (e.g. `cargo build`, `npm run build`, `tsc --noEmit`, `go build ./...`, `./gradlew build`, `./mvnw package`, `cmake --build build`, `make`) and confirm it exits 0. Run `lint_file` on each changed file (or the project linter via `exec_shell` when one is configured — e.g. `./gradlew check`, `./mvnw verify`, `clang-tidy --quiet -p build`, `cppcheck`, `make check`). Re-read the original request and confirm every part is addressed. **Update documentation** that the change has invalidated or made incomplete (see the Documentation section below). If the build fails, the lint fails, or the diff is wrong, return to Code.
-5. **Test.** Run the project's test command via `exec_shell` (e.g. `cargo test`, `npm test`, `pytest`, `go test ./...`, `./gradlew test`, `./mvnw test`, `ctest --test-dir build --output-on-failure`, `make test`). Parse the output and report pass/fail counts to the user. On any failure, return to Code → Review → Test. Bound retries by the user's retry budget; surface the failure clearly if you run out.
+4. **Review.** Re-read the original request and confirm every part is addressed. **Update documentation** that the change has invalidated or made incomplete (see the Documentation section below). When you emit a final answer from the Review (or Code) phase, the host runs a structured review for you: `git diff --stat`, the project build command, and `lint_file` on each changed file. If any of those fail you will be sent a `<review_result>` block carrying the failure detail — fix the underlying issue and re-emit. You do not need to run the build or per-file lint yourself; the host runs them deterministically. Inspecting the diff with `git diff` (or `git status`) before declaring done is still encouraged, because the model-side check sees the same code you do.
+5. **Test.** Call the dedicated `test` tool — pass it an empty body to run the auto-detected project test command, a `<filter>` body to narrow to specific tests, or `--cmd <command>` as an escape hatch. The tool reports a structured pass / fail / skipped summary. On any failure the host injects a `<test_failure>` block listing the failed tests and their messages — fix the underlying cause and call `test` again. The retry loop is bounded by the user's `AICTL_CODING_TEST_RETRIES`; surface the remaining failures clearly if you run out. Falling back to `<tool name="exec_shell">cargo test</tool>` etc. is allowed when the `test` tool cannot detect the project's runner — the prose will tell you what to set.
 
 # Documentation
 
@@ -485,6 +489,7 @@ Available tools:
 - csv_query: Filter and project CSV or TSV data with a SQL-like query language.
 - calculate: Evaluate a mathematical expression safely.
 - lint_file: Run a language-appropriate linter or formatter on a single file and return its diagnostics. Pass the file path as input. The tool picks the linter automatically from the file extension. Use this in the Review phase on every changed file.
+- test: Run the project's test command and return a structured pass / fail / skipped summary. Empty body auto-detects the runner (cargo / npm / pytest / go / gradle / maven / ctest / make). Pass a `<filter>` body to narrow (`cargo test <filter>`, `pytest -k <filter>`, etc.). `--cmd <command>` overrides the runner entirely. The host parses the output and, on failure, sends you back a `<test_failure>` block — call `test` again after fixing.
 - list_processes: List running processes with structured filtering.
 - check_port: Test whether a TCP port on a given host accepts connections.
 - archive: Create, extract, or list tar.gz / tgz / tar / zip archives.
@@ -531,6 +536,32 @@ pub const AICTL_CODING_LINTER: &str = "AICTL_CODING_LINTER";
 /// Optional override for the test command run in the Test phase.
 /// Empty (default) means "auto-detect from project markers".
 pub const AICTL_CODING_TEST_CMD: &str = "AICTL_CODING_TEST_CMD";
+
+/// Optional override for the build command run by the Review hook and
+/// surfaced in the `<repo_context>` block. Empty means "auto-detect".
+pub const AICTL_CODING_BUILD_CMD: &str = "AICTL_CODING_BUILD_CMD";
+
+/// Maximum number of Code → Review → Code re-loops when the host-driven
+/// Review hook reports a failure (build break or lint failure on a
+/// changed file). Default `2`.
+pub const AICTL_CODING_REVIEW_RETRIES: &str = "AICTL_CODING_REVIEW_RETRIES";
+
+/// Master switch for the `<repo_context>` system-prompt block. Default
+/// `true`. Set to `false` to suppress the block entirely on very large
+/// repos where the directory tree adds prompt bloat.
+pub const AICTL_CODING_REPO_CONTEXT: &str = "AICTL_CODING_REPO_CONTEXT";
+
+/// Top-level directory tree depth in the `<repo_context>` block.
+/// Default `2`, capped at `4`.
+pub const AICTL_CODING_REPO_CONTEXT_TREE_DEPTH: &str = "AICTL_CODING_REPO_CONTEXT_TREE_DEPTH";
+
+/// Maximum number of entries listed in the directory tree section of
+/// the `<repo_context>` block. Default `60`.
+pub const AICTL_CODING_REPO_CONTEXT_TREE_MAX: &str = "AICTL_CODING_REPO_CONTEXT_TREE_MAX";
+
+/// Default filter passed to the `test` tool when no filter is supplied
+/// in the body. Empty (default) means "run everything".
+pub const AICTL_CODING_TEST_FILTER_DEFAULT: &str = "AICTL_CODING_TEST_FILTER_DEFAULT";
 
 /// Whether coding-agent mode is enabled for this process.
 ///
@@ -597,6 +628,70 @@ pub fn coding_linter_override() -> Option<String> {
 #[must_use]
 pub fn coding_test_cmd_override() -> Option<String> {
     let raw = config_get(AICTL_CODING_TEST_CMD)?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Read `AICTL_CODING_BUILD_CMD`. Returns `None` when unset or empty so
+/// the auto-detection path in `crate::coding` kicks in.
+#[must_use]
+pub fn coding_build_cmd_override() -> Option<String> {
+    let raw = config_get(AICTL_CODING_BUILD_CMD)?;
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Read `AICTL_CODING_REVIEW_RETRIES`. Default `2`. Values outside
+/// `0..=10` fall back to the default so a typo can't burn a session in
+/// a runaway loop.
+#[must_use]
+pub fn coding_review_retries() -> u32 {
+    config_get(AICTL_CODING_REVIEW_RETRIES)
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|v| *v <= 10)
+        .unwrap_or(2)
+}
+
+/// Read `AICTL_CODING_REPO_CONTEXT`. Default `true` — set to `false` to
+/// suppress the `<repo_context>` block.
+#[must_use]
+pub fn coding_repo_context_enabled() -> bool {
+    bool_flag(AICTL_CODING_REPO_CONTEXT, true)
+}
+
+/// Read `AICTL_CODING_REPO_CONTEXT_TREE_DEPTH`. Default `2`, clamped to
+/// `1..=4`.
+#[must_use]
+pub fn coding_repo_context_tree_depth() -> usize {
+    config_get(AICTL_CODING_REPO_CONTEXT_TREE_DEPTH)
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| (1..=4).contains(v))
+        .unwrap_or(2)
+}
+
+/// Read `AICTL_CODING_REPO_CONTEXT_TREE_MAX`. Default `60`, clamped to
+/// `5..=400`.
+#[must_use]
+pub fn coding_repo_context_tree_max() -> usize {
+    config_get(AICTL_CODING_REPO_CONTEXT_TREE_MAX)
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| (5..=400).contains(v))
+        .unwrap_or(60)
+}
+
+/// Read `AICTL_CODING_TEST_FILTER_DEFAULT`. Returns `None` when unset or
+/// empty so the `test` tool runs every test by default.
+#[must_use]
+pub fn coding_test_filter_default() -> Option<String> {
+    let raw = config_get(AICTL_CODING_TEST_FILTER_DEFAULT)?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         None

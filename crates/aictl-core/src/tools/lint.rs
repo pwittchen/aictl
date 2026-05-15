@@ -272,7 +272,7 @@ const LINTERS: &[LinterGroup] = &[
     },
 ];
 
-pub(super) async fn tool_lint_file(input: &str) -> String {
+pub(crate) async fn tool_lint_file(input: &str) -> String {
     let path = input.trim();
     if path.is_empty() {
         return "Error: empty input. Expected: <file path>".to_string();

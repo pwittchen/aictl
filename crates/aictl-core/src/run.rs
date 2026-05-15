@@ -161,6 +161,140 @@ fn messages_have_images(msgs: &[Message]) -> bool {
     msgs.iter().any(|m| !m.images.is_empty())
 }
 
+/// Render the synthetic `<test_failure>` user turn the agent loop
+/// injects after a `test` tool dispatch reports `failed > 0`. The
+/// model parses this block on the next iteration to decide what to fix.
+///
+/// When `terminal` is `true`, the block also tells the model the retry
+/// budget has been exhausted so it should surface the remaining
+/// failures to the user instead of looping further.
+fn format_test_failure_block(
+    summary: &tools::TestSummary,
+    attempt: u32,
+    budget: u32,
+    terminal: bool,
+) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let tag = if terminal {
+        "test_failure_terminal"
+    } else {
+        "test_failure"
+    };
+    let _ = writeln!(out, "<{tag}>");
+    let _ = writeln!(
+        out,
+        "Test command exited {} ({} passed, {} failed, {} skipped).",
+        summary.exit_code, summary.passed, summary.failed, summary.skipped
+    );
+    let _ = writeln!(out, "Retry {attempt} of {budget}.");
+    if let Some(warn) = &summary.parse_warning {
+        let _ = writeln!(out, "Parser note: {warn}");
+    }
+    if !summary.failures.is_empty() {
+        let _ = writeln!(out, "\nFailing tests:");
+        for f in &summary.failures {
+            let _ = writeln!(out, "- {}", f.name);
+            if !f.message.is_empty() {
+                for line in f.message.lines() {
+                    let _ = writeln!(out, "    {line}");
+                }
+            }
+            if let Some(loc) = &f.location {
+                let _ = writeln!(out, "    at {loc}");
+            }
+        }
+    } else if !summary.raw_tail.is_empty() {
+        // No structured failures parsed — give the model the tail of
+        // the runner output so it has something to act on.
+        let _ = writeln!(out, "\nRaw tail:");
+        out.push_str(&summary.raw_tail);
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+    }
+    if terminal {
+        let _ = writeln!(
+            out,
+            "\nThe retry budget for the `test` tool has been exhausted. \
+             Do not call `test` again this turn. Surface the remaining failures \
+             to the user with a brief explanation and a recommendation for the next step."
+        );
+    } else {
+        let _ = writeln!(
+            out,
+            "\nFix the root cause and re-run the `test` tool. \
+             Read the relevant source first to confirm the assumption before editing."
+        );
+    }
+    let _ = write!(out, "</{tag}>");
+    out
+}
+
+/// Render the synthetic `<review_result>` user turn injected by the
+/// structured Review hook when the host's build / per-file lint
+/// sequence reports a failure.
+fn format_review_result_block(
+    build: Option<&crate::coding::StepResult>,
+    lints: &[crate::coding::StepResult],
+    attempt: u32,
+    budget: u32,
+) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "<review_result>");
+    let _ = writeln!(
+        out,
+        "Structured Review hook reported a failure (attempt {attempt} of {budget})."
+    );
+
+    if let Some(b) = build {
+        let _ = writeln!(out, "\nBuild step: `{}` exited {}.", b.command, b.exit_code);
+        if b.exit_code != 0 && !b.output_tail.is_empty() {
+            let _ = writeln!(out, "Build output (tail):");
+            out.push_str(&b.output_tail);
+            if !out.ends_with('\n') {
+                out.push('\n');
+            }
+        }
+    } else {
+        let _ = writeln!(
+            out,
+            "\nBuild step: skipped (no build command detected for this project)."
+        );
+    }
+
+    let lint_failures: Vec<&crate::coding::StepResult> =
+        lints.iter().filter(|l| l.exit_code == 1).collect();
+    let lint_skipped: Vec<&crate::coding::StepResult> =
+        lints.iter().filter(|l| l.exit_code == -2).collect();
+    if !lint_failures.is_empty() {
+        let _ = writeln!(out, "\nLint failures:");
+        for l in &lint_failures {
+            let _ = writeln!(out, "  {}", l.command);
+            if !l.output_tail.is_empty() {
+                for line in l.output_tail.lines() {
+                    let _ = writeln!(out, "    {line}");
+                }
+            }
+        }
+    }
+    if !lint_skipped.is_empty() {
+        let _ = writeln!(
+            out,
+            "\n(skipped lint for {} files — no linter configured for those extensions)",
+            lint_skipped.len()
+        );
+    }
+
+    let _ = writeln!(
+        out,
+        "\nFix the underlying issues and emit a new final answer. The Review hook will re-run automatically."
+    );
+    let _ = write!(out, "</review_result>");
+    out
+}
+
 /// Resolve the user-configured image-analysis override into a runtime
 /// `(Provider, model, api_key)` tuple. Returns `None` when no override
 /// is configured or the configured provider tag is unrecognized.
@@ -320,6 +454,18 @@ pub fn build_system_prompt_with(phase_hint: Option<&str>) -> String {
         (true, false) => SYSTEM_PROMPT,
     };
     let mut prompt = base.to_string();
+    // Coding-agent only: prepend a snapshot of the working tree
+    // (branch, recent commits, dirty files, top-level layout, detected
+    // build/lint/test commands). Cached per working directory; busted by
+    // `crate::coding::invalidate_repo_context` after every write through
+    // `handle_tool_call`.
+    if tools::tools_enabled() && coding_agent_enabled() {
+        let cwd = security::policy().paths.working_dir.clone();
+        let block = crate::coding::format_repo_context(&cwd);
+        if !block.is_empty() {
+            prompt.push_str(&block);
+        }
+    }
     if tools::tools_enabled()
         && coding_agent_enabled()
         && let Some(hint) = phase_hint
@@ -627,6 +773,7 @@ fn tool_hook_ctx<'a>(tool_call: &'a tools::ToolCall, output: Option<&'a str>) ->
 }
 
 /// Handle a single tool call: display reasoning, get approval, execute, push result.
+#[allow(clippy::too_many_lines)]
 async fn handle_tool_call(
     tool_call: &tools::ToolCall,
     response: &str,
@@ -691,6 +838,24 @@ async fn handle_tool_call(
         let output = with_esc_cancel(ui, tools::execute_tool(tool_call)).await?;
         ui.stop_spinner();
         ui.show_tool_result(&output.text);
+
+        // Coding-agent mode: track workspace mutations so the
+        // `<repo_context>` cache stays fresh and the structured Review
+        // hook knows whether there's anything to review. We only need
+        // the *first line* of the tool body for path extraction — that
+        // matches the body grammar of every mutating tool.
+        if matches!(
+            tool_call.name.as_str(),
+            "write_file" | "edit_file" | "remove_file" | "create_directory"
+        ) {
+            crate::coding::invalidate_repo_context();
+            if let Some(first) = tool_call.input.lines().next() {
+                let path = first.trim();
+                if !path.is_empty() {
+                    crate::coding::record_workspace_change(std::path::Path::new(path));
+                }
+            }
+        }
 
         // Seam 2: tool result about to join history. Only `Block` mode
         // needs to intercept here — for `Redact`, the outbound seam on
@@ -843,6 +1008,13 @@ pub async fn run_agent_turn(
     let turn_start = std::time::Instant::now();
     #[allow(unused_assignments)]
     let mut last_input_tokens = 0u64;
+
+    // Coding-agent only: bound the `test`-tool failure retry loop and
+    // the host-driven Review hook retry loop. Both increment when the
+    // host injects a synthetic failure turn; both stop the corresponding
+    // loop when they exceed the user's budget.
+    let mut test_retry_count: u32 = 0;
+    let mut review_retry_count: u32 = 0;
 
     let max_iter = max_iterations();
     // `0` is the documented sentinel for unlimited — drive the loop bound
@@ -1212,7 +1384,60 @@ pub async fn run_agent_turn(
         }
 
         let Some(tool_call) = tool_call else {
-            // No tool call — this is the final answer
+            // No tool call — candidate final answer.
+            //
+            // Coding-agent only: before releasing, run the host-driven
+            // Review hook against the changed paths. On Fail it pushes a
+            // synthetic `<review_result>` user turn and continues the
+            // loop so the model can re-edit; on Pass it lets the answer
+            // through with a banner.
+            let review_budget = config::coding_review_retries();
+            let mut release_with_banner: Option<String> = None;
+            if coding_agent_enabled() && !crate::coding::changed_paths().is_empty() {
+                if review_retry_count >= review_budget {
+                    // Exhausted — release the answer with a "failures
+                    // remain" banner so the user sees the unresolved
+                    // state. The list of failures already lives in the
+                    // prior `<review_result>` block in messages.
+                    release_with_banner = Some(format!(
+                        "[review: {review_retry_count} attempt(s); failures may remain]"
+                    ));
+                } else {
+                    ui.start_spinner("running structured review...");
+                    let outcome = crate::coding::run_structured_review().await;
+                    ui.stop_spinner();
+                    match outcome {
+                        crate::coding::ReviewOutcome::Pass { reason } => {
+                            release_with_banner = Some(format!("[review: clean — {reason}]"));
+                        }
+                        crate::coding::ReviewOutcome::Skipped { reason } => {
+                            release_with_banner = Some(format!("[review: skipped — {reason}]"));
+                        }
+                        crate::coding::ReviewOutcome::Fail { build, lints } => {
+                            review_retry_count += 1;
+                            let block = format_review_result_block(
+                                build.as_ref(),
+                                &lints,
+                                review_retry_count,
+                                review_budget,
+                            );
+                            messages.push(Message {
+                                role: Role::User,
+                                content: block,
+                                images: vec![],
+                            });
+                            ui.show_reasoning(&format!(
+                                "(structured review failed — attempt {review_retry_count} of {review_budget}; asking the model to fix)"
+                            ));
+                            // Do not emit status here — the loop continues
+                            // and the next iteration's tool call (or final
+                            // answer) will emit it.
+                            continue;
+                        }
+                    }
+                }
+            }
+
             emit_status(tool_calls);
 
             // Stop hook fires once per turn after the final answer. It
@@ -1241,8 +1466,14 @@ pub async fn run_agent_turn(
                 });
             }
 
+            let final_answer = if let Some(banner) = release_with_banner {
+                format!("{banner}\n\n{response}")
+            } else {
+                response
+            };
+
             return Ok(TurnResult {
-                answer: response,
+                answer: final_answer,
                 usage: total_usage,
                 #[allow(clippy::cast_possible_truncation)] // max_iter is small (default 20)
                 llm_calls: llm_calls as u32,
@@ -1273,13 +1504,45 @@ pub async fn run_agent_turn(
             )));
         }
 
-        match handle_tool_call(&tool_call, &response, auto, ui, messages, streamed).await {
-            Ok(ToolAction::Executed) => {
-                tool_calls += 1;
-            }
-            Ok(ToolAction::Denied) => {}
-            Err(e) => return Err(e),
+        if let ToolAction::Executed =
+            handle_tool_call(&tool_call, &response, auto, ui, messages, streamed).await?
+        {
+            tool_calls += 1;
         }
+
+        // Coding-agent: host-driven test-retry loop. After a `test`
+        // tool dispatch the tool stores a structured `TestSummary` on a
+        // private slot; we drain it here and, on `failed > 0`, append a
+        // synthetic `<test_failure>` user turn carrying the structured
+        // failures so the model can plan a fix on the next iteration.
+        // The retry budget caps how many times the host will keep
+        // injecting the failure before letting the model produce a
+        // terminal answer.
+        if coding_agent_enabled()
+            && tool_call.name == "test"
+            && let Some(summary) = tools::take_last_test_summary().await
+            && summary.failed > 0
+        {
+            let budget = config::coding_test_retries();
+            if test_retry_count < budget {
+                test_retry_count += 1;
+                let synthetic =
+                    format_test_failure_block(&summary, test_retry_count, budget, false);
+                messages.push(Message {
+                    role: Role::User,
+                    content: synthetic,
+                    images: vec![],
+                });
+            } else {
+                let synthetic = format_test_failure_block(&summary, test_retry_count, budget, true);
+                messages.push(Message {
+                    role: Role::User,
+                    content: synthetic,
+                    images: vec![],
+                });
+            }
+        }
+
         // Status line goes at the bottom of the iteration — below the tool
         // output, above the next prompt. The counter includes the tool call
         // we just ran so the display tracks progress intuitively.

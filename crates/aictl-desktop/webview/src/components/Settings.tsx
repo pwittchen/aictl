@@ -1541,6 +1541,9 @@ const GeneralTab: Component<{
         on={props.codingAgentEnabled}
         onChange={(v) => void flipCodingAgent(v)}
       />
+      <Show when={props.codingAgentEnabled}>
+        <CodingAgentResolvedCommands />
+      </Show>
 
       <h4 class="settings-subhead">Numbers</h4>
       <For each={NUM_KEYS}>
@@ -2671,6 +2674,40 @@ const McpDetailsViewer: Component<{
           </dl>
         </div>
       </div>
+    </div>
+  );
+};
+
+/// Read-only resolved-commands panel shown under Coding agent in
+/// Settings when the master switch is on. Pulls the auto-detected (or
+/// user-overridden) build / lint / test commands from the engine via
+/// per-command Tauri handlers so this UI stays mirrored with the CLI's
+/// `--info` banner and `/coding status` printer.
+const CodingAgentResolvedCommands: Component = () => {
+  const [build] = createResource(() => ipc.codingAgentBuildCmd());
+  const [lint] = createResource(() => ipc.codingAgentLintCmd());
+  const [test] = createResource(() => ipc.codingAgentTestCmd());
+  const cell = (value: string | null | undefined) =>
+    value ? value : "(none detected)";
+  return (
+    <div class="settings-resolved-commands">
+      <p class="settings-hint">
+        Resolved commands for the current working directory:
+      </p>
+      <dl class="settings-resolved-commands-list">
+        <dt>build</dt>
+        <dd>
+          <code>{cell(build())}</code>
+        </dd>
+        <dt>lint</dt>
+        <dd>
+          <code>{cell(lint())}</code>
+        </dd>
+        <dt>test</dt>
+        <dd>
+          <code>{cell(test())}</code>
+        </dd>
+      </dl>
     </div>
   );
 };
