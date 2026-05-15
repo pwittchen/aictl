@@ -75,7 +75,6 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 | `gemini-3.1-pro-preview` | $2.52 | $1.58 | $55.44 | $34.76 |
 | `gemini-3.1-flash-lite` | $0.32 | $0.20 | $7.04 | $4.40 |
 | `grok-4` | $3.60 | $2.18 | $79.20 | $47.96 |
-| `grok-4-fast-reasoning` | $0.21 | $0.12 | $4.62 | $2.64 |
 | `deepseek-chat` | $0.31 | $0.18 | $6.82 | $3.96 |
 | `glm-5.1` | $1.52 | $1.52 | $33.44 | $33.44 |
 
@@ -92,7 +91,6 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
 | `gemini-3.1-pro-preview` | $39.00 | $21.00 | $858.00 | $462.00 |
 | `gemini-3.1-flash-lite` | $4.88 | $2.63 | $107.36 | $57.86 |
 | `grok-4` | $56.25 | $29.25 | $1,237.50 | $643.50 |
-| `grok-4-fast-reasoning` | $3.38 | $1.58 | $74.36 | $34.76 |
 | `deepseek-chat` | $4.88 | $2.45 | $107.36 | $53.90 |
 | `glm-5.1` | $24.30 | $24.30 | $534.60 | $534.60 |
 
@@ -117,10 +115,9 @@ GLM prompt cache is not yet modeled by the aictl cost meter, so its
   reads on every provider.
 - **The value plays for heavy coding use** all come in under
   **$60/month cached** for 50 tasks × 10 iterations × 22 working days:
-  `grok-4-fast-reasoning` ($34.76/month), `deepseek-chat` ($53.90),
-  `gemini-3.1-flash-lite` ($57.86), and `gpt-5.4-nano`
-  ($39.16). These are viable "always-on" coding assistants even for
-  individuals.
+  `gpt-5.4-nano` ($39.16/month), `deepseek-chat` ($53.90),
+  and `gemini-3.1-flash-lite` ($57.86). These are viable "always-on"
+  coding assistants even for individuals.
 - **The flagship cluster** — GPT-5.4, Gemini 3.1 Pro, and Claude
   Sonnet 4.6 — sits around **$460–$525/month cached** for intensive
   coding use. Pick based on quality and speed; cost barely
@@ -136,8 +133,8 @@ If you're picking a mental model for what aictl costs per month:
 
 | | Cheapest cached | Flagship cluster cached | Opus 4.6 cached |
 |---|---|---|---|
-| **Chat** | $2.64 (grok-4-fast) | ~$35–$48 | $69.74 |
-| **Coding** | $34.76 (grok-4-fast) | ~$460–$525 | $874.50 |
+| **Chat** | $3.08 (gpt-5.4-nano) | ~$35–$48 | $69.74 |
+| **Coding** | $39.16 (gpt-5.4-nano) | ~$460–$525 | $874.50 |
 
 The spread is: **chat = essentially free on value models, ~$50 on
 flagships, ~$70 on Opus**. **Coding = $35 on value models, ~$500 on

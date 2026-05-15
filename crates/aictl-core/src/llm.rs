@@ -50,32 +50,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "claude-haiku-4-5-20251001",
         "LLM_ANTHROPIC_API_KEY",
     ),
-    (
-        "anthropic",
-        "claude-sonnet-4-20250514",
-        "LLM_ANTHROPIC_API_KEY",
-    ),
-    (
-        "anthropic",
-        "claude-sonnet-4-5-20250929",
-        "LLM_ANTHROPIC_API_KEY",
-    ),
     ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
-    (
-        "anthropic",
-        "claude-opus-4-20250514",
-        "LLM_ANTHROPIC_API_KEY",
-    ),
-    (
-        "anthropic",
-        "claude-opus-4-1-20250805",
-        "LLM_ANTHROPIC_API_KEY",
-    ),
-    (
-        "anthropic",
-        "claude-opus-4-5-20251101",
-        "LLM_ANTHROPIC_API_KEY",
-    ),
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
@@ -102,13 +77,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
-    ("grok", "grok-3", "LLM_GROK_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
-    ("grok", "grok-4-fast-reasoning", "LLM_GROK_API_KEY"),
-    ("grok", "grok-4-fast-non-reasoning", "LLM_GROK_API_KEY"),
-    ("grok", "grok-4-1-fast-reasoning", "LLM_GROK_API_KEY"),
-    ("grok", "grok-4-1-fast-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
@@ -182,7 +152,7 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         }
         // Gemini 2.x and 3.x are all multimodal.
         "gemini" => model.starts_with("gemini-2") || model.starts_with("gemini-3"),
-        // grok-3 is text-only; grok-4 family adds vision.
+        // grok-3 family is text-only; grok-4 family adds vision.
         "grok" => model.starts_with("grok-4"),
         // Moonshot's `*-vision-preview` variants plus the k2 series are vision-capable per docs.
         "kimi" => model.contains("vision") || model.starts_with("kimi-k2"),
@@ -397,10 +367,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.30, 2.50));
     }
 
-    // xAI Grok — 4 family (4.x Fast variants share pricing)
-    if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
-        return Some((0.20, 0.50));
-    }
+    // xAI Grok — 4 family
     if model.starts_with("grok-4.20") {
         return Some((2.00, 6.00));
     }
@@ -410,12 +377,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("grok-4") {
         return Some((3.00, 15.00));
     }
-    // xAI Grok — 3
+    // xAI Grok — 3 mini
     if model.starts_with("grok-3-mini") {
         return Some((0.30, 0.50));
-    }
-    if model.starts_with("grok-3") {
-        return Some((3.00, 15.00));
     }
 
     // Mistral
@@ -550,9 +514,6 @@ pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("gemini-") {
         return 200_000;
     }
-    if model.starts_with("grok-4-fast") || model.starts_with("grok-4-1-fast") {
-        return 2_000_000;
-    }
     if model.starts_with("grok-4.20") {
         return 2_000_000;
     }
@@ -686,16 +647,9 @@ mod tests {
 
     #[test]
     fn price_claude_sonnet() {
-        let (i, o) = price_per_million("claude-sonnet-4-20250514").unwrap();
+        let (i, o) = price_per_million("claude-sonnet-4-6").unwrap();
         assert_eq!(i, 3.00);
         assert_eq!(o, 15.00);
-    }
-
-    #[test]
-    fn price_claude_opus_4() {
-        let (i, o) = price_per_million("claude-opus-4-20250514").unwrap();
-        assert_eq!(i, 15.00);
-        assert_eq!(o, 75.00);
     }
 
     #[test]
@@ -751,9 +705,6 @@ mod tests {
         let (i, o) = price_per_million("grok-4").unwrap();
         assert_eq!(i, 3.00);
         assert_eq!(o, 15.00);
-        let (i, o) = price_per_million("grok-4-fast-reasoning").unwrap();
-        assert_eq!(i, 0.20);
-        assert_eq!(o, 0.50);
     }
 
     #[test]
@@ -851,7 +802,7 @@ mod tests {
             cache_creation_input_tokens: 1_000_000,
             cache_read_input_tokens: 1_000_000,
         };
-        let cost = usage.estimate_cost("claude-sonnet-4-20250514").unwrap();
+        let cost = usage.estimate_cost("claude-sonnet-4-6").unwrap();
         // 1M * 3.00 + 1M * 3.00 * 1.25 + 1M * 3.00 * 0.1 + 1M * 15.00 = 3 + 3.75 + 0.3 + 15 = 22.05
         assert!((cost - 22.05).abs() < 1e-9);
     }
@@ -900,8 +851,8 @@ mod tests {
 
     #[test]
     fn cache_read_multiplier_anthropic() {
-        assert!((cache_read_multiplier("claude-sonnet-4-20250514") - 0.1).abs() < 1e-9);
-        assert!((cache_read_multiplier("claude-opus-4-20250514") - 0.1).abs() < 1e-9);
+        assert!((cache_read_multiplier("claude-sonnet-4-6") - 0.1).abs() < 1e-9);
+        assert!((cache_read_multiplier("claude-opus-4-6") - 0.1).abs() < 1e-9);
         assert!((cache_read_multiplier("claude-haiku-4-5-20251001") - 0.1).abs() < 1e-9);
     }
 
@@ -918,7 +869,7 @@ mod tests {
     #[test]
     fn cache_read_multiplier_other_providers() {
         assert!((cache_read_multiplier("gemini-2.5-flash") - 0.25).abs() < 1e-9);
-        assert!((cache_read_multiplier("grok-3") - 0.25).abs() < 1e-9);
+        assert!((cache_read_multiplier("grok-3-mini") - 0.25).abs() < 1e-9);
         assert!((cache_read_multiplier("deepseek-chat") - 0.25).abs() < 1e-9);
         assert!((cache_read_multiplier("kimi-k2-0905-preview") - 0.25).abs() < 1e-9);
     }
@@ -949,8 +900,8 @@ mod tests {
 
     #[test]
     fn context_limit_claude() {
-        assert_eq!(context_limit("claude-sonnet-4-20250514"), 200_000);
-        assert_eq!(context_limit("claude-opus-4-20250514"), 200_000);
+        assert_eq!(context_limit("claude-sonnet-4-6"), 200_000);
+        assert_eq!(context_limit("claude-opus-4-6"), 200_000);
     }
 
     #[test]
@@ -972,10 +923,8 @@ mod tests {
     #[test]
     fn context_limit_grok_4() {
         assert_eq!(context_limit("grok-4"), 256_000);
-        assert_eq!(context_limit("grok-4-fast-reasoning"), 2_000_000);
-        assert_eq!(context_limit("grok-4-1-fast-reasoning"), 2_000_000);
         assert_eq!(context_limit("grok-4.20-0309-reasoning"), 2_000_000);
-        assert_eq!(context_limit("grok-3"), 131_072);
+        assert_eq!(context_limit("grok-3-mini"), 131_072);
     }
 
     #[test]

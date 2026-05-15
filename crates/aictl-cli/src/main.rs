@@ -76,7 +76,7 @@ struct Cli {
     #[arg(long)]
     provider: Option<Provider>,
 
-    /// Model to use, e.g. gpt-4o, claude-sonnet-4-20250514 (default: `AICTL_MODEL` from ~/.aictl/config)
+    /// Model to use, e.g. gpt-4o, claude-sonnet-4-6 (default: `AICTL_MODEL` from ~/.aictl/config)
     #[arg(long)]
     model: Option<String>,
 

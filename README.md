@@ -870,7 +870,7 @@ Create `~/.aictl/config` (see `.aictl/config` in this repo for the reference):
 
 ```
 AICTL_PROVIDER=anthropic
-AICTL_MODEL=claude-sonnet-4-20250514
+AICTL_MODEL=claude-sonnet-4-6
 LLM_ANTHROPIC_API_KEY=sk-ant-...
 FIRECRAWL_API_KEY=fc-...
 ```
@@ -944,12 +944,9 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 | `grok-4.3` | $1.25 | $2.50 |
 | `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` | $2.00 | $6.00 |
 | `grok-4` | $3.00 | $15.00 |
-| `grok-4-fast-reasoning` / `grok-4-fast-non-reasoning` | $0.20 | $0.50 |
-| `grok-4-1-fast-reasoning` / `grok-4-1-fast-non-reasoning` | $0.20 | $0.50 |
-| `grok-3` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
-Grok 4 Fast and Grok 4.20 ship with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold.
+Grok 4.20 ships with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold.
 
 #### Mistral
 
@@ -1157,8 +1154,8 @@ The headline numbers for intensive use (150 chat turns/day or 50 coding tasks/da
 
 | Usage pattern | Cheapest | Flagship cluster | Opus 4.6 |
 |---|---|---|---|
-| Chat | **$2.64/mo** (grok-4-fast) | ~$35–$48/mo | $69.74/mo |
-| Coding agent | **$34.76/mo** (grok-4-fast) | ~$460–$525/mo | $874.50/mo |
+| Chat | **$3.08/mo** (gpt-5.4-nano) | ~$35–$48/mo | $69.74/mo |
+| Coding agent | **$39.16/mo** (gpt-5.4-nano) | ~$460–$525/mo | $874.50/mo |
 
 A few things worth knowing before you budget:
 

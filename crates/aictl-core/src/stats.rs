@@ -268,7 +268,7 @@ mod tests {
             cost_usd: 0.05,
             models: HashMap::from([
                 ("gpt-4o".to_string(), 3),
-                ("claude-sonnet-4-20250514".to_string(), 2),
+                ("claude-sonnet-4-6".to_string(), 2),
             ]),
         };
         let b = DayStats {
@@ -290,7 +290,7 @@ mod tests {
         assert_eq!(a.output_tokens, 700);
         assert!((a.cost_usd - 0.07).abs() < 1e-9);
         assert_eq!(a.models["gpt-4o"], 4);
-        assert_eq!(a.models["claude-sonnet-4-20250514"], 2);
+        assert_eq!(a.models["claude-sonnet-4-6"], 2);
         assert_eq!(a.models["gpt-4.1"], 1);
     }
 }
