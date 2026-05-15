@@ -567,7 +567,7 @@ Optional tuning knobs in `~/.aictl/config`:
 - `AICTL_CODING_PLAN_APPROVE=true` — pause for confirmation before the Code phase.
 - `AICTL_CODING_SKIP_REVIEW=true` / `AICTL_CODING_SKIP_TEST=true` — bypass those phases.
 - `AICTL_CODING_TEST_RETRIES=3` — bound the Code → Review → Test re-loop on test failures.
-- `AICTL_CODING_LINTER` / `AICTL_CODING_TEST_CMD` — override the auto-detected linter / test command. The defaults pick up `cargo`, `npm test`, `pytest`, or `go test ./...` from project markers in the working directory.
+- `AICTL_CODING_LINTER` / `AICTL_CODING_TEST_CMD` — override the auto-detected linter / test command. Auto-detection covers Cargo / npm / Python / Go / Gradle / Maven / CMake / Make from project markers in the working directory; wrapper scripts (`gradlew`, `mvnw`) are preferred over system `gradle` / `mvn`, and `clang-tidy` is preferred over `cppcheck` when `compile_commands.json` is present.
 
 Coding-agent mode composes with the rest of the prompt extension points: a loaded agent (`--agent rust-expert`) still appends its persona block on top of the coding-specialist base, a `/<skill>` invocation still injects its body for one turn, and `AICTL.md` / `~/.aictl/AICTL.md` still apply. The server (`aictl-server`) is unaffected — it has no agent loop, so `AICTL_CODING_AGENT` is ignored there even when set in a shared config.
 

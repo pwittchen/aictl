@@ -166,6 +166,32 @@ pub fn detect_linter(working_dir: &Path) -> Option<String> {
     if working_dir.join("go.mod").is_file() {
         return Some("go vet ./...".to_string());
     }
+    if let Some(wrapper) = detect_gradle(working_dir) {
+        return Some(if wrapper {
+            "./gradlew check".to_string()
+        } else {
+            "gradle check".to_string()
+        });
+    }
+    if let Some(wrapper) = detect_maven(working_dir) {
+        return Some(if wrapper {
+            "./mvnw verify".to_string()
+        } else {
+            "mvn verify".to_string()
+        });
+    }
+    if let Some(c) = detect_cmake(working_dir) {
+        return Some(if c.has_compile_db {
+            "clang-tidy --quiet -p build".to_string()
+        } else {
+            "cppcheck --enable=warning --quiet .".to_string()
+        });
+    }
+    if let Some(m) = detect_make(working_dir)
+        && m.has_check
+    {
+        return Some("make check".to_string());
+    }
     None
 }
 
@@ -193,7 +219,150 @@ pub fn detect_test_cmd(working_dir: &Path) -> Option<String> {
     if working_dir.join("go.mod").is_file() {
         return Some("go test ./...".to_string());
     }
+    if let Some(wrapper) = detect_gradle(working_dir) {
+        return Some(if wrapper {
+            "./gradlew test".to_string()
+        } else {
+            "gradle test".to_string()
+        });
+    }
+    if let Some(wrapper) = detect_maven(working_dir) {
+        return Some(if wrapper {
+            "./mvnw test".to_string()
+        } else {
+            "mvn test".to_string()
+        });
+    }
+    if detect_cmake(working_dir).is_some() {
+        return Some("ctest --test-dir build --output-on-failure".to_string());
+    }
+    if let Some(m) = detect_make(working_dir) {
+        if m.has_test {
+            return Some("make test".to_string());
+        }
+        if m.has_check {
+            return Some("make check".to_string());
+        }
+    }
     None
+}
+
+/// Detect a Gradle project at `working_dir`. Returns `Some(true)` when a
+/// `gradlew` wrapper is present alongside the build script, `Some(false)`
+/// when only system `gradle` will work, and `None` when no Gradle markers
+/// are present. The wrapper is preferred so the model uses the
+/// project-pinned tool version.
+fn detect_gradle(working_dir: &Path) -> Option<bool> {
+    let has_gradle = working_dir.join("build.gradle").is_file()
+        || working_dir.join("build.gradle.kts").is_file()
+        || working_dir.join("settings.gradle").is_file()
+        || working_dir.join("settings.gradle.kts").is_file();
+    if !has_gradle {
+        return None;
+    }
+    Some(working_dir.join("gradlew").is_file())
+}
+
+/// Detect a Maven project at `working_dir`. Returns `Some(true)` when an
+/// `mvnw` wrapper is present, `Some(false)` for system-`mvn` only, and
+/// `None` when no `pom.xml` is present.
+fn detect_maven(working_dir: &Path) -> Option<bool> {
+    if !working_dir.join("pom.xml").is_file() {
+        return None;
+    }
+    Some(working_dir.join("mvnw").is_file())
+}
+
+/// Shape of a detected `CMake` project.
+struct CMakeShape {
+    /// Whether a `compile_commands.json` sits inside one of the common
+    /// build directories. Drives the linter choice — `clang-tidy` when
+    /// present, `cppcheck` otherwise.
+    has_compile_db: bool,
+}
+
+/// Detect a `CMake` project at `working_dir`. Looks for `CMakeLists.txt`
+/// and, when present, probes the conventional build directories
+/// (`build/`, `cmake-build-debug/`, `out/build/`) for a
+/// `compile_commands.json`.
+fn detect_cmake(working_dir: &Path) -> Option<CMakeShape> {
+    if !working_dir.join("CMakeLists.txt").is_file() {
+        return None;
+    }
+    let build_dir = ["build", "cmake-build-debug", "out/build"]
+        .into_iter()
+        .map(|d| working_dir.join(d))
+        .find(|p| p.is_dir());
+    let has_compile_db = build_dir
+        .as_ref()
+        .is_some_and(|d| d.join("compile_commands.json").is_file());
+    Some(CMakeShape { has_compile_db })
+}
+
+/// Shape of a detected Make project — which conventional targets the
+/// `Makefile` defines.
+struct MakeShape {
+    has_test: bool,
+    has_check: bool,
+}
+
+/// Detect a Make-only project at `working_dir`. Reads `Makefile` (when
+/// present) and looks for `test:` and `check:` target lines so the
+/// caller can pick the right invocation.
+fn detect_make(working_dir: &Path) -> Option<MakeShape> {
+    let path = working_dir.join("Makefile");
+    if !path.is_file() {
+        return None;
+    }
+    let body = std::fs::read_to_string(&path).unwrap_or_default();
+    Some(MakeShape {
+        has_test: makefile_has_target(&body, "test"),
+        has_check: makefile_has_target(&body, "check"),
+    })
+}
+
+/// True when `body` contains a Makefile rule for `target` — i.e. a line
+/// that, after optional leading whitespace and an optional `.PHONY:`
+/// decoration, starts with `<target>:` followed by whitespace or end of
+/// line. Comments and lines where the target name is a prefix of a
+/// longer target (e.g. `test-foo`) are rejected.
+fn makefile_has_target(body: &str, target: &str) -> bool {
+    for raw in body.lines() {
+        let line = raw.trim_start();
+        if line.starts_with('#') {
+            continue;
+        }
+        let rest = if let Some(after_phony) = line.strip_prefix(".PHONY:") {
+            // `.PHONY: test foo` declares `test` as phony but is not the
+            // rule itself; treat presence in the phony list as a match
+            // (close enough — projects that declare a phony target
+            // almost always define its body too).
+            for tok in after_phony.split_whitespace() {
+                if tok == target {
+                    return true;
+                }
+            }
+            continue;
+        } else {
+            line
+        };
+        let Some(after) = rest.strip_prefix(target) else {
+            continue;
+        };
+        // Next char must be `:` to be a rule head; the colon must be
+        // followed by whitespace, end-of-line, or another `:` (double-colon
+        // rules) so `test-foo:` doesn't match when target is `test`.
+        let mut chars = after.chars();
+        if chars.next() != Some(':') {
+            continue;
+        }
+        match chars.next() {
+            None => return true,
+            Some(c) if c.is_whitespace() || c == ':' => return true,
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Lightweight check: does `package.json` declare a `"test"` script?
@@ -286,5 +455,265 @@ mod tests {
             WorkflowPhase::Code.skip_to_after(false, false),
             WorkflowPhase::Review
         );
+    }
+
+    /// Build a fresh temp directory the test owns. Each test gets a
+    /// uniquely named directory so parallel `cargo test` runs don't trip
+    /// over one another.
+    fn fixture_dir(tag: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "aictl_coding_{}_{}_{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn touch(dir: &std::path::Path, name: &str) {
+        let p = dir.join(name);
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(p, "").unwrap();
+    }
+
+    #[test]
+    fn detect_gradle_picks_wrapper_when_present() {
+        let dir = fixture_dir("gradle_wrapper");
+        touch(&dir, "build.gradle");
+        touch(&dir, "gradlew");
+        assert_eq!(detect_gradle(&dir), Some(true));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_gradle_picks_system_without_wrapper() {
+        let dir = fixture_dir("gradle_system");
+        touch(&dir, "build.gradle.kts");
+        assert_eq!(detect_gradle(&dir), Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_gradle_settings_only_still_matches() {
+        let dir = fixture_dir("gradle_settings");
+        touch(&dir, "settings.gradle.kts");
+        assert_eq!(detect_gradle(&dir), Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_gradle_returns_none_without_markers() {
+        let dir = fixture_dir("gradle_empty");
+        assert_eq!(detect_gradle(&dir), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_maven_picks_wrapper_when_present() {
+        let dir = fixture_dir("maven_wrapper");
+        touch(&dir, "pom.xml");
+        touch(&dir, "mvnw");
+        assert_eq!(detect_maven(&dir), Some(true));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_maven_picks_system_without_wrapper() {
+        let dir = fixture_dir("maven_system");
+        touch(&dir, "pom.xml");
+        assert_eq!(detect_maven(&dir), Some(false));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_cmake_with_compile_db() {
+        let dir = fixture_dir("cmake_db");
+        touch(&dir, "CMakeLists.txt");
+        std::fs::create_dir_all(dir.join("build")).unwrap();
+        touch(&dir, "build/compile_commands.json");
+        let shape = detect_cmake(&dir).unwrap();
+        assert!(shape.has_compile_db);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_cmake_without_compile_db() {
+        let dir = fixture_dir("cmake_nodb");
+        touch(&dir, "CMakeLists.txt");
+        let shape = detect_cmake(&dir).unwrap();
+        assert!(!shape.has_compile_db);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_make_recognizes_targets() {
+        let dir = fixture_dir("make_targets");
+        std::fs::write(
+            dir.join("Makefile"),
+            "all: build\n\nbuild:\n\techo build\n\ntest:\n\techo run\n\ncheck:\n\techo lint\n",
+        )
+        .unwrap();
+        let shape = detect_make(&dir).unwrap();
+        assert!(shape.has_test);
+        assert!(shape.has_check);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_make_without_relevant_targets() {
+        let dir = fixture_dir("make_bare");
+        std::fs::write(dir.join("Makefile"), "all:\n\techo hi\n").unwrap();
+        let shape = detect_make(&dir).unwrap();
+        assert!(!shape.has_test);
+        assert!(!shape.has_check);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn makefile_has_target_matches_basic_rule() {
+        assert!(makefile_has_target("test:\n\trun\n", "test"));
+    }
+
+    #[test]
+    fn makefile_has_target_matches_phony_declaration() {
+        assert!(makefile_has_target(
+            ".PHONY: build test clean\n\nbuild:\n\trun\n",
+            "test"
+        ));
+    }
+
+    #[test]
+    fn makefile_has_target_rejects_comment() {
+        assert!(!makefile_has_target("# test: not a rule\n", "test"));
+    }
+
+    #[test]
+    fn makefile_has_target_rejects_prefix_only_match() {
+        assert!(!makefile_has_target("test-foo:\n\trun\n", "test"));
+    }
+
+    #[test]
+    fn makefile_has_target_accepts_double_colon_rule() {
+        assert!(makefile_has_target("test::\n\trun\n", "test"));
+    }
+
+    /// Skip `detect_linter`/`detect_test_cmd` precedence tests if a dev's
+    /// real `~/.aictl/config` has the override set — the override fires
+    /// first by design and any test against detection output would be a
+    /// false negative.
+    fn linter_override_set() -> bool {
+        crate::config::coding_linter_override().is_some()
+    }
+
+    fn test_cmd_override_set() -> bool {
+        crate::config::coding_test_cmd_override().is_some()
+    }
+
+    /// `detect_linter` should keep Rust's precedence ahead of Gradle even
+    /// when both markers exist (polyglot monorepo, root-level Cargo).
+    #[test]
+    fn detect_linter_rust_wins_over_gradle() {
+        if linter_override_set() {
+            return;
+        }
+        let dir = fixture_dir("precedence_rust_gradle");
+        touch(&dir, "Cargo.toml");
+        touch(&dir, "build.gradle");
+        let cmd = detect_linter(&dir).unwrap();
+        assert!(cmd.contains("cargo"), "got: {cmd}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// When only JVM markers are present, Gradle beats Maven (matches
+    /// industry default for migration repos).
+    #[test]
+    fn detect_linter_gradle_wins_over_maven() {
+        if linter_override_set() {
+            return;
+        }
+        let dir = fixture_dir("precedence_gradle_maven");
+        touch(&dir, "build.gradle");
+        touch(&dir, "pom.xml");
+        let cmd = detect_linter(&dir).unwrap();
+        assert!(cmd.contains("gradle"), "got: {cmd}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_test_cmd_maven_wrapper() {
+        if test_cmd_override_set() {
+            return;
+        }
+        let dir = fixture_dir("test_maven_wrapper");
+        touch(&dir, "pom.xml");
+        touch(&dir, "mvnw");
+        assert_eq!(detect_test_cmd(&dir).as_deref(), Some("./mvnw test"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_test_cmd_cmake_uses_ctest() {
+        if test_cmd_override_set() {
+            return;
+        }
+        let dir = fixture_dir("test_cmake");
+        touch(&dir, "CMakeLists.txt");
+        assert_eq!(
+            detect_test_cmd(&dir).as_deref(),
+            Some("ctest --test-dir build --output-on-failure")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_test_cmd_make_prefers_test_over_check() {
+        if test_cmd_override_set() {
+            return;
+        }
+        let dir = fixture_dir("test_make_both");
+        std::fs::write(
+            dir.join("Makefile"),
+            "test:\n\trun-test\n\ncheck:\n\trun-lint\n",
+        )
+        .unwrap();
+        assert_eq!(detect_test_cmd(&dir).as_deref(), Some("make test"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_linter_cmake_with_db_picks_clang_tidy() {
+        if linter_override_set() {
+            return;
+        }
+        let dir = fixture_dir("lint_cmake_db");
+        touch(&dir, "CMakeLists.txt");
+        std::fs::create_dir_all(dir.join("build")).unwrap();
+        touch(&dir, "build/compile_commands.json");
+        assert_eq!(
+            detect_linter(&dir).as_deref(),
+            Some("clang-tidy --quiet -p build")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detect_linter_cmake_without_db_falls_back_to_cppcheck() {
+        if linter_override_set() {
+            return;
+        }
+        let dir = fixture_dir("lint_cmake_nodb");
+        touch(&dir, "CMakeLists.txt");
+        assert_eq!(
+            detect_linter(&dir).as_deref(),
+            Some("cppcheck --enable=warning --quiet .")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

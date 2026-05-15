@@ -228,6 +228,41 @@ const LINTERS: &[LinterGroup] = &[
         ],
     },
     LinterGroup {
+        extensions: &["java"],
+        candidates: &[
+            LinterCmd {
+                binary: "google-java-format",
+                args: &["--dry-run", "--set-exit-if-changed"],
+                label: "google-java-format --dry-run",
+            },
+            LinterCmd {
+                binary: "checkstyle",
+                args: &["-c", "/google_checks.xml"],
+                label: "checkstyle (google)",
+            },
+            LinterCmd {
+                binary: "javac",
+                args: &["-Xlint", "-d", "/tmp"],
+                label: "javac -Xlint",
+            },
+        ],
+    },
+    LinterGroup {
+        extensions: &["kt", "kts"],
+        candidates: &[
+            LinterCmd {
+                binary: "ktlint",
+                args: &[],
+                label: "ktlint",
+            },
+            LinterCmd {
+                binary: "ktfmt",
+                args: &["--dry-run"],
+                label: "ktfmt --dry-run",
+            },
+        ],
+    },
+    LinterGroup {
         extensions: &["html", "htm", "css", "scss", "sass"],
         candidates: &[LinterCmd {
             binary: "prettier",
