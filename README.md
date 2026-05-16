@@ -40,6 +40,22 @@ aictl --auto --message "List the largest files in this directory"
 
 The first launch will walk you through provider, model, and API-key setup. State (config, sessions, audit log, agents, skills) lives under `~/.aictl/`.
 
+## Desktop app (macOS)
+
+A native macOS desktop app (`aictl-desktop`) is available as a Tauri-based frontend over the same `aictl-core` engine the CLI uses — same providers, tools, agents, skills, and config. Download the latest `.dmg` from [aictl.app/desktop.html](https://aictl.app/desktop.html) (or the [GitHub releases](https://github.com/pwittchen/aictl/releases) page), open it, and drag `aictl.app` into `/Applications`. Apple Silicon and Intel builds are published per release. For build-from-source instructions see [docs/INSTALL.md](docs/INSTALL.md#desktop-app-macos).
+
+## HTTP server (`aictl-server`)
+
+A second binary in this workspace, `aictl-server`, exposes the same provider catalogue over an OpenAI-compatible HTTP endpoint with redaction, prompt-injection blocking, audit, and a master-key gate. Pure proxy — no agent loop, no tools, no agents/skills/sessions. See [docs/SERVER.md](docs/SERVER.md) for the full reference.
+
+```sh
+curl -fsSL https://aictl.app/server/install.sh | sh
+aictl-server     # listens on 127.0.0.1:7878 by default; prints master key on first launch
+aictl --serve    # convenience shortcut from the CLI; forwards trailing args after `--`
+```
+
+`aictl-server` can also be used as the upstream for the CLI itself (centralized provider keys + audit on the server, single master key on every client laptop), or as [Claude Code's Anthropic-compatible inference provider](docs/SERVER.md#connecting-claude-code) — including opt-in cross-provider routing that translates Claude Code's `POST /v1/messages` to/from OpenAI, Gemini, Ollama, and the rest.
+
 ## Documentation
 
 | Topic | File |
@@ -56,22 +72,6 @@ The first launch will walk you through provider, model, and API-key setup. State
 | Architecture diagrams | [docs/ARCH.md](docs/ARCH.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
 | Design notes | [docs/DESIGN.md](docs/DESIGN.md) |
-
-## Desktop app (macOS)
-
-A native macOS desktop app (`aictl-desktop`) is available as a Tauri-based frontend over the same `aictl-core` engine the CLI uses — same providers, tools, agents, skills, and config. Download the latest `.dmg` from [aictl.app/desktop.html](https://aictl.app/desktop.html) (or the [GitHub releases](https://github.com/pwittchen/aictl/releases) page), open it, and drag `aictl.app` into `/Applications`. Apple Silicon and Intel builds are published per release. For build-from-source instructions see [docs/INSTALL.md](docs/INSTALL.md#desktop-app-macos).
-
-## HTTP server (`aictl-server`)
-
-A second binary in this workspace, `aictl-server`, exposes the same provider catalogue over an OpenAI-compatible HTTP endpoint with redaction, prompt-injection blocking, audit, and a master-key gate. Pure proxy — no agent loop, no tools, no agents/skills/sessions. See [docs/SERVER.md](docs/SERVER.md) for the full reference.
-
-```sh
-curl -fsSL https://aictl.app/server/install.sh | sh
-aictl-server     # listens on 127.0.0.1:7878 by default; prints master key on first launch
-aictl --serve    # convenience shortcut from the CLI; forwards trailing args after `--`
-```
-
-`aictl-server` can also be used as the upstream for the CLI itself (centralized provider keys + audit on the server, single master key on every client laptop), or as [Claude Code's Anthropic-compatible inference provider](docs/SERVER.md#connecting-claude-code) — including opt-in cross-provider routing that translates Claude Code's `POST /v1/messages` to/from OpenAI, Gemini, Ollama, and the rest.
 
 ## Tests
 
