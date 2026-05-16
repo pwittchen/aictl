@@ -55,7 +55,6 @@ The first launch will walk you through provider, model, and API-key setup. State
 | HTTP server (`aictl-server`) reference | [docs/SERVER.md](docs/SERVER.md) |
 | Architecture diagrams | [docs/ARCH.md](docs/ARCH.md) |
 | Roadmap | [ROADMAP.md](ROADMAP.md) |
-| Commercial licensing pricing | [docs/COMMERCIAL_PRICING.md](docs/COMMERCIAL_PRICING.md) |
 | Design notes | [docs/DESIGN.md](docs/DESIGN.md) |
 
 ## Desktop app (macOS)
