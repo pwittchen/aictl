@@ -25,7 +25,7 @@ curl -sSf https://aictl.app/install.sh | sh
 
 For build-from-source, Docker, optional cargo features (`gguf`, `mlx`, `redaction-ner`), the macOS desktop app, and uninstall instructions, see [docs/INSTALL.md](docs/INSTALL.md).
 
-## Quick start
+## Quick start with CLI
 
 ```bash
 # Interactive REPL (after running aictl --config once to set provider + key):
