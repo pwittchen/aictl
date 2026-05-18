@@ -52,6 +52,7 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gemini-3.1-pro-preview` | $2.00 | $12.00 |
 | `gemini-3-flash-preview` | $0.50 | $3.00 |
 | `gemini-3.1-flash-lite` | $0.25 | $1.50 |
+| `gemini-3.1-flash-lite-preview` | $0.25 | $1.50 |
 | `gemini-2.5-pro` | $1.25 | $10.00 |
 | `gemini-2.5-flash` | $0.30 | $2.50 |
 | `gemini-2.5-flash-lite` | $0.10 | $0.40 |
@@ -65,7 +66,7 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 | Model | Input | Output |
 |-------|-------|--------|
 | `grok-4.3` | $1.25 | $2.50 |
-| `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` | $2.00 | $6.00 |
+| `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` / `grok-4.20-multi-agent-0309` | $1.25 | $2.50 |
 | `grok-4` | $3.00 | $15.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
@@ -124,7 +125,7 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 |-------|-------|--------|
 | `glm-5.1` | $1.40 | $4.40 |
 | `glm-5-turbo` | $1.20 | $4.00 |
-| `glm-5` | $0.72 | $2.30 |
+| `glm-5` | $1.00 | $3.20 |
 | `glm-4.7` | $0.60 | $2.20 |
 | `glm-4.7-flashx` | $0.07 | $0.40 |
 | `glm-4.7-flash` | Free | Free |

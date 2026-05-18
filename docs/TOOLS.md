@@ -54,7 +54,7 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 | OpenAI | All models | GPT Image 1 / 1 Mini / 2 |
 | Anthropic | All models | -- |
 | Gemini | All models | Imagen 4.0 / 4.0 Ultra / 4.0 Fast |
-| Grok | All models | Grok 2 Image |
+| Grok | All models | Grok 2 Image / Grok Imagine Image / Grok Imagine Image Quality |
 | Mistral | All models | -- |
 | DeepSeek | -- | -- |
 | Kimi | kimi-k2.6 / k2.5 and moonshot-v1 variants | -- |

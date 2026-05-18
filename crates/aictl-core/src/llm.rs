@@ -76,11 +76,17 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-2.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-pro-preview", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.1-flash-lite", "LLM_GEMINI_API_KEY"),
+    (
+        "gemini",
+        "gemini-3.1-flash-lite-preview",
+        "LLM_GEMINI_API_KEY",
+    ),
     ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.20-multi-agent-0309", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
@@ -131,6 +137,8 @@ pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
     ("gemini", "imagen-4.0-ultra-generate-001"),
     ("gemini", "imagen-4.0-fast-generate-001"),
     ("grok", "grok-2-image"),
+    ("grok", "grok-imagine-image"),
+    ("grok", "grok-imagine-image-quality"),
 ];
 
 /// Heuristic per-provider check for "does this model accept images in
@@ -369,7 +377,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
 
     // xAI Grok — 4 family
     if model.starts_with("grok-4.20") {
-        return Some((2.00, 6.00));
+        return Some((1.25, 2.50));
     }
     if model.starts_with("grok-4.3") {
         return Some((1.25, 2.50));
@@ -452,7 +460,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((1.20, 4.00));
     }
     if model.starts_with("glm-5") {
-        return Some((0.72, 2.30));
+        return Some((1.00, 3.20));
     }
     if model.starts_with("glm-4.7-flashx") {
         return Some((0.07, 0.40));
@@ -710,11 +718,14 @@ mod tests {
     #[test]
     fn price_grok_4_20() {
         let (i, o) = price_per_million("grok-4.20-0309-reasoning").unwrap();
-        assert_eq!(i, 2.00);
-        assert_eq!(o, 6.00);
+        assert_eq!(i, 1.25);
+        assert_eq!(o, 2.50);
         let (i, o) = price_per_million("grok-4.20-0309-non-reasoning").unwrap();
-        assert_eq!(i, 2.00);
-        assert_eq!(o, 6.00);
+        assert_eq!(i, 1.25);
+        assert_eq!(o, 2.50);
+        let (i, o) = price_per_million("grok-4.20-multi-agent-0309").unwrap();
+        assert_eq!(i, 1.25);
+        assert_eq!(o, 2.50);
     }
 
     #[test]
@@ -747,8 +758,8 @@ mod tests {
         assert_eq!(o, 4.00);
         // existing glm-5 bucket must still match plain "glm-5"
         let (i, o) = price_per_million("glm-5").unwrap();
-        assert_eq!(i, 0.72);
-        assert_eq!(o, 2.30);
+        assert_eq!(i, 1.00);
+        assert_eq!(o, 3.20);
     }
 
     #[test]
