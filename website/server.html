@@ -3,18 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>aictl-server — OpenAI-compatible LLM proxy</title>
-  <meta name="description" content="aictl-server is an HTTP LLM proxy with built-in redaction, prompt-injection blocking, and logs. Point any OpenAI SDK at it to call Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models." />
+  <title>aictl-server — OpenAI-compatible LLM proxy with redaction & audit log</title>
+  <meta name="description" content="aictl-server is an OpenAI-compatible HTTP LLM proxy with built-in redaction, prompt-injection blocking, and audit logs. Point any OpenAI SDK at it to call Anthropic, Gemini, Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, GGUF, or MLX models — one endpoint, twelve providers." />
+  <meta name="keywords" content="OpenAI-compatible proxy, LLM gateway, LLM proxy, AI gateway, multi-provider LLM, OpenAI SDK proxy, Anthropic proxy, Gemini proxy, self-hosted LLM gateway, PII redaction LLM, prompt injection guard, LLM audit log, Anthropic messages API proxy" />
+  <meta name="author" content="Piotr Wittchen" />
   <meta name="theme-color" content="#1f2228" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <link rel="canonical" href="https://aictl.app/server.html" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt" />
   <meta property="og:title" content="aictl-server — OpenAI-compatible LLM proxy" />
   <meta property="og:description" content="An HTTP LLM proxy with redaction, prompt-injection blocking, and logs. One endpoint for every aictl-supported provider." />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://aictl.app/server" />
+  <meta property="og:url" content="https://aictl.app/server.html" />
+  <meta property="og:site_name" content="aictl" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="aictl-server — OpenAI-compatible LLM proxy" />
+  <meta name="twitter:description" content="An HTTP LLM proxy with redaction, prompt-injection blocking, and logs. One endpoint for every aictl-supported provider." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "aictl-server",
+    "applicationCategory": "DeveloperApplication",
+    "applicationSubCategory": "LLM Gateway",
+    "operatingSystem": "macOS, Linux",
+    "url": "https://aictl.app/server.html",
+    "downloadUrl": "https://aictl.app/server/install.sh",
+    "softwareVersion": "0.47.0",
+    "description": "aictl-server is an OpenAI-compatible HTTP LLM proxy. Exposes /v1/chat/completions, /v1/completions, /v1/messages, /v1/models, /v1/stats, /healthz. Built-in PII/credential redaction, prompt-injection blocking, and per-session audit logging. Routes to 12 upstream providers including OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai, Ollama, native GGUF, and native MLX.",
+    "programmingLanguage": "Rust",
+    "license": "https://github.com/pwittchen/aictl/blob/master/LICENSE",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "author": {
+      "@type": "Person",
+      "name": "Piotr Wittchen",
+      "url": "https://github.com/pwittchen"
+    },
+    "isPartOf": { "@id": "https://aictl.app/#software" }
+  }
+  </script>
 </head>
 <body>
   <header class="nav">

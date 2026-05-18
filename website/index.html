@@ -5,16 +5,152 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>aictl — Native AI agent for your terminal and macOS desktop</title>
   <meta name="description" content="aictl is a single-binary AI agent CLI for your terminal. 78 built-in cloud models across 8 providers, plus Ollama, native GGUF, and native MLX on Apple Silicon." />
+  <meta name="keywords" content="AI agent, AI CLI, terminal AI agent, claude code alternative, openai codex alternative, opencode alternative, AI agent macOS, Rust AI agent, local LLM CLI, Ollama CLI, MLX CLI, GGUF CLI, OpenAI proxy, OpenAI-compatible LLM gateway, MCP client, model context protocol" />
+  <meta name="author" content="Piotr Wittchen" />
   <meta name="theme-color" content="#1f2228" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <link rel="canonical" href="https://aictl.app/" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt" />
   <meta property="og:title" content="aictl — Native AI agent for your terminal and macOS desktop" />
   <meta property="og:description" content="A single-binary AI agent CLI. 78 models, 8 providers, local inference included." />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://aictl.app" />
+  <meta property="og:url" content="https://aictl.app/" />
+  <meta property="og:site_name" content="aictl" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="aictl — Native AI agent for your terminal and macOS desktop" />
+  <meta name="twitter:description" content="A single-binary AI agent CLI. 78 models, 8 providers, local inference included." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://aictl.app/#website",
+        "url": "https://aictl.app/",
+        "name": "aictl",
+        "description": "Native AI agent for your terminal and macOS desktop.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://aictl.app/#software",
+        "name": "aictl",
+        "alternateName": ["aictl-cli", "aictl-desktop", "aictl-server"],
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "AI Agent",
+        "operatingSystem": "macOS, Linux",
+        "url": "https://aictl.app/",
+        "downloadUrl": "https://github.com/pwittchen/aictl/releases",
+        "softwareVersion": "0.47.0",
+        "description": "aictl is a native AI agent for the terminal and the macOS desktop. One Rust engine drives a single-binary CLI, a native macOS app, and an OpenAI-compatible HTTP LLM proxy. Ships 78 cloud models across 8 providers (OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi, Z.ai) plus local Ollama, GGUF, and MLX backends, 35 built-in tools, MCP servers, plugins, hooks, sessions, long-term memory, and a security policy with prompt-injection guard and redaction.",
+        "featureList": [
+          "Single-binary CLI for macOS and Linux",
+          "Native macOS desktop app (signed and notarized)",
+          "OpenAI-compatible HTTP proxy (aictl-server)",
+          "78 cloud models across 8 providers",
+          "Local inference: Ollama, GGUF (llama.cpp), MLX on Apple Silicon",
+          "35 built-in tools",
+          "Model Context Protocol (MCP) client",
+          "User-installable plugins and lifecycle hooks",
+          "Persistent sessions, agents, skills, and long-term memory",
+          "Security policy: CWD jail, prompt-injection guard, output sanitization, audit log, opt-in PII/credential redaction",
+          "API keys stored in macOS Keychain / Linux Secret Service"
+        ],
+        "programmingLanguage": "Rust",
+        "license": "https://github.com/pwittchen/aictl/blob/master/LICENSE",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Free for non-commercial use under PolyForm Noncommercial License 1.0.0. Commercial use requires a separate license."
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Piotr Wittchen",
+          "email": "piotr@wittchen.io",
+          "url": "https://github.com/pwittchen"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://aictl.app/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is aictl?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "aictl is a native AI agent for the terminal and macOS desktop. One Rust engine drives three surfaces: a single-binary CLI (aictl-cli), a native macOS desktop app (aictl-desktop), and an OpenAI-compatible HTTP LLM proxy (aictl-server). It supports 78 cloud models across 8 providers plus local inference via Ollama, GGUF, and MLX."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I install aictl?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Run: curl -sSf https://aictl.app/install.sh | sh — this fetches the single-binary CLI for macOS or Linux (x86_64 or aarch64). The macOS desktop app is available as a signed and notarized DMG from https://github.com/pwittchen/aictl/releases."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which LLM providers does aictl support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Twelve providers behind one interface: OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, DeepSeek, Kimi (Moonshot), Z.ai, plus three local backends (Ollama, native GGUF via llama.cpp, native MLX on Apple Silicon), and the aictl-server proxy that fronts every other provider over HTTP."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is aictl different from Claude Code, OpenAI Codex CLI, or opencode?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "aictl is a single Rust binary (no Node/Python runtime), runs on macOS and Linux, ships a native macOS app sharing the same config and sessions as the CLI, supports 12 providers including local-only models (Ollama, GGUF, MLX), and includes an OpenAI-compatible HTTP proxy. It is intentionally provider-agnostic and works offline with local models. For production coding work, dedicated tools like Claude Code or Codex CLI are typically preferable."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does aictl run local models offline?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. aictl supports three local inference backends: Ollama (cross-platform), native GGUF via llama.cpp (built-in), and native MLX on Apple Silicon. Local models work fully offline with no API keys required."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is aictl open source?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Source code is at https://github.com/pwittchen/aictl under the PolyForm Noncommercial License 1.0.0 — free for personal, evaluation, research, and non-commercial use. Commercial use requires a separate license; contact piotr@wittchen.io."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is aictl-server?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "aictl-server is an OpenAI-compatible HTTP LLM proxy. Point any OpenAI SDK at it (POST /v1/chat/completions, /v1/completions, /v1/messages, GET /v1/models) and it dispatches to the appropriate upstream provider with built-in PII/credential redaction, prompt-injection blocking, and audit logging. Pure proxy — no agent loop, no tools."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does aictl support MCP (Model Context Protocol)?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. aictl is an MCP client. Declare servers in ~/.aictl/mcp.json using the Claude Desktop-compatible shape; stdio, Streamable HTTP, and legacy SSE transports are all supported. Tools surface as mcp__<server>__<tool> and are appended to the agent's tool catalogue."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
   <header class="nav">

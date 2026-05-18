@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://aictl.app/sitemap.xml
+
+# LLM-friendly metadata (https://llmstxt.org/)
+# llms.txt: https://aictl.app/llms.txt

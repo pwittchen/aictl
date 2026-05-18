@@ -62,11 +62,16 @@ async function main() {
   // Copy llms.txt for LLM-friendly site metadata (https://llmstxt.org/).
   await copyFile(join(root, "llms.txt"), join(dist, "llms.txt"));
 
+  // SEO discovery files (robots.txt, sitemap.xml) and the SVG favicon.
+  await copyFile(join(root, "robots.txt"), join(dist, "robots.txt"));
+  await copyFile(join(root, "sitemap.xml"), join(dist, "sitemap.xml"));
+  await copyFile(join(root, "favicon.svg"), join(dist, "favicon.svg"));
+
   // Copy author avatar used by the contact section.
   await copyFile(join(root, "avatar.png"), join(dist, "avatar.png"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "avatar.png"]) {
+  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "robots.txt", "sitemap.xml", "favicon.svg", "avatar.png"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
