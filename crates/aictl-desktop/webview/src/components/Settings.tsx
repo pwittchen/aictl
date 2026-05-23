@@ -6337,6 +6337,12 @@ const AboutTab: Component<AboutTabProps> = (props) => {
     if (!u) return version() ?? "—";
     return `${u.version} (update available)`;
   };
+  // True once a successful probe confirms no newer release exists — the
+  // running build is current. Drives the green checkmark beside the
+  // version number. `error()` suppresses it so a failed probe doesn't
+  // falsely claim "up to date".
+  const isLatest = (): boolean =>
+    checked() && !checking() && !error() && updateCheck() === null;
   const reveal = async (kind: "audit" | "config") => {
     setError(null);
     try {
@@ -6359,8 +6365,27 @@ const AboutTab: Component<AboutTabProps> = (props) => {
       <h3>About</h3>
       <div class="settings-row">
         <label>Version</label>
-        <div class="settings-value">
+        <div class="settings-value settings-control-line">
           <code>{version() ?? "…"}</code>
+          <Show when={isLatest()}>
+            <svg
+              class="about-version-current"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              width="16"
+              height="16"
+              role="img"
+              aria-label="Up to date — running the latest version"
+            >
+              <title>Up to date — running the latest version</title>
+              <path
+                fill-rule="evenodd"
+                d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm3.844-8.791a.75.75 0 0 0-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 1 0-1.114 1.004l2.25 2.5a.75.75 0 0 0 1.15-.043l4.25-5.5Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </Show>
         </div>
       </div>
       <div class="settings-row">

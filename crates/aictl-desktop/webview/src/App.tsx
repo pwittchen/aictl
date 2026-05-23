@@ -1664,6 +1664,10 @@ const App: Component = () => {
           setSettingsInitialTab("stats");
           setShowSettings(true);
         }}
+        onOpenAbout={() => {
+          setSettingsInitialTab("about");
+          setShowSettings(true);
+        }}
         updateAvailable={latestVersion()}
         onShowUpdate={() => openUpdate(updateInfo())}
         onDismissUpdate={() => {

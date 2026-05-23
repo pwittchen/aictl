@@ -148,6 +148,7 @@
 }
 
 .titlebar .settings-toggle,
+.titlebar .info-toggle,
 .titlebar .stats-toggle {
   display: inline-flex;
   align-items: center;
@@ -164,12 +165,14 @@
 }
 
 .titlebar .settings-toggle:hover,
+.titlebar .info-toggle:hover,
 .titlebar .stats-toggle:hover {
   color: var(--fg);
   background: var(--surface-strong);
 }
 
 .titlebar .settings-toggle svg,
+.titlebar .info-toggle svg,
 .titlebar .stats-toggle svg {
   display: block;
 }
@@ -3041,6 +3044,13 @@
 
 .settings-keys-lock-status[data-state="none"] {
   color: var(--fg);
+}
+
+/* Green check beside the version number in About when the running
+   build is the newest release. Same green as the keys-unlocked icon. */
+.about-version-current {
+  color: #4ade80;
+  flex-shrink: 0;
 }
 
 .settings-keys-bulk button {
