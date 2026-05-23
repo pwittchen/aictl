@@ -83,6 +83,8 @@ cargo build --release --features "gguf mlx redaction-ner"
 cargo install --path crates/aictl-cli --features "gguf mlx redaction-ner"
 ```
 
+> **MLX on Xcode 26+:** the Metal Toolchain is no longer bundled with Xcode by default, so `mlx` builds fail at the MLX compile step with `cannot execute tool 'metal' due to missing Metal Toolchain`. Install it once with `xcodebuild -downloadComponent MetalToolchain` (~700 MB), then re-run the build. Verify with `xcrun -sdk macosx metal --version`.
+
 Without these features, the corresponding slash commands (`/gguf`, `/mlx`) and CLI flags (`--pull-gguf-model`, `--pull-mlx-model`, `--pull-ner-model`, etc.) still work for **model management** (download / list / remove); only the inference path is disabled, and trying to run a local model or enable NER-backed redaction prints a clear error telling you which feature to rebuild with.
 
 The prebuilt binaries published on GitHub Releases (downloaded by `install.sh`) ship with `--features gguf` enabled on every platform — so one-liner installs get native GGUF inference out of the box where the platform supports it. The macOS Apple Silicon (`aarch64`) release additionally ships with `--features mlx` and includes a sibling `mlx.metallib` file alongside the binary (MLX needs the Metal library at runtime); every other platform's release contains just the `aictl` binary.
@@ -155,7 +157,7 @@ The desktop frontend (`aictl-desktop`) is a Tauri v2 app with a Solid + Vite web
 - macOS 13.0 or newer (Apple Silicon or Intel).
 - [Rust](https://www.rust-lang.org/tools/install) (edition 2024).
 - [Node.js](https://nodejs.org/) 18+ (for the webview bundle).
-- Xcode Command Line Tools (`xcode-select --install`).
+- Xcode Command Line Tools (`xcode-select --install`). The `mlx` feature used by the build commands below additionally needs full Xcode with the Metal Toolchain — on Xcode 26+ install it once with `xcodebuild -downloadComponent MetalToolchain` (see the [MLX on Xcode 26+ note](#optional-feature-flags) above).
 - [`cargo-tauri`](https://tauri.app/start/prerequisites/) CLI: `cargo install tauri-cli --version "^2.0"`.
 
 ### Install webview dependencies (one-time)
