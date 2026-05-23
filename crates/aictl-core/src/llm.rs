@@ -82,6 +82,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "LLM_GEMINI_API_KEY",
     ),
     ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.5-flash", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
@@ -131,6 +132,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
 /// backend has no code path for.
 pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
     ("openai", "gpt-image-2"),
+    ("openai", "gpt-image-1.5"),
     ("openai", "gpt-image-1"),
     ("openai", "gpt-image-1-mini"),
     ("gemini", "imagen-4.0-generate-001"),
@@ -352,6 +354,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
+    // Google Gemini — 3.5 Flash (frontier-class agentic/coding Flash tier)
+    if model.starts_with("gemini-3.5-flash") {
+        return Some((1.50, 9.00));
+    }
     // Google Gemini — 3.1 (dual-tier pricing above 200K context;
     // these are the short-context rates)
     if model.starts_with("gemini-3.1-flash-lite") {
@@ -513,7 +519,8 @@ pub fn context_limit(model: &str) -> u64 {
     if model.contains("claude-") || model.contains("claude") {
         return 200_000;
     }
-    if model.starts_with("gemini-3.1-pro")
+    if model.starts_with("gemini-3.5-flash")
+        || model.starts_with("gemini-3.1-pro")
         || model.starts_with("gemini-3.1-flash-lite")
         || model.starts_with("gemini-3-flash")
     {
