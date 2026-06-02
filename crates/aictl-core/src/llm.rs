@@ -53,6 +53,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
@@ -89,6 +90,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-multi-agent-0309", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
+    ("grok", "grok-build-0.1", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
@@ -162,8 +164,8 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         }
         // Gemini 2.x and 3.x are all multimodal.
         "gemini" => model.starts_with("gemini-2") || model.starts_with("gemini-3"),
-        // grok-3 family is text-only; grok-4 family adds vision.
-        "grok" => model.starts_with("grok-4"),
+        // grok-3 family is text-only; grok-4 family and the grok-build coding model add vision.
+        "grok" => model.starts_with("grok-4") || model.starts_with("grok-build"),
         // Moonshot's `*-vision-preview` variants plus the k2 series are vision-capable per docs.
         "kimi" => model.contains("vision") || model.starts_with("kimi-k2"),
         _ => false,
@@ -333,7 +335,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
 
     // Anthropic — opus 4.5+ ($5/$25), older opus 4/4.1 ($15/$75)
-    if model.contains("opus-4-5") || model.contains("opus-4-6") || model.contains("opus-4-7") {
+    if model.contains("opus-4-5")
+        || model.contains("opus-4-6")
+        || model.contains("opus-4-7")
+        || model.contains("opus-4-8")
+    {
         return Some((5.00, 25.00));
     }
     if model.contains("opus-4") {
@@ -390,6 +396,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
     if model.starts_with("grok-4") {
         return Some((3.00, 15.00));
+    }
+    // xAI Grok — build (agentic coding model)
+    if model.starts_with("grok-build") {
+        return Some((1.00, 2.00));
     }
     // xAI Grok — 3 mini
     if model.starts_with("grok-3-mini") {
@@ -536,6 +546,9 @@ pub fn context_limit(model: &str) -> u64 {
         return 1_000_000;
     }
     if model.starts_with("grok-4") {
+        return 256_000;
+    }
+    if model.starts_with("grok-build") {
         return 256_000;
     }
     if model.starts_with("grok-") {

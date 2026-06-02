@@ -40,7 +40,7 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-haiku-*` (3.x) | $0.25 | $1.25 |
 | `claude-haiku-4-*` | $1.00 | $5.00 |
 | `claude-sonnet-*` | $3.00 | $15.00 |
-| `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` | $5.00 | $25.00 |
+| `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
 ## Google Gemini
@@ -69,9 +69,10 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 | `grok-4.3` | $1.25 | $2.50 |
 | `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` / `grok-4.20-multi-agent-0309` | $1.25 | $2.50 |
 | `grok-4` | $3.00 | $15.00 |
+| `grok-build-0.1` | $1.00 | $2.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
-Grok 4.20 ships with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold.
+Grok 4.20 ships with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold. `grok-build-0.1` (released May 20, 2026) is an agentic-coding model with a 256K-token context window and text+image input, served through the same OpenAI-compatible Chat Completions endpoint.
 
 ## Mistral
 
