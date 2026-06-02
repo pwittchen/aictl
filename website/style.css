@@ -522,6 +522,20 @@ body.nav-open {
   .hero__scroll { display: none; }
 }
 
+/* Short-but-wide viewports (laptop screens like the MacBook Pro): tighten the
+   hero so the whole section fits above the fold without scrolling. Taller
+   viewports (large external displays) keep the full-size hero unchanged.
+   min-width guard keeps phones on their own responsive path. */
+@media (min-width: 721px) and (max-height: 1024px) {
+  .hero {
+    padding: 56px 0 40px;
+    min-height: calc(100vh - 66px);
+    min-height: calc(100svh - 66px);
+  }
+  .hero__inner { gap: 20px; }
+  .hero__title { font-size: clamp(64px, 20vh, 190px); }
+}
+
 /* macOS download — split button + arch select */
 .download {
   display: inline-flex;
