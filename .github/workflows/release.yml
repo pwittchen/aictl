@@ -168,14 +168,34 @@ jobs:
           key: ${{ matrix.target }}-${{ matrix.features }}-${{ matrix.server_features }}
 
       - name: Build aictl (CLI)
-        run: cargo build --release -p aictl-cli --features "${{ matrix.features }}" --target ${{ matrix.target }}
+        # `redaction-ner` pulls in ort-sys, whose build script downloads a
+        # prebuilt ONNX Runtime from parcel.pyke.io at compile time. That CDN
+        # is occasionally flaky (DNS/connection failures), so retry the build a
+        # few times before giving up — transient download errors shouldn't fail
+        # a release.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            cargo build --release -p aictl-cli --features "${{ matrix.features }}" --target ${{ matrix.target }} && exit 0
+            echo "::warning::CLI build attempt $attempt failed; retrying in 20s"
+            sleep 20
+          done
+          exit 1
 
       - name: Build aictl-server
         # Server is the LLM proxy — no inference (`gguf` / `mlx`) needed,
         # so it ships much smaller than the CLI. `redaction-ner` is kept
         # because the server applies the same outbound redaction on the
-        # proxy path that the CLI does at the network boundary.
-        run: cargo build --release -p aictl-server --features "${{ matrix.server_features }}" --target ${{ matrix.target }}
+        # proxy path that the CLI does at the network boundary. Same
+        # ort-sys download-retry rationale as the CLI step above.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            cargo build --release -p aictl-server --features "${{ matrix.server_features }}" --target ${{ matrix.target }} && exit 0
+            echo "::warning::server build attempt $attempt failed; retrying in 20s"
+            sleep 20
+          done
+          exit 1
 
       - name: Package aictl (CLI)
         shell: bash
@@ -288,8 +308,17 @@ jobs:
         # shells out to `npm run build` to populate webview/dist.
         # `--features` mirrors the CLI matrix so the desktop ships with
         # the same engine capabilities (gguf / mlx / redaction-ner).
+        # `redaction-ner` triggers the ort-sys CDN download, so retry on
+        # transient pyke.io fetch failures (same rationale as the CLI step).
         working-directory: crates/aictl-desktop
-        run: tauri build --target ${{ matrix.target }} --features "${{ matrix.features }}" --bundles app
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            tauri build --target ${{ matrix.target }} --features "${{ matrix.features }}" --bundles app && exit 0
+            echo "::warning::desktop build attempt $attempt failed; retrying in 20s"
+            sleep 20
+          done
+          exit 1
 
       - name: Inject mlx.metallib into .app
         # Same fix-up as the CLI tarball on aarch64: MLX bakes an
