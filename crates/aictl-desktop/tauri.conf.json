@@ -14,7 +14,7 @@
         "title": "aictl",
         "width": 1100,
         "height": 880,
-        "minWidth": 935,
+        "minWidth": 800,
         "minHeight": 480,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,

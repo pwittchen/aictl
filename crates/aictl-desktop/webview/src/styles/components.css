@@ -1106,14 +1106,27 @@
   cursor: not-allowed;
 }
 
+/* Toolbar — its own row between the textarea and the footer: model
+   picker on the left, icon cluster on the right (`margin-left: auto`
+   on the ping icon, the cluster's left-most chip, pushes it to the
+   edge). Icons hold their intrinsic 26px footprints; the picker is
+   the only flexible child and shrinks first when the column
+   tightens. */
+.composer .composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .composer .footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Only the Send button lives here — keep it pinned to the right
+     edge, under the icon cluster. */
+  justify-content: flex-end;
   gap: var(--space-3);
-  /* Anchor the row to a single line so the Send button never reflows
-     under the icon cluster — the model picker is the only flexible
-     child and shrinks first when the column tightens. */
   flex-wrap: nowrap;
   min-width: 0;
   font-family: var(--font-mono);
@@ -1123,9 +1136,9 @@
   letter-spacing: 0.1em;
 }
 
-/* Picker is the only shrinkable child of the footer flex row; the
-   icons and Send button stay at their intrinsic widths and the picker
-   absorbs the difference. The anchor owns the flex sizing so the
+/* Picker is the only shrinkable child of the toolbar flex row; the
+   icons stay at their intrinsic widths and the picker absorbs the
+   difference. The anchor owns the flex sizing so the
    absolutely-positioned popup below stays anchored to the visible
    button. */
 .composer .model-picker-anchor {

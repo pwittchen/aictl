@@ -1621,10 +1621,22 @@ body.nav-open {
   animation: blink 1.1s steps(2) infinite;
 }
 
-.dt-demo__composer-footer {
+/* Toolbar row — sits between the textarea and the footer: model
+   picker on the left, icon cluster pushed to the right edge,
+   mirroring the app's two-row composer layout. */
+.dt-demo__composer-toolbar {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dt-fg-faint);
+}
+
+.dt-demo__composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--dt-fg-faint);

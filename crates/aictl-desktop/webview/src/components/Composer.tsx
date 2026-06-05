@@ -871,7 +871,7 @@ const Composer: Component<Props> = (props) => {
         onInput={(e) => setText(e.currentTarget.value)}
         onKeyDown={onKeyDown}
       />
-      <div class="footer">
+      <div class="composer-toolbar">
         <span class="model-picker-anchor">
           <button
             type="button"
@@ -1584,6 +1584,8 @@ const Composer: Component<Props> = (props) => {
             />
           )}
         </Show>
+      </div>
+      <div class="footer">
         <button type="button" disabled={props.disabled} onClick={submit}>
           Send{" "}
           <kbd>
