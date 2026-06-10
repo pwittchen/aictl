@@ -54,6 +54,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-fable-5", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
@@ -153,7 +154,7 @@ pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
 #[must_use]
 pub fn is_vision_capable(provider: &str, model: &str) -> bool {
     match provider {
-        // Every Claude entry in MODELS is a 4.x model; the whole 4 family is multimodal.
+        // Every Claude entry in MODELS (the 4.x family and Fable 5) is multimodal.
         "anthropic" => true,
         "openai" => {
             model.starts_with("gpt-4o")
@@ -332,6 +333,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
     if model.starts_with("o1") {
         return Some((15.00, 60.00));
+    }
+
+    // Anthropic — Fable 5 (flagship above the Opus tier)
+    if model.starts_with("claude-fable-5") {
+        return Some((10.00, 50.00));
     }
 
     // Anthropic — opus 4.5+ ($5/$25), older opus 4/4.1 ($15/$75)

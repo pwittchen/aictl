@@ -41,6 +41,7 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-haiku-4-*` | $1.00 | $5.00 |
 | `claude-sonnet-*` | $3.00 | $15.00 |
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
+| `claude-fable-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
 ## Google Gemini
