@@ -5,7 +5,7 @@
 [![DEPLOY WEBSITE](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml/badge.svg)](https://github.com/pwittchen/aictl/actions/workflows/deploy-website.yml)
 
 Native AI agent for your terminal and macOS desktop.
-Run cloud and local AI models through one secure runtime.
+Run cloud and local models through one secure runtime.
 
 Project website: [aictl.app](https://aictl.app) — source in [`website/`](website/).
 
