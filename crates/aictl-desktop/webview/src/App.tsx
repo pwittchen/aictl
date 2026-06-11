@@ -131,6 +131,8 @@ const App: Component = () => {
       );
       if (next && workspace().path) {
         void growWindowTo(requiredLayoutWidth(true, filesVisible()));
+      } else if (!next) {
+        void shrinkWindowAfterClose(false, filesVisible());
       }
       return next;
     });
@@ -147,6 +149,8 @@ const App: Component = () => {
       );
       if (next && workspace().path) {
         void growWindowTo(requiredLayoutWidth(sidebarVisible(), true));
+      } else if (!next) {
+        void shrinkWindowAfterClose(sidebarVisible(), false);
       }
       return next;
     });
@@ -206,6 +210,13 @@ const App: Component = () => {
     if (filesOn) total += filesWidth();
     return total;
   };
+  // Window width (logical px) captured just before the first auto-grow,
+  // plus the width that grow landed on. Closing a pane restores the
+  // pre-grow width — but only while the window still sits where the
+  // auto-grow left it; a manual resize in between means the user picked
+  // that width on purpose, so the restore point is abandoned.
+  let preGrowWidth: number | null = null;
+  let grownToWidth = 0;
   // Grow the window to at least `target` CSS pixels wide, capped at
   // the current monitor's work area. Height is left alone. Called on
   // every pane-open so a small window auto-expands instead of leaving
@@ -231,9 +242,51 @@ const App: Component = () => {
         next = Math.min(next, Math.floor(maxLogicalWidth));
       }
       if (next <= curLogicalWidth) return;
+      if (preGrowWidth === null) preGrowWidth = curLogicalWidth;
+      grownToWidth = next;
       await win.setSize(new LogicalSize(next, Math.ceil(curLogicalHeight)));
     } catch (err) {
       console.warn("auto-resize failed", err);
+    }
+  };
+  // Inverse of `growWindowTo`, called on pane-close with the panes that
+  // remain visible. Shrinks the window back toward the recorded
+  // pre-grow width, never below what the remaining panes need. Clears
+  // the restore point once fully restored; keeps it (at the new width)
+  // while another auto-grown pane is still open.
+  const shrinkWindowAfterClose = async (
+    sidebarOn: boolean,
+    filesOn: boolean,
+  ) => {
+    if (preGrowWidth === null) return;
+    try {
+      const win = getCurrentWindow();
+      const [innerPhys, scale] = await Promise.all([
+        win.innerSize(),
+        win.scaleFactor(),
+      ]);
+      const curLogicalWidth = innerPhys.width / scale;
+      const curLogicalHeight = innerPhys.height / scale;
+      // A manual resize since the auto-grow means the user picked this
+      // width deliberately — keep it and drop the restore point.
+      if (Math.abs(curLogicalWidth - grownToWidth) > 2) {
+        preGrowWidth = null;
+        return;
+      }
+      const target = Math.max(
+        preGrowWidth,
+        requiredLayoutWidth(sidebarOn, filesOn),
+      );
+      if (target >= curLogicalWidth) return;
+      const next = Math.ceil(target);
+      await win.setSize(new LogicalSize(next, Math.ceil(curLogicalHeight)));
+      if (target <= preGrowWidth) {
+        preGrowWidth = null;
+      } else {
+        grownToWidth = next;
+      }
+    } catch (err) {
+      console.warn("auto-restore failed", err);
     }
   };
   // Close the most-ancillary visible pane until the rest of the
