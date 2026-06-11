@@ -181,19 +181,19 @@ const App: Component = () => {
   const FILES_MIN = 200;
   const FILES_MAX = 700;
   // Floor for the chat column when computing whether the layout fits
-  // the current window. The composer stacks two rows — the toolbar
-  // (model picker at its 140px floor + the ping / shield / agent /
-  // skill / mcp / plugins / tools / image / location / web / memory /
-  // coding-agent / auto-accept / voice icon cluster, ~785px with the
-  // composer's horizontal padding) above the footer (just the Send
-  // button with its ⌘↵ chip) — so the floor has to fit the toolbar
-  // row. Auto-grow reserves at least this many pixels, and auto-close
-  // drops side panes once the chat column would dip below it. Locked
-  // to 800 to match the Tauri `minWidth` floor: the OS-level resize
-  // boundary and the auto-collapse trigger move together so a user
-  // dragging the window to its smallest size lands on a chat-only
-  // layout that's still wide enough for the composer.
-  const CHAT_MIN_WIDTH = 800;
+  // the current window. The composer is a single toolbar row under
+  // the textarea — model picker at its 140px floor + the ping /
+  // shield / agent / skill / mcp / plugins / tools / image / location
+  // / web / memory / coding-agent / auto-accept / voice icon cluster
+  // ending in the ⌘↵ Send button (~845px with the composer's
+  // horizontal padding) — so the floor has to fit that row. Auto-grow
+  // reserves at least this many pixels, and auto-close drops side
+  // panes once the chat column would dip below it. Locked to 860 to
+  // match the Tauri `minWidth` floor: the OS-level resize boundary
+  // and the auto-collapse trigger move together so a user dragging
+  // the window to its smallest size lands on a chat-only layout
+  // that's still wide enough for the composer.
+  const CHAT_MIN_WIDTH = 860;
   const [sidebarWidth, setSidebarWidth] = createSignal(SIDEBAR_DEFAULT);
   const [filesWidth, setFilesWidth] = createSignal(FILES_DEFAULT);
   // Total CSS-pixel width the layout needs given which panes are

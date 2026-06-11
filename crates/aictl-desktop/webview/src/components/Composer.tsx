@@ -404,7 +404,7 @@ const Composer: Component<Props> = (props) => {
   };
 
   // Outside-click + Esc dismissal for every popover anchored to the
-  // composer footer (model / skill / agent).
+  // composer toolbar (model / skill / agent).
   const onDocPointer = (e: MouseEvent) => {
     const target = e.target;
     if (!(target instanceof Node)) return;
@@ -1565,6 +1565,30 @@ const Composer: Component<Props> = (props) => {
             <path d="M4.5 7A.75.75 0 0 0 3 7a5.001 5.001 0 0 0 4.25 4.944V13.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.556A5.001 5.001 0 0 0 13 7a.75.75 0 0 0-1.5 0 3.5 3.5 0 1 1-7 0Z" />
           </svg>
         </button>
+        <button
+          type="button"
+          class="send-button"
+          disabled={props.disabled}
+          aria-label="Send message (Cmd+Enter)"
+          title="send message — ⌘↵"
+          onClick={submit}
+        >
+          <kbd>
+            ⌘
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M13.25 2a.75.75 0 0 0-.75.75v6.5H4.56l.97-.97a.75.75 0 0 0-1.06-1.06L2.22 9.47a.75.75 0 0 0 0 1.06l2.25 2.25a.75.75 0 0 0 1.06-1.06l-.97-.97h8.69A.75.75 0 0 0 14 10V2.75a.75.75 0 0 0-.75-.75Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </kbd>
+        </button>
         <Show when={voiceError()}>
           {(msg) => (
             <Portal mount={document.body}>
@@ -1584,26 +1608,6 @@ const Composer: Component<Props> = (props) => {
             />
           )}
         </Show>
-      </div>
-      <div class="footer">
-        <button type="button" disabled={props.disabled} onClick={submit}>
-          Send{" "}
-          <kbd>
-            ⌘
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M13.25 2a.75.75 0 0 0-.75.75v6.5H4.56l.97-.97a.75.75 0 0 0-1.06-1.06L2.22 9.47a.75.75 0 0 0 0 1.06l2.25 2.25a.75.75 0 0 0 1.06-1.06l-.97-.97h8.69A.75.75 0 0 0 14 10V2.75a.75.75 0 0 0-.75-.75Z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </kbd>
-        </button>
       </div>
     </div>
   );

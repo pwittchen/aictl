@@ -1106,34 +1106,17 @@
   cursor: not-allowed;
 }
 
-/* Toolbar — its own row between the textarea and the footer: model
-   picker on the left, icon cluster on the right (`margin-left: auto`
-   on the ping icon, the cluster's left-most chip, pushes it to the
-   edge). Icons hold their intrinsic 26px footprints; the picker is
-   the only flexible child and shrinks first when the column
-   tightens. */
+/* Toolbar — single row under the textarea: model picker on the left,
+   icon cluster + Send button on the right (`margin-left: auto` on the
+   ping icon, the cluster's left-most chip, pushes it to the edge).
+   Icons hold their intrinsic 26px footprints; the picker is the only
+   flexible child and shrinks first when the column tightens. */
 .composer .composer-toolbar {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: nowrap;
   min-width: 0;
-}
-
-.composer .footer {
-  display: flex;
-  align-items: center;
-  /* Only the Send button lives here — keep it pinned to the right
-     edge, under the icon cluster. */
-  justify-content: flex-end;
-  gap: var(--space-3);
-  flex-wrap: nowrap;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--fg-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 /* Picker is the only shrinkable child of the toolbar flex row; the
@@ -2006,6 +1989,27 @@
 .composer button kbd svg {
   width: 13px;
   height: 13px;
+}
+
+/* Send button — rightmost chip on the toolbar row, after the mic.
+   Only the ⌘↵ shortcut renders; the filled background marks it as
+   the send affordance. Sized to the 26px footprint of the icon
+   toggles so the row reads as one cluster. */
+.composer .send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 6px;
+  margin-left: var(--space-1, 4px);
+}
+
+.composer .send-button kbd {
+  margin-left: 0;
+  height: auto;
+  padding: 0 2px;
+  background: transparent;
+  opacity: 1;
 }
 
 /* Voice-to-text mic button. Sits immediately to the left of the Send
