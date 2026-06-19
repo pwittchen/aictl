@@ -485,6 +485,10 @@ fn run_rg_files(args: &FindArgs) -> String {
                     return find_files_glob_fallback(args);
                 }
                 if err.is_empty() {
+                    // rg exits 1 when it walked the tree but found no files.
+                    if out.status.code() == Some(1) {
+                        return "No matches found.".to_string();
+                    }
                     return format!("Error: rg exited with status {:?}", out.status.code());
                 }
                 return format!("Error: {err}");
