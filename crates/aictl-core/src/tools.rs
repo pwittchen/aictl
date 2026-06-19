@@ -381,6 +381,77 @@ pub fn is_parallelizable(call: &ToolCall) -> bool {
     true
 }
 
+/// Tools whose entire purpose is to surface an ambient, dynamic value the
+/// model usually wants *before* it can form a meaningful request for another
+/// tool: the caller's geolocation and the current date/time. When one of
+/// these shares a batch with a [`CONTEXT_CONSUMER_TOOLS`] call, the consumer
+/// almost certainly meant to use the produced value — but its input was
+/// already committed as fixed text, so parallel dispatch would race the
+/// producer and bake in stale or guessed context.
+const CONTEXT_PRODUCER_TOOLS: &[&str] = &["fetch_geolocation", "fetch_datetime"];
+
+/// Tools whose target/query the model composes itself and that send it over
+/// the network — the place ambient context ("where am I", "what time is it")
+/// gets embedded into a request. When batched alongside a
+/// [`CONTEXT_PRODUCER_TOOLS`] call they must wait a turn so the model can
+/// rewrite the request with the real value.
+const CONTEXT_CONSUMER_TOOLS: &[&str] = &["fetch_url", "extract_website"];
+
+/// `true` when this call produces an ambient value (location / time) that a
+/// sibling in the same batch might depend on. See [`CONTEXT_PRODUCER_TOOLS`].
+#[must_use]
+pub fn is_context_producer(call: &ToolCall) -> bool {
+    CONTEXT_PRODUCER_TOOLS.contains(&call.name.as_str())
+}
+
+/// `true` when this call composes a network request whose contents may depend
+/// on a [`is_context_producer`] sibling. See [`CONTEXT_CONSUMER_TOOLS`].
+#[must_use]
+pub fn is_context_consumer(call: &ToolCall) -> bool {
+    CONTEXT_CONSUMER_TOOLS.contains(&call.name.as_str())
+}
+
+/// How a read-only batch should be dispatched once data-dependencies are
+/// accounted for.
+#[derive(Debug)]
+pub enum BatchPlan {
+    /// No producer/consumer dependency — run every call in parallel as-is.
+    Independent(Vec<ToolCall>),
+    /// A context producer shares the batch with a consumer of its output.
+    /// `run_now` (the producer(s) plus any calls independent of them) runs
+    /// this turn; `deferred` (the consumers) is held back so the model can
+    /// re-emit it next turn with the produced value in hand.
+    Dependency {
+        run_now: Vec<ToolCall>,
+        deferred: Vec<ToolCall>,
+    },
+}
+
+/// Split a read-only batch so data-dependent calls run sequentially across
+/// turns instead of racing in parallel.
+///
+/// The dependency is only flagged when the batch contains *both* a context
+/// producer (geolocation / datetime) and a consumer that builds a network
+/// request (`fetch_url` / `extract_website`) — e.g. "look up my location"
+/// emitted together with "search the web near me". In that case the consumers
+/// are deferred and everything else (producers and any independent reads like
+/// `read_file`) runs now. When only one side is present there is no
+/// dependency and the whole batch stays [`BatchPlan::Independent`].
+///
+/// The bias is intentionally toward serializing: a false positive costs one
+/// extra turn, while a false negative feeds the consumer stale or guessed
+/// context.
+#[must_use]
+pub fn split_context_dependency(calls: Vec<ToolCall>) -> BatchPlan {
+    let has_producer = calls.iter().any(is_context_producer);
+    let has_consumer = calls.iter().any(is_context_consumer);
+    if !(has_producer && has_consumer) {
+        return BatchPlan::Independent(calls);
+    }
+    let (deferred, run_now): (Vec<_>, Vec<_>) = calls.into_iter().partition(is_context_consumer);
+    BatchPlan::Dependency { run_now, deferred }
+}
+
 /// Returns `true` when the response clearly *attempted* a tool call but
 /// [`parse_tool_call`] couldn't extract one — i.e. the `<tool>` XML is
 /// malformed (missing close tag, wrong quote style, broken attribute, ...).
@@ -836,6 +907,70 @@ mod tests {
     #[test]
     fn parallelizable_mcp_tools_return_false() {
         assert!(!is_parallelizable(&call("mcp__foo__bar", "{}")));
+    }
+
+    // --- Data-dependency split (split_context_dependency) ---
+
+    fn names(calls: &[ToolCall]) -> Vec<&str> {
+        calls.iter().map(|c| c.name.as_str()).collect()
+    }
+
+    #[test]
+    fn dependency_split_defers_consumer_after_producer() {
+        let calls = vec![
+            call("fetch_geolocation", ""),
+            call("fetch_url", "https://example.com/weather?near=me"),
+        ];
+        match split_context_dependency(calls) {
+            BatchPlan::Dependency { run_now, deferred } => {
+                assert_eq!(names(&run_now), vec!["fetch_geolocation"]);
+                assert_eq!(names(&deferred), vec!["fetch_url"]);
+            }
+            BatchPlan::Independent(_) => panic!("expected a dependency split"),
+        }
+    }
+
+    #[test]
+    fn dependency_split_keeps_independent_reads_with_producer() {
+        // read_file does not consume location/time — it should run now, not
+        // get deferred; only the consumer waits.
+        let calls = vec![
+            call("fetch_datetime", ""),
+            call("read_file", "a.rs"),
+            call("extract_website", "https://example.com"),
+        ];
+        match split_context_dependency(calls) {
+            BatchPlan::Dependency { run_now, deferred } => {
+                assert_eq!(names(&run_now), vec!["fetch_datetime", "read_file"]);
+                assert_eq!(names(&deferred), vec!["extract_website"]);
+            }
+            BatchPlan::Independent(_) => panic!("expected a dependency split"),
+        }
+    }
+
+    #[test]
+    fn dependency_split_noop_without_producer() {
+        // Consumer present but no producer — nothing to wait for.
+        let calls = vec![
+            call("fetch_url", "https://example.com"),
+            call("read_file", "a.rs"),
+        ];
+        match split_context_dependency(calls) {
+            BatchPlan::Independent(c) => assert_eq!(names(&c), vec!["fetch_url", "read_file"]),
+            BatchPlan::Dependency { .. } => panic!("no producer — should stay independent"),
+        }
+    }
+
+    #[test]
+    fn dependency_split_noop_without_consumer() {
+        // Two producers are independent of each other — run them in parallel.
+        let calls = vec![call("fetch_geolocation", ""), call("fetch_datetime", "")];
+        match split_context_dependency(calls) {
+            BatchPlan::Independent(c) => {
+                assert_eq!(names(&c), vec!["fetch_geolocation", "fetch_datetime"]);
+            }
+            BatchPlan::Dependency { .. } => panic!("no consumer — should stay independent"),
+        }
     }
 
     // --- Duplicate-call guard tests ---

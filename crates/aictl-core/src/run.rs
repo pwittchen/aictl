@@ -1049,6 +1049,46 @@ async fn handle_tool_batch(
         });
     }
 
+    // Data-dependency short-circuit: a batch that pairs a context producer
+    // (`fetch_geolocation` / `fetch_datetime`) with a consumer that builds a
+    // network request from its output (`fetch_url` / `extract_website`) can't
+    // run in parallel correctly — the consumer's input was committed as fixed
+    // text before the producer ran, so concurrent dispatch races it and bakes
+    // in stale or guessed context (e.g. "search the web near me" emitted
+    // alongside "look up my location"). Run the producer(s) and any
+    // independent reads now; defer the consumers so the model re-emits them
+    // next turn with the produced value in hand. Mirrors the side-effect path:
+    // dispatch a subset, reject the rest. Opt out via
+    // `AICTL_CODING_PARALLEL_TOOL_DEPS=false`.
+    let mut deferred_consumers: Vec<tools::ToolCall> = Vec::new();
+    let calls = if config::coding_parallel_tool_deps() {
+        match tools::split_context_dependency(calls) {
+            tools::BatchPlan::Independent(c) => c,
+            tools::BatchPlan::Dependency { run_now, deferred } => {
+                deferred_consumers = deferred;
+                run_now
+            }
+        }
+    } else {
+        calls
+    };
+
+    // The split can leave a single producer behind; the single-call path keeps
+    // its approval/audit/redaction seams in one place, so route there and
+    // still defer the consumers.
+    if calls.len() == 1 {
+        let action = handle_tool_call(&calls[0], response, auto, ui, messages, streamed).await?;
+        let executed = match action {
+            ToolAction::Executed => 1u32,
+            ToolAction::Denied => 0,
+        };
+        push_dependency_rejections(messages, &deferred_consumers);
+        return Ok(DispatchResult {
+            executed,
+            dispatched_names: vec![calls[0].name.clone()],
+        });
+    }
+
     // Pure read-only batch — parallel dispatch path.
     //
     // Approval gate: in v1 we ask once (on the first call) and apply the
@@ -1167,10 +1207,36 @@ async fn handle_tool_batch(
         });
     }
 
+    push_dependency_rejections(messages, &deferred_consumers);
+
     Ok(DispatchResult {
         executed,
         dispatched_names,
     })
+}
+
+/// Push a `<tool_results>` user turn deferring the consumer calls that were
+/// held back by the data-dependency split: the matching context producer ran
+/// in this batch, so the model should re-emit each consumer now using that
+/// result. No-op when nothing was deferred.
+fn push_dependency_rejections(messages: &mut Vec<Message>, deferred: &[tools::ToolCall]) {
+    if deferred.is_empty() {
+        return;
+    }
+    let rejected: Vec<(&tools::ToolCall, String)> = deferred
+        .iter()
+        .map(|c| {
+            (
+                c,
+                "Deferred: this call was batched with a context provider \
+                 (fetch_geolocation / fetch_datetime) whose output it likely needs. \
+                 The provider ran in this turn — re-emit this call now, folding that \
+                 result into the request."
+                    .to_string(),
+            )
+        })
+        .collect();
+    push_rejection_block(messages, &rejected);
 }
 
 /// Handle a single tool call: display reasoning, get approval, execute, push result.

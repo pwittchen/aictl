@@ -574,6 +574,15 @@ pub const AICTL_CODING_TEST_FILTER_DEFAULT: &str = "AICTL_CODING_TEST_FILTER_DEF
 /// quarantined without re-rolling.
 pub const AICTL_CODING_PARALLEL_TOOLS_MAX: &str = "AICTL_CODING_PARALLEL_TOOLS_MAX";
 
+/// Whether the parallel-dispatch path defers data-dependent tool calls so
+/// they run sequentially across turns. When `true` (default) a batch that
+/// pairs a context producer (`fetch_geolocation` / `fetch_datetime`) with a
+/// consumer that builds a network request from its output (`fetch_url` /
+/// `extract_website`) runs the producer first and re-emits the consumer next
+/// turn. Set to `false` to dispatch every read-only call in the batch
+/// concurrently regardless of dependencies.
+pub const AICTL_CODING_PARALLEL_TOOL_DEPS: &str = "AICTL_CODING_PARALLEL_TOOL_DEPS";
+
 /// Whether coding-agent mode is enabled for this process.
 ///
 /// Reads `AICTL_CODING_AGENT` from `~/.aictl/config`. Returns `false`
@@ -706,6 +715,15 @@ pub fn coding_parallel_tools_max() -> usize {
     config_get(AICTL_CODING_PARALLEL_TOOLS_MAX)
         .and_then(|v| v.parse::<usize>().ok())
         .map_or(4, |v| v.min(16))
+}
+
+/// Read `AICTL_CODING_PARALLEL_TOOL_DEPS`. Default `true` — the batch
+/// dispatcher defers data-dependent reads (a context producer paired with a
+/// network consumer) so they run sequentially across turns. Set falsey to
+/// dispatch the whole read-only batch concurrently regardless.
+#[must_use]
+pub fn coding_parallel_tool_deps() -> bool {
+    bool_flag(AICTL_CODING_PARALLEL_TOOL_DEPS, true)
 }
 
 /// Read `AICTL_CODING_TEST_FILTER_DEFAULT`. Returns `None` when unset or
