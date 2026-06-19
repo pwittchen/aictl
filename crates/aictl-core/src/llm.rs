@@ -99,10 +99,14 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "magistral-small-2509", "LLM_MISTRAL_API_KEY"),
     ("mistral", "devstral-2512", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "ministral-14b-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "ministral-8b-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "ministral-3b-latest", "LLM_MISTRAL_API_KEY"),
     ("deepseek", "deepseek-chat", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-pro", "LLM_DEEPSEEK_API_KEY"),
+    ("kimi", "kimi-k2.7-code", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6-thinking", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
@@ -114,6 +118,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("kimi", "moonshot-v1-128k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-32k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-8k", "LLM_KIMI_API_KEY"),
+    ("zai", "glm-5.2", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5.1", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
@@ -434,6 +439,16 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("codestral") {
         return Some((0.30, 0.90));
     }
+    // Mistral — Ministral 3 series
+    if model.starts_with("ministral-14b") {
+        return Some((0.20, 0.20));
+    }
+    if model.starts_with("ministral-8b") {
+        return Some((0.15, 0.15));
+    }
+    if model.starts_with("ministral-3b") {
+        return Some((0.10, 0.10));
+    }
 
     // DeepSeek — V4
     if model.starts_with("deepseek-v4-pro") {
@@ -447,6 +462,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.28, 0.42));
     }
 
+    // Kimi K2.7 (agentic coding) — match BEFORE the general kimi-k2 branch
+    if model.starts_with("kimi-k2.7") {
+        return Some((0.95, 4.00));
+    }
     // Kimi K2.6
     if model.starts_with("kimi-k2.6") {
         return Some((0.95, 4.00));
@@ -475,6 +494,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
 
     // Z.ai — order matters: more specific prefixes first
+    if model.starts_with("glm-5.2") {
+        return Some((1.40, 4.40));
+    }
     if model.starts_with("glm-5.1") {
         return Some((1.40, 4.40));
     }

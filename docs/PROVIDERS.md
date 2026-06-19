@@ -88,6 +88,11 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `magistral-small-2509` | $0.50 | $1.50 |
 | `devstral-2512` | $0.40 | $2.00 |
 | `codestral-latest` | $0.30 | $0.90 |
+| `ministral-14b-latest` | $0.20 | $0.20 |
+| `ministral-8b-latest` | $0.15 | $0.15 |
+| `ministral-3b-latest` | $0.10 | $0.10 |
+
+The Ministral 3 series (3B / 8B / 14B, released December 2025) are compact edge-class models priced with identical input and output rates.
 
 ## DeepSeek
 
@@ -108,6 +113,7 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `kimi-k2.7-code` | $0.95 | $4.00 |
 | `kimi-k2.6` | $0.95 | $4.00 |
 | `kimi-k2.6-thinking` | $0.95 | $4.00 |
 | `kimi-k2.5` | $0.60 | $3.00 |
@@ -126,6 +132,7 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `glm-5.2` | $1.40 | $4.40 |
 | `glm-5.1` | $1.40 | $4.40 |
 | `glm-5-turbo` | $1.20 | $4.00 |
 | `glm-5` | $1.00 | $3.20 |
