@@ -1,5 +1,9 @@
 # Roadmap
 
+## Server
+
+- add basic, optional front-end for the `aictl-server`
+
 ## Desktop
 
-- move send button to the icons row, make it smaller and without label
+- add possibility to start/stop aictl-server from the desktop app
