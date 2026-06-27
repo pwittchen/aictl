@@ -51,6 +51,16 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "LLM_ANTHROPIC_API_KEY",
     ),
     ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
+    (
+        "anthropic",
+        "claude-sonnet-4-5-20250929",
+        "LLM_ANTHROPIC_API_KEY",
+    ),
+    (
+        "anthropic",
+        "claude-opus-4-5-20251101",
+        "LLM_ANTHROPIC_API_KEY",
+    ),
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
@@ -64,6 +74,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-5", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.2", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.2-pro", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.3-codex", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.4-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.4", "LLM_OPENAI_API_KEY"),
@@ -98,6 +109,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "magistral-medium-2509", "LLM_MISTRAL_API_KEY"),
     ("mistral", "magistral-small-2509", "LLM_MISTRAL_API_KEY"),
     ("mistral", "devstral-2512", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "labs-devstral-small-2512", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "ministral-14b-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "ministral-8b-latest", "LLM_MISTRAL_API_KEY"),
@@ -107,6 +119,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-pro", "LLM_DEEPSEEK_API_KEY"),
     ("kimi", "kimi-k2.7-code", "LLM_KIMI_API_KEY"),
+    ("kimi", "kimi-k2.7-code-highspeed", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6-thinking", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.5", "LLM_KIMI_API_KEY"),
@@ -118,6 +131,13 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("kimi", "moonshot-v1-128k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-32k", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-8k", "LLM_KIMI_API_KEY"),
+    (
+        "kimi",
+        "moonshot-v1-128k-vision-preview",
+        "LLM_KIMI_API_KEY",
+    ),
+    ("kimi", "moonshot-v1-32k-vision-preview", "LLM_KIMI_API_KEY"),
+    ("kimi", "moonshot-v1-8k-vision-preview", "LLM_KIMI_API_KEY"),
     ("zai", "glm-5.2", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5.1", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
@@ -302,6 +322,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((1.75, 14.00));
     }
 
+    // OpenAI — GPT-5.3 Codex (coding-specialized; shares the 5.2 price tier)
+    if model.starts_with("gpt-5.3-codex") {
+        return Some((1.75, 14.00));
+    }
+
     // OpenAI — GPT-5
     if model.starts_with("gpt-5-mini") {
         return Some((0.25, 2.00));
@@ -433,6 +458,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("magistral-small") {
         return Some((0.50, 1.50));
     }
+    if model.starts_with("labs-devstral-small") {
+        return Some((0.10, 0.30));
+    }
     if model.starts_with("devstral") {
         return Some((0.40, 2.00));
     }
@@ -462,6 +490,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.28, 0.42));
     }
 
+    // Kimi K2.7 high-speed coding variant — match BEFORE the general kimi-k2.7 branch
+    if model.starts_with("kimi-k2.7-code-highspeed") {
+        return Some((1.90, 8.00));
+    }
     // Kimi K2.7 (agentic coding) — match BEFORE the general kimi-k2 branch
     if model.starts_with("kimi-k2.7") {
         return Some((0.95, 4.00));

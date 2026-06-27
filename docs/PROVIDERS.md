@@ -19,6 +19,7 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5` | $1.25 | $10.00 |
 | `gpt-5.2` | $1.75 | $14.00 |
 | `gpt-5.2-pro` | $30.00 | $180.00 |
+| `gpt-5.3-codex` | $1.75 | $14.00 |
 | `gpt-5.4-nano` | $0.20 | $1.25 |
 | `gpt-5.4-mini` | $0.75 | $4.50 |
 | `gpt-5.4` | $2.50 | $15.00 |
@@ -87,6 +88,7 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `magistral-medium-2509` | $2.00 | $5.00 |
 | `magistral-small-2509` | $0.50 | $1.50 |
 | `devstral-2512` | $0.40 | $2.00 |
+| `labs-devstral-small-2512` | $0.10 | $0.30 |
 | `codestral-latest` | $0.30 | $0.90 |
 | `ministral-14b-latest` | $0.20 | $0.20 |
 | `ministral-8b-latest` | $0.15 | $0.15 |
@@ -114,6 +116,7 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 | Model | Input | Output |
 |-------|-------|--------|
 | `kimi-k2.7-code` | $0.95 | $4.00 |
+| `kimi-k2.7-code-highspeed` | $1.90 | $8.00 |
 | `kimi-k2.6` | $0.95 | $4.00 |
 | `kimi-k2.6-thinking` | $0.95 | $4.00 |
 | `kimi-k2.5` | $0.60 | $3.00 |
@@ -125,6 +128,11 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 | `moonshot-v1-128k` | $2.00 | $5.00 |
 | `moonshot-v1-32k` | $1.00 | $3.00 |
 | `moonshot-v1-8k` | $0.20 | $2.00 |
+| `moonshot-v1-128k-vision-preview` | $2.00 | $5.00 |
+| `moonshot-v1-32k-vision-preview` | $1.00 | $3.00 |
+| `moonshot-v1-8k-vision-preview` | $0.20 | $2.00 |
+
+The `moonshot-v1-*-vision-preview` variants accept image inputs (vision) and share pricing with their text-only counterparts. The `kimi-k2.7-code-highspeed` variant trades a higher price for ~180 tok/s throughput on coding workloads.
 
 ## Z.ai
 
