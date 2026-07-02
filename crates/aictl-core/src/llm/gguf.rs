@@ -180,6 +180,25 @@ pub const CATALOG: &[CatalogEntry] = &[
         spec: "speakleash/Bielik-11B-v3.0-Instruct-GGUF:Bielik-11B-v3.0-Instruct.Q4_K_M.gguf",
         size_label: "~6.3 GB",
     },
+    // JetBrains Mellum — code models published by JetBrains for offline use
+    // (<https://www.jetbrains.com/mellum/>). All three point at JetBrains'
+    // own GGUF repos. The 4B base is a fill-in-the-middle code-completion
+    // model; the Mellum 2 MoE pair are general code assistants.
+    CatalogEntry {
+        label: "JetBrains Mellum 4B Base (Q8_0)",
+        spec: "JetBrains/Mellum-4b-base-gguf:mellum-4b-base.Q8_0.gguf",
+        size_label: "~4.3 GB",
+    },
+    CatalogEntry {
+        label: "JetBrains Mellum 2 12B A2.5B Instruct (Q4_K_M)",
+        spec: "JetBrains/Mellum2-12B-A2.5B-Instruct-GGUF-Q4_K_M:Mellum2-12B-A2.5B-Instruct-Q4_K_M.gguf",
+        size_label: "~8.1 GB",
+    },
+    CatalogEntry {
+        label: "JetBrains Mellum 2 12B A2.5B Thinking (Q4_K_M)",
+        spec: "JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M:Mellum2-12B-A2.5B-Thinking-Q4_K_M.gguf",
+        size_label: "~8.1 GB",
+    },
 ];
 
 /// Total on-disk size (in bytes) of a downloaded GGUF file. Returns 0

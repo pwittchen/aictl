@@ -181,6 +181,17 @@ pub const CATALOG: &[CatalogEntry] = &[
         spec: "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
         size_label: "~8.0 GB",
     },
+    // JetBrains Mellum — code model published by JetBrains for offline use
+    // (<https://www.jetbrains.com/mellum/>). The 4B base is a Llama-architecture
+    // fill-in-the-middle code-completion model (mlx-community conversion) that
+    // the MLX backend runs directly. The larger Mellum 2 12B models are MoE,
+    // which the MLX inference path rejects — they're offered on the GGUF
+    // catalog instead, where llama.cpp handles the MoE layers.
+    CatalogEntry {
+        label: "JetBrains Mellum 4B Base (4-bit)",
+        spec: "mlx-community/Mellum-4b-base-4bit",
+        size_label: "~2.3 GB",
+    },
 ];
 
 /// Clear every downloaded MLX model.
