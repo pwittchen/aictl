@@ -57,7 +57,7 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 | Grok | All models | Grok 2 Image / Grok Imagine Image / Grok Imagine Image Quality |
 | Mistral | All models | -- |
 | DeepSeek | -- | -- |
-| Kimi | kimi-k2 series (k2.7 / k2.6 / k2.5 / k2-*) and moonshot-v1-*-vision-preview | -- |
+| Kimi | kimi-k3, kimi-k2 series (k2.7 / k2.6 / k2.5 / k2-*), and moonshot-v1-*-vision-preview | -- |
 | Z.ai | -- (requires GLM vision models not in catalog) | -- |
 | Ollama | Model-dependent (e.g. llava, llama3.2-vision) | -- |
 

@@ -26,11 +26,14 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5.4-pro` | $60.00 | $270.00 |
 | `gpt-5.5` | $5.00 | $30.00 |
 | `gpt-5.5-pro` | $30.00 | $180.00 |
+| `gpt-5.6-luna` | $1.00 | $6.00 |
+| `gpt-5.6-terra` | $2.50 | $15.00 |
+| `gpt-5.6-sol` | $5.00 | $30.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
 
-GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price.
+GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price. GPT-5.6 (GA July 9, 2026) replaces the mini/nano suffixes with durable capability tiers — Luna (cost-efficient), Terra (balanced), and Sol (flagship); the bare `gpt-5.6` alias routes to Sol upstream, so aictl lists the three tiers explicitly.
 
 ## Anthropic
 
@@ -44,6 +47,8 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-fable-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
+
+`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026.
 
 ## Google Gemini
 
@@ -68,13 +73,14 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `grok-4.5` | $2.00 | $6.00 |
 | `grok-4.3` | $1.25 | $2.50 |
 | `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` / `grok-4.20-multi-agent-0309` | $1.25 | $2.50 |
 | `grok-4` | $3.00 | $15.00 |
 | `grok-build-0.1` | $1.00 | $2.00 |
 | `grok-3-mini` | $0.30 | $0.50 |
 
-Grok 4.20 ships with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold. `grok-build-0.1` (released May 20, 2026) is an agentic-coding model with a 256K-token context window and text+image input, served through the same OpenAI-compatible Chat Completions endpoint.
+Grok 4.20 ships with a 2M-token context window, the largest available across frontier models. Grok 4.3 (released April 30, 2026) is the new flagship at a 1M-token context window — pricing doubles above the 200K input threshold. Grok 4.5 adds a 500K-token context window with text+image input, also dual-tier above the 200K input threshold. `grok-build-0.1` (released May 20, 2026) is an agentic-coding model with a 256K-token context window and text+image input, served through the same OpenAI-compatible Chat Completions endpoint.
 
 ## Mistral
 
@@ -115,6 +121,7 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `kimi-k3` | $3.00 | $15.00 |
 | `kimi-k2.7-code` | $0.95 | $4.00 |
 | `kimi-k2.7-code-highspeed` | $1.90 | $8.00 |
 | `kimi-k2.6` | $0.95 | $4.00 |
@@ -132,7 +139,7 @@ Requires `LLM_KIMI_API_KEY`. Supported models with cost estimates (input/output 
 | `moonshot-v1-32k-vision-preview` | $1.00 | $3.00 |
 | `moonshot-v1-8k-vision-preview` | $0.20 | $2.00 |
 
-The `moonshot-v1-*-vision-preview` variants accept image inputs (vision) and share pricing with their text-only counterparts. The `kimi-k2.7-code-highspeed` variant trades a higher price for ~180 tok/s throughput on coding workloads.
+The `moonshot-v1-*-vision-preview` variants accept image inputs (vision) and share pricing with their text-only counterparts. The `kimi-k2.7-code-highspeed` variant trades a higher price for ~180 tok/s throughput on coding workloads. `kimi-k3` (GA July 16, 2026) is Moonshot's always-on-reasoning flagship with flat pricing across a 1M-token context window (reasoning tokens bill as output).
 
 ## Z.ai
 

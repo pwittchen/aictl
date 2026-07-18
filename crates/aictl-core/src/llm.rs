@@ -50,6 +50,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
         "claude-haiku-4-5-20251001",
         "LLM_ANTHROPIC_API_KEY",
     ),
+    ("anthropic", "claude-sonnet-5", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-sonnet-4-6", "LLM_ANTHROPIC_API_KEY"),
     (
         "anthropic",
@@ -81,6 +82,9 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-5.4-pro", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.5", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.5-pro", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.6-luna", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.6-terra", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.6-sol", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "o3", "LLM_OPENAI_API_KEY"),
     ("openai", "o1", "LLM_OPENAI_API_KEY"),
@@ -102,6 +106,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("grok", "grok-4.20-0309-non-reasoning", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-multi-agent-0309", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.5", "LLM_GROK_API_KEY"),
     ("grok", "grok-build-0.1", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
@@ -118,6 +123,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-pro", "LLM_DEEPSEEK_API_KEY"),
+    ("kimi", "kimi-k3", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.7-code", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.7-code-highspeed", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.6", "LLM_KIMI_API_KEY"),
@@ -192,8 +198,10 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         "gemini" => model.starts_with("gemini-2") || model.starts_with("gemini-3"),
         // grok-3 family is text-only; grok-4 family and the grok-build coding model add vision.
         "grok" => model.starts_with("grok-4") || model.starts_with("grok-build"),
-        // Moonshot's `*-vision-preview` variants plus the k2 series are vision-capable per docs.
-        "kimi" => model.contains("vision") || model.starts_with("kimi-k2"),
+        // Moonshot's `*-vision-preview` variants plus the k2/k3 series are vision-capable per docs.
+        "kimi" => {
+            model.contains("vision") || model.starts_with("kimi-k2") || model.starts_with("kimi-k3")
+        }
         _ => false,
     }
 }
@@ -290,6 +298,18 @@ fn cache_read_multiplier(model: &str) -> f64 {
 /// Returns (input, output) price per million tokens for known models.
 #[allow(clippy::too_many_lines)]
 fn price_per_million(model: &str) -> Option<(f64, f64)> {
+    // OpenAI — GPT-5.6 (Sol / Terra / Luna capability tiers; the bare
+    // `gpt-5.6` alias routes to Sol upstream)
+    if model.starts_with("gpt-5.6-sol") {
+        return Some((5.00, 30.00));
+    }
+    if model.starts_with("gpt-5.6-terra") {
+        return Some((2.50, 15.00));
+    }
+    if model.starts_with("gpt-5.6-luna") {
+        return Some((1.00, 6.00));
+    }
+
     // OpenAI — GPT-5.5 (current flagship; dual-tier pricing above 272K
     // context — these are the short-context rates)
     if model.starts_with("gpt-5.5-pro") {
@@ -430,6 +450,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("grok-4.3") {
         return Some((1.25, 2.50));
     }
+    // Grok 4.5 (dual-tier above 200K context — short-context rates)
+    if model.starts_with("grok-4.5") {
+        return Some((2.00, 6.00));
+    }
     if model.starts_with("grok-4") {
         return Some((3.00, 15.00));
     }
@@ -490,6 +514,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.28, 0.42));
     }
 
+    // Kimi K3 (always-on reasoning flagship; flat pricing across the 1M window)
+    if model.starts_with("kimi-k3") {
+        return Some((3.00, 15.00));
+    }
     // Kimi K2.7 high-speed coding variant — match BEFORE the general kimi-k2.7 branch
     if model.starts_with("kimi-k2.7-code-highspeed") {
         return Some((1.90, 8.00));
