@@ -3104,7 +3104,7 @@ const LocalModelDownloader: Component<LocalModelDownloaderProps> = (props) => {
       : "Download MLX model";
   const help =
     props.backend === "gguf"
-      ? "Curated from lmstudio-community on Hugging Face."
+      ? "Curated community GGUFs on Hugging Face — mostly lmstudio-community, plus a few from their upstream maintainers (e.g. speakleash, JetBrains)."
       : "Curated from mlx-community on Hugging Face.";
 
   return (
