@@ -1,6 +1,6 @@
 {
   "productName": "aictl",
-  "version": "0.47.11",
+  "version": "0.47.12",
   "identifier": "com.piotrwittchen.aictl",
   "build": {
     "frontendDist": "webview/dist",
