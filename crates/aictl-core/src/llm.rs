@@ -65,6 +65,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-opus-4-6", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-7", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-opus-5", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-fable-5", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
@@ -100,6 +101,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ),
     ("gemini", "gemini-3-flash-preview", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.5-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.5-flash-lite", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.6-flash", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
@@ -390,6 +393,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((10.00, 50.00));
     }
 
+    // Anthropic — Opus 5 (same $5/$25 tier as opus 4.5+)
+    if model.contains("opus-5") {
+        return Some((5.00, 25.00));
+    }
+
     // Anthropic — opus 4.5+ ($5/$25), older opus 4/4.1 ($15/$75)
     if model.contains("opus-4-5")
         || model.contains("opus-4-6")
@@ -416,7 +424,15 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
-    // Google Gemini — 3.5 Flash (frontier-class agentic/coding Flash tier)
+    // Google Gemini — 3.6 Flash (current stable Flash tier)
+    if model.starts_with("gemini-3.6-flash") {
+        return Some((1.50, 7.50));
+    }
+    // Google Gemini — 3.5 Flash (frontier-class agentic/coding Flash tier);
+    // the Lite variant must match before the general 3.5 Flash prefix
+    if model.starts_with("gemini-3.5-flash-lite") {
+        return Some((0.30, 2.50));
+    }
     if model.starts_with("gemini-3.5-flash") {
         return Some((1.50, 9.00));
     }
@@ -468,13 +484,13 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
 
     // Mistral
     if model.starts_with("mistral-large") {
-        return Some((2.00, 6.00));
+        return Some((0.50, 1.50));
     }
     if model.starts_with("mistral-medium") {
-        return Some((0.40, 2.00));
+        return Some((1.50, 7.50));
     }
     if model.starts_with("mistral-small") {
-        return Some((0.10, 0.30));
+        return Some((0.15, 0.60));
     }
     if model.starts_with("magistral-medium") {
         return Some((2.00, 5.00));
@@ -504,7 +520,7 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
 
     // DeepSeek — V4
     if model.starts_with("deepseek-v4-pro") {
-        return Some((1.74, 3.48));
+        return Some((0.435, 0.87));
     }
     if model.starts_with("deepseek-v4-flash") {
         return Some((0.14, 0.28));

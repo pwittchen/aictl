@@ -44,11 +44,12 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-haiku-*` (3.x) | $0.25 | $1.25 |
 | `claude-haiku-4-*` | $1.00 | $5.00 |
 | `claude-sonnet-*` | $3.00 | $15.00 |
+| `claude-opus-5` | $5.00 | $25.00 |
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-fable-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
-`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026.
+`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026. `claude-opus-5` shares the $5/$25 tier with the Opus 4.5–4.8 snapshots.
 
 ## Google Gemini
 
@@ -56,7 +57,9 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `gemini-3.6-flash` | $1.50 | $7.50 |
 | `gemini-3.5-flash` | $1.50 | $9.00 |
+| `gemini-3.5-flash-lite` | $0.30 | $2.50 |
 | `gemini-3.1-pro-preview` | $2.00 | $12.00 |
 | `gemini-3-flash-preview` | $0.50 | $3.00 |
 | `gemini-3.1-flash-lite` | $0.25 | $1.50 |
@@ -88,9 +91,9 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `mistral-large-latest` | $2.00 | $6.00 |
-| `mistral-medium-latest` | $0.40 | $2.00 |
-| `mistral-small-latest` | $0.10 | $0.30 |
+| `mistral-large-latest` | $0.50 | $1.50 |
+| `mistral-medium-latest` | $1.50 | $7.50 |
+| `mistral-small-latest` | $0.15 | $0.60 |
 | `magistral-medium-2509` | $2.00 | $5.00 |
 | `magistral-small-2509` | $0.50 | $1.50 |
 | `devstral-2512` | $0.40 | $2.00 |
@@ -108,12 +111,12 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `deepseek-v4-pro` | $1.74 | $3.48 |
+| `deepseek-v4-pro` | $0.44 | $0.87 |
 | `deepseek-v4-flash` | $0.14 | $0.28 |
 | `deepseek-chat` | $0.28 | $0.42 |
 | `deepseek-reasoner` | $0.28 | $0.42 |
 
-`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context); the listed price is the standard list rate — DeepSeek is offering a 75% promotional discount through 2026-05-31.
+`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context); the earlier promotional discount has since become the standard list rate.
 
 ## Kimi
 
