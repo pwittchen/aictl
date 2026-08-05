@@ -945,6 +945,18 @@ fn check_path_with(path_str: &str, is_write: bool, pol: &PathPolicy) -> Result<P
         return Err("path contains null byte".to_string());
     }
 
+    // Reject leaked tool markup. A model that boxes its arguments in
+    // `<input>…</input>` (or repeats the `<tool name="…">` opener) would
+    // otherwise have the tag itself resolved as a filename — that is how a
+    // file literally named `<tool name="write_file">` got created. The
+    // parser normalizes the common shapes away; this is the backstop, and
+    // `<`/`>` in a real path is vanishingly rare next to that failure mode.
+    if path_str.contains('<') || path_str.contains('>') {
+        return Err(format!(
+            "path looks like tool-call markup, not a path: `{path_str}` — pass the raw path as the tool body, without <input>/<parameter> wrappers"
+        ));
+    }
+
     // Desktop with no workspace selected — refuse CWD-relative tool calls
     // before any path-resolution work runs. Absolute paths still flow
     // through the normal blocked-paths / CWD-jail checks below; without

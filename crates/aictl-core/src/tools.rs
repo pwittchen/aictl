@@ -256,20 +256,125 @@ pub const BUILTIN_TOOLS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Closing tags accepted in place of `</tool>`.
+///
+/// Models trained on another XML tool dialect (Anthropic's
+/// `<function_calls>`, OpenAI-style `<tool_call>`) routinely open a
+/// well-formed `<tool name="…">` block and then close it with the closer
+/// of the dialect they were trained on. Accepting the variants turns a
+/// wasted round-trip (and a "malformed tag" retry) into a working call.
+const TOOL_CLOSE_TAGS: &[&str] = &[
+    "</tool>",
+    "</tool_call>",
+    "</tool_use>",
+    "</tool_function_calls>",
+    "</function_calls>",
+    "</invoke>",
+];
+
+/// Element names stripped from the head of a tool body when they appear
+/// there as stray markup — a duplicated `<tool name="…">` opener or a
+/// container the model wrapped the call in.
+const STRAY_OPEN_TAGS: &[&str] = &[
+    "tool",
+    "invoke",
+    "tool_call",
+    "tool_calls",
+    "tool_use",
+    "function_calls",
+    "tool_function_calls",
+];
+
+/// Wrapper elements some models put the tool arguments inside instead of
+/// emitting the raw body (`<input>path</input><input>content</input>`).
+/// When the *entire* body is a sequence of these, their inner texts are
+/// unwrapped and joined with newlines — which is exactly the line-oriented
+/// grammar every built-in tool already expects.
+const PARAM_ELEMENTS: &[&str] = &["input", "parameter", "param", "arg", "argument", "value"];
+
+/// Earliest accepted closing tag in `hay`, as `(offset, len)`.
+fn find_close_tag(hay: &str) -> Option<(usize, usize)> {
+    TOOL_CLOSE_TAGS
+        .iter()
+        .filter_map(|t| hay.find(t).map(|i| (i, t.len())))
+        .min_by_key(|&(i, len)| (i, std::cmp::Reverse(len)))
+}
+
+/// Strip one leading stray open tag (`<tool …>`, `<function_calls>`, …),
+/// returning the remainder. `None` when `s` doesn't start with one.
+fn strip_stray_open_tag(s: &str) -> Option<&str> {
+    let rest = s.strip_prefix('<')?;
+    let name_end = rest.find(|c: char| c == '>' || c.is_whitespace())?;
+    if !STRAY_OPEN_TAGS.contains(&&rest[..name_end]) {
+        return None;
+    }
+    let close = rest.find('>')?;
+    // A `<` before the `>` means this isn't a single well-formed tag.
+    if rest[..close].contains('<') {
+        return None;
+    }
+    Some(&rest[close + 1..])
+}
+
+/// Strip one trailing stray closing tag, returning the remainder.
+fn strip_stray_close_tag(s: &str) -> Option<&str> {
+    TOOL_CLOSE_TAGS.iter().find_map(|t| s.strip_suffix(t))
+}
+
+/// When `s` consists *entirely* of [`PARAM_ELEMENTS`] elements, return their
+/// inner texts joined with newlines. `None` otherwise — so a body that merely
+/// *contains* markup (an HTML file being written, say) is left untouched.
+fn unwrap_param_elements(s: &str) -> Option<String> {
+    let mut rest = s.trim();
+    let mut values: Vec<&str> = Vec::new();
+    while !rest.is_empty() {
+        let after_lt = rest.strip_prefix('<')?;
+        let name_end = after_lt.find(|c: char| c == '>' || c.is_whitespace())?;
+        // Stray quotes happen (`<input">` instead of `<input>`) — the element
+        // is still recognizable, and refusing over a typo hands the tool a
+        // body full of markup.
+        let name = after_lt[..name_end].trim_matches(['"', '\'']);
+        if !PARAM_ELEMENTS.contains(&name) {
+            return None;
+        }
+        let open_end = after_lt.find('>')?;
+        if after_lt[..open_end].contains('<') {
+            return None;
+        }
+        let body_start = open_end + 1;
+        let closer = format!("</{name}>");
+        let body_end = after_lt[body_start..].find(&closer)?;
+        values.push(after_lt[body_start..body_start + body_end].trim());
+        rest = after_lt[body_start + body_end + closer.len()..].trim_start();
+    }
+    if values.is_empty() {
+        return None;
+    }
+    Some(values.join("\n"))
+}
+
+/// Clean up the raw text between a tool block's tags.
+///
+/// The protocol says the body is raw text, but models leak the shape of
+/// whatever tool dialect they were trained on: a duplicated opening tag, a
+/// `<function_calls>` container, arguments boxed in `<input>` elements. Each
+/// of those otherwise reaches the tool verbatim — which is how `exec_shell`
+/// ends up running `<input>pwd</input>` and `write_file` creates a file
+/// literally named `<tool name="write_file">`.
+fn normalize_tool_body(body: &str) -> String {
+    let mut s = body.trim();
+    while let Some(rest) = strip_stray_open_tag(s) {
+        s = rest.trim_start();
+    }
+    while let Some(rest) = strip_stray_close_tag(s) {
+        s = rest.trim_end();
+    }
+    unwrap_param_elements(s).unwrap_or_else(|| s.trim().to_string())
+}
+
+/// Parse the first `<tool …>…</tool>` block in a model response.
 pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
-    let start_prefix = "<tool name=\"";
-    let start_idx = response.find(start_prefix)?;
-    let after_prefix = start_idx + start_prefix.len();
-    let name_end = response[after_prefix..].find('"')?;
-    let name = response[after_prefix..after_prefix + name_end].to_string();
-    let tag_close = response[after_prefix + name_end..].find('>')?;
-    let content_start = after_prefix + name_end + tag_close + 1;
-    let end_tag = "</tool>";
-    let content_end = response[content_start..].find(end_tag)?;
-    let input = response[content_start..content_start + content_end]
-        .trim()
-        .to_string();
-    Some(ToolCall { name, input })
+    parse_tool_calls(response).into_iter().next()
 }
 
 /// Parse every well-formed `<tool …>…</tool>` block from a model response, in
@@ -287,7 +392,6 @@ pub fn parse_tool_call(response: &str) -> Option<ToolCall> {
 #[must_use]
 pub fn parse_tool_calls(response: &str) -> Vec<ToolCall> {
     let start_prefix = "<tool name=\"";
-    let end_tag = "</tool>";
     let mut out = Vec::new();
     let mut cursor = 0usize;
     while cursor < response.len() {
@@ -304,14 +408,12 @@ pub fn parse_tool_calls(response: &str) -> Vec<ToolCall> {
             break;
         };
         let content_start = after_prefix + name_end + tag_close + 1;
-        let Some(content_end_rel) = response[content_start..].find(end_tag) else {
+        let Some((content_end_rel, close_len)) = find_close_tag(&response[content_start..]) else {
             break;
         };
-        let input = response[content_start..content_start + content_end_rel]
-            .trim()
-            .to_string();
+        let input = normalize_tool_body(&response[content_start..content_start + content_end_rel]);
         out.push(ToolCall { name, input });
-        cursor = content_start + content_end_rel + end_tag.len();
+        cursor = content_start + content_end_rel + close_len;
     }
     out
 }
@@ -831,6 +933,87 @@ mod tests {
         let calls = parse_tool_calls(resp);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].input, "a.rs");
+    }
+
+    // --- Foreign-dialect tolerance (real shapes seen from Haiku 4.5) ---
+
+    #[test]
+    fn parse_unwraps_input_elements() {
+        // The model boxes the body in `<input>` instead of emitting raw text;
+        // without unwrapping, `sh -c` received the literal markup.
+        let resp = "<tool name=\"exec_shell\">\n<input>pwd && ls -la</input>\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "exec_shell");
+        assert_eq!(tc.input, "pwd && ls -la");
+    }
+
+    #[test]
+    fn parse_strips_duplicated_open_tag() {
+        // Duplicated opener inside a `<function_calls>` container — this is
+        // what created a file literally named `<tool name="write_file">`.
+        let resp = "<function_calls>\n<tool name=\"write_file\">\n<tool name=\"write_file\">\n\
+                    <input>game_of_life.c</input>\n<input>#include <stdio.h>\nint main(){}</input>\n\
+                    </tool>\n</function_calls>";
+        let calls = parse_tool_calls(resp);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "write_file");
+        assert_eq!(
+            calls[0].input,
+            "game_of_life.c\n#include <stdio.h>\nint main(){}"
+        );
+    }
+
+    #[test]
+    fn parse_accepts_foreign_closing_tag() {
+        // Opened as `<tool …>`, closed with the dialect's own closer.
+        let resp = "<tool_function_calls>\n<tool name=\"create_directory\">\n\
+                    <input>/tmp/x</input>\n</tool_function_calls>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.name, "create_directory");
+        assert_eq!(tc.input, "/tmp/x");
+    }
+
+    #[test]
+    fn parse_unwraps_parameter_elements() {
+        let resp = "<tool name=\"write_file\">\n<parameter name=\"path\">a.txt</parameter>\n\
+                    <parameter name=\"content\">hello</parameter>\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.input, "a.txt\nhello");
+    }
+
+    #[test]
+    fn parse_unwraps_edit_file_blocks() {
+        let resp = "<tool name=\"edit_file\">\n<input>Makefile</input>\n\
+                    <input>\n<<<\nold\n===\nnew\n>>>\n</input>\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.input, "Makefile\n<<<\nold\n===\nnew\n>>>");
+    }
+
+    #[test]
+    fn parse_tolerates_stray_quote_in_wrapper_tag() {
+        let resp = "<tool name=\"write_file\">\n<input>Makefile</input>\n\
+                    <input\">all: build</input>\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.input, "Makefile\nall: build");
+    }
+
+    #[test]
+    fn parse_leaves_html_body_untouched() {
+        // A file whose *content* contains `<input>` markup must not be
+        // mistaken for a wrapped body — only a body made up entirely of
+        // wrapper elements is unwrapped.
+        let body = "form.html\n<form>\n<input type=\"text\" name=\"q\">\n</form>";
+        let resp = format!("<tool name=\"write_file\">\n{body}\n</tool>");
+        let tc = parse_tool_call(&resp).unwrap();
+        assert_eq!(tc.input, body);
+    }
+
+    #[test]
+    fn parse_leaves_ordinary_body_untouched() {
+        // Regression guard: normalization must be a no-op on well-formed calls.
+        let resp = "<tool name=\"search_files\">fn main\nsrc\n</tool>";
+        let tc = parse_tool_call(resp).unwrap();
+        assert_eq!(tc.input, "fn main\nsrc");
     }
 
     // --- Side-effect classifier (is_parallelizable) ---

@@ -1844,7 +1844,7 @@ pub async fn run_agent_turn(
             );
             messages.push(Message {
                 role: Role::User,
-                content: "Your previous response contained a `<tool>` tag that could not be parsed. Retry using exactly this syntax: `<tool name=\"<tool_name>\">input</tool>`. If you did not intend to call a tool, reply with your final answer without any `<tool>` tags.".to_string(),
+                content: "Your previous response contained a `<tool>` tag that could not be parsed. Retry using exactly this syntax:\n\n<tool name=\"write_file\">\nnotes.txt\nfile content here\n</tool>\n\nThe body is raw text — no `<input>`, `<parameter>`, or JSON wrappers, no `<function_calls>` container, no repeated opening tag, and the block must end with `</tool>`. If you did not intend to call a tool, reply with your final answer without any `<tool>` tags.".to_string(),
                 images: vec![],
             });
             continue;
