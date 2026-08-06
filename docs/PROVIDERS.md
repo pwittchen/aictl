@@ -47,9 +47,10 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-opus-5` | $5.00 | $25.00 |
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-fable-5` | $10.00 | $50.00 |
+| `claude-mythos-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
-`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026. `claude-opus-5` shares the $5/$25 tier with the Opus 4.5–4.8 snapshots.
+`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026. `claude-opus-5` shares the $5/$25 tier with the Opus 4.5–4.8 snapshots. `claude-mythos-5` shares Fable 5's specs and pricing but is offered in limited availability to approved Project Glasswing customers — without that access the API returns a model-not-found error.
 
 ## Google Gemini
 
@@ -96,6 +97,8 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `mistral-small-latest` | $0.15 | $0.60 |
 | `magistral-medium-2509` | $2.00 | $5.00 |
 | `magistral-small-2509` | $0.50 | $1.50 |
+| `devstral-medium-latest` | $0.40 | $2.00 |
+| `devstral-small-latest` | $0.10 | $0.30 |
 | `devstral-2512` | $0.40 | $2.00 |
 | `labs-devstral-small-2512` | $0.10 | $0.30 |
 | `codestral-latest` | $0.30 | $0.90 |
@@ -103,7 +106,7 @@ Requires `LLM_MISTRAL_API_KEY`. Supported models with cost estimates (input/outp
 | `ministral-8b-latest` | $0.15 | $0.15 |
 | `ministral-3b-latest` | $0.10 | $0.10 |
 
-The Ministral 3 series (3B / 8B / 14B, released December 2025) are compact edge-class models priced with identical input and output rates.
+The Ministral 3 series (3B / 8B / 14B, released December 2025) are compact edge-class models priced with identical input and output rates. `devstral-medium-latest` / `devstral-small-latest` are the current Devstral 2 API names; the older `devstral-2512` and `labs-devstral-small-2512` ids stay in the catalog for pinned configs.
 
 ## DeepSeek
 
@@ -154,16 +157,23 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 | `glm-5.1` | $1.40 | $4.40 |
 | `glm-5-turbo` | $1.20 | $4.00 |
 | `glm-5` | $1.00 | $3.20 |
+| `glm-5v-turbo` | $1.20 | $4.00 |
 | `glm-4.7` | $0.60 | $2.20 |
 | `glm-4.7-flashx` | $0.07 | $0.40 |
 | `glm-4.7-flash` | Free | Free |
 | `glm-4.6` | $0.60 | $2.20 |
+| `glm-4.6v` | $0.30 | $0.90 |
+| `glm-4.6v-flashx` | $0.04 | $0.40 |
+| `glm-4.6v-flash` | Free | Free |
 | `glm-4.5` | $0.60 | $2.20 |
 | `glm-4.5-x` | $2.20 | $8.90 |
 | `glm-4.5-airx` | $1.10 | $4.50 |
 | `glm-4.5-air` | $0.20 | $1.10 |
 | `glm-4.5-flash` | Free | Free |
+| `glm-4.5v` | $0.60 | $1.80 |
 | `glm-4-32b-0414-128k` | $0.10 | $0.10 |
+
+The `glm-*v` entries are Z.ai's vision-language line — they accept image inputs and are served through the same OpenAI-compatible Chat Completions endpoint as the text-only GLM tiers.
 
 ## Ollama
 

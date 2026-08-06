@@ -67,6 +67,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-5", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-fable-5", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-mythos-5", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1", "LLM_OPENAI_API_KEY"),
@@ -116,6 +117,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("mistral", "mistral-small-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "magistral-medium-2509", "LLM_MISTRAL_API_KEY"),
     ("mistral", "magistral-small-2509", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "devstral-medium-latest", "LLM_MISTRAL_API_KEY"),
+    ("mistral", "devstral-small-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "devstral-2512", "LLM_MISTRAL_API_KEY"),
     ("mistral", "labs-devstral-small-2512", "LLM_MISTRAL_API_KEY"),
     ("mistral", "codestral-latest", "LLM_MISTRAL_API_KEY"),
@@ -151,15 +154,20 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("zai", "glm-5.1", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-5v-turbo", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flashx", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.7-flash", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.6", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.6v", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.6v-flashx", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.6v-flash", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.5", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.5-x", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.5-airx", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.5-air", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4.5-flash", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-4.5v", "LLM_ZAI_API_KEY"),
     ("zai", "glm-4-32b-0414-128k", "LLM_ZAI_API_KEY"),
 ];
 
@@ -188,7 +196,7 @@ pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
 #[must_use]
 pub fn is_vision_capable(provider: &str, model: &str) -> bool {
     match provider {
-        // Every Claude entry in MODELS (the 4.x family and Fable 5) is multimodal.
+        // Every Claude entry in MODELS (the 4.x family, Fable 5, Mythos 5) is multimodal.
         "anthropic" => true,
         "openai" => {
             model.starts_with("gpt-4o")
@@ -204,6 +212,12 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         // Moonshot's `*-vision-preview` variants plus the k2/k3 series are vision-capable per docs.
         "kimi" => {
             model.contains("vision") || model.starts_with("kimi-k2") || model.starts_with("kimi-k3")
+        }
+        // Z.ai's GLM-V vision-language line only; the plain GLM chat models stay text-only.
+        "zai" => {
+            model.starts_with("glm-5v")
+                || model.starts_with("glm-4.6v")
+                || model.starts_with("glm-4.5v")
         }
         _ => false,
     }
@@ -388,8 +402,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((15.00, 60.00));
     }
 
-    // Anthropic — Fable 5 (flagship above the Opus tier)
-    if model.starts_with("claude-fable-5") {
+    // Anthropic — Fable 5 (flagship above the Opus tier); Mythos 5 shares its
+    // specs and pricing but is limited-availability under Project Glasswing.
+    if model.starts_with("claude-fable-5") || model.starts_with("claude-mythos") {
         return Some((10.00, 50.00));
     }
 
@@ -501,6 +516,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("labs-devstral-small") {
         return Some((0.10, 0.30));
     }
+    if model.starts_with("devstral-small") {
+        return Some((0.10, 0.30));
+    }
     if model.starts_with("devstral") {
         return Some((0.40, 2.00));
     }
@@ -569,7 +587,24 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.20, 2.00));
     }
 
-    // Z.ai — order matters: more specific prefixes first
+    // Z.ai — order matters: more specific prefixes first. The GLM-V vision
+    // line matches ahead of the text tiers because `glm-4.6v` would otherwise
+    // be swallowed by the `glm-4.6` prefix.
+    if model.starts_with("glm-5v-turbo") {
+        return Some((1.20, 4.00));
+    }
+    if model.starts_with("glm-4.6v-flashx") {
+        return Some((0.04, 0.40));
+    }
+    if model.starts_with("glm-4.6v-flash") {
+        return Some((0.00, 0.00));
+    }
+    if model.starts_with("glm-4.6v") {
+        return Some((0.30, 0.90));
+    }
+    if model.starts_with("glm-4.5v") {
+        return Some((0.60, 1.80));
+    }
     if model.starts_with("glm-5.2") {
         return Some((1.40, 4.40));
     }
