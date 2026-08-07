@@ -87,7 +87,7 @@ dependencies = [
  "md-5 0.11.0",
  "minijinja",
  "mlx-rs",
- "orp 0.9.2",
+ "orp",
  "pdf-extract",
  "regex",
  "reqwest 0.13.4",
@@ -1052,12 +1052,6 @@ dependencies = [
  "serde",
  "static_assertions",
 ]
-
-[[package]]
-name = "composable"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3edc943416fc51136a23f0881bf65ee06d108810b0ee8737c6f7de4e2bbb40b"
 
 [[package]]
 name = "composable"
@@ -2447,10 +2441,10 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "187d55c624cd5eb969cb84ef25e0e394368bb276905abd7dc136105770a16bad"
 dependencies = [
- "composable 1.0.0",
+ "composable",
  "csv",
  "ndarray",
- "orp 1.0.0",
+ "orp",
  "ort",
  "ort-sys",
  "regex",
@@ -4211,22 +4205,11 @@ dependencies = [
 
 [[package]]
 name = "orp"
-version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1b96de390c49ac6b80de1dbb72da4ecec9ce5a53a40b0173968a5899917b73e"
-dependencies = [
- "composable 0.9.0",
- "ndarray",
- "ort",
-]
-
-[[package]]
-name = "orp"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4988aa3d7fe73b735d283ce9ec2b2e881ca9178bceee750cf226a4cbf83f7d8"
 dependencies = [
- "composable 1.0.0",
+ "composable",
  "ndarray",
  "ort",
  "ort-sys",

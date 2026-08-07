@@ -40,8 +40,10 @@ safetensors = { version = "0.7", optional = true }
 gline-rs = { version = "1", optional = true }
 # gline-rs exposes the model loader but not the companion runtime-
 # parameters struct; `orp` lives behind gline-rs as a transitive dep
-# and must be imported directly when the feature is on.
-orp = { version = "0.9", optional = true }
+# and must be imported directly when the feature is on. The version
+# must track the one gline-rs resolves to — a mismatch pulls in two
+# copies of `orp` and `RuntimeParameters` stops unifying.
+orp = { version = "1", optional = true }
 
 [dev-dependencies]
 tempfile = "3"
