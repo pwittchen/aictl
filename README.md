@@ -17,6 +17,8 @@ Project website: [aictl.app](https://aictl.app) — source in [`website/`](websi
 
 You can use **aictl** on your desktop and in your terminal — with a single configuration and feature parity between CLI and desktop app — or as an HTTP server with LLM proxy and security features.
 
+[![screenshot](screenshot.png)](https://aictl.app)
+
 ## Install
 
 ```bash
