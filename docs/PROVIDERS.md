@@ -26,9 +26,9 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5.4-pro` | $60.00 | $270.00 |
 | `gpt-5.5` | $5.00 | $30.00 |
 | `gpt-5.5-pro` | $30.00 | $180.00 |
-| `gpt-5.6-luna` | $1.00 | $6.00 |
-| `gpt-5.6-terra` | $2.50 | $15.00 |
-| `gpt-5.6-sol` | $5.00 | $30.00 |
+| `gpt-5.6-luna` | $0.20 | $1.20 |
+| `gpt-5.6-terra` | $2.00 | $12.00 |
+| `gpt-5.6-sol` | $4.00 | $20.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
@@ -58,6 +58,7 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `gemini-3.7-flash` | $1.50 | $7.50 |
 | `gemini-3.6-flash` | $1.50 | $7.50 |
 | `gemini-3.5-flash` | $1.50 | $9.00 |
 | `gemini-3.5-flash-lite` | $0.30 | $2.50 |
@@ -77,6 +78,7 @@ Requires `LLM_GROK_API_KEY`. Supported models with cost estimates (input/output 
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `grok-4.6` | $2.00 | $6.00 |
 | `grok-4.5` | $2.00 | $6.00 |
 | `grok-4.3` | $1.25 | $2.50 |
 | `grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning` / `grok-4.20-multi-agent-0309` | $1.25 | $2.50 |
@@ -114,12 +116,12 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 
 | Model | Input | Output |
 |-------|-------|--------|
-| `deepseek-v4-pro` | $0.44 | $0.87 |
-| `deepseek-v4-flash` | $0.14 | $0.28 |
+| `deepseek-v4-pro` | $1.32 | $3.96 |
+| `deepseek-v4-flash` | $0.44 | $1.32 |
 | `deepseek-chat` | $0.28 | $0.42 |
 | `deepseek-reasoner` | $0.28 | $0.42 |
 
-`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context); the earlier promotional discount has since become the standard list rate.
+`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context). The V4 models bill at two rates: the table shows the peak price (01:00–04:00 and 06:00–10:00 UTC, Monday through Friday), and off-peak requests cost half that. The cost meter in aictl always reports the peak price.
 
 ## Kimi
 
@@ -153,6 +155,8 @@ Requires `LLM_ZAI_API_KEY`. Supported models with cost estimates (input/output p
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `glm-5.3` | $1.40 | $4.40 |
+| `glm-5.3-flash` | $0.15 | $0.50 |
 | `glm-5.2` | $1.40 | $4.40 |
 | `glm-5.1` | $1.40 | $4.40 |
 | `glm-5-turbo` | $1.20 | $4.00 |

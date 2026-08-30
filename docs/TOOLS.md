@@ -54,11 +54,11 @@ The `read_image` (vision/analysis) and `generate_image` tools depend on provider
 | OpenAI | All models | GPT Image 1 / 1 Mini / 1.5 / 2 |
 | Anthropic | All models | -- |
 | Gemini | All models | Imagen 4.0 / 4.0 Ultra / 4.0 Fast |
-| Grok | All models | Grok 2 Image / Grok Imagine Image / Grok Imagine Image Quality |
+| Grok | All models | Grok 2 Image / Grok Imagine Image 2.0 / Grok Imagine Image / Grok Imagine Image Quality |
 | Mistral | All models | -- |
 | DeepSeek | -- | -- |
 | Kimi | kimi-k3, kimi-k2 series (k2.7 / k2.6 / k2.5 / k2-*), and moonshot-v1-*-vision-preview | -- |
-| Z.ai | `glm-5v-turbo`, `glm-4.6v` / `-flashx` / `-flash`, `glm-4.5v` | -- |
+| Z.ai | `glm-5v-turbo`, `glm-5.3-flash`, `glm-4.6v` / `-flashx` / `-flash`, `glm-4.5v` | -- |
 | Ollama | Model-dependent (e.g. llava, llama3.2-vision) | -- |
 
 **Image generation fallback**: `generate_image` auto-selects a provider based on available API keys. The active provider is tried first (if it supports generation), then falls back through OpenAI, Gemini, and Grok in order. This means you can generate images even when your active chat provider (e.g. Anthropic or Mistral) doesn't offer a generation API — as long as you have at least one of `LLM_OPENAI_API_KEY`, `LLM_GEMINI_API_KEY`, or `LLM_GROK_API_KEY` configured.

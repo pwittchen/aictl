@@ -104,6 +104,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-3.5-flash", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.6-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.7-flash", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
@@ -111,6 +112,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("grok", "grok-4.20-multi-agent-0309", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.3", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.5", "LLM_GROK_API_KEY"),
+    ("grok", "grok-4.6", "LLM_GROK_API_KEY"),
     ("grok", "grok-build-0.1", "LLM_GROK_API_KEY"),
     ("mistral", "mistral-large-latest", "LLM_MISTRAL_API_KEY"),
     ("mistral", "mistral-medium-latest", "LLM_MISTRAL_API_KEY"),
@@ -150,6 +152,8 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ),
     ("kimi", "moonshot-v1-32k-vision-preview", "LLM_KIMI_API_KEY"),
     ("kimi", "moonshot-v1-8k-vision-preview", "LLM_KIMI_API_KEY"),
+    ("zai", "glm-5.3", "LLM_ZAI_API_KEY"),
+    ("zai", "glm-5.3-flash", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5.2", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5.1", "LLM_ZAI_API_KEY"),
     ("zai", "glm-5-turbo", "LLM_ZAI_API_KEY"),
@@ -184,6 +188,7 @@ pub const IMAGE_GEN_MODELS: &[(&str, &str)] = &[
     ("gemini", "imagen-4.0-ultra-generate-001"),
     ("gemini", "imagen-4.0-fast-generate-001"),
     ("grok", "grok-2-image"),
+    ("grok", "grok-imagine-image-2.0"),
     ("grok", "grok-imagine-image"),
     ("grok", "grok-imagine-image-quality"),
 ];
@@ -213,9 +218,12 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         "kimi" => {
             model.contains("vision") || model.starts_with("kimi-k2") || model.starts_with("kimi-k3")
         }
-        // Z.ai's GLM-V vision-language line only; the plain GLM chat models stay text-only.
+        // Z.ai's GLM-V vision-language line, plus GLM-5.3 Flash — the first
+        // natively multimodal model in the GLM-5 family (the flagship
+        // `glm-5.3` stays text-only). The plain GLM chat models are text-only.
         "zai" => {
             model.starts_with("glm-5v")
+                || model.starts_with("glm-5.3-flash")
                 || model.starts_with("glm-4.6v")
                 || model.starts_with("glm-4.5v")
         }
@@ -318,13 +326,13 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     // OpenAI — GPT-5.6 (Sol / Terra / Luna capability tiers; the bare
     // `gpt-5.6` alias routes to Sol upstream)
     if model.starts_with("gpt-5.6-sol") {
-        return Some((5.00, 30.00));
+        return Some((4.00, 20.00));
     }
     if model.starts_with("gpt-5.6-terra") {
-        return Some((2.50, 15.00));
+        return Some((2.00, 12.00));
     }
     if model.starts_with("gpt-5.6-luna") {
-        return Some((1.00, 6.00));
+        return Some((0.20, 1.20));
     }
 
     // OpenAI — GPT-5.5 (current flagship; dual-tier pricing above 272K
@@ -439,7 +447,12 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
-    // Google Gemini — 3.6 Flash (current stable Flash tier)
+    // Google Gemini — 3.7 Flash (current stable Flash tier; list rate —
+    // a promotional 50% discount runs through Dec 31, 2026)
+    if model.starts_with("gemini-3.7-flash") {
+        return Some((1.50, 7.50));
+    }
+    // Google Gemini — 3.6 Flash
     if model.starts_with("gemini-3.6-flash") {
         return Some((1.50, 7.50));
     }
@@ -481,7 +494,10 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     if model.starts_with("grok-4.3") {
         return Some((1.25, 2.50));
     }
-    // Grok 4.5 (dual-tier above 200K context — short-context rates)
+    // Grok 4.6 / 4.5 (dual-tier above 200K context — short-context rates)
+    if model.starts_with("grok-4.6") {
+        return Some((2.00, 6.00));
+    }
     if model.starts_with("grok-4.5") {
         return Some((2.00, 6.00));
     }
@@ -536,12 +552,13 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.10, 0.10));
     }
 
-    // DeepSeek — V4
+    // DeepSeek — V4 (peak rates; off-peak, 01:00–04:00 and 06:00–10:00 UTC
+    // Mon–Fri excepted, bills at half these figures)
     if model.starts_with("deepseek-v4-pro") {
-        return Some((0.435, 0.87));
+        return Some((1.32, 3.96));
     }
     if model.starts_with("deepseek-v4-flash") {
-        return Some((0.14, 0.28));
+        return Some((0.44, 1.32));
     }
     // DeepSeek — V3.2 (chat & reasoner share pricing)
     if model.starts_with("deepseek-reasoner") || model.starts_with("deepseek-chat") {
@@ -604,6 +621,15 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
     if model.starts_with("glm-4.5v") {
         return Some((0.60, 1.80));
+    }
+    // GLM-5.3 Flash (natively multimodal) must match ahead of the flagship
+    // `glm-5.3` prefix; its rate is the list price, currently halved by a
+    // promotion running to Sep 9, 2026.
+    if model.starts_with("glm-5.3-flash") {
+        return Some((0.15, 0.50));
+    }
+    if model.starts_with("glm-5.3") {
+        return Some((1.40, 4.40));
     }
     if model.starts_with("glm-5.2") {
         return Some((1.40, 4.40));
