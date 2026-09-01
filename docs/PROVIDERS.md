@@ -29,11 +29,12 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5.6-luna` | $0.20 | $1.20 |
 | `gpt-5.6-terra` | $2.00 | $12.00 |
 | `gpt-5.6-sol` | $4.00 | $20.00 |
+| `gpt-5.6-cyber` | $12.50 | $75.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
 
-GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price. GPT-5.6 (GA July 9, 2026) replaces the mini/nano suffixes with durable capability tiers — Luna (cost-efficient), Terra (balanced), and Sol (flagship); the bare `gpt-5.6` alias routes to Sol upstream, so aictl lists the three tiers explicitly.
+GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price. GPT-5.6 (GA July 9, 2026) replaces the mini/nano suffixes with durable capability tiers — Luna (cost-efficient), Terra (balanced), and Sol (flagship); the bare `gpt-5.6` alias routes to Sol upstream, so aictl lists the three tiers explicitly. `gpt-5.6-cyber` is the cybersecurity-specialized sibling of that family and sits in its own, much higher price tier; the `gpt-daybreak-red-latest` / `gpt-daybreak-blue-latest` aliases point at `gpt-5.6-cyber` and `gpt-5.6-sol` respectively and are not listed separately.
 
 ## Anthropic
 
@@ -47,6 +48,7 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-opus-5` | $5.00 | $25.00 |
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-fable-5` | $10.00 | $50.00 |
+| `claude-fable-5-1` | $10.00 | $50.00 |
 | `claude-mythos-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
@@ -118,10 +120,11 @@ Requires `LLM_DEEPSEEK_API_KEY`. Supported models with cost estimates (input/out
 |-------|-------|--------|
 | `deepseek-v4-pro` | $1.32 | $3.96 |
 | `deepseek-v4-flash` | $0.44 | $1.32 |
+| `deepseek-v4-flash-vision-exp` | $0.44 | $1.32 |
 | `deepseek-chat` | $0.28 | $0.42 |
 | `deepseek-reasoner` | $0.28 | $0.42 |
 
-`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context). The V4 models bill at two rates: the table shows the peak price (01:00–04:00 and 06:00–10:00 UTC, Monday through Friday), and off-peak requests cost half that. The cost meter in aictl always reports the peak price.
+`deepseek-chat` and `deepseek-reasoner` are now legacy aliases that route to `deepseek-v4-flash` upstream — they remain in the catalog for backward compatibility. `deepseek-v4-pro` is the new flagship MoE (1.6T total / 49B active params, 1M context). `deepseek-v4-flash-vision-exp` is an experimental multimodal variant of Flash — the only DeepSeek model that accepts image input, and the only one `read_image` will offer. The V4 models bill at two rates: the table shows the peak price (01:00–04:00 and 06:00–10:00 UTC, Monday through Friday), and off-peak requests cost half that. The cost meter in aictl always reports the peak price.
 
 ## Kimi
 

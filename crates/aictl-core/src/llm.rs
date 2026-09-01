@@ -67,6 +67,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("anthropic", "claude-opus-4-8", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-opus-5", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-fable-5", "LLM_ANTHROPIC_API_KEY"),
+    ("anthropic", "claude-fable-5-1", "LLM_ANTHROPIC_API_KEY"),
     ("anthropic", "claude-mythos-5", "LLM_ANTHROPIC_API_KEY"),
     ("openai", "gpt-4.1-nano", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-4.1-mini", "LLM_OPENAI_API_KEY"),
@@ -87,6 +88,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-5.6-luna", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.6-terra", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.6-sol", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-5.6-cyber", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "o3", "LLM_OPENAI_API_KEY"),
     ("openai", "o1", "LLM_OPENAI_API_KEY"),
@@ -131,6 +133,11 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("deepseek", "deepseek-reasoner", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-flash", "LLM_DEEPSEEK_API_KEY"),
     ("deepseek", "deepseek-v4-pro", "LLM_DEEPSEEK_API_KEY"),
+    (
+        "deepseek",
+        "deepseek-v4-flash-vision-exp",
+        "LLM_DEEPSEEK_API_KEY",
+    ),
     ("kimi", "kimi-k3", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.7-code", "LLM_KIMI_API_KEY"),
     ("kimi", "kimi-k2.7-code-highspeed", "LLM_KIMI_API_KEY"),
@@ -218,6 +225,9 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
         "kimi" => {
             model.contains("vision") || model.starts_with("kimi-k2") || model.starts_with("kimi-k3")
         }
+        // DeepSeek's V4 vision-experimental variant is the only multimodal
+        // entry; the plain V4 and V3.2 chat/reasoner models are text-only.
+        "deepseek" => model.starts_with("deepseek-v4-flash-vision"),
         // Z.ai's GLM-V vision-language line, plus GLM-5.3 Flash — the first
         // natively multimodal model in the GLM-5 family (the flagship
         // `glm-5.3` stays text-only). The plain GLM chat models are text-only.
@@ -333,6 +343,11 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
     }
     if model.starts_with("gpt-5.6-luna") {
         return Some((0.20, 1.20));
+    }
+    // OpenAI — GPT-5.6 Cyber (cybersecurity-specialized; priced well above
+    // the general 5.6 tiers)
+    if model.starts_with("gpt-5.6-cyber") {
+        return Some((12.50, 75.00));
     }
 
     // OpenAI — GPT-5.5 (current flagship; dual-tier pricing above 272K
