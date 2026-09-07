@@ -30,11 +30,12 @@ Requires `LLM_OPENAI_API_KEY`. Supported models with cost estimates (input/outpu
 | `gpt-5.6-terra` | $2.00 | $12.00 |
 | `gpt-5.6-sol` | $4.00 | $20.00 |
 | `gpt-5.6-cyber` | $12.50 | $75.00 |
+| `gpt-6-astra` | $10.00 | $50.00 |
 | `o4-mini` | $1.10 | $4.40 |
 | `o3` | $2.00 | $8.00 |
 | `o1` | $15.00 | $60.00 |
 
-GPT-5.2, GPT-5.4, and GPT-5.5 use dual-tier pricing that doubles above the 272K context threshold; the table shows the short-context rates. The cost meter in aictl always reports the short-context price. GPT-5.6 (GA July 9, 2026) replaces the mini/nano suffixes with durable capability tiers — Luna (cost-efficient), Terra (balanced), and Sol (flagship); the bare `gpt-5.6` alias routes to Sol upstream, so aictl lists the three tiers explicitly. `gpt-5.6-cyber` is the cybersecurity-specialized sibling of that family and sits in its own, much higher price tier; the `gpt-daybreak-red-latest` / `gpt-daybreak-blue-latest` aliases point at `gpt-5.6-cyber` and `gpt-5.6-sol` respectively and are not listed separately.
+GPT-5.2, GPT-5.4, GPT-5.5, and GPT-6 Astra use dual-tier pricing that doubles above the long-context threshold (272K on the 5.x tiers); the table shows the short-context rates. The cost meter in aictl always reports the short-context price. GPT-5.6 (GA July 9, 2026) replaces the mini/nano suffixes with durable capability tiers — Luna (cost-efficient), Terra (balanced), and Sol (flagship); the bare `gpt-5.6` alias routes to Sol upstream, so aictl lists the three tiers explicitly. `gpt-5.6-cyber` is the cybersecurity-specialized sibling of that family and sits in its own, much higher price tier; the `gpt-daybreak-red-latest` / `gpt-daybreak-blue-latest` aliases point at `gpt-5.6-cyber` and `gpt-5.6-sol` respectively and are not listed separately. `gpt-6-astra` is the current flagship — a 1.05M-token context window with text and image input.
 
 ## Anthropic
 
@@ -44,7 +45,8 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 |-------|-------|--------|
 | `claude-haiku-*` (3.x) | $0.25 | $1.25 |
 | `claude-haiku-4-*` | $1.00 | $5.00 |
-| `claude-sonnet-*` | $3.00 | $15.00 |
+| `claude-sonnet-5` | $2.00 | $10.00 |
+| `claude-sonnet-4-*` | $3.00 | $15.00 |
 | `claude-opus-5` | $5.00 | $25.00 |
 | `claude-opus-4-5-*` / `claude-opus-4-6-*` / `claude-opus-4-7-*` / `claude-opus-4-8-*` | $5.00 | $25.00 |
 | `claude-fable-5` | $10.00 | $50.00 |
@@ -52,7 +54,7 @@ Requires `LLM_ANTHROPIC_API_KEY`. Supported models with cost estimates (input/ou
 | `claude-mythos-5` | $10.00 | $50.00 |
 | `claude-opus-4-*` (older) | $15.00 | $75.00 |
 
-`claude-sonnet-5` (GA June 9, 2026) is covered by the `claude-sonnet-*` row at $3/$15; introductory pricing of $2/$10 applies through August 31, 2026. `claude-opus-5` shares the $5/$25 tier with the Opus 4.5–4.8 snapshots. `claude-mythos-5` shares Fable 5's specs and pricing but is offered in limited availability to approved Project Glasswing customers — without that access the API returns a model-not-found error.
+`claude-sonnet-5` (GA June 9, 2026) sits a tier below the Sonnet 4.x snapshots at $2/$10 — what launched as introductory pricing is now its standing rate. `claude-opus-5` shares the $5/$25 tier with the Opus 4.5–4.8 snapshots. `claude-mythos-5` shares Fable 5's specs and pricing but is offered in limited availability to approved Project Glasswing customers — without that access the API returns a model-not-found error.
 
 ## Google Gemini
 
@@ -60,6 +62,7 @@ Requires `LLM_GEMINI_API_KEY`. Supported models with cost estimates (input/outpu
 
 | Model | Input | Output |
 |-------|-------|--------|
+| `gemini-3.8-flash` | $1.50 | $7.50 |
 | `gemini-3.7-flash` | $1.50 | $7.50 |
 | `gemini-3.6-flash` | $1.50 | $7.50 |
 | `gemini-3.5-flash` | $1.50 | $9.00 |

@@ -89,6 +89,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("openai", "gpt-5.6-terra", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.6-sol", "LLM_OPENAI_API_KEY"),
     ("openai", "gpt-5.6-cyber", "LLM_OPENAI_API_KEY"),
+    ("openai", "gpt-6-astra", "LLM_OPENAI_API_KEY"),
     ("openai", "o4-mini", "LLM_OPENAI_API_KEY"),
     ("openai", "o3", "LLM_OPENAI_API_KEY"),
     ("openai", "o1", "LLM_OPENAI_API_KEY"),
@@ -107,6 +108,7 @@ pub const MODELS: &[(&str, &str, &str)] = &[
     ("gemini", "gemini-3.5-flash-lite", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.6-flash", "LLM_GEMINI_API_KEY"),
     ("gemini", "gemini-3.7-flash", "LLM_GEMINI_API_KEY"),
+    ("gemini", "gemini-3.8-flash", "LLM_GEMINI_API_KEY"),
     ("grok", "grok-3-mini", "LLM_GROK_API_KEY"),
     ("grok", "grok-4", "LLM_GROK_API_KEY"),
     ("grok", "grok-4.20-0309-reasoning", "LLM_GROK_API_KEY"),
@@ -214,6 +216,7 @@ pub fn is_vision_capable(provider: &str, model: &str) -> bool {
             model.starts_with("gpt-4o")
                 || model.starts_with("gpt-4.1")
                 || model.starts_with("gpt-5")
+                || model.starts_with("gpt-6")
                 || model == "o3"
                 || model == "o4-mini"
         }
@@ -289,8 +292,8 @@ fn cache_read_multiplier(model: &str) -> f64 {
         return 0.1;
     }
 
-    // OpenAI GPT-5: 10% of input
-    if model.starts_with("gpt-5") {
+    // OpenAI GPT-5 / GPT-6: 10% of input
+    if model.starts_with("gpt-5") || model.starts_with("gpt-6") {
         return 0.1;
     }
     // OpenAI GPT-4.1 and o-series reasoning: 25% of input
@@ -333,6 +336,12 @@ fn cache_read_multiplier(model: &str) -> f64 {
 /// Returns (input, output) price per million tokens for known models.
 #[allow(clippy::too_many_lines)]
 fn price_per_million(model: &str) -> Option<(f64, f64)> {
+    // OpenAI — GPT-6 Astra (flagship; dual-tier pricing above the
+    // short-context threshold — these are the short-context rates)
+    if model.starts_with("gpt-6-astra") {
+        return Some((10.00, 50.00));
+    }
+
     // OpenAI — GPT-5.6 (Sol / Terra / Luna capability tiers; the bare
     // `gpt-5.6` alias routes to Sol upstream)
     if model.starts_with("gpt-5.6-sol") {
@@ -448,7 +457,12 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((15.00, 75.00));
     }
 
-    // Anthropic — all sonnet versions
+    // Anthropic — Sonnet 5 sits a tier below the 4.x sonnets; match it
+    // ahead of the general `sonnet` branch.
+    if model.contains("sonnet-5") {
+        return Some((2.00, 10.00));
+    }
+    // Anthropic — remaining (4.x) sonnet versions
     if model.contains("sonnet") {
         return Some((3.00, 15.00));
     }
@@ -462,7 +476,12 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
         return Some((0.25, 1.25));
     }
 
-    // Google Gemini — 3.7 Flash (current stable Flash tier; list rate —
+    // Google Gemini — 3.8 Flash (current stable Flash tier; list rate —
+    // a promotional 50% discount runs through Dec 31, 2026)
+    if model.starts_with("gemini-3.8-flash") {
+        return Some((1.50, 7.50));
+    }
+    // Google Gemini — 3.7 Flash (list rate —
     // a promotional 50% discount runs through Dec 31, 2026)
     if model.starts_with("gemini-3.7-flash") {
         return Some((1.50, 7.50));
@@ -696,6 +715,9 @@ fn price_per_million(model: &str) -> Option<(f64, f64)> {
 pub fn context_limit(model: &str) -> u64 {
     if model.starts_with("gpt-4.1") {
         return 200_000;
+    }
+    if model.starts_with("gpt-6") {
+        return 1_050_000;
     }
     if model.starts_with("gpt-5.5") || model.starts_with("gpt-5.4") {
         return 1_000_000;
