@@ -2811,6 +2811,42 @@ body.nav-open {
   .surface__body { padding: 24px; }
 }
 
+/* Legal prose (privacy policy) */
+.legal {
+  max-width: 720px;
+  color: var(--fg-70);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.legal h2 {
+  margin: 48px 0 12px;
+  color: var(--fg);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.legal h2:first-child { margin-top: 0; }
+
+.legal p { margin: 0 0 12px; }
+
+.legal ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.legal li { margin: 0 0 6px; }
+
+.legal strong { color: var(--fg); font-weight: 500; }
+
+.legal a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.legal a:hover { opacity: 0.5; }
+
 /* Footer */
 .footer {
   padding: 48px 0;

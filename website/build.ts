@@ -34,7 +34,7 @@ async function main() {
   }
 
   // Minify HTML (whitespace + HTML comments, preserving pre/code content).
-  for (const page of ["index.html", "terminal.html", "server.html", "desktop.html"]) {
+  for (const page of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html"]) {
     let html = await readFile(join(root, page), "utf8");
     const blocks: string[] = [];
     html = html.replace(/<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/g, (m) => {
@@ -71,7 +71,7 @@ async function main() {
   await copyFile(join(root, "avatar.png"), join(dist, "avatar.png"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "robots.txt", "sitemap.xml", "favicon.svg", "avatar.png"]) {
+  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "robots.txt", "sitemap.xml", "favicon.svg", "avatar.png"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;

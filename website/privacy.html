@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — aictl</title>
+  <meta name="description" content="Privacy policy for aictl.app and the aictl CLI, desktop app, and server. No telemetry in the software; privacy-friendly analytics on the website." />
+  <meta name="author" content="Piotr Wittchen" />
+  <meta name="theme-color" content="#1f2228" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://aictl.app/privacy.html" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt" />
+  <meta property="og:title" content="Privacy Policy — aictl" />
+  <meta property="og:description" content="Privacy policy for aictl.app and the aictl CLI, desktop app, and server." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://aictl.app/privacy.html" />
+  <meta property="og:site_name" content="aictl" />
+  <meta property="og:locale" content="en_US" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav__inner">
+      <a href="index.html" class="nav__brand">aictl<span class="nav__caret">_</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="index.html#features">Features</a>
+        <a href="desktop.html">Desktop</a>
+        <a href="terminal.html">Terminal</a>
+        <a href="server.html">Server</a>
+        <a href="index.html#license">License</a>
+        <a href="index.html#contact">Contact</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="index.html#download">Download</a>
+      <button class="nav__toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer" data-nav-toggle>
+        <span class="nav__toggle-lines" aria-hidden="true"><span></span></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="nav__backdrop" data-nav-backdrop hidden></div>
+  <aside class="nav__drawer" id="nav-drawer" aria-hidden="true" aria-label="Mobile menu">
+    <div class="nav__drawer-head">
+      <span class="nav__drawer-brand">aictl<span class="nav__caret">_</span></span>
+      <button class="nav__close" type="button" aria-label="Close menu" data-nav-close>&times;</button>
+    </div>
+    <nav class="nav__drawer-links" aria-label="Mobile primary">
+      <a href="index.html#features" data-nav-link>Features</a>
+      <a href="desktop.html" data-nav-link>Desktop</a>
+      <a href="terminal.html" data-nav-link>Terminal</a>
+      <a href="server.html" data-nav-link>Server</a>
+      <a href="index.html#license" data-nav-link>License</a>
+      <a href="index.html#contact" data-nav-link>Contact</a>
+    </nav>
+    <a class="btn btn--primary nav__drawer-cta" href="index.html#download" data-nav-link>Download</a>
+  </aside>
+
+  <main>
+    <section class="section" id="privacy">
+      <div class="container">
+        <header class="section__head">
+          <span class="section__kicker">// privacy</span>
+          <h1 class="section__title">Privacy Policy</h1>
+          <p class="section__lead">
+            Short version: the aictl software has no telemetry and sends your
+            data only where you point it. The website uses lightweight
+            analytics to count visits.
+          </p>
+        </header>
+
+        <div class="legal">
+          <p><strong>Last updated:</strong> October 4, 2026</p>
+
+          <h2>Who is responsible</h2>
+          <p>
+            aictl and the aictl.app website are run by Piotr Wittchen, an
+            individual developer, who is the data controller for the
+            purposes of this policy. Contact:
+            <a href="mailto:piotr@wittchen.io">piotr@wittchen.io</a>.
+          </p>
+
+          <h2>The software (CLI, desktop app, server)</h2>
+          <p>
+            aictl runs on your own machine. It has no telemetry, no usage
+            tracking, and no crash reporting. I don't run any backend that
+            receives your prompts, files, keys, or sessions.
+          </p>
+          <ul>
+            <li>
+              <strong>Local data.</strong> Config, API keys, sessions,
+              memory, agents, skills, audit logs, and usage stats are stored
+              locally under <code>~/.aictl/</code>, with API keys in your OS
+              keychain when available. Delete that directory to remove
+              everything.
+            </li>
+            <li>
+              <strong>LLM providers.</strong> Prompts and conversation context
+              go straight to the provider you choose (for example OpenAI,
+              Anthropic, Google, xAI, Mistral, DeepSeek, Kimi, or Z.ai), under
+              that provider's own privacy policy. Local models (Ollama, GGUF,
+              MLX) keep everything on your machine. Built-in redaction can
+              mask secrets and personal data before a request leaves your
+              machine.
+            </li>
+            <li>
+              <strong>Tools you enable.</strong> Tools such as web search,
+              URL fetching, geolocation, and maps contact third-party services
+              (for example DuckDuckGo, Firecrawl, or OpenStreetMap) only when
+              the agent calls them. MCP servers and plugins you install run
+              under their own terms.
+            </li>
+            <li>
+              <strong>Update and catalogue checks.</strong> The CLI and server
+              fetch a version file from GitHub
+              (<code>raw.githubusercontent.com</code>) to tell you about new
+              releases. Browsing or pulling remote agents and skills, and
+              reading the roadmap, also fetches from GitHub. These requests
+              carry no personal data beyond what any HTTP request reveals,
+              such as your IP address, and are subject to
+              <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub's privacy statement</a>.
+            </li>
+            <li>
+              <strong>Model downloads.</strong> Downloading local models or
+              the voice / NER models fetches files from Hugging Face, under
+              <a href="https://huggingface.co/privacy" target="_blank" rel="noopener">Hugging Face's privacy policy</a>.
+            </li>
+            <li>
+              <strong>aictl-server.</strong> When you self-host the server,
+              you are the operator of whatever it logs. Nothing is sent to me.
+            </li>
+          </ul>
+
+          <h2>The website (aictl.app)</h2>
+          <ul>
+            <li>
+              <strong>Analytics.</strong> The site uses
+              <a href="https://datafa.st" target="_blank" rel="noopener">DataFast</a>
+              to count page views and see referrers, country, browser, and
+              device type in aggregate. It may set first-party identifiers to
+              tell visits apart. It isn't used for advertising, and I don't
+              sell or share the data.
+            </li>
+            <li>
+              <strong>Fonts.</strong> Fonts are loaded from Google Fonts, which
+              means your browser sends a request, including your IP address,
+              to Google. See
+              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.
+            </li>
+            <li>
+              <strong>Hosting.</strong> Like any website, the hosting provider
+              may keep standard server logs (IP address, user agent, requested
+              URL, time) for security and operations.
+            </li>
+            <li>
+              <strong>Downloads.</strong> Release binaries are served from
+              GitHub Releases, and the install script fetches them from
+              there.
+            </li>
+            <li>
+              <strong>Email.</strong> If you email me, I keep your message
+              and address only to reply and handle your request, such as a
+              commercial license.
+            </li>
+          </ul>
+          <p>
+            Legal basis (where GDPR applies): legitimate interest in running
+            and improving the website (analytics, hosting logs) and in
+            answering your messages.
+          </p>
+
+          <h2>Your rights</h2>
+          <p>
+            If you are in the EU/EEA or a similar jurisdiction, you can ask to
+            access, correct, delete, or restrict processing of your personal
+            data, or object to it. Email
+            <a href="mailto:piotr@wittchen.io">piotr@wittchen.io</a>. You can
+            also lodge a complaint with your local data protection authority.
+            You can block analytics at any time with a content blocker or by
+            disabling JavaScript; the site works without it.
+          </p>
+
+          <h2>Changes</h2>
+          <p>
+            If this policy changes, the updated version will be posted on this
+            page with a new date. The full history is in the
+            <a href="https://github.com/pwittchen/aictl/commits/master/website/privacy.html" target="_blank" rel="noopener">git log</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__brand"><a href="index.html">aictl<span class="nav__caret">_</span></a></div>
+      <div class="footer__links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/pwittchen/aictl" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/README.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/pwittchen/aictl/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a>
+        <a href="https://github.com/pwittchen/aictl/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://github.com/pwittchen/aictl/blob/master/LICENSE" target="_blank" rel="noopener">License</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="index.html#contact">Contact</a>
+        <a href="llms.txt">llms.txt</a>
+      </div>
+      <div class="footer__meta">
+        PolyForm Noncommercial · built by <a href="https://wittchen.io" target="_blank" rel="noopener">Piotr Wittchen</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
