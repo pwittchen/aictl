@@ -13,6 +13,7 @@ const types: Record<string, string> = {
   ".png":  "image/png",
   ".jpg":  "image/jpeg",
   ".ico":  "image/x-icon",
+  ".webmanifest": "application/manifest+json",
 };
 
 Bun.serve({
@@ -23,7 +24,10 @@ Bun.serve({
     if (path === "/") path = "/index.html";
     const file = join(root, path);
     if (!file.startsWith(root) || !existsSync(file) || statSync(file).isDirectory()) {
-      return new Response("Not found", { status: 404 });
+      return new Response(Bun.file(join(root, "404.html")), {
+        status: 404,
+        headers: { "content-type": types[".html"] },
+      });
     }
     const ext = path.slice(path.lastIndexOf("."));
     return new Response(Bun.file(file), {

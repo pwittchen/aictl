@@ -34,7 +34,7 @@ async function main() {
   }
 
   // Minify HTML (whitespace + HTML comments, preserving pre/code content).
-  for (const page of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html"]) {
+  for (const page of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html", "404.html"]) {
     let html = await readFile(join(root, page), "utf8");
     const blocks: string[] = [];
     html = html.replace(/<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/g, (m) => {
@@ -67,15 +67,20 @@ async function main() {
   await copyFile(join(root, "sitemap.xml"), join(dist, "sitemap.xml"));
   await copyFile(join(root, "favicon.svg"), join(dist, "favicon.svg"));
 
+  // Raster icons, web manifest, and the social preview card (og:image).
+  for (const f of ["favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "site.webmanifest", "og-image.png"]) {
+    await copyFile(join(root, f), join(dist, f));
+  }
+
   // Copy author avatar used by the contact section.
   await copyFile(join(root, "avatar.png"), join(dist, "avatar.png"));
 
   console.log("✓ built -> dist/");
-  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "robots.txt", "sitemap.xml", "favicon.svg", "avatar.png"]) {
+  for (const f of ["index.html", "terminal.html", "server.html", "desktop.html", "privacy.html", "404.html", "style.css", "script.js", "install.sh", "server/install.sh", "llms.txt", "robots.txt", "sitemap.xml", "favicon.svg", "favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "site.webmanifest", "og-image.png", "avatar.png"]) {
     const path = join(dist, f);
     if (existsSync(path)) {
       const size = (await Bun.file(path).arrayBuffer()).byteLength;
-      console.log(`  ${f.padEnd(14)} ${(size / 1024).toFixed(2)} KB`);
+      console.log(`  ${f.padEnd(20)} ${(size / 1024).toFixed(2)} KB`);
     }
   }
 }

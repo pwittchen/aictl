@@ -23,7 +23,8 @@ Plain HTML/CSS/JS single-page site. Four source files drive everything:
 - `style.css` — design tokens + components
 - `script.js` — copy-to-clipboard + smooth scroll
 - `build.ts` — Bun bundler minifies CSS and JS, hand-rolled HTML minifier (strips comments and collapses whitespace, but leaves `<!--[...]-->` IE-style conditionals alone), then **copies `../install.sh` from the parent repo into `dist/install.sh`** so the site can serve the one-liner installer from the same origin
-- `serve.ts` — dev server with a path-traversal guard (`file.startsWith(root)`)
+- `serve.ts` — dev server with a path-traversal guard (`file.startsWith(root)`); unknown paths get `404.html`
+- SEO/static assets copied verbatim by `build.ts`: `robots.txt`, `sitemap.xml`, `llms.txt`, `site.webmanifest`, `favicon.svg` / `favicon.ico`, `apple-touch-icon.png`, `icon-192.png` / `icon-512.png`, and `og-image.png` (1200×630 social card referenced by every page's `og:image` / `twitter:image`). `404.html` is `noindex` and uses root-absolute links because hosts serve it from arbitrary paths. Add any new page to the `build.ts` page list and `sitemap.xml`.
 
 `dist/` is the deploy artifact — any static host works (GitHub Pages, Cloudflare Pages, Netlify, S3).
 
