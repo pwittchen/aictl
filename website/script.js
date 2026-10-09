@@ -1,8 +1,26 @@
+// DataFast custom goal. No-ops when the tracker is blocked or not loaded yet.
+const trackGoal = (goal, params) => {
+  try {
+    window.datafast?.(goal, params);
+  } catch {}
+};
+
+// Page slug for goal params: "home" / "terminal" / "server" / "desktop".
+const pageSlug = () =>
+  location.pathname.replace(/^\/|\.html$|\/$/g, "") || "home";
+
 // Copy-to-clipboard for install commands.
 document.querySelectorAll("[data-copy]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     const target = document.querySelector(btn.getAttribute("data-copy"));
     if (!target) return;
+    const platform = btn.getAttribute("data-install");
+    if (platform) {
+      trackGoal(`copy_install_${platform}`, {
+        method: btn.getAttribute("data-install-method") || "script",
+        page: pageSlug(),
+      });
+    }
     const text = target.textContent.trim();
     try {
       await navigator.clipboard.writeText(text);
@@ -33,6 +51,7 @@ document.querySelectorAll("[data-download-mac]").forEach((btn) => {
     const select = group?.querySelector("[data-arch-select]");
     const arch = select?.value || "aarch64";
     const url = `https://github.com/pwittchen/aictl/releases/latest/download/aictl-desktop-darwin-${arch}.dmg`;
+    trackGoal("download_desktop_macos", { arch, page: pageSlug() });
     window.location.href = url;
   });
 });

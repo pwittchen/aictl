@@ -25,6 +25,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script id="datafast-queue">window.datafast=window.datafast||function(){(window.datafast.q=window.datafast.q||[]).push(arguments)};</script>
   <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
   <script type="application/ld+json">
   {
@@ -106,7 +107,7 @@
         <div class="cmd" role="region" aria-label="Install command" style="max-width: 760px;">
           <span class="cmd__prompt">$</span>
           <code id="install-cmd">curl -fsSL https://aictl.app/server/install.sh | sh</code>
-          <button class="cmd__copy" type="button" data-copy="#install-cmd" aria-label="Copy install command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd" data-install="server" data-install-method="script" aria-label="Copy install command">Copy</button>
         </div>
 
         <div class="hero__actions" style="width: 760px; max-width: 100%;">
@@ -259,7 +260,7 @@
         <div class="cmd" role="region" aria-label="Install command duplicate" style="max-width: none;">
           <span class="cmd__prompt">$</span>
           <code id="install-cmd-2">curl -fsSL https://aictl.app/server/install.sh | sh</code>
-          <button class="cmd__copy" type="button" data-copy="#install-cmd-2" aria-label="Copy install command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd-2" data-install="server" data-install-method="script" aria-label="Copy install command">Copy</button>
         </div>
 
         <div class="grid grid--2" style="margin-top: 48px;">
@@ -579,7 +580,7 @@ claude</code>
         <div class="cmd cmd--block" style="max-width: none;">
           <code id="srv-cmd-docker-build"><span class="tok-c"># Build from the repo root.</span>
 docker build <span class="tok-k">-f</span> docker/server.Dockerfile <span class="tok-k">-t</span> aictl-server <span class="tok-p">.</span></code>
-          <button class="cmd__copy" type="button" data-copy="#srv-cmd-docker-build" aria-label="Copy docker build command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#srv-cmd-docker-build" data-install="server" data-install-method="docker" aria-label="Copy docker build command">Copy</button>
         </div>
 
         <div class="cmd cmd--block" style="margin-top: 24px; max-width: none;">

@@ -25,6 +25,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script id="datafast-queue">window.datafast=window.datafast||function(){(window.datafast.q=window.datafast.q||[]).push(arguments)};</script>
   <script defer data-website-id="dfid_QiD4NkIBMov28u7dY5tlo" data-domain="aictl.app" src="https://datafa.st/js/script.js"></script>
   <script type="application/ld+json">
   {
@@ -106,7 +107,7 @@
         <div class="cmd cmd--hero" role="region" aria-label="Install command" style="width: 760px; max-width: 100%;">
           <span class="cmd__prompt">$</span>
           <code id="install-cmd">curl -sSf https://aictl.app/install.sh | sh</code>
-          <button class="cmd__copy" type="button" data-copy="#install-cmd" aria-label="Copy install command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#install-cmd" data-install="cli" data-install-method="script" aria-label="Copy install command">Copy</button>
         </div>
 
         <div class="hero__actions" style="width: 760px; max-width: 100%;">
@@ -251,7 +252,7 @@
             <div class="cmd">
               <span class="cmd__prompt">$</span>
               <code id="g-cmd-install">curl -sSf https://aictl.app/install.sh | sh</code>
-              <button class="cmd__copy" type="button" data-copy="#g-cmd-install" aria-label="Copy install command">Copy</button>
+              <button class="cmd__copy" type="button" data-copy="#g-cmd-install" data-install="cli" data-install-method="script" aria-label="Copy install command">Copy</button>
             </div>
             <p class="install__hint">
               Downloads the binary for your platform into
@@ -295,7 +296,7 @@
           <div class="cmd">
             <span class="cmd__prompt">$</span>
             <code id="g-cmd-docker-build">docker build -f docker/cli.Dockerfile -t aictl .</code>
-            <button class="cmd__copy" type="button" data-copy="#g-cmd-docker-build" aria-label="Copy docker build command">Copy</button>
+            <button class="cmd__copy" type="button" data-copy="#g-cmd-docker-build" data-install="cli" data-install-method="docker" aria-label="Copy docker build command">Copy</button>
           </div>
           <div class="cmd">
             <span class="cmd__prompt">$</span>
@@ -1347,7 +1348,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
         <div class="cmd">
           <span class="cmd__prompt">$</span>
           <code id="g-cmd-build-mlx">cargo install --path crates/aictl-cli --features "gguf mlx redaction-ner"</code>
-          <button class="cmd__copy" type="button" data-copy="#g-cmd-build-mlx" aria-label="Copy build command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-build-mlx" data-install="cli" data-install-method="cargo" aria-label="Copy build command">Copy</button>
         </div>
       </div>
     </section>
@@ -1466,7 +1467,7 @@ name=$(printf <span class="tok-s">'%s\n'</span> <span class="tok-s">"$input"</sp
         <div class="cmd" role="region" aria-label="Server install command" style="max-width: none;">
           <span class="cmd__prompt">$</span>
           <code id="g-cmd-server-install">curl -fsSL https://aictl.app/server/install.sh | sh</code>
-          <button class="cmd__copy" type="button" data-copy="#g-cmd-server-install" aria-label="Copy server install command">Copy</button>
+          <button class="cmd__copy" type="button" data-copy="#g-cmd-server-install" data-install="server" data-install-method="script" aria-label="Copy server install command">Copy</button>
         </div>
 
         <p class="section__note" style="margin-top: 16px;">
