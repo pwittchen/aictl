@@ -197,29 +197,10 @@ interface ViewMapData {
   pins: ViewMapPin[];
 }
 
-// Inline SVG icons for the in-map light/dark toggle button. Inlined
-// instead of pulled from a font/CDN so the button works under the
-// current CSP without further allowlisting.
-const SUN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2"/><path d="M8 13v2"/><path d="M1 8h2"/><path d="M13 8h2"/><path d="M2.93 2.93l1.41 1.41"/><path d="M11.66 11.66l1.41 1.41"/><path d="M2.93 13.07l1.41-1.41"/><path d="M11.66 4.34l1.41-1.41"/></svg>`;
-const MOON_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6.5 1.5a6.5 6.5 0 1 0 8 8A5.5 5.5 0 0 1 6.5 1.5Z"/></svg>`;
+// Inline SVG icon for the in-map layer switcher. Inlined instead of
+// pulled from a font/CDN so the button works under the current CSP
+// without further allowlisting.
 const LAYERS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M11.644 1.59a.75.75 0 0 1 .712 0l9.75 5.25a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.712 0l-9.75-5.25a.75.75 0 0 1 0-1.32l9.75-5.25Z" /><path d="m3.265 10.602 7.668 4.129a2.25 2.25 0 0 0 2.134 0l7.668-4.13 1.37.739a.75.75 0 0 1 0 1.32l-9.75 5.25a.75.75 0 0 1-.71 0l-9.75-5.25a.75.75 0 0 1 0-1.32l1.37-.738Z" /><path d="m10.933 19.231-7.668-4.13-1.37.739a.75.75 0 0 0 0 1.32l9.75 5.25c.221.12.489.12.71 0l9.75-5.25a.75.75 0 0 0 0-1.32l-1.37-.738-7.668 4.13a2.25 2.25 0 0 1-2.134-.001Z" /></svg>`;
-
-/// Resolve the effective app theme. Returns `true` when the desktop
-/// chrome is rendering in dark mode — used to pick the matching
-/// initial map tile style. Mirrors the logic in `applyAppearance`
-/// (see Settings.tsx): explicit `data-theme` wins; otherwise we
-/// follow the OS preference via `prefers-color-scheme`.
-function detectAppIsDark(): boolean {
-  const attr = document.documentElement.getAttribute("data-theme");
-  if (attr === "light") return false;
-  if (attr === "dark") return true;
-  // System mode — match the OS. `matches` is `true` when the user
-  // has set their OS to dark, `false` for light. No-`matchMedia`
-  // fallback (e.g. headless test) defaults to dark since that's the
-  // app's default theme.
-  if (typeof window === "undefined" || !window.matchMedia) return true;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
 
 // Leaflet renders popup content as raw HTML. Pin labels and
 // descriptions originate in tool input authored by the model, so
@@ -916,19 +897,16 @@ const ToolMapView: Component<{ data: ViewMapData }> = (props) => {
       attributionControl: true,
     });
 
-    // CartoDB ships matched light + dark variants of an OSM-derived
-    // street map (Positron / Dark Matter). Both are free-tier, used
-    // widely, and serve the same OSM-contributors data — so swapping
-    // between them is a pure visual change without losing geography.
-    const cartoAttribution =
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-    const lightTiles = L.tileLayer(
+    // CartoDB Positron: a clean, light OSM-derived street map on the
+    // free tier.
+    const mapTiles = L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, attribution: cartoAttribution, subdomains: "abcd" },
-    );
-    const darkTiles = L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, attribution: cartoAttribution, subdomains: "abcd" },
+      {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+      },
     );
 
     const satellite = L.tileLayer(
@@ -940,24 +918,7 @@ const ToolMapView: Component<{ data: ViewMapData }> = (props) => {
       },
     );
 
-    // The "Map" entry in the layer control points at this group; we
-    // swap its inner tile layer when the user toggles light/dark, so
-    // the layer-control selection remains stable across toggles.
-    let isDark = detectAppIsDark();
-    const mapBase = L.layerGroup([isDark ? darkTiles : lightTiles]);
-
-    mapBase.addTo(map);
-
-    // Tag the map container with the active tile theme so the popup
-    // CSS can flip with the map (not the app) — a light-tile map
-    // gets a light popup with dark text, dark-tile gets the inverse,
-    // regardless of which theme the surrounding chat is in.
-    const applyMapThemeClass = () => {
-      if (!mapEl) return;
-      mapEl.classList.toggle("aictl-map-light-tiles", !isDark);
-      mapEl.classList.toggle("aictl-map-dark-tiles", isDark);
-    };
-    applyMapThemeClass();
+    mapTiles.addTo(map);
 
     // Bottom-left layer switcher: a single icon button (matching the
     // size and surface of the zoom buttons) that pops a small panel
@@ -1036,9 +997,9 @@ const ToolMapView: Component<{ data: ViewMapData }> = (props) => {
           if (kind !== activeLayer) {
             if (kind === "map") {
               controlMap.removeLayer(satellite);
-              controlMap.addLayer(mapBase);
+              controlMap.addLayer(mapTiles);
             } else {
-              controlMap.removeLayer(mapBase);
+              controlMap.removeLayer(mapTiles);
               controlMap.addLayer(satellite);
             }
             activeLayer = kind;
@@ -1061,42 +1022,6 @@ const ToolMapView: Component<{ data: ViewMapData }> = (props) => {
       },
     });
     new LayerSwitcher({ position: "bottomleft" }).addTo(map);
-
-    // Custom Leaflet control: a single sun/moon button that swaps
-    // the inner tile layer of `mapBase`. Lives top-left so it doesn't
-    // collide with the existing layer-control top-right or the zoom
-    // buttons (which are also top-left by default — Leaflet stacks
-    // them vertically inside the same container).
-    const ThemeToggle = L.Control.extend({
-      onAdd() {
-        const btn = L.DomUtil.create(
-          "button",
-          "aictl-map-theme-toggle leaflet-bar",
-        );
-        btn.type = "button";
-        btn.title = "Toggle light / dark map tiles";
-        btn.setAttribute("aria-label", "Toggle light / dark map tiles");
-        const renderIcon = () => {
-          // Show the icon for the *target* style — clicking the moon
-          // gives you dark, clicking the sun gives you light, which
-          // matches the convention used in most app theme toggles.
-          btn.innerHTML = isDark ? SUN_ICON : MOON_ICON;
-        };
-        renderIcon();
-        L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
-        L.DomEvent.on(btn, "mousedown", L.DomEvent.stopPropagation);
-        L.DomEvent.on(btn, "dblclick", L.DomEvent.stopPropagation);
-        L.DomEvent.on(btn, "click", () => {
-          isDark = !isDark;
-          mapBase.clearLayers();
-          mapBase.addLayer(isDark ? darkTiles : lightTiles);
-          renderIcon();
-          applyMapThemeClass();
-        });
-        return btn;
-      },
-    });
-    new ThemeToggle({ position: "topleft" }).addTo(map);
 
     const pinIcon = L.divIcon({
       className: "aictl-pin-wrap",

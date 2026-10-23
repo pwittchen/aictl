@@ -6012,18 +6012,15 @@ button.primary:hover:not([disabled]) {
 }
 
 /* Click-to-open popup attached to each marker rendered by ToolMapView.
-   Defaults target the *dark* map theme. The light-tile override below
-   flips these when the map's dark/light toggle is on light. Colours
-   are intentionally hard-coded (not driven off `--fg` / `--surface`)
-   because the popup must follow the *map* tile theme, not the
-   surrounding app theme — otherwise app-light + map-dark renders dark
-   text on a dark popup. */
+   Colours are intentionally hard-coded (not driven off `--fg` /
+   `--surface`) because the popup sits on top of the light street-map
+   tiles regardless of the surrounding app theme. */
 .aictl-map-popup .leaflet-popup-content-wrapper,
 .aictl-map-popup .leaflet-popup-tip {
-  background: #161616;
-  color: #e5e5e5;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  background: #fafafa;
+  color: #181818;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 .aictl-map-popup .leaflet-popup-content {
@@ -6033,92 +6030,26 @@ button.primary:hover:not([disabled]) {
 }
 
 .aictl-map-popup .leaflet-popup-close-button {
-  color: rgba(229, 229, 229, 0.7);
+  color: rgba(24, 24, 24, 0.55);
 }
 
 .aictl-map-popup-desc {
   margin-top: 4px;
-  color: #e5e5e5;
+  color: #181818;
 }
 
 .aictl-map-popup-coords {
   margin-top: 6px;
   font-size: 11px;
-  color: rgba(229, 229, 229, 0.65);
-  font-family: var(--font-mono, monospace);
-}
-
-/* Light-tile map → light popup with dark text. Scoped to the map
-   container so it never leaks to other Leaflet popups elsewhere in
-   the app, and tied to the map's *tile* theme (the in-map sun/moon
-   toggle) rather than the app theme so the two can disagree without
-   breaking readability. */
-.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-content-wrapper,
-.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-tip {
-  background: #fafafa;
-  color: #181818;
-  border-color: rgba(0, 0, 0, 0.18);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-}
-
-.aictl-map-light-tiles .aictl-map-popup .leaflet-popup-close-button {
-  color: rgba(24, 24, 24, 0.55);
-}
-
-.aictl-map-light-tiles .aictl-map-popup-desc {
-  color: #181818;
-}
-
-.aictl-map-light-tiles .aictl-map-popup-coords {
   color: rgba(24, 24, 24, 0.6);
-}
-
-/* In-map light/dark toggle button rendered by ToolMapView via a custom
-   Leaflet control. Sized to match Leaflet's stock zoom buttons
-   (`.leaflet-bar a`): 26×26 by default and 30×30 under `.leaflet-touch`
-   (Leaflet applies that class on touch-capable webviews — including
-   the macOS WKWebView this app ships in). `box-sizing: border-box`
-   keeps the 1 px border *inside* the declared width/height so the
-   rendered box matches the borderless zoom buttons exactly instead of
-   coming out 2 px wider. */
-.aictl-map-theme-toggle {
-  box-sizing: border-box;
-  width: 29px;
-  height: 29px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Match Leaflet's stock zoom buttons exactly — same white surface,
-     dark icon, light grey border, faint hover tint. The previous
-     dark surface was inconsistent with the surrounding controls. */
-  background: #fff;
-  color: #000;
-  border: 1px solid #ccc;
-  border-radius: 2px;
-  cursor: pointer;
-  margin-top: 6px;
-  padding: 0;
-  line-height: 0;
-}
-
-.leaflet-touch .aictl-map-theme-toggle {
-  width: 33px;
-  height: 33px;
-}
-
-.aictl-map-theme-toggle:hover {
-  background: #f4f4f4;
-}
-
-.aictl-map-theme-toggle svg {
-  display: block;
+  font-family: var(--font-mono, monospace);
 }
 
 /* Bottom-left "switch map layer" control rendered by ToolMapView. The
    button matches the stock zoom buttons (white surface, dark icon, light
    grey border), and clicking it pops a small dropdown upward with the
-   layer choices. Same default / `.leaflet-touch` size pair used by the
-   theme toggle so all in-map controls scale together. */
+   layer choices. Same default / `.leaflet-touch` size pair as the stock
+   zoom buttons so all in-map controls scale together. */
 .aictl-map-layer-switcher {
   position: relative;
 }
