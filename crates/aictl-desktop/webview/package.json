@@ -1,7 +1,7 @@
 {
   "name": "aictl-desktop-webview",
   "private": true,
-  "version": "0.48.19",
+  "version": "0.48.20",
   "type": "module",
   "scripts": {
     "dev": "vite",
